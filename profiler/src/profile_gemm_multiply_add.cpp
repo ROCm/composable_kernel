@@ -24,13 +24,14 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     {
         F16_F16_F16_F16_F16, // 0
         F16_F8_F32_F32_F16,  // 1
+        F16_INT8_F16_F16_F16,  // 2
     };
 
     if(argc != 16)
     {
         // clang-format off
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: fp16; 1: fp16Afp8B)\n");
+        printf("arg2: data type (0: fp16; 1: fp16Afp8B; 2: fp16Aint8B)\n");
         printf("arg3: matrix layout (0: E[m, n] = Multiply_Add((A[m, k] * B[k, n]) x D1[m, n] + D0[m, n]);\n");
         printf("                     1: E[m, n] = Multiply_Add((A[m, k] * B[n, k]) x D1[m, n] + D0[m, n]);\n");
         printf("arg4: verification (0: no; 1: yes)\n");
@@ -59,6 +60,7 @@ int profile_gemm_multiply_add(int argc, char* argv[])
     const int StrideD1 = std::stoi(argv[14]);
     const int StrideE  = std::stoi(argv[15]);
 
+    using INT8 = int8_t;
     using F16 = ck::half_t;
     using F32 = float;
 #if defined CK_ENABLE_FP8
@@ -133,6 +135,16 @@ int profile_gemm_multiply_add(int argc, char* argv[])
             layout == MatrixLayout::MK_NK_MN_MN_MN)
     {
         return profile(F16{}, F16{}, F32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::F16_INT8_F16_F16_F16 &&
+            layout == MatrixLayout::MK_KN_MN_MN_MN)
+    {
+        return profile(F16{}, INT8{}, F16{}, F16{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == MatrixDataType::F16_INT8_F16_F16_F16 &&
+            layout == MatrixLayout::MK_NK_MN_MN_MN)
+    {
+        return profile(F16{}, INT8{}, F16{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{}, Row{});
     }
 #if defined CK_ENABLE_FP8
     else if(data_type == MatrixDataType::F16_F8_F32_F32_F16 &&

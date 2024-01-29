@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
 
-#include "profiler/profile_gemm_add_fastgelu_impl.hpp"
+#include "profiler/profile_gemm_add_impl.hpp"
 #include "profiler_operation_registry.hpp"
 
-#define OP_NAME "gemm_add_fastgelu"
-#define OP_DESC "GEMM+Add+FastGeLU"
+#define OP_NAME "gemm_add"
+#define OP_DESC "GEMM+Add"
 
 using INT8 = int8_t;
 using BF16 = ck::bhalf_t;
 
-int profile_gemm_add_fastgelu(int argc, char* argv[])
+int profile_gemm_add(int argc, char* argv[])
 {
     enum struct MatrixLayout
     {
@@ -27,23 +27,19 @@ int profile_gemm_add_fastgelu(int argc, char* argv[])
 
     enum struct MatrixDataType
     {
-        F32_F32_F32_F32,     // 0
-        F16_F16_F16_F16,     // 1
-        BF16_BF16_BF16_BF16, // 2
-        INT8_INT8_INT8_INT8, // 3
-        F16_INT8_F16_F16,    // 4
-        BF16_INT8_BF16_BF16, // 5
+        F16_INT8_F16_F16,    // 0
+        BF16_INT8_BF16_BF16, // 1
     };
 
     if(argc != 15)
     {
         // clang-format off
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f16&i8 5: bf16&i8)\n");
-        printf("arg3: matrix layout (0: E[m, n] = FastGeLU(A[m, k] * B[k, n] + D0[m, n]);\n");
-        printf("                     1: E[m, n] = FastGeLU(A[m, k] * B[n, k] + D0[m, n]);\n");
-        printf("                     2: E[m, n] = FastGeLU(A[k, m] * B[k, n] + D0[m, n]);\n");
-        printf("                     3: E[m, n] = FastGeLU(A[k, m] * B[n, k] + D0[m, n]))\n");
+        printf("arg2: data type (0: f16&i8 1: bf16&i8)\n");
+        printf("arg3: matrix layout (0: E[m, n] = ReLU(A[m, k] * B[k, n] + D0[m, n]);\n");
+        printf("                     1: E[m, n] = ReLU(A[m, k] * B[n, k] + D0[m, n]);\n");
+        printf("                     2: E[m, n] = ReLU(A[k, m] * B[k, n] + D0[m, n]);\n");
+        printf("                     3: E[m, n] = ReLU(A[k, m] * B[n, k] + D0[m, n]))\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");
         printf("arg6: print tensor value (0: no; 1: yes)\n");
@@ -73,7 +69,7 @@ int profile_gemm_add_fastgelu(int argc, char* argv[])
     using F32 = float;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
+    // using Col = ck::tensor_layout::gemm::ColumnMajor;
 
     auto profile = [&](auto a_type,
                        auto b_type,
@@ -100,15 +96,15 @@ int profile_gemm_add_fastgelu(int argc, char* argv[])
         const int DefaultStrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
         const int DefaultStrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-        bool pass = ck::profiler::profile_gemm_add_fastgelu_impl<ADataType,
-                                                                 BDataType,
-                                                                 AccDataType,
-                                                                 D0DataType,
-                                                                 EDataType,
-                                                                 ALayout,
-                                                                 BLayout,
-                                                                 D0Layout,
-                                                                 ELayout>(
+        bool pass = ck::profiler::profile_gemm_add_impl<ADataType,
+                                                        BDataType,
+                                                        AccDataType,
+                                                        D0DataType,
+                                                        EDataType,
+                                                        ALayout,
+                                                        BLayout,
+                                                        D0Layout,
+                                                        ELayout>(
             do_verification,
             init_method,
             do_log,
@@ -124,23 +120,7 @@ int profile_gemm_add_fastgelu(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN)
-    {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{});
-    }
-    else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::MK_NK_MN_MN)
-    {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Row{}, Col{}, Row{}, Row{});
-    }
-    else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::KM_KN_MN_MN)
-    {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Row{}, Row{}, Row{});
-    }
-    else if(data_type == MatrixDataType::F16_F16_F16_F16 && layout == MatrixLayout::KM_NK_MN_MN)
-    {
-        return profile(F16{}, F16{}, F32{}, F16{}, F16{}, Col{}, Col{}, Row{}, Row{});
-    }
-    else if(data_type == MatrixDataType::F16_INT8_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN)
+    if(data_type == MatrixDataType::F16_INT8_F16_F16 && layout == MatrixLayout::MK_KN_MN_MN)
     {
         return profile(F16{}, INT8{}, F32{}, F16{}, F16{}, Row{}, Row{}, Row{}, Row{});
     }
@@ -156,4 +136,4 @@ int profile_gemm_add_fastgelu(int argc, char* argv[])
     }
 }
 
-REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_add_fastgelu);
+REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_add);

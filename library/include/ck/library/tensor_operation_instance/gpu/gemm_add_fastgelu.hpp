@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -68,6 +68,32 @@ void add_device_gemm_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_inst
                                                     PassThrough,
                                                     AddFastGelu>>>&);
 
+void add_device_gemm_add_fastgelu_xdl_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+                                                    Row,
+                                                    Row_Tuple,
+                                                    Row,
+                                                    F16,
+                                                    I8,
+                                                    F16_Tuple,
+                                                    F16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    AddFastGelu>>>&);
+
+void add_device_gemm_add_fastgelu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+                                                    Row,
+                                                    Row_Tuple,
+                                                    Row,
+                                                    BF16,
+                                                    I8,
+                                                    BF16_Tuple,
+                                                    BF16,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    AddFastGelu>>>&);
+
 // GEMM + Add + FastGelu
 template <typename ALayout,
           typename BLayout,
@@ -105,6 +131,32 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#if defined CK_ENABLE_INT8
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_fastgelu_xdl_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+#endif
+
+#if defined CK_ENABLE_BF16 && CK_ENABLE_INT8
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<D0DataType, bhalf_t> && is_same_v<EDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<D0Layout, Row> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_add_fastgelu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+#endif
 
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)

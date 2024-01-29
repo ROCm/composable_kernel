@@ -157,6 +157,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<bhalf_t, int8_t>(bhalf_t& y, const int8_t& x) const
+    {
+        y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
     {
         y = type_convert<int8_t>(x);
@@ -548,6 +554,20 @@ struct Sigmoid
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
         y               = one / (one + ck::math::exp(-x));
+    };
+};
+
+struct Silu
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+        constexpr T one = type_convert<T>(1);
+        y               = x * (one / (one + ck::math::exp(-x)));
     };
 };
 
