@@ -205,18 +205,6 @@ struct BlockFmhaBwdPipelineV13
 
         auto v = load_tile(v_dram_window); // persistent V register tile
 
-        auto lse_dram_window = make_tile_window(
-            lse_dram_block_window_tmp.GetBottomTensorView(),
-            lse_dram_block_window_tmp.GetWindowLengths(),
-            lse_dram_block_window_tmp.GetWindowOrigin(),
-            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
-
-        auto d_dram_window = make_tile_window(
-            d_dram_block_window_tmp.GetBottomTensorView(),
-            d_dram_block_window_tmp.GetWindowLengths(),
-            d_dram_block_window_tmp.GetWindowOrigin(),
-            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
-
         using SPTBlockTileType     = decltype(gemm_0.MakeCBlockTile());
         using SPGradTBlockTileType = decltype(gemm_2.MakeCBlockTile());
         using QGradBlockTileType   = decltype(gemm_4.MakeCBlockTile());
@@ -282,6 +270,15 @@ struct BlockFmhaBwdPipelineV13
                                                      dq_dram_block_window_tmp.GetWindowLengths(),
                                                      {seqlen_q_start, 0});
 
+        auto lse_dram_block_window =
+            make_tile_window(lse_dram_block_window_tmp.GetBottomTensorView(),
+                             lse_dram_block_window_tmp.GetWindowLengths(),
+                             {seqlen_q_start});
+
+        auto d_dram_block_window = make_tile_window(d_dram_block_window_tmp.GetBottomTensorView(),
+                                                    d_dram_block_window_tmp.GetWindowLengths(),
+                                                    {seqlen_q_start});
+
         auto qt_dram_window =
             make_tile_window(qt_dram_block_window.GetBottomTensorView(),
                              qt_dram_block_window.GetWindowLengths(),
@@ -293,6 +290,18 @@ struct BlockFmhaBwdPipelineV13
                              dot_dram_block_window.GetWindowLengths(),
                              dot_dram_block_window.GetWindowOrigin(),
                              Policy::template MakeOGradTDramTileDistribution<Problem>());
+
+        auto lse_dram_window = make_tile_window(
+            lse_dram_block_window.GetBottomTensorView(),
+            lse_dram_block_window.GetWindowLengths(),
+            lse_dram_block_window.GetWindowOrigin(),
+            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
+
+        auto d_dram_window = make_tile_window(
+            d_dram_block_window.GetBottomTensorView(),
+            d_dram_block_window.GetWindowLengths(),
+            d_dram_block_window.GetWindowOrigin(),
+            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
 
         ignore = bias_dram_block_window_tmp;
         ignore = dbias_dram_block_window_tmp;
@@ -395,6 +404,19 @@ struct BlockFmhaBwdPipelineV13
 
             const auto lse = load_tile(lse_dram_window);
 
+            static const auto get_validated_lse = [](LSEDataType raw_lse) {
+                if constexpr(FmhaMask::IsMasking)
+                {
+                    return raw_lse == -NumericLimits<LSEDataType>::Infinity()
+                               ? type_convert<LSEDataType>(0.f)
+                               : raw_lse;
+                }
+                else
+                {
+                    return raw_lse;
+                }
+            };
+
             auto pt                 = SPTBlockTileType{};
             constexpr auto pt_spans = decltype(pt)::GetDistributedSpans();
             sweep_tile_span(pt_spans[Number<0>{}], [&](auto idx0) {
@@ -405,9 +427,9 @@ struct BlockFmhaBwdPipelineV13
                 sweep_tile_span(pt_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_FMHA_FWD_FAST_EXP2
-                    pt(i_j_idx) = math::exp2(scale * st_acc[i_j_idx] - row_lse);
+                    pt(i_j_idx) = math::exp2(scale * st_acc[i_j_idx] - get_validated_lse(row_lse));
 #else
-                    pt(i_j_idx) = math::exp(st_acc[i_j_idx] - lse[i_idx]);
+                    pt(i_j_idx) = math::exp(st_acc[i_j_idx] - get_validated_lse(lse[i_idx]));
 #endif
                 });
             });

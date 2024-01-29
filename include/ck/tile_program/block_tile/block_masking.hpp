@@ -136,15 +136,8 @@ struct GenericAttentionMask
         {
             // get the tile start/end range assum we loop over along Y tile by tile
             index_t y_start = [&]() {
-                if constexpr(IsLocal)
-                {
-                    index_t tmp = math::max(-x + i_x + 1, 0);
-                    return (tmp / YTile) * YTile; // round to tile aligned
-                }
-                else
-                {
-                    return 0;
-                }
+                index_t tmp = math::max(-x + i_x + 1, 0);
+                return (tmp / YTile) * YTile; // round to tile aligned
             }();
 
             // TODO: end could be negative, we ignore clamp here, and let caller to check
