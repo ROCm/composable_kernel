@@ -10,7 +10,7 @@ namespace ck {
 
 template <typename BufferView_,
           typename TensorDesc_,
-          InMemoryDataOperationEnum DstInMemOp = InMemoryDataOperationEnum::Set>
+          InMemoryDataOperationEnum DstInMemOp_ = InMemoryDataOperationEnum::Set>
 struct TensorView
 {
     using BufferView  = remove_reference_t<BufferView_>;
@@ -18,6 +18,7 @@ struct TensorView
     using TensorDesc  = remove_cvref_t<TensorDesc_>;
     using TensorIndex = Array<index_t, TensorDesc::GetNumOfTopDimension()>;
     using TensorCoord = decltype(make_tensor_coordinate(TensorDesc{}, TensorIndex{}));
+    static constexpr auto DstInMemOp = DstInMemOp_;
 
     __host__ __device__ constexpr TensorView() = default;
 
@@ -211,8 +212,9 @@ __host__ __device__ constexpr auto transform_tensor_view(const OldTensorView& ol
                                                 NewLowerDimensionOldVisibleIdss{},
                                                 NewUpperDimensionNewVisibleIdss{});
 
-    return TensorView<typename OldTensorView::BufferView, remove_cvref_t<decltype(new_desc)>>{
-        old_tensor_view.buf_, new_desc};
+    return TensorView<typename OldTensorView::BufferView,
+                      remove_cvref_t<decltype(new_desc)>,
+                      remove_cvref_t<OldTensorView>::DstInMemOp>{old_tensor_view.buf_, new_desc};
 }
 
 template <typename TensorView,
