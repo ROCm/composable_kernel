@@ -76,6 +76,7 @@ struct FmhaBwdKernel
         // if this param is larger than 1, indicate MQA/GQA case
         ck::index_t nhead_ratio_qk;
         float scale;
+        float raw_scale;
 
         ck::index_t stride_q;
         ck::index_t stride_k;
@@ -203,6 +204,7 @@ struct FmhaBwdKernel
 #else
                      scale,
 #endif
+                     scale,
                      stride_q,
                      stride_k,
                      stride_v,
@@ -302,6 +304,7 @@ struct FmhaBwdKernel
 #else
                      scale,
 #endif
+                     scale,
                      stride_q,
                      stride_k,
                      stride_v,
@@ -999,6 +1002,7 @@ struct FmhaBwdKernel
                                                          dbias_dram_window,
                                                          mask,
                                                          kargs.scale,
+                                                         kargs.raw_scale,
                                                          smem_ptr);
 
         auto dk_dram = [&]() {

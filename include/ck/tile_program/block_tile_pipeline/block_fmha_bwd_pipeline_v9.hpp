@@ -104,6 +104,7 @@ struct BlockFmhaBwdPipelineV9
                const BiasGradDramBlockWindowTmp& dbias_dram_block_window_tmp,
                FmhaMask mask,
                float scale,
+               float raw_scale,
                void* smem_ptr) const
     {
         static_assert(
@@ -441,7 +442,7 @@ struct BlockFmhaBwdPipelineV9
             sweep_tile_span(pt_spans[Number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
-                auto row_lse = scale * lse[i_idx];
+                auto row_lse = math::log2e_v<LSEDataType> * lse[i_idx];
 #endif
                 sweep_tile_span(pt_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -622,7 +623,7 @@ struct BlockFmhaBwdPipelineV9
             });
 
             // QGrad Scale
-            tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, dq_acc);
+            tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
             const auto dq = tile_elementwise_in(type_convert<QGradDataType, AccDataType>, dq_acc);
             update_tile(dq_dram_block_window, dq);
 
@@ -635,7 +636,7 @@ struct BlockFmhaBwdPipelineV9
         } while(++i_total_loops < num_total_loop);
 
         // KGrad Scale
-        tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, dk_acc);
+        tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
 
         return ck::make_tuple(dk_acc, dv_acc);
     }
