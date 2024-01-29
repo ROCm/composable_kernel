@@ -212,6 +212,7 @@ bool run(const ArgParser& arg_parser)
     int stream_repeat = env_get_int("CK_REPEAT", 20);
 
     StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
+    StreamConfig stream_vconfig{nullptr, false, 0, 0, 0};
 
     const auto [seqlens_q, seqstart_q_host] = generate_seqlens_seqstarts_q(mode, batch, seqlen_q);
     const std::vector<int32_t> seqstart_k_host =
@@ -423,6 +424,36 @@ bool run(const ArgParser& arg_parser)
                                                                    mask.y,                       \
                                                                    mask.x)
 
+#define INVOKE_FMHA_BWD_KERNEL_V(hdim_)                                                          \
+    fmha_bwd_kernel_invoker<hdim_, DataType>{mode, use_bias, mask}(stream_vconfig,               \
+                                                                   q_buf.GetDeviceBuffer(),      \
+                                                                   k_buf.GetDeviceBuffer(),      \
+                                                                   v_buf.GetDeviceBuffer(),      \
+                                                                   bias_buf.GetDeviceBuffer(),   \
+                                                                   lse_buf.GetDeviceBuffer(),    \
+                                                                   do_buf.GetDeviceBuffer(),     \
+                                                                   d_buf.GetDeviceBuffer(),      \
+                                                                   dq_buf.GetDeviceBuffer(),     \
+                                                                   dk_buf.GetDeviceBuffer(),     \
+                                                                   dv_buf.GetDeviceBuffer(),     \
+                                                                   dbias_buf.GetDeviceBuffer(),  \
+                                                                   seqstart_q.GetDeviceBuffer(), \
+                                                                   seqstart_k.GetDeviceBuffer(), \
+                                                                   nullptr,                      \
+                                                                   batch,                        \
+                                                                   nhead,                        \
+                                                                   nhead_k,                      \
+                                                                   shape_seqlen_q,               \
+                                                                   shape_seqlen_k,               \
+                                                                   hdim_q,                       \
+                                                                   hdim_v,                       \
+                                                                   max_seqlen_k,                 \
+                                                                   scale,                        \
+                                                                   i_perm,                       \
+                                                                   o_perm,                       \
+                                                                   mask.y,                       \
+                                                                   mask.x)
+
     float ave_time         = 0;
     const auto check_hdims = [](ck::index_t hdim_q_, ck::index_t hdim_v_, ck::index_t threshold) {
         const auto compare =
@@ -571,17 +602,17 @@ bool run(const ArgParser& arg_parser)
     if(check_hdims(hdim_q, hdim_v, 32))
     {
         INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(32);
-        INVOKE_FMHA_BWD_KERNEL(32);
+        INVOKE_FMHA_BWD_KERNEL_V(32);
     }
     else if(check_hdims(hdim_q, hdim_v, 64))
     {
         INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(64);
-        INVOKE_FMHA_BWD_KERNEL(64);
+        INVOKE_FMHA_BWD_KERNEL_V(64);
     }
     else if(check_hdims(hdim_q, hdim_v, 128))
     {
         INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(128);
-        INVOKE_FMHA_BWD_KERNEL(128);
+        INVOKE_FMHA_BWD_KERNEL_V(128);
     }
 
     dq_buf.FromDevice(dq_host.data());
