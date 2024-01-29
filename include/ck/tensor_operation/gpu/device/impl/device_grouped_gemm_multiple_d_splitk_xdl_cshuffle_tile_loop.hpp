@@ -63,20 +63,19 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_xdl_splitk_v2(
-            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-            void* const __restrict__ p_workspace,
-            const index_t tile_count,
-            const index_t k_batch,
-            [[maybe_unused]] const AElementwiseOperation a_element_op,
-            [[maybe_unused]] const BElementwiseOperation b_element_op,
-            [[maybe_unused]] const CDEElementwiseOperation cde_element_op)
+        kernel_grouped_gemm_xdl_splitk_v2(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                          void* const __restrict__ p_workspace,
+                                          const index_t tile_count,
+                                          const index_t k_batch,
+                                          const AElementwiseOperation a_element_op,
+                                          const BElementwiseOperation b_element_op,
+                                          const CDEElementwiseOperation cde_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
 
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
-    [[maybe_unused]] __shared__ uint8_t p_shared[shared_size];
+    __shared__ uint8_t p_shared[shared_size];
 
     const auto gemm_desc_ptr =
         reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
@@ -105,12 +104,6 @@ __global__ void
     index_t gemm_tile_id_end   = grid_size_grp;
     auto gridwise_gemm         = GridwiseGemm();
 
-    [[maybe_unused]] auto is_thread_local_1d_id_idx = [](auto... Ids) -> bool
-    {
-        const auto tid = get_thread_local_1d_id();
-        return ((tid == Ids) || ... );
-    };
-
     do
     {
         // Find corresponding GEMM group for our tile
@@ -129,12 +122,12 @@ __global__ void
             gemm_tile_id_end   = offset + grid_size_grp;
         }
 
-        [[maybe_unused]] const auto p_a_grid = reinterpret_cast<const FloatA*>(gemm_desc_ptr[group_id].p_a_grid);
-        [[maybe_unused]] const auto p_b_grid = reinterpret_cast<const FloatB*>(gemm_desc_ptr[group_id].p_b_grid);
+        const auto p_a_grid = reinterpret_cast<const FloatA*>(gemm_desc_ptr[group_id].p_a_grid);
+        const auto p_b_grid = reinterpret_cast<const FloatB*>(gemm_desc_ptr[group_id].p_b_grid);
 
-        [[maybe_unused]] const auto K       = gemm_desc_ptr[group_id].K;
-        [[maybe_unused]] const auto StrideA = gemm_desc_ptr[group_id].StrideA;
-        [[maybe_unused]] const auto StrideB = gemm_desc_ptr[group_id].StrideB;
+        const auto K       = gemm_desc_ptr[group_id].K;
+        const auto StrideA = gemm_desc_ptr[group_id].StrideA;
+        const auto StrideB = gemm_desc_ptr[group_id].StrideB;
 
         auto& results_buffer = gridwise_gemm.GetCThreadBuffer();
         b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
@@ -143,32 +136,21 @@ __global__ void
         // Iterate over K dimension for this [M,N] tile
         // still in the same GEMM && the same [M,N] tile
         // TODO: change desc so that few K-tiles will be done in single GEMM.
-        // {
-        //     if (is_thread_local_1d_id_idx(0))
-        //     {
-        //         printf("bid: %d, group: %d, accumulate tile id (M,N,K): [%d, %d, %d] \n",
-        //                static_cast<index_t>(blockIdx.x),
-        //                group_id,
-        //                b2c_tile_map.GetTileMIdx(),
-        //                b2c_tile_map.GetTileNIdx(),
-        //                b2c_tile_map.GetTileKIdx());
-        //     }
-        // }
         do
         {
             // just accumulate results in registers!
-            // gridwise_gemm.template RunGEMM<HasMainKBlockLoop>(p_a_grid,
-            //                                                   p_b_grid,
-            //                                                   static_cast<void*>(p_shared),
-            //                                                   a_element_op,
-            //                                                   b_element_op,
-            //                                                   M,
-            //                                                   N,
-            //                                                   K,
-            //                                                   StrideA,
-            //                                                   StrideB,
-            //                                                   k_batch,
-            //                                                   b2c_tile_map);
+            gridwise_gemm.template RunGEMM<HasMainKBlockLoop>(p_a_grid,
+                                                              p_b_grid,
+                                                              static_cast<void*>(p_shared),
+                                                              a_element_op,
+                                                              b_element_op,
+                                                              M,
+                                                              N,
+                                                              K,
+                                                              StrideA,
+                                                              StrideB,
+                                                              k_batch,
+                                                              b2c_tile_map);
 
         } while(work_scheduler.GetNextTile() && b2c_tile_map.GetNextKTileIdx());
 
@@ -184,122 +166,47 @@ __global__ void
 
         work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
 
-        // {
-        //     // const uint32_t flag_v2 = __builtin_amdgcn_readfirstlane(
-        //     //     work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset));
-            if (is_thread_local_1d_id_idx(0))
-            {
-                printf("bid: %d, group: %d, FlagFInished \n",
-                       static_cast<index_t>(blockIdx.x),
-                       group_id);
-                // printf("bid: %d, group: %d, FlagFInished flag_v[%u]: %u\n",
-                //        static_cast<index_t>(blockIdx.x),
-                //        group_id)
-                    //    work_scheduler.GetWorkgroupFlagIdx(k_batch, output_tile_idx, output_tile_idx_offset),
-                    //    flag_v2);
-            }
-        // }
-
         // The workgroup which processed first K tile accumulates results and stores to GMEM
         if(b2c_tile_map.IsFirstKSplitBlock())
         {
-            if (is_thread_local_1d_id_idx(0))
-            {
-                printf("bid: %d, group: %d, Will wait for neighbours...  \n",
-                       static_cast<index_t>(blockIdx.x),
-                       group_id);
-            }
             // Wait untill all other blocks for this [M,N] tile store their results.
-            work_scheduler.WaitForNeighbours(k_batch, output_tile_idx, output_tile_idx_offset);
-
-            // Accumulate partial results. We can have different # of workgroups to reduce, thus we
-            // read actual flag value.
-            [[maybe_unused]] const uint32_t flag_v = __builtin_amdgcn_readfirstlane(
-                work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset));
-
-            // {
-                // if (is_thread_local_1d_id_idx(0))
-                // {
-                //     printf("bid: %d, group: %d, WaitForNeighbours flag_v[%u]: %u\n",
-                //         static_cast<index_t>(blockIdx.x),
-                //         group_id,
-                //         work_scheduler.GetWorkgroupFlagIdx(k_batch, output_tile_idx, output_tile_idx_offset),
-                //         static_cast<index_t>(blockIdx.x));
-                //         // flag_v);
-                // }
-            // }
-
-            // using CThreadBuffer = remove_cvref_t<decltype(results_buffer)>;
-
-            // constexpr index_t n_v = CThreadBuffer::num_of_v_.value;
-            // constexpr index_t s_per_v = CThreadBuffer::s_per_v.value;
-
-            // static_for<0, n_v, 1>{}([&](auto v) {
-            //     static_for<0, s_per_v, 1>{}([&](auto s) {
-            //         // printf("bid: %d; tid: %d; [Partial results]  c_thread_buff[%d, %d]:
-            //         // %f\n",
-            //         //         static_cast<index_t>(blockIdx.x),
-            //         //         static_cast<index_t>(threadIdx.x),
-            //         //         v.value,
-            //         //         s.value,
-            //         //         static_cast<float>(results_buffer[v * Number<s_per_v>{} + s])
-            //         //         );
-            //         results_buffer(v * Number<s_per_v>{} + s) = threadIdx.x * v + s;
-            //     });
-            // });
+            index_t neighbour_count = work_scheduler.WaitForNeighbours(
+                k_batch, b2c_tile_map.GetTileKIdx(), output_tile_idx, output_tile_idx_offset);
 
             // Accumulate only when there is at least two workgroups processing splitk data-tiles
             // across same MN-output tile.
-            // if(flag_v > 1)
-            //     gridwise_gemm.AccumulatePartials(p_workspace, flag_v);
-            if (is_thread_local_1d_id_idx(0))
-            {
-                printf("bid: %d, group: %d, Reset flag  \n",
-                       static_cast<index_t>(blockIdx.x),
-                       group_id);
-            }
+            if(neighbour_count > 1)
+                gridwise_gemm.AccumulatePartials(p_workspace, neighbour_count);
+
             // Signal waiting blocks that they can start use their workspace.
             work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
 
-            // const auto p_e_grid  = reinterpret_cast<FloatC*>(gemm_desc_ptr[group_id].p_e_grid);
-            // const auto stride_e  = gemm_desc_ptr[group_id].StrideE;
-            // const auto stride_ds = gemm_desc_ptr[group_id].StrideDs;
+            const auto p_e_grid  = reinterpret_cast<FloatC*>(gemm_desc_ptr[group_id].p_e_grid);
+            const auto stride_e  = gemm_desc_ptr[group_id].StrideE;
+            const auto stride_ds = gemm_desc_ptr[group_id].StrideDs;
 
-            // constexpr auto NumDTensor = DsDataType::Size();
-            // using DsGridPointer       = decltype(GridwiseGemm::MakeDsGridPointer());
+            constexpr auto NumDTensor = DsDataType::Size();
+            using DsGridPointer       = decltype(GridwiseGemm::MakeDsGridPointer());
 
-            // DsGridPointer p_ds_grid;
+            DsGridPointer p_ds_grid;
 
-            // static_for<0, NumDTensor, 1>{}([&](auto i) {
-            //     using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-            //     p_ds_grid(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
-            // });
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                p_ds_grid(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
+            });
 
-            // gridwise_gemm.template RunWrite(p_ds_grid,
-            //                                 p_e_grid,
-            //                                 static_cast<void*>(p_shared),
-            //                                 M,
-            //                                 N,
-            //                                 stride_ds,
-            //                                 stride_e,
-            //                                 cde_element_op,
-            //                                 b2c_tile_map);
+            gridwise_gemm.template RunWrite(p_ds_grid,
+                                            p_e_grid,
+                                            static_cast<void*>(p_shared),
+                                            M,
+                                            N,
+                                            stride_ds,
+                                            stride_e,
+                                            cde_element_op,
+                                            b2c_tile_map);
         }
         else if(work_scheduler.HasTile())
         {
-            {
-                // const uint32_t flag_v2 = __builtin_amdgcn_readfirstlane(
-                const uint32_t flag_v2 = work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset);
-                if (is_thread_local_1d_id_idx(0))
-                {
-                    printf("bid: %d, group: %d, Waiting for Reduction flag_v[%u]: %u\n",
-                        static_cast<index_t>(blockIdx.x),
-                        group_id,
-                        work_scheduler.GetWorkgroupFlagIdx(k_batch, output_tile_idx, output_tile_idx_offset),
-                        // static_cast<index_t>(blockIdx.x));
-                        flag_v2);
-                }
-            }            
             work_scheduler.WaitForReduction(k_batch, output_tile_idx, output_tile_idx_offset);
         }
     } while(work_scheduler.HasTile());
@@ -839,8 +746,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             void* p_flags = reinterpret_cast<char*>(dev_gemm_workspace) +
                             Block2ETileMapKSplit::GetAccWorkspaceSize(
                                 sizeof(typename GridwiseGemm::AccType), grid_size);
-            // std::size_t flag_count = (grid_size * tiles_per_block + arg.K_BATCH - 1) / arg.K_BATCH;
-            std::size_t flag_count = arg.tile_count_ / arg.K_BATCH;
+            std::size_t flag_count = (grid_size * tiles_per_block + arg.K_BATCH - 1) / arg.K_BATCH;
 
             if(stream_config.log_level_ > 0)
             {
@@ -1077,13 +983,11 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         int grid_size       = std::min(arg.tile_count_, occ_grid_size);
         int tiles_per_block = (arg.tile_count_ + grid_size - 1) / grid_size;
 
-        if(arg.tile_count_ > occ_grid_size &&
-           grid_size * tiles_per_block > arg.tile_count_)
+        if(arg.tile_count_ > occ_grid_size && grid_size * tiles_per_block > arg.tile_count_)
         {
             grid_size = (arg.tile_count_ + tiles_per_block - 1) / tiles_per_block;
         }
-        // int flag_count = (grid_size * tiles_per_block + arg.K_BATCH - 1) / arg.K_BATCH;
-        int flag_count = arg.tile_count_ / arg.K_BATCH;
+        int flag_count = (grid_size * tiles_per_block + arg.K_BATCH - 1) / arg.K_BATCH;
 
         // This would be the maximum needed workspace size. Since actual grid size, which determines
         // the amount of workspace bytes needed, may be less due to the number of available CUs in

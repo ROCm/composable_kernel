@@ -106,13 +106,6 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
     using GridwiseGemmPipe = remove_cvref_t<
         decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
-    template <index_t... Ids>
-    __device__ static bool is_thread_local_1d_id_idx()
-    {
-        const auto tid = get_thread_local_1d_id();
-        return ((tid == Ids) || ...);
-    }
-
     public:
     using AccType = AccDataType;
 
@@ -913,32 +906,6 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                        Sequence<6>{},
                        Sequence<7>{}));
 
-        // if (is_thread_local_1d_id_idx<0>())
-        // {
-        //     // printf("bid: %d; tid: %d; [Store Partials]  c_block_desc:[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-        //     //         static_cast<index_t>(blockIdx.x),
-        //     //         static_cast<index_t>(threadIdx.x),
-        //     //         M0.value,
-        //     //         N0.value,
-        //     //         M1.value,
-        //     //         N1.value,
-        //     //         M2.value,
-        //     //         M3.value,
-        //     //         M4.value,
-        //     //         N2.value);
-        //     printf("bid: %d; tid: %d; [Store Partials]  wrkspace_desc:[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-        //             static_cast<index_t>(blockIdx.x),
-        //             static_cast<index_t>(threadIdx.x),
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I0),
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I1),
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I2).value,
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I3).value,
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I4).value,
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I5).value,
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I6).value,
-        //             workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetLength(I7).value);
-        // }
-
         auto p_workspace_grid = reinterpret_cast<AccDataType*>(p_workspace);
         auto w_grid_buf       = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_workspace_grid, workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
@@ -996,33 +963,11 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                                    n_thread_data_on_block_idx[I2]),
                   ck::tensor_operation::element_wise::PassThrough{}};
 
-        // if (is_thread_local_1d_id_idx<0, 64, 223>())
-        // {
-        //     printf("[StorePartials] bid: %d, tid: %d: dst origin idx[%d, %d, %d, %d, %d, %d, %d, %d]\n",
-        //             static_cast<index_t>(blockIdx.x),
-        //             static_cast<index_t>(threadIdx.x),
-        //             (static_cast<index_t>(blockIdx.x)) * MXdlPerWave,
-        //             n_thread_data_on_block_idx[I0],
-        //             m_thread_data_on_block_idx[I1],
-        //             n_thread_data_on_block_idx[I1],
-        //             m_thread_data_on_block_idx[I2],
-        //             m_thread_data_on_block_idx[I3],
-        //             m_thread_data_on_block_idx[I4],
-        //             n_thread_data_on_block_idx[I2]);
-        // }
-
         c_thread_copy_vgpr_to_gmem.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                        make_tuple(I0, I0, I0, I0, I0, I0, I0, I0),
                                        c_thread_buf,
                                        workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
                                        w_grid_buf);
-
-        if (is_thread_local_1d_id_idx<0>())
-        {
-            printf("[StorePartials] done. bid: %d, tid: %d\n",
-                   static_cast<index_t>(blockIdx.x),
-                   static_cast<index_t>(threadIdx.x));
-        }
     }
 
     __device__ void AccumulatePartials(void* __restrict__ p_workspace, uint32_t reduce_count)
@@ -1158,7 +1103,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         // We do not need to read this workgroup partial results since they're
         // already in c_thread_buff
-        for(uint32_t i_t = 1; i_t < reduce_count; ++i_t)
+        for(uint32_t i_t = 1; i_t <= reduce_count; ++i_t)
         {
             acc_buf.Clear();
             acc_load.Run(workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,

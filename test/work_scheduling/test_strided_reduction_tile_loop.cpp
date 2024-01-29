@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <memory>
 #include <vector>
@@ -150,18 +150,16 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
         if(b2c_tile_map.IsFirstKSplitBlock())
         {
             // Wait untill all other blocks for this [M,N] tile store their results.
-            work_scheduler.WaitForNeighbours(k_batch, output_tile_idx, output_tile_idx_offset);
+            index_t neighbour_count = work_scheduler.WaitForNeighbours(
+                k_batch, b2c_tile_map.GetTileKIdx(), output_tile_idx, output_tile_idx_offset);
 
             // Accumulate partial results. We can have different # of workgroups to reduce, thus we
             // read actual flag value.
-            const uint32_t flag_v = __builtin_amdgcn_readfirstlane(
-                work_scheduler.GetFlagValue(k_batch, output_tile_idx, output_tile_idx_offset));
-            for(uint32_t i = 1; i < flag_v; ++i)
+            for(index_t i = 1; i <= neighbour_count; ++i)
             {
                 partial_result += p_workspace[(get_block_1d_id()) * MPerBlock * NPerBlock +
                                               i * MPerBlock * NPerBlock + get_thread_local_1d_id()];
             }
-
             // Signal waiting blocks that they can start use their workspace.
             work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
 
@@ -284,11 +282,10 @@ struct GroupedGemmStridedTileLoopReduce
 
         DeviceMem gemm_workspace, gemm_flags;
 
-        // const index_t tiles_per_block = (tile_count + grid_size - 1) / grid_size;
+        const index_t tiles_per_block = (tile_count + grid_size - 1) / grid_size;
         // This is the number of MN-output tiles which we cover with workgroups.
         // We launch k_batch / tiles_per_block workgroups for each output tile.
-        // const index_t flag_count = (grid_size * tiles_per_block + k_batch - 1) / k_batch;
-        const index_t flag_count = tile_count / k_batch;
+        const index_t flag_count = (grid_size * tiles_per_block + k_batch - 1) / k_batch;
 
         gemm_workspace.Realloc(grid_size * MPerBlock * NPerBlock * sizeof(float));
         gemm_flags.Realloc(flag_count * sizeof(uint32_t));

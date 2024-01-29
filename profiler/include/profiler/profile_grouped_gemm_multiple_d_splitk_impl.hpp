@@ -39,7 +39,9 @@ bool profile_ggemm_multid_splitk(int do_verification,
                                  const std::vector<int>& StrideAs,
                                  const std::vector<int>& StrideBs,
                                  const std::vector<int>& StrideCs,
-                                 int kbatch = 1)
+                                 int kbatch      = 1,
+                                 int warmup_iter = 1,
+                                 int kernel_iter = 10)
 {
     bool pass = true;
 
@@ -250,23 +252,18 @@ bool profile_ggemm_multid_splitk(int do_verification,
         for(std::size_t j = 0; j < kbatch_list.size(); j++)
         {
             auto kbatch_curr = kbatch_list[j];
-            // std::cout << ">>> kbatch: " << kbatch_curr << std::endl;
 
             gptr->SetKBatchSize(argument_ptr.get(), kbatch_curr);
             DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
             gemm_ptr->SetWorkSpacePointer(argument_ptr.get(),
                                           gemm_desc_workspace.GetDeviceBuffer());
 
-            // std::cout << "WorkspacePointer set!" << std::endl;
-
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                // invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 1});
-
-                // std::cout << ">>>>>GPU Run end!" << std::endl;
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
 
                 if(do_verification)
                 {
@@ -313,13 +310,12 @@ bool profile_ggemm_multid_splitk(int do_verification,
                     std::cout << ">>>>>CPU verification end!" << std::endl;
                 }
 
-
                 if(time_kernel)
                 {
                     std::cout << ">>>>>GPU time profiling start!" << std::endl;
                     float avg_time = invoker_ptr->Run(
-                        // argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1, 5, 30});
-                        argument_ptr.get(), StreamConfig{nullptr, time_kernel, 1, 0, 1});
+                        argument_ptr.get(),
+                        StreamConfig{nullptr, time_kernel, 0, warmup_iter, kernel_iter});
                     std::size_t flop = 0, num_btype = 0;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {
