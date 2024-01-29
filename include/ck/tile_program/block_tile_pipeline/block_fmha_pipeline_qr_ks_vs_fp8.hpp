@@ -63,7 +63,7 @@ struct BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
-    static constexpr bool kHasDropout      = Problem::kHasDropout;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
