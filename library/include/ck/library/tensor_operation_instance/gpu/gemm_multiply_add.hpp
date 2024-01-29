@@ -73,34 +73,6 @@ void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_m
                                                     MultiplyAdd>>>&);
 #endif
 
-#if defined CK_ENABLE_INT8
-void add_device_gemm_multiply_add_xdl_c_shuffle_f16_int8_f16_f16_f16_mk_kn_mn_mn_mn_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
-                                                    Row,
-                                                    Row_Row_Tuple,
-                                                    Row,
-                                                    F16,
-                                                    I8,
-                                                    F16_F16_Tuple,
-                                                    F16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyAdd>>>&);
-
-void add_device_gemm_multiply_add_xdl_c_shuffle_f16_int8_f16_f16_f16_mk_nk_mn_mn_mn_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
-                                                    Col,
-                                                    Row_Row_Tuple,
-                                                    Row,
-                                                    F16,
-                                                    I8,
-                                                    F16_F16_Tuple,
-                                                    F16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyAdd>>>&);
-#endif
-
 // GEMM + Multiply + Add
 template <typename ALayout,
           typename BLayout,
@@ -178,28 +150,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                               is_same_v<ELayout, Row>)
             {
                 add_device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_instances(
-                    op_ptrs);
-            }
-        }
-#endif
-
-#if defined CK_ENABLE_INT8
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
-                     is_same_v<D0DataType, half_t> && is_same_v<D1DataType, half_t> &&
-                     is_same_v<EDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
-                         is_same_v<ELayout, Row>)
-            {
-                add_device_gemm_multiply_add_xdl_c_shuffle_f16_int8_f16_f16_f16_mk_kn_mn_mn_mn_instances(
-                    op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
-                              is_same_v<ELayout, Row>)
-            {
-                add_device_gemm_multiply_add_xdl_c_shuffle_f16_int8_f16_f16_f16_mk_nk_mn_mn_mn_instances(
                     op_ptrs);
             }
         }
