@@ -266,7 +266,7 @@ using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         LoopSched = make_default_loop_scheduler(), //will need to replace function
         PipelineVer = PipelineVersion::v1>;
 
-run_${name}(void *input, void *output)
+extern "C" __global__ void run_${name}(void *input, void *output)
 {
     const auto kernel = kernel_gemm_multiple_d_xdl_cshuffle<
                     GridwiseGemm,
@@ -283,18 +283,18 @@ run_${name}(void *input, void *output)
                     DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceOp::Block2ETileMap,
                     has_main_loop>;
-
 }
-extern "C" __global__ void run_${name}_op(void *input, void *output)
-	{
-		run_${name}(input, output);
-	}
 )";
 
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
-        {"name", std::to_string(this->tile_desc.block_size) + "_" + std::to_string(this->tile_desc.m_per_block) + "_" + std::to_string(this->tile_desc.n_per_block) + "_" + std::to_string(this->tile_desc.k_per_block) + "_" + std::to_string(this->tile_desc.ak1)},
+        {"name",
+         std::to_string(this->tile_desc.block_size) + "_" +
+             std::to_string(this->tile_desc.m_per_block) + "_" +
+             std::to_string(this->tile_desc.n_per_block) + "_" +
+             std::to_string(this->tile_desc.k_per_block) + "_" +
+             std::to_string(this->tile_desc.ak1)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",

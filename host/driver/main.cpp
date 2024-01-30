@@ -6,6 +6,7 @@
 #include <vector>
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "../parse/include/op.hpp"
+#include "../parse/include/op_conv.hpp"
 #include "ck/host/stringutils.hpp"
 #include <iomanip>
 #include <fstream>
@@ -19,35 +20,7 @@ struct Emitters
     std::string get_includes()
     {
         static const char* const include_files = R"(
-#include <iostream>
-#include <numeric>
-#include <initializer_list>
-#include <cstdlib>
-
-#include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/utility/literals.hpp"
-
-#include <sstream>
-#include "ck/utility/common_header.hpp"
-#include "ck/tensor_description/tensor_descriptor.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
-#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-
-#include "ck/tensor_description/multi_index_transform_helper.hpp"
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7.hpp"
-#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+placeholder - #include <iostream>
 )";
         return include_files;
     }
@@ -60,22 +33,52 @@ struct Emitters
 
         // include section
         std::string inc = get_includes();
-        inst["include"] = inc;
+        inst["headers"] = inc;
 
         // prologue and epilogue TODO: change names to CK symbols and make specific
-        inst["fusion"] = {{"base", " struct BaseOperator: add in base operator code from CK here" },
-			  {"prologue", "using CDEElementOp = BaseOperator;"},
+        inst["fusion"] = {{"base", R"(struct BaseOperator
+{
+    BaseOperator()                    = default;
+    BaseOperator(const BaseOperator&) = default;
+    BaseOperator& operator=(const BaseOperator&) = default;
+
+    virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
+    virtual std::string GetTypeString() const { return ""; }
+
+    virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
+
+    virtual std::string GetTypeIdHashCode() const
+    {
+        std::ostringstream oss;
+
+        oss << std::hex << typeid(*this).hash_code();
+
+        return oss.str();
+    };
+
+    virtual size_t GetWorkSpaceSize(const BaseArgument*) const { return 0; }
+
+    virtual void SetWorkSpacePointer(BaseArgument* p_arg,
+                                     void* p_workspace,
+                                     const StreamConfig& = StreamConfig{}) const
+    {
+        assert(p_arg);
+        p_arg->p_workspace_ = p_workspace;
+    }
+
+    virtual ~BaseOperator() {}
+};)"},
+                          {"prologue", "using CDEElementOp = BaseOperator;"},
                           {"epilogue", "using Epilogue = BaseOperator;"}};
 
         m[name] = [&] {
             auto ops = T::CreateOperations();
-            // std::cout << "added" << std::endl;
             return ck::host::Transform(
                 ops, [](const auto& op) { return op.ToSolution().ToTemplateString(); });
         };
         m.at(name)();
         std::string prob = "";
-        for(const auto& item : inst.items())
+        /**for(const auto& item : inst.items())
         {
             std::cout << item.key() << "\n";
             for(const auto& val : item.value().items())
@@ -86,12 +89,11 @@ struct Emitters
                 }
                 std::cout << "  " << val.key() << ": " << val.value() << "\n";
             }
-        }
-        std::cout << prob << std::endl;
+        }**/
 
         // add instances
-        std::string prob_spec = "fp16fp16fp16fp16RowRowRowRow"; //TODO: find a good way to hand in keys for instances
-        std::cout << "starting" << std::endl;
+        std::string prob_spec =
+            "fp16fp16fp16fp16RowRowRowRow"; // TODO: find a good way to hand in keys for instances
         for(int x = 0; x < m[name]().size(); x++)
         {
             std::string tmp                   = std::to_string(x);
@@ -121,6 +123,7 @@ int main(int argc, const char* argv[])
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
         "DeviceGemmMultipleD_Xdl_CShuffle");
+    // e.Register<ck::host::conv::Operation_Conv>("DeviceConv");
 
     if(args.empty() or std::any_of(args.begin(), args.end(), [](auto arg) {
            return arg == "-h" or arg == "--help";
@@ -144,24 +147,25 @@ int main(int argc, const char* argv[])
     //
 
     ck::host::CKGenOp_Xdl_CShuffle op;
-    std::string op_key = op.CKGenSetOp(op,
-                                       ck::host::DataType_fe::Half,
-                                       ck::host::DataType_fe::Half,
-                                       ck::host::DataType_fe::Half,
-                                       ck::host::DataType_fe::Half,
-                                       ck::host::Layout_fe::Row,
-                                       ck::host::Layout_fe::Row,
-                                       ck::host::Layout_fe::Row,
-                                       ck::host::Layout_fe::Row,
-                                       8,
-                                       8,
-                                       8);
-    std::cout << op_key << std::endl;
+    char buf[10000];
+    std::string op_key = CKGenSetOp(op,
+                                    ck::host::DataType_fe::Half,
+                                    ck::host::DataType_fe::Half,
+                                    ck::host::DataType_fe::Half,
+                                    ck::host::DataType_fe::Half,
+                                    ck::host::Layout_fe::Row,
+                                    ck::host::Layout_fe::Row,
+                                    ck::host::Layout_fe::Row,
+                                    ck::host::Layout_fe::Row,
+                                    8,
+                                    8,
+                                    8);
+    // std::cout << op_key << std::endl;
     nlohmann::json data;
-    data = op.CKGenGetOpParams();
-    std::cout << "got data" << std::endl;
-    std::cout << "check 1 - retrieving original JSON: "
-              << data["fusion"]["prologue"].get<std::string>() << std::endl;
+    data = ck::host::CKGenGetOpParams();
+    // std::cout << "got data" << std::endl;
+    // std::cout << "check 1 - retrieving original JSON: "
+    //          << data["fusion"]["prologue"].get<std::string>() << std::endl;
     std::string tmp = R"(struct AlphaBetaAdd
 {
     AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
@@ -180,11 +184,11 @@ int main(int argc, const char* argv[])
     float beta_;
 };
 using CDEElementOp = AlphaBetaAdd;)";
-    op.CKGenSetOpFusion(tmp);
-    data = op.CKGenGetOpParams();
-    std::cout << "check 2 - retrieving updated JSON: "
-              << data["fusion"]["prologue"].get<std::string>() << std::endl;
-    op.CKGenGetBuffer(op, op_key);
+    ck::host::CKGenSetOpFusion(tmp);
+    // data = ck::host::CKGenGetOpParams();
+    // std::cout << "check 2 - retrieving updated JSON: "
+    //          << data["fusion"]["prologue"].get<std::string>() << std::endl;
+    CKGenGetBuffer(op, op_key, buf);
 
     return 0;
 }
