@@ -713,6 +713,10 @@ pipeline {
             name: "RUN_CPPCHECK",
             defaultValue: false,
             description: "Run the cppcheck static analysis (default: OFF)")
+        booleanParam(
+            name: "RUN_PERFORMANCE_TESTS",
+            defaultValue: false,
+            description: "Run the performance tests (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -890,7 +894,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && params.RUN_PERFORMANCE_TESTS.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx908 || gfx90a")}
@@ -906,7 +910,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() && params.RUN_PERFORMANCE_TESTS.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
@@ -925,6 +929,10 @@ pipeline {
             parallel
             {
                 stage("Process results"){
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() }
+                    }
                     agent { label 'mici' }
                     steps{
                         process_results()
