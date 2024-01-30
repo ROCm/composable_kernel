@@ -268,6 +268,21 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
         }
+        else if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding)
+        {
+            const auto a_grid_desc_m_kpad = transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_pass_through_transform(M), make_right_pad_transform(K, KPad - K)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return transform_tensor_descriptor(
+                a_grid_desc_m_kpad,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0Padded, K1)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
         else
         {
             return transform_tensor_descriptor(
@@ -326,6 +341,21 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                 b_grid_desc_k_n,
                 make_tuple(make_unmerge_transform(make_tuple(KBatch, K0Padded, K1)),
                            make_right_pad_transform(N, NPad - N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
+        }
+        else if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding)
+        {
+            const auto b_grid_desc_kpad_n = transform_tensor_descriptor(
+                b_grid_desc_k_n,
+                make_tuple(make_right_pad_transform(K, KPad - K), make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+            return transform_tensor_descriptor(
+                b_grid_desc_kpad_n,
+                make_tuple(make_unmerge_transform(make_tuple(KBatch, K0Padded, K1)),
+                           make_pass_through_transform(N)),
                 make_tuple(Sequence<0>{}, Sequence<1>{}),
                 make_tuple(Sequence<0, 1, 3>{}, Sequence<2>{}));
         }
