@@ -51,6 +51,21 @@ __device__ constexpr auto GetBlockDescriptor()
  * stored in Vgpr register. A data layout must be (MPerBlock, KPerBlock) and B
  * data layout must be (NPerBlock, KPerBlock).
  *
+ * \note C output Vgpr register layout (8D):
+ * - MXdlPerWave - The number of MFMA instructions run by single wave in M
+ *                 dimension per tile.
+ * - NXdlPerWave - The number of MFMA instructions run by single wave in N
+ *                 dimension per tile.
+ * - MWave - Equals to 1 since this is for single wave.
+ * - NWave - Equals to 1 since this is for single wave.
+ * - NumGroupsPerBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - NumInputsBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - GroupSize - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - NumThreadsPerBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
  *
  * \tparam DataType Input data types.
  * \tparam BlockSize Tensor to pad.
@@ -108,6 +123,22 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
 
 /**
  * \brief Create local partition per thread for C tensor.
+ *
+ * \note C output global memory layout (8D):
+ * - MXdlPerWave - The number of MFMA instructions run by single wave in M
+ *                 dimension.
+ * - NXdlPerWave - The number of MFMA instructions run by single wave in N
+ *                 dimension.
+ * - MWave - The number of waves in single tile M dimension per tile.
+ * - NWave - The number of waves in single tile N dimension per tile.
+ * - NumGroupsPerBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - NumInputsBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - GroupSize - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - NumThreadsPerBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
  *
  * \tparam DataType Input data types.
  * \tparam ATileLayout A tensor layout.
@@ -220,6 +251,22 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
 
 /**
  * \brief Create local partition per thread for C tensor.
+ *
+ * \note C output Vgpr register layout (8D):
+ * - MXdlPerWave - The number of MFMA instructions run by single wave in M
+ *                 dimension per tile.
+ * - NXdlPerWave - The number of MFMA instructions run by single wave in N
+ *                 dimension per tile.
+ * - MWave - Equals to 1 since this is for single wave.
+ * - NWave - Equals to 1 since this is for single wave.
+ * - NumGroupsPerBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - NumInputsBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - GroupSize - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
+ * - NumThreadsPerBlock - Mfma instruction internal layout (depeneds on the
+ *                       instruction size).
  *
  * \tparam DataType Input data types.
  * \tparam ATileLayout A tensor layout.
