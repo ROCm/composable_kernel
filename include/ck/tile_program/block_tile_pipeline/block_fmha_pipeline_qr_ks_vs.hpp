@@ -55,12 +55,13 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr index_t kK1            = BlockFmhaShape::kK1;
     static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
 
-    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kM0NeedPadding   = Problem::kM0NeedPadding;
-    static constexpr bool kN0K1NeedPadding = Problem::kN0K1NeedPadding;
-    static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
-    static constexpr bool kHasBias         = Problem::kHasBias;
-    static constexpr bool kStoreLSE        = Problem::kStoreLSE;
+    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
+    static constexpr bool kHasBias     = Problem::kHasBias;
+    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -155,7 +156,7 @@ struct BlockFmhaPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, NumericLimits<SMPLComputeDataType>::Lowest());
+        set_tile(m, -NumericLimits<SMPLComputeDataType>::Infinity());
         clear_tile(l);
 
         const auto q_origin = q_dram_window.GetWindowOrigin();
@@ -292,7 +293,7 @@ struct BlockFmhaPipelineQRKSVS
                     bias_tile);
             }
             move_tile_window(bias_dram_window, {0, kN0});
-            if constexpr(kN0K1NeedPadding || FmhaMask::IsMasking)
+            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.GetWindowOrigin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.At(Number<0>{}),
@@ -315,7 +316,7 @@ struct BlockFmhaPipelineQRKSVS
                 s,
                 Sequence<1>{},
                 f_max,
-                NumericLimits<SMPLComputeDataType>::Lowest()); // m_local = rowmax(S{j})
+                -NumericLimits<SMPLComputeDataType>::Infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
@@ -325,11 +326,24 @@ struct BlockFmhaPipelineQRKSVS
             auto p_compute = make_static_distributed_tensor<SMPLComputeDataType>(
                 s.GetTileDistribution()); // Pcompute{j}
 
+            static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
+                if constexpr(FmhaMask::IsMasking)
+                {
+                    return raw_m == -NumericLimits<SMPLComputeDataType>::Infinity()
+                               ? type_convert<SMPLComputeDataType>(0.f)
+                               : raw_m;
+                }
+                else
+                {
+                    return raw_m;
+                }
+            };
+
             constexpr auto p_spans = decltype(p_compute)::GetDistributedSpans();
             sweep_tile_span(p_spans[Number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
-                auto row_max = scale * m[i_idx];
+                auto row_max = scale * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -340,10 +354,10 @@ struct BlockFmhaPipelineQRKSVS
                     }
                     else
                     {
-                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - m[i_idx]);
+                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
 #else
-                    p_compute(i_j_idx)     = math::exp(s[i_j_idx] - m[i_idx]);
+                    p_compute(i_j_idx)     = math::exp(s[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
                 });
             });
@@ -360,16 +374,16 @@ struct BlockFmhaPipelineQRKSVS
                 const auto tmp = [&]() {
                     if constexpr(is_null_tile_window(bias_dram_window))
                     {
-                        auto row_max = scale * m[i_idx];
+                        auto row_max = scale * get_validated_m(m[i_idx]);
                         return math::exp2(scale * m_old[i_idx] - row_max);
                     }
                     else
                     {
-                        return math::exp2(m_old[i_idx] - m[i_idx]);
+                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                 }();
 #else
-                const auto tmp       = math::exp(m_old[i_idx] - m[i_idx]);
+                const auto tmp       = math::exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
                 l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 sweep_tile_span(o_spans[Number<1>{}], [&](auto idx1) {
