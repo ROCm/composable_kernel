@@ -243,10 +243,10 @@ bool run(const ArgParser& arg_parser)
 
     if(init_method == 0)
     {
-        ck::utils::FillNormalDistributionIntegerValue<QDataType>{0.f, 1.f, seed}(q_host);
-        ck::utils::FillNormalDistributionIntegerValue<KDataType>{0.f, 1.f, seed}(k_host);
-        ck::utils::FillNormalDistributionIntegerValue<VDataType>{0.f, 1.f, seed}(v_host);
-        ck::utils::FillNormalDistributionIntegerValue<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
+        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
+        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
     }
     else if(init_method == 1)
     {
