@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../../lib/libgemm_standalone_xdl_fp16_instances.a CMakeFiles/gemm_standalone_xdl_fp16_instances.dir/instance/gemm_f16_nn_instance.cpp.o CMakeFiles/gemm_standalone_xdl_fp16_instances.dir/instance/gemm_f16_nt_instance.cpp.o CMakeFiles/gemm_standalone_xdl_fp16_instances.dir/instance/gemm_f16_tn_instance.cpp.o CMakeFiles/gemm_standalone_xdl_fp16_instances.dir/instance/gemm_wavelet_f16_tn_instance.cpp.o CMakeFiles/gemm_standalone_xdl_fp16_instances.dir/instance/gemm_f16_tt_instance.cpp.o
-/usr/bin/ranlib ../../lib/libgemm_standalone_xdl_fp16_instances.a
