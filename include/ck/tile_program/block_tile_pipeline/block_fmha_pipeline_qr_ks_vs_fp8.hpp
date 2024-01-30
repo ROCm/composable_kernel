@@ -63,6 +63,13 @@ struct BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
+    static constexpr bool kAlignmentQ = kPadHeadDimQ ? 1 : (16 / sizeof(QDataType));
+    static constexpr bool kAlignmentK =
+        kPadHeadDimQ ? 1 : 4 / sizeof(KDataType); // since we use async copy...
+    static constexpr bool kAlignmentV    = 16 / sizeof(VDataType);
+    static constexpr bool kAlignmentO    = 16 / sizeof(ODataType); // indeed usually not this value
+    static constexpr bool kAlignmentBias = kPadSeqLenK ? 1 : (16 / sizeof(BiasDataType));
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();

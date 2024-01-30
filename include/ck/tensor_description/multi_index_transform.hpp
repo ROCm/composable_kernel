@@ -310,6 +310,18 @@ struct LeftPad
                is_known_at_compile_time<LeftPadLength>::value;
     }
 
+    // MUST be static function
+    template <typename LowVectorLengths, typename LowVectorStrides>
+    __host__ __device__ static constexpr auto
+    CalculateUpperDimensionSafeVectorLengthStrides(const LowVectorLengths& low_vector_lengths,
+                                                   const LowVectorStrides& low_vector_strides)
+    {
+        // TODO: we allow pass through this vector length. If one need per-pixel check,
+        //       should change the guaranteed vector length while creating the tensor view.
+        //       It's up to runtime to check the padding length should be multiple of vector length
+        return make_tuple(low_vector_lengths, low_vector_strides);
+    }
+
     __host__ __device__ void Print() const
     {
         printf("LeftPad{");
@@ -397,9 +409,21 @@ struct RightPad : public BaseTransform<1, 1>
                is_known_at_compile_time<RightPadLength>::value;
     }
 
+    // MUST be static function
+    template <typename LowVectorLengths, typename LowVectorStrides>
+    __host__ __device__ static constexpr auto
+    CalculateUpperDimensionSafeVectorLengthStrides(const LowVectorLengths& low_vector_lengths,
+                                                   const LowVectorStrides& low_vector_strides)
+    {
+        // TODO: we allow pass through this vector length. If one need per-pixel check,
+        //       should change the guaranteed vector length while creating the tensor view.
+        //       It's up to runtime to check the padding length should be multiple of vector length
+        return make_tuple(low_vector_lengths, low_vector_strides);
+    }
+
     __host__ __device__ void Print() const
     {
-        printf("LeftPad{");
+        printf("RightPad{");
 
         //
         printf("up_lengths_: ");

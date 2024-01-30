@@ -56,12 +56,28 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr bool kHasBias     = Problem::kHasBias;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    // TODO: for this pipeline, seq_q always support padding, hdim_q/v support multiple of
+    // vector(like 8x)
+    //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
+    static constexpr bool kPadSeqLenQ = true;
+    static constexpr bool kPadSeqLenK = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ =
+        true; // support multiple of vector(like 8x), not arbitrary size
+    static constexpr bool kPadHeadDimV =
+        true; // support multiple of vector(like 8x), not arbitrary size
+    static constexpr bool kHasBias  = Problem::kHasBias;
+    static constexpr bool kStoreLSE = Problem::kStoreLSE;
+
+    // last dimension vector length used to create tensor view(and finally decide buffer_load vector
+    // length)
+    // ... together with tensor distribution. -> tensor dist should able to overwrite this vector
+    // size(or is a bug)
+    static constexpr index_t kAlignmentQ = Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentV = Policy::template GetAlignmentV<Problem>();
+    static constexpr index_t kAlignmentO = Policy::template GetAlignmentO<Problem>();
+    static constexpr index_t kAlignmentBias =
+        Policy::template GetAlignmentBias<Problem>(); // TODO: always 8x?
 
 #if CK_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / math::log2e_v<SaccDataType>;
@@ -168,7 +184,6 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto q = decltype(load_tile(q_dram_window)){};
         clear_tile(q);
         load_tile_raw(q, q_dram_window);
-        // auto q = load_tile_raw(q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
@@ -292,7 +307,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_s_barrier();
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            auto v_buf           = load_tile(v_dram_window);
+            auto v_buf           = load_tile(v_dram_window, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 gemm_0(s_acc,
@@ -394,7 +409,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 move_tile_window(
                     v_dram_window,
                     {0, kK1}); // will have scratch if move this right after load_tile(v_dram)...
-                v_buf = load_tile(v_dram_window); // load next v_buf
+                v_buf = load_tile(v_dram_window, bool_constant<false>{}); // load next v_buf
             }
             __builtin_amdgcn_sched_barrier(0);
 
@@ -475,7 +490,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     if constexpr(i_k1 != 0 && i_k1 < k1_loops - 1)
                     {
-                        v_buf = load_tile(v_dram_window); // load next v_buf
+                        v_buf = load_tile(v_dram_window, bool_constant<false>{}); // load next v_buf
                     }
                     block_sync_lds();
                     gemm_1(o_acc,

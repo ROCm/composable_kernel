@@ -263,8 +263,8 @@ struct TileWindowWithStaticDistribution
 
     __device__ constexpr auto GetNumAccess() const { return LoadStoreTraits::NumAccess; }
 
-    template <bool use_inline_asm = false>
-    __device__ auto Load(bool_constant<use_inline_asm> = {}) const
+    template <bool oob_conditional_check = true>
+    __device__ auto Load(bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = LoadStoreTraits;
 
@@ -291,7 +291,7 @@ struct TileWindowWithStaticDistribution
                 // read from bottom tensor
                 const vector_t vec_value =
                     GetBottomTensorView().template GetVectorizedElements<vector_t>(
-                        bottom_tensor_thread_coord, bool_constant<use_inline_asm>{});
+                        bottom_tensor_thread_coord, bool_constant<oob_conditional_check>{});
 
                 const vector_type_t vec{vec_value};
 
@@ -333,8 +333,8 @@ struct TileWindowWithStaticDistribution
         return make_static_distributed_tensor<DataType>(tile_dstr);
     }
 
-    template <typename DstTile>
-    __device__ void LoadRaw(DstTile& dst_tensor) const
+    template <typename DstTile, bool oob_conditional_check = true>
+    __device__ void LoadRaw(DstTile& dst_tensor, bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = LoadStoreTraits;
 
@@ -349,10 +349,8 @@ struct TileWindowWithStaticDistribution
                                              YElementSize / Traits::ScalarPerVector,
                                              true>;
 
-        constexpr auto tile_dstr          = TileDstr{};
-        constexpr bool use_buffer_load_if = true;
+        constexpr auto tile_dstr = TileDstr{};
 
-        // auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
         auto& dst_vec_tbuf = reinterpret_cast<vectorized_tbuf&>(dst_tensor.GetThreadBuffer());
 
         // loop over thread tensor space [y0, y1, ...]
@@ -372,30 +370,7 @@ struct TileWindowWithStaticDistribution
                 GetBottomTensorView().template GetVectorizedElementsRaw<vector_t>(
                     dst_vec_tbuf.template At<d / Traits::ScalarPerVector>(),
                     bottom_tensor_thread_coord,
-                    bool_constant<use_buffer_load_if>{});
-#if 0
-                // read from bottom tensor
-                const vector_t vec_value =
-                    GetBottomTensorView().template GetVectorizedElements<vector_t>(
-                        bottom_tensor_thread_coord, bool_constant<use_inline_asm>{});
-
-                const vector_type_t vec{vec_value};
-
-                // write into distributed tensor
-                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_array(
-                        [&](auto jj) {
-                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
-                                                            : idx_ys_start[jj];
-                        },
-                        Number<NDimY>{});
-
-                    constexpr index_t d = tile_dstr.GetYs2DDescriptor().CalculateOffset(idx_ys);
-
-                    dst_tensor.GetThreadBuffer().template At<d>() =
-                        vec.template AsType<DataType>()[j];
-                });
-#endif
+                    bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -410,13 +385,12 @@ struct TileWindowWithStaticDistribution
                 }
             });
         });
-
-        // return dst_tensor;
     }
 
     // TODO: currently async load only implemented in inline asm
-    template <typename LdsTileWindow_, bool use_inline_asm = true>
-    __device__ auto AsyncLoad(LdsTileWindow_&& lds_tile, bool_constant<use_inline_asm> = {}) const
+    template <typename LdsTileWindow_, bool oob_conditional_check = true>
+    __device__ auto AsyncLoad(LdsTileWindow_&& lds_tile,
+                              bool_constant<oob_conditional_check> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         // using LdsTensorView = typename LdsTileWindow::BottomTensorView;

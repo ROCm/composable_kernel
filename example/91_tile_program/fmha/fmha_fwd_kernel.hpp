@@ -447,7 +447,7 @@ struct FmhaFwdKernel
                 q_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_q),
                 make_tuple(kargs.stride_q, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentQ>{},
                 Number<1>{});
             if constexpr(FmhaPipeline::kQLoadOnce)
             {
@@ -469,7 +469,7 @@ struct FmhaFwdKernel
                 k_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentK>{},
                 Number<1>{});
 
             return pad_tensor_view(
@@ -484,7 +484,7 @@ struct FmhaFwdKernel
                     v_ptr,
                     make_tuple(kargs.seqlen_k, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),
-                    Number<32>{},
+                    Number<FmhaPipeline::kAlignmentV>{},
                     Number<1>{});
 
                 const auto v_dram_transposed =
@@ -505,7 +505,7 @@ struct FmhaFwdKernel
                     v_ptr,
                     make_tuple(kargs.hdim_v, kargs.seqlen_k),
                     make_tuple(kargs.stride_v, 1),
-                    Number<32>{},
+                    Number<FmhaPipeline::kAlignmentV>{},
                     Number<1>{});
 
                 return pad_tensor_view(
@@ -551,7 +551,7 @@ struct FmhaFwdKernel
                         bias_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),
                         make_tuple(kargs.stride_bias, 1),
-                        Number<32>{},
+                        Number<FmhaPipeline::kAlignmentBias>{},
                         Number<1>{});
 
                     return pad_tensor_view(bias_dram_naive,
@@ -636,7 +636,7 @@ struct FmhaFwdKernel
                 o_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.stride_o, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentO>{},
                 Number<1>{});
 
             return pad_tensor_view(

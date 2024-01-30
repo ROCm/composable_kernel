@@ -42,6 +42,17 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
         return 0;
     }
 
+    // TODO: GetAlignment*() currently didn't consider if need padding or not
+    //       so in pipeline still need check padding requirement
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentQ()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+        return WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
+    }
+
     template <typename Problem, typename BlockGemm>
     __host__ __device__ static constexpr auto MakeQDramTileDistribution()
     {
@@ -134,6 +145,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                 lds_alignment) *
             lds_alignment;
         return q_smem_size;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentQ()
+    {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+        return 16 / sizeof(QDataType);
     }
 
     template <typename Problem>
@@ -310,26 +328,73 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentK()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+        if constexpr(AsyncCopyK)
+        {
+            return 4 / sizeof(KDataType);
+        }
+        else
+        {
+            return 16 / sizeof(KDataType);
+        }
+    }
+
+    template <typename Problem>
     __host__ __device__ static constexpr auto GetSmemKPackV()
     {
         // TODO: this is for 3d layout
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
         return 16 / sizeof(VDataType);
     }
+
     template <typename Problem>
-    __host__ __device__ static constexpr auto GetVectorloadV()
+    __host__ __device__ static constexpr auto GetAlignmentV()
     {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+        {
+            constexpr index_t kBlockSize   = Problem::kBlockSize;
+            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
+            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
+            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
 
-        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-
-        // TODO: not correct!
-        if constexpr(total_pixels > 4)
-            return 4;
+            // TODO: not correct!
+            if constexpr(total_pixels > 4)
+                return 4;
+            else
+                return 2;
+        }
         else
-            return 2;
+        {
+            return 16 / sizeof(VDataType);
+        }
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentBias()
+    {
+        using BlockGemm = remove_cvref_t<decltype(QXPolicy::template GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+        using CWarpDstr       = typename WG::CWarpDstr;
+        constexpr auto vec =
+            CWarpDstr{}.GetYs2DDescriptor().GetLengths().At(Number<CWarpDstr::NDimY - 1>{});
+        return vec;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentO()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+        using CWarpDstr       = typename WG::CWarpDstr;
+        constexpr auto vec =
+            CWarpDstr{}.GetYs2DDescriptor().GetLengths().At(Number<CWarpDstr::NDimY - 1>{});
+        return vec;
     }
 
     template <typename Problem>
@@ -348,8 +413,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                 constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
                 constexpr index_t warpSize   = ck::get_warp_size();
 
-                constexpr index_t KPack   = GetSmemKPackV<Problem>();  // this is for lds
-                constexpr index_t KVector = GetVectorloadK<Problem>(); // this is for global load
+                constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+                constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
                 constexpr index_t kPad    = KPack;
 
                 static_assert(warpSize * KVector >= kKPerBlock &&
@@ -378,13 +443,6 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }();
 
         return math::max(SingleKSize, SingleVSize);
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto GetVectorloadK()
-    {
-        using KDataType = remove_cvref_t<typename Problem::KDataType>;
-        return 4 / sizeof(KDataType); // TODO: this is for async copy
     }
 
     template <typename Problem, typename BlockGemm>
@@ -454,8 +512,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
 
-        constexpr index_t KPack   = GetSmemKPackV<Problem>();  // this is for lds
-        constexpr index_t KVector = GetVectorloadK<Problem>(); // this is for global load
+        constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
         constexpr index_t kPad =
             KPack; // for async-copy, this pad is between warps. Optimize this for lds_read speed
 
@@ -509,8 +567,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
 
-        constexpr index_t KPack   = GetSmemKPackV<Problem>();  // this is for lds
-        constexpr index_t KVector = GetVectorloadK<Problem>(); // this is for global load
+        constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
         constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
 
         static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
@@ -556,8 +614,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
 
-        constexpr index_t KPack   = GetSmemKPackV<Problem>();  // this is for lds
-        constexpr index_t KVector = GetVectorloadK<Problem>(); // this is for global load
+        constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
         constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
 
         static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
@@ -687,7 +745,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
             constexpr index_t warpSize   = ck::get_warp_size();
 
-            constexpr index_t KVector = GetVectorloadK<Problem>(); // this is for global load
+            constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
 
             static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
             constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
@@ -723,7 +781,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
         if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t N1 = GetVectorloadV<Problem>();
+            constexpr index_t N1 = GetAlignmentV<Problem>();
             constexpr index_t N0 = kNPerBlock / N1; // P
 
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
@@ -823,7 +881,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
-        constexpr index_t N1           = GetVectorloadV<Problem>();
+        constexpr index_t N1           = GetAlignmentV<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?

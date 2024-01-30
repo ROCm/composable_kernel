@@ -901,8 +901,7 @@ amd_buffer_load_impl_raw(int32x4_t src_wave_buffer_resource,
 
 template <typename T,
           index_t N,
-          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_inline_asm              = false>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
 __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_wave_buffer_resource,
                                                                  index_t src_thread_addr_offset,
                                                                  index_t src_wave_addr_offset)
@@ -918,15 +917,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
-    if constexpr(use_inline_asm)
-    {
-        using type = typename vector_type<T, N>::type;
-        type tmp;
-        buffer_load<sizeof(type)>{}(
-            tmp, src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
-        return tmp;
-    }
-    else if constexpr(is_same<T, float>::value) // fp32
+    if constexpr(is_same<T, float>::value) // fp32
     {
         if constexpr(N == 1)
         {
@@ -1079,7 +1070,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_buffer_load_if          = false>
+          bool oob_conditional_check       = true>
 __device__ void amd_buffer_load_raw_impl(typename vector_type<T, N>::type& dst,
                                          int32x4_t src_wave_buffer_resource,
                                          index_t src_thread_addr_offset,
@@ -1091,7 +1082,7 @@ __device__ void amd_buffer_load_raw_impl(typename vector_type<T, N>::type& dst,
                   "wrong! not supported by buffer_load instruction");
 
     using type = typename vector_type<T, N>::type;
-    if constexpr(use_buffer_load_if)
+    if constexpr(oob_conditional_check)
     {
         buffer_load_if<sizeof(type)>{}(
             dst, src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0, flag);
@@ -1386,7 +1377,7 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_buffer_store_if>
+          bool oob_conditional_check       = true>
 __device__ void amd_buffer_store_raw_impl(const typename vector_type<T, N>::type dst_thread_data,
                                           int32x4_t dst_wave_buffer_resource,
                                           index_t dst_thread_addr_offset,
@@ -1398,7 +1389,7 @@ __device__ void amd_buffer_store_raw_impl(const typename vector_type<T, N>::type
                   "wrong! not supported by buffer_store instruction");
 
     using type = typename vector_type<T, N>::type;
-    if constexpr(use_buffer_store_if)
+    if constexpr(oob_conditional_check)
     {
         buffer_store_if<sizeof(type)>{}(dst_thread_data,
                                         dst_wave_buffer_resource,
@@ -1644,10 +1635,11 @@ __device__ void amd_buffer_atomic_max_impl(const typename vector_type<T, N>::typ
 //   1) p_src_wave must point to global memory space
 //   2) p_src_wave must be a wavewise pointer.
 // It is user's responsibility to make sure that is true.
+//   oob_conditional_check : dynamic check if out-of-bound
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_inline_asm              = false>
+          bool oob_conditional_check       = true>
 __device__ typename vector_type_maker<T, N>::type::type
 amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
                                             index_t src_thread_element_offset,
@@ -1665,18 +1657,21 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
 #if CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
-    uint32_t src_addr_shift = src_thread_element_valid ? 0 : 0x80000000;
-    return amd_buffer_load_impl<scalar_t, vector_size, coherence, use_inline_asm>(
+    uint32_t src_addr_shift = [&]() {
+        if constexpr(oob_conditional_check)
+            return src_thread_element_valid ? 0 : 0x80000000;
+        else
+            return 0;
+    }();
+    return amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
-
 #else
-
-    // vector_t tmp;
-    // amd_buffer_load_raw_impl<scalar_t, vector_size, coherence, true>(tmp,
-    // src_wave_buffer_resource, src_thread_addr_offset, 0, src_thread_element_valid); return tmp;
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence, use_inline_asm>(
+    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, 0);
-    return src_thread_element_valid ? tmp : vector_t(0);
+    if constexpr(oob_conditional_check)
+        return src_thread_element_valid ? tmp : vector_t(0);
+    else
+        return tmp;
 #endif
 }
 
@@ -1687,7 +1682,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_inline_asm>
+          bool oob_conditional_check       = true>
 __device__ typename vector_type_maker<T, N>::type::type
 amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
                                                         index_t src_thread_element_offset,
@@ -1705,16 +1700,19 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence, use_inline_asm>(
+    vector_t tmp = amd_buffer_load_impl<scalar_t, vector_size, coherence>(
         src_wave_buffer_resource, src_thread_addr_offset, 0);
 
-    return src_thread_element_valid ? tmp : vector_t(customized_value);
+    if constexpr(oob_conditional_check)
+        return src_thread_element_valid ? tmp : vector_t(customized_value);
+    else
+        return tmp;
 }
 
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_buffer_load_if>
+          bool oob_conditional_check       = true>
 __device__ void amd_buffer_load_raw(typename vector_type_maker<T, N>::type::type& dst,
                                     const T* p_src_wave,
                                     index_t src_thread_element_offset,
@@ -1731,7 +1729,7 @@ __device__ void amd_buffer_load_raw(typename vector_type_maker<T, N>::type::type
 
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-    amd_buffer_load_raw_impl<scalar_t, vector_size, coherence, use_buffer_load_if>(
+    amd_buffer_load_raw_impl<scalar_t, vector_size, coherence, oob_conditional_check>(
         dst, src_wave_buffer_resource, src_thread_addr_offset, 0, is_valid_element);
 }
 
@@ -1794,7 +1792,7 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
 template <typename T,
           index_t N,
           AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
-          bool use_buffer_store_if>
+          bool oob_conditional_check       = true>
 __device__ void
 amd_buffer_store_raw(const typename vector_type_maker<T, N>::type::type src_thread_data,
                      T* p_dst_wave,
@@ -1811,7 +1809,7 @@ amd_buffer_store_raw(const typename vector_type_maker<T, N>::type::type src_thre
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-    amd_buffer_store_raw_impl<scalar_t, vector_size, coherence, use_buffer_store_if>(
+    amd_buffer_store_raw_impl<scalar_t, vector_size, coherence, oob_conditional_check>(
         src_thread_data,
         dst_wave_buffer_resource,
         dst_thread_addr_offset,
