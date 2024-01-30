@@ -45,7 +45,7 @@ using WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution =
         WarpGemmAttributeMfmaImplF16F16F32M16N16K16,
         2>>;
 
-using WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution =
+using WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
         WarpGemmAttributeMfmaImplF16F16F32M32N32K8,
         2>>;
@@ -82,7 +82,7 @@ using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution =
         WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16,
         2>>;
 
-using WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution =
+using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
         WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8,
         2>>;
