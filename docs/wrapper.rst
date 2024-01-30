@@ -1,6 +1,12 @@
-===============
+.. meta::
+  :description: Composable Kernel documentation and API reference library
+  :keywords: composable kernel, CK, ROCm, API, documentation
+
+.. _wrapper:
+
+********************************************************************
 Wrapper
-===============
+********************************************************************
 
 -------------------------------------
 Description
@@ -11,9 +17,8 @@ Description
     The wrapper is under development and its functionality is limited.
 
 
-CK provides a lightweight wrapper for more complex operations implemented in 
-the library. It allows indexing of nested layouts using a simple interface 
-(avoiding complex descriptor transformations) and memory access (using Tensor).
+The CK library provides a lightweight wrapper for more complex operations implemented in 
+the library.
 
 Example:
 
@@ -48,6 +53,11 @@ Output::
     1 5 9 13 17 21 25 29 
     2 6 10 14 18 22 26 30 
 
+
+Advanced examples:
+
+* `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_
+
 -------------------------------------
 Layout
 -------------------------------------
@@ -71,3 +81,11 @@ Tensor helpers
 -------------------------------------
 
 .. doxygenfile:: tensor_utils.hpp
+
+.. doxygenfile:: tensor_partition.hpp
+
+-------------------------------------
+Operations
+-------------------------------------
+
+.. doxygenfile:: copy.hpp

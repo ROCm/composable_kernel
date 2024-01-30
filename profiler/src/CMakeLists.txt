@@ -19,6 +19,8 @@ set(PROFILER_SOURCES
     profile_groupnorm_bwd_data.cpp
     profile_groupnorm_fwd.cpp
     profile_layernorm_bwd_data.cpp
+    profile_layernorm_bwd_gamma_beta.cpp
+    profile_groupnorm_bwd_gamma_beta.cpp
     profile_layernorm_fwd.cpp
     profile_max_pool3d_fwd.cpp
     profile_avg_pool3d_bwd.cpp
@@ -29,6 +31,7 @@ set(PROFILER_SOURCES
     profile_batchnorm_infer.cpp
     profile_grouped_conv_bwd_data.cpp
     profile_conv_tensor_rearrange.cpp
+    profile_transpose.cpp
 )
 
 if(DL_KERNELS)
@@ -59,7 +62,7 @@ set(PROFILER_EXECUTABLE ckProfiler)
 add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
 target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_multiply_instance)
@@ -82,6 +85,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_fwd_bias_relu_add_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_bwd_data_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_bwd_gamma_beta_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_softmax_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
@@ -92,6 +96,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_d
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)
 
 if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)

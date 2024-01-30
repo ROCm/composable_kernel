@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -30,7 +30,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
                block_dim.y,
                block_dim.z);
 
-        printf("Warm up 1 time\n");
+        printf("Warm up %d times\n", stream_config.cold_niters_);
 #endif
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)

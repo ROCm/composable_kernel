@@ -33,7 +33,7 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.ROCMVERSION != "6.1"){
+    if (params.ROCMVERSION != "6.0.1"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -84,7 +84,7 @@ def build_compiler(){
         compiler = '/opt/rocm/bin/hipcc'
     }
     else{
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             compiler = "/llvm-project/build/bin/clang++"
         }
         else{
@@ -293,7 +293,7 @@ def buildHipClangJob(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -304,7 +304,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
+                timeout(time: 48, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
@@ -348,7 +348,7 @@ def runCKProfiler(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -479,7 +479,7 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-stg-open" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -560,7 +560,7 @@ def Build_CK(Map conf=[:]){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
-                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/install"
+                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install"
                                 cmake --build build -- -j
                             """
                         }
@@ -709,6 +709,10 @@ pipeline {
             name: "USE_SCCACHE",
             defaultValue: true,
             description: "Use the sccache for building CK (default: ON)")
+        booleanParam(
+            name: "RUN_CPPCHECK",
+            defaultValue: false,
+            description: "Run the cppcheck static analysis (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -735,7 +739,39 @@ pipeline {
         }
         stage("Static checks") {
             parallel{
+                stage('Clang Format and Cppcheck') {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CPPCHECK.toBoolean() }
+                    }
+                    agent{ label rocmnode("nogpu") }
+                    environment{
+                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
+                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
+                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
+                                -o -iname \'*.h.in\' \
+                                -o -iname \'*.hpp.in\' \
+                                -o -iname \'*.cpp.in\' \
+                                -o -iname \'*.cl\' \
+                                | grep -v 'build/' \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
+                                /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
+                                -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 -D DL_KERNELS \
+                                -D __gfx908__ -D __gfx90a__ -D __gfx940__ -D __gfx941__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
+                                -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
+                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        archiveArtifacts "build/ck_cppcheck.log"
+                        cleanWs()
+                    }
+                }
                 stage('Clang Format') {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_CPPCHECK.toBoolean() }
+                    }
                     agent{ label rocmnode("nogpu") }
                     environment{
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
