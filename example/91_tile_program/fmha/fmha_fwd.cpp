@@ -37,7 +37,7 @@
 auto create_args(int argc, char* argv[])
 {
     ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do cpu validation or not")
+    arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
