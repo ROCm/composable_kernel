@@ -215,13 +215,13 @@ struct BlockFmhaPipelineQRKSVSFp8
                 k_block_tile = load_tile(k_dram_window);
             }
 
-            if constexpr(!kHasBias)
+            if constexpr(kHasBias)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
             }
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            if constexpr(!kHasBias)
+            if constexpr(kHasBias)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
