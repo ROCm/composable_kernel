@@ -30,17 +30,17 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         F16,   F16,  F16,  F32,  F16, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
-        2,   256,
-        256, 256, 
+        1,   256,
+        128, 256, 
         32, 8, 4,
         32,   32,
-        4,    4, 
+        2,    4, 
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 8, 8, 0,
+        2, 8, 8, 1,
         S<8, 32, 1>,  S<0, 2, 1>,  S<0, 2, 1>,
-        1, 8, 4, 0,
+        1, 8, 4, 1,
         1, 1, S<1, 32, 1, 8>, 8,
-        ck::LoopScheduler::Default, ck::PipelineVersion::v1>;
+        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::

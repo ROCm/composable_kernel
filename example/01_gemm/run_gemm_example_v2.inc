@@ -67,10 +67,30 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
         break;
+    case 2:
+        ck::utils::FillConstant<ADataType>{static_cast<ADataType>(1.f)}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
+        break;
+    case 3:
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
+        ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
+        break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
     }
+#if 0
+    printf("A matrix:\n");
+    for (int im = 0; im < M; im++)
+    {
+        for (int ik = 0; ik < K; ik++)
+        {
+            printf("%04x ", *(reinterpret_cast<uint16_t*>(&a_m_k(im,ik))));
+            if(ik%8==7) printf("|");
+        }
+        printf("\n");
+    }
+#endif
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));

@@ -8,8 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_selector.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
@@ -17,23 +16,38 @@
 
 namespace ck {
 
-template <typename GridwiseGemm, bool HasMainKBlockLoop, index_t TailNum = 3>
+// Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
+// kernel function Blockers:
+// 1. Two separted declaration of __shared__ pointer is the key to make sure data access operate on
+// two lds chunks.
+// 2. Occupied __shared__ won't release until whole shader end, a.k.a AB and C may not use same lds
+// buffer when we declare __shared__ inside blkgemmpipe
+template <typename GridwiseGemm,
+          bool HasMainKBlockLoop,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+          TailNumber TailNum = TailNumber::Odd>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 2)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v2(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, TailNum>(
-        karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared_0, p_shared_1, karg);
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+    karg.K                   = splitk_batch_offset.K_split;
+
+    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        karg.p_c_grid,
+        p_shared,
+        karg);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -42,13 +56,13 @@ __global__ void
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t TailNum = 3>
+          TailNumber TailNum = TailNumber::Odd>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
@@ -60,12 +74,7 @@ __global__ void
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
     karg.K                   = splitk_batch_offset.K_split;
 
-#if 0
-        if(threadIdx.x == 0){
-            printf("a_offset:%d, b_offset:%d, K_split: %d\n", splitk_batch_offset.a_k_split_offset, splitk_batch_offset.b_k_split_offset, karg.K);
-        }
-#endif
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
         karg.p_c_grid,
@@ -120,10 +129,10 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched,
-          PipelineVersion PipelineVer = PipelineVersion::v1,
-          typename ComputeTypeA       = FloatC,
-          typename ComputeTypeB       = ComputeTypeA>
+          BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
+          typename ComputeTypeA                       = FloatC,
+          typename ComputeTypeB                       = ComputeTypeA>
 struct GridwiseGemm_xdl_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -140,6 +149,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr auto BK0Number = Number<KPerBlock / BK1Value>{};
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
+
+    static constexpr index_t KPack =
+        math::max(math::lcm(AK1Number, BK1Number),
+                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -582,10 +595,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t b_k_split_offset;
     };
 
-    // FIXME: pass GridwiseGemmPipe as a template arguement into GridwiseGemm
-    using GridwiseGemmPipe = remove_cvref_t<
-        decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
-
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
         // A matrix in LDS memory, dst of blockwise copy
@@ -616,6 +625,28 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         return c_shuffle_block_desc_mblock_mperblock_nblock_nperblock;
     }
+
+    using BlockwiseGemmPipe =
+        remove_cvref_t<decltype(BlockGemmPipeline_Selector<
+                                BlkGemmPipelineVer,
+                                BlkGemmPipeSched,
+                                BlockSize,
+                                ComputeTypeA,
+                                FloatGemmAcc,
+                                decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
+                                decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
+                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
+                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
+                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
+                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
+                                MPerBlock,
+                                NPerBlock,
+                                KPerBlock,
+                                MPerXdl,
+                                NPerXdl,
+                                MXdlPerWave,
+                                NXdlPerWave,
+                                KPack>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -740,7 +771,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // check gridwise gemm pipeline
         const auto num_k_loop = (CalculateAK0(problem.K) * AK1Value) / KPerBlock;
 
-        if(num_k_loop < 4)
+        if(num_k_loop < BlockwiseGemmPipe::MinimumLoop)
         {
             return false;
         }
@@ -753,17 +784,14 @@ struct GridwiseGemm_xdl_cshuffle_v3
     {
         const index_t num_loop = K / KPerBlock;
 
-        return num_loop > 3;
+        return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
     }
 
-    __host__ static constexpr index_t CalculateKBlockLoopTailNum(index_t K)
+    __host__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
 
-        if(num_loop % 2 == 1)
-            return 3;
-        else
-            return 2;
+        return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
     }
 
     template <typename CGridDesc>
@@ -786,12 +814,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-              index_t TailNum = 3>
+              TailNumber TailNum = TailNumber::Odd>
     __device__ static void Run(const FloatA* p_a_grid,
                                const FloatB* p_b_grid,
                                FloatC* p_c_grid,
-                               void* p_shared_0,
-                               void* p_shared_1,
+                               void* p_shared,
                                const Problem& problem)
     {
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
@@ -829,18 +856,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             return;
         }
-#if 0
-        if(threadIdx.x == 0){
-            printf("Hardware assigned No. (%03d, %03d) workgroup of logical C tile (%02d, %02d) on %d th XCC Die, %d th SE, %d th CU\n",
-               static_cast<int>(blockIdx.x),
-               static_cast<int>(blockIdx.z),
-               block_work_idx[I0],
-               block_work_idx[I1],
-               __smid()>>6 & 0xf,
-               __smid()>>4 & 0x3,
-               __smid() & 0xf);
-        }
-#endif
+
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
@@ -917,47 +933,363 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_multi_index(0, 0, 0),
                 ck::tensor_operation::element_wise::PassThrough{});
 
-        // GEMM definition
-        //   c_mtx += transpose(a_mtx) * b_mtx
-        //     a_mtx[K0PerBlock, MPerBlock] is in LDS
-        //     b_mtx[K0PerBlock, NPerBlock] is in LDS
-        //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
-        //       register
-        // sanity check
-        constexpr index_t KPack =
-            math::max(math::lcm(AK1Number, BK1Number),
-                      MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        // LDS allocation for A and B: be careful of alignment
+        constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
-        // auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
-        //     BlockSize,
-        //     ComputeType,
-        //     FloatGemmAcc,
-        //     decltype(a_block_desc_ak0_m_ak1),
-        //     decltype(b_block_desc_bk0_n_bk1),
-        //     MPerXdl,
-        //     NPerXdl,
-        //     MXdlPerWave,
-        //     NXdlPerWave,
-        //     KPack,
-        //     LoopSched>();
-        auto blockwise_gemm_pipeline = BlockwiseGemmXdlops_pipeline_v4<
-            BlockSize,
-            ComputeTypeA,
-            FloatGemmAcc,
-            decltype(a_block_desc_ak0_m_ak1),
-            decltype(b_block_desc_bk0_n_bk1),
-            decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(a_block_desc_ak0_m_ak1)),
-            decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(b_block_desc_bk0_n_bk1)),
-            MPerBlock,
-            NPerBlock,
-            KPerBlock,
-            MPerXdl,
-            NPerXdl,
-            MXdlPerWave,
-            NXdlPerWave,
-            KPack>{}; // TransposeC
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<ComputeTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        auto c_thread_buf = blockwise_gemm_pipeline.GetCThreadBuffer();
+        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<ComputeTypeB*>(p_shared) + a_block_space_size_aligned,
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
+
+        // Blockwise GEMM pipeline
+        static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
+        auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
+        auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
+
+        const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
+            (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
+            KPerBlock);
+
+        blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
+                                                                         a_block_desc_ak0_m_ak1,
+                                                                         a_blockwise_copy,
+                                                                         a_grid_buf,
+                                                                         a_block_buf,
+                                                                         a_block_slice_copy_step,
+                                                                         b_grid_desc_bk0_n_bk1,
+                                                                         b_block_desc_bk0_n_bk1,
+                                                                         b_blockwise_copy,
+                                                                         b_grid_buf,
+                                                                         b_block_buf,
+                                                                         b_block_slice_copy_step,
+                                                                         c_thread_buf,
+                                                                         num_k_block_main_loop);
+
+        // shuffle C and write out
+        {
+            static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
+                              NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
+                          "wrong!");
+
+            constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+
+            // TODO: hacky, fix it!
+            constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
+                blockwise_gemm_pipeline.GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+
+            // TODO: hacky, fix it!
+            // c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp is only used to get lengths
+            constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp =
+                blockwise_gemm_pipeline.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
+
+            constexpr auto M0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I0);
+            constexpr auto N0 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I1);
+            constexpr auto M1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I2);
+            constexpr auto N1 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I3);
+            constexpr auto M2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I4);
+            constexpr auto M3 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I5);
+            constexpr auto M4 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I6);
+            constexpr auto N2 = c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2_tmp.GetLength(I7);
+
+            constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
+                GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
+
+            auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                static_cast<FloatCShuffle*>(p_shared),
+                c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+
+            constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
+                c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                make_tuple(
+                    make_freeze_transform(I0),
+                    make_unmerge_transform(make_tuple(
+                        Number<CShuffleMXdlPerWavePerShuffle>{}, // M0 (MXdlPerWave) per shuffle
+                        M1,                                      // M1 = MWave
+                        M2,                                      // M2 * M3 * M4 = MPerXdl
+                        M3,
+                        M4)),
+                    make_freeze_transform(I0),
+                    make_unmerge_transform(make_tuple(
+                        Number<CShuffleNXdlPerWavePerShuffle>{}, // N0 (NXdlPerWave) per shuffle
+                        N1,                                      // N1 = NWave
+                        N2))),                                   // N2 = NPerXdl
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(
+                    Sequence<>{}, Sequence<0, 2, 4, 5, 6>{}, Sequence<>{}, Sequence<1, 3, 7>{}));
+
+            // calculate origin of thread output tensor on global memory
+            //     blockwise GEMM c matrix starting index
+            const auto c_thread_mtx_on_block =
+                blockwise_gemm_pipeline.CalculateCThreadOriginDataIndex(I0, I0, I0, I0);
+
+            const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
+            const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
+
+            const auto m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(M0, M1, M2, M3, M4))),
+                    make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto m_thread_data_on_block_idx =
+                m_thread_data_on_block_to_m0_m1_m2_m3_m4_adaptor.CalculateBottomIndex(
+                    make_multi_index(m_thread_data_on_block));
+
+            const auto n_thread_data_on_block_to_n0_n1_n2_adaptor =
+                make_single_stage_tensor_adaptor(
+                    make_tuple(make_merge_transform(make_tuple(N0, N1, N2))),
+                    make_tuple(Sequence<0, 1, 2>{}),
+                    make_tuple(Sequence<0>{}));
+
+            const auto n_thread_data_on_block_idx =
+                n_thread_data_on_block_to_n0_n1_n2_adaptor.CalculateBottomIndex(
+                    make_multi_index(n_thread_data_on_block));
+
+            // shuffle: threadwise copy C from VGPR to LDS
+            auto c_thread_copy_vgpr_to_lds =
+                ThreadwiseTensorSliceTransfer_v1r3<FloatGemmAcc,
+                                                   FloatCShuffle,
+                                                   decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
+                                                   ck::tensor_operation::element_wise::PassThrough,
+                                                   Sequence<CShuffleMXdlPerWavePerShuffle,
+                                                            CShuffleNXdlPerWavePerShuffle,
+                                                            I1,
+                                                            I1,
+                                                            M2,
+                                                            I1,
+                                                            M4,
+                                                            I1>,
+                                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                                   7,
+                                                   1,
+                                                   InMemoryDataOperationEnum::Set,
+                                                   1,
+                                                   true>{
+                    c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                    make_multi_index(0,
+                                     0,
+                                     m_thread_data_on_block_idx[I1],
+                                     n_thread_data_on_block_idx[I1],
+                                     m_thread_data_on_block_idx[I2],
+                                     m_thread_data_on_block_idx[I3],
+                                     m_thread_data_on_block_idx[I4],
+                                     n_thread_data_on_block_idx[I2]),
+                    ck::tensor_operation::element_wise::PassThrough{}};
+
+            // shuffle: blockwise copy C from LDS to global
+            auto c_shuffle_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
+                ThisThreadBlock,            // ThreadGroup
+                CElementwiseOperation,      // ElementwiseOperation,
+                CGlobalMemoryDataOperation, // DstInMemOp,
+                Sequence<1,
+                         CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                         1,
+                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
+                CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                FloatCShuffle,        // typename SrcData,
+                FloatC,               // typename DstData,
+                decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
+                decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
+                Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
+                3,                                              // index_t VectorDim,
+                CShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
+                true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
+                false> // bool ThreadTransferDstResetCoordinateAfterRun>
+                {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                 make_multi_index(0, 0, 0, 0),
+                 c_grid_desc_mblock_mperblock_nblock_nperblock,
+                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                 c_element_op};
+
+            // space filling curve for threadwise C in VGPR
+            constexpr auto sfc_c_vgpr =
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                                  Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
+                                  Sequence<CShuffleMXdlPerWavePerShuffle,
+                                           CShuffleNXdlPerWavePerShuffle,
+                                           1,
+                                           1,
+                                           M2,
+                                           1,
+                                           M4,
+                                           1>>{};
+
+            // space filling curve for shuffled blockwise C in global mem
+            constexpr auto sfc_c_global =
+                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
+                                  Sequence<0, 2, 1, 3>,
+                                  Sequence<1,
+                                           CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
+                                           1,
+                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
+
+            constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
+
+            static_assert(num_access == sfc_c_global.GetNumOfAccess(), "wrong!");
+
+            static_for<0, num_access, 1>{}([&](auto access_id) {
+                // make sure it's safe to write to LDS
+                block_sync_lds();
+
+                // each thread write its data from VGPR to LDS
+                c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                              sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
+                                              c_thread_buf,
+                                              c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                              c_shuffle_block_buf);
+
+                // make sure it's safe to read from LDS
+                block_sync_lds();
+
+                // each block copy its data from LDS to global
+                c_shuffle_block_copy_lds_to_global.Run(
+                    c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
+                    c_shuffle_block_buf,
+                    c_grid_desc_mblock_mperblock_nblock_nperblock,
+                    c_grid_buf);
+
+                if constexpr(access_id < num_access - 1)
+                {
+                    constexpr auto c_global_step = sfc_c_global.GetForwardStep(access_id);
+
+                    // move on C
+                    c_shuffle_block_copy_lds_to_global.MoveDstSliceWindow(
+                        c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
+                }
+            });
+        }
+    }
+
+    template <bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              TailNumber TailNum = TailNumber::Odd>
+    __device__ static void Run_2Lds(const FloatA* p_a_grid,
+                                    const FloatB* p_b_grid,
+                                    FloatC* p_c_grid,
+                                    void* p_shared_0,
+                                    void* p_shared_1,
+                                    const Problem& problem)
+    {
+        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
+            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
+            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
+            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
+
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                c_grid_desc_m_n, problem.MBlock, problem.NBlock);
+
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+
+        const AElementwiseOperation a_element_op{};
+        const BElementwiseOperation b_element_op{};
+        const CElementwiseOperation c_element_op{};
+
+        // divide block work by [M, N]
+        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
+
+        const auto block_work_idx =
+            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+        if(!block_2_ctile_map.ValidCTileIndex(
+               block_work_idx,
+               make_tuple(c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                          c_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+        {
+            return;
+        }
+
+        // HACK: this force m/n_block_data_idx_on_grid into SGPR
+        const index_t m_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+
+        const index_t n_block_data_idx_on_grid =
+            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+
+        // lds max alignment
+        constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
+
+        // A matrix in LDS memory, dst of blockwise copy
+        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
+
+        // B matrix in LDS memory, dst of blockwise copy
+        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
+
+        // A matrix blockwise copy
+        auto a_blockwise_copy =
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                AElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                Sequence<AK0Number, MPerBlock, AK1Number>,
+                                                ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                                                ABlockTransferThreadClusterArrangeOrder,
+                                                FloatA,
+                                                ComputeTypeA,
+                                                decltype(a_grid_desc_ak0_m_ak1),
+                                                decltype(a_block_desc_ak0_m_ak1),
+                                                ABlockTransferSrcAccessOrder,
+                                                Sequence<1, 0, 2>,
+                                                ABlockTransferSrcVectorDim,
+                                                2,
+                                                ABlockTransferSrcScalarPerVector,
+                                                ABlockTransferDstScalarPerVector_AK1,
+                                                1,
+                                                1,
+                                                AThreadTransferSrcResetCoordinateAfterRun,
+                                                true>(
+                a_grid_desc_ak0_m_ak1,
+                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                a_element_op,
+                a_block_desc_ak0_m_ak1,
+                make_multi_index(0, 0, 0),
+                ck::tensor_operation::element_wise::PassThrough{});
+
+        // B matrix blockwise copy
+        auto b_blockwise_copy =
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                BElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                Sequence<BK0Number, NPerBlock, BK1Number>,
+                                                BBlockTransferThreadClusterLengths_BK0_N_BK1,
+                                                BBlockTransferThreadClusterArrangeOrder,
+                                                FloatB,
+                                                ComputeTypeB,
+                                                decltype(b_grid_desc_bk0_n_bk1),
+                                                decltype(b_block_desc_bk0_n_bk1),
+                                                BBlockTransferSrcAccessOrder,
+                                                Sequence<1, 0, 2>,
+                                                BBlockTransferSrcVectorDim,
+                                                2,
+                                                BBlockTransferSrcScalarPerVector,
+                                                BBlockTransferDstScalarPerVector_BK1,
+                                                1,
+                                                1,
+                                                BThreadTransferSrcResetCoordinateAfterRun,
+                                                true>(
+                b_grid_desc_bk0_n_bk1,
+                make_multi_index(0, n_block_data_idx_on_grid, 0),
+                b_element_op,
+                b_block_desc_bk0_n_bk1,
+                make_multi_index(0, 0, 0),
+                ck::tensor_operation::element_wise::PassThrough{});
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
@@ -969,7 +1301,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ComputeTypeB*>(p_shared_0) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-
+        // ignore = p_shared_1;
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ComputeTypeA*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
@@ -983,9 +1315,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
 
-        // gridwise GEMM pipeline
-        static_assert(std::is_default_constructible_v<GridwiseGemmPipe>);
-        // const auto gridwise_gemm_pipeline = GridwiseGemmPipe{};
+        // Blockwise GEMM pipeline
+        static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
+        auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
+        auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /

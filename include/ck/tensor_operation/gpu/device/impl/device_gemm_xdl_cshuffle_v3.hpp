@@ -64,10 +64,10 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer = PipelineVersion::v1,
-          typename ComputeTypeA       = CDataType,
-          typename ComputeTypeB       = ComputeTypeA>
+          BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
+          BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
+          typename ComputeTypeA                       = CDataType,
+          typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        BLayout,
                                                        CLayout,
@@ -78,12 +78,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
-    using DeviceOp = DeviceGemm_Xdl_CShuffleV3;
-
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
         ALayout,
@@ -129,8 +123,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         CShuffleNXdlPerWavePerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
-        LoopSched,
-        PipelineVer,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB>;
 
@@ -169,12 +163,17 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             {
                 K_split = arg.K / arg.k_batch;
             }
-            if(arg.k_batch > 1)
+
+            // Tail number always 1
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
             {
-                hipGetErrorString(hipMemsetAsync(
-                    arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_));
-                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == 3)
+                if(arg.k_batch > 1)
                 {
+                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
+                                                     0,
+                                                     arg.M * arg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
+
                     const auto kernel =
                         kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                     true,
@@ -184,23 +183,29 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 }
                 else
                 {
-                    const auto kernel =
-                        kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                    true,
-                                                    InMemoryDataOperationEnum::AtomicAdd,
-                                                    2>;
-                    ave_time = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                }
-            }
-            else
-            {
-                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == 3)
-                {
                     const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                                     true,
                                                                     InMemoryDataOperationEnum::Set>;
                     ave_time          = launch_and_time_kernel(
+                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                }
+            }
+            // Tail number always 2
+            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+            {
+                if(arg.k_batch > 1)
+                {
+                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
+                                                     0,
+                                                     arg.M * arg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
+
+                    const auto kernel =
+                        kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                    true,
+                                                    InMemoryDataOperationEnum::AtomicAdd,
+                                                    TailNumber::Even>;
+                    ave_time = launch_and_time_kernel(
                         stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
                 }
                 else
@@ -208,9 +213,114 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                     const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                                     true,
                                                                     InMemoryDataOperationEnum::Set,
-                                                                    2>;
+                                                                    TailNumber::Even>;
                     ave_time          = launch_and_time_kernel(
                         stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                }
+            }
+            // Tail number could be Odd or Even, double lds buffer have blockers on unified with
+            // single buffer
+            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            {
+                if(arg.k_batch > 1)
+                {
+                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
+                                                     0,
+                                                     arg.M * arg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::AtomicAdd>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             TailNumber::Even>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                }
+                else
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::Set>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::Set,
+                                                             TailNumber::Even>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                }
+            }
+            // Tail number could be Odd or Even
+            else
+            {
+                if(arg.k_batch > 1)
+                {
+                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
+                                                     0,
+                                                     arg.M * arg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::AtomicAdd>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::AtomicAdd,
+                                                        TailNumber::Even>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                }
+                else
+                {
+                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        TailNumber::Even>;
+                        ave_time = launch_and_time_kernel(
+                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    }
                 }
             }
 
@@ -312,35 +422,39 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
     {
         auto str = std::stringstream();
 
-        std::map<LoopScheduler, std::string> LoopSchedToString{
-            {LoopScheduler::Default, "Default"}, {LoopScheduler::Interwave, "Interwave"}};
+        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
+            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
+            {BlockGemmPipelineScheduler::Interwave, "Interwave"},
+            {BlockGemmPipelineScheduler::Hybrid, "Hybrid"}};
 
-        std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
-                                                                       {PipelineVersion::v2, "v2"}};
+        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"},
+            {BlockGemmPipelineVersion::v4, "v4"}};
 
         // clang-format off
-        str << "DeviceGemm_Xdl_CShuffleV3"
+        str << "OpName: DeviceGemm_Xdl_CShuffleV3"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
-            << BlockSize << ", "
-            << MPerBlock << ", "
-            << NPerBlock << ", "
-            << KPerBlock << ", "
-            << AK1 << ", "
-            << BK1 << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
-            << MXdlPerWave << ", "
-            << NXdlPerWave << ", "
-            << ABlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferSrcScalarPerVector << ", "
-            << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle
+            << std::string(ALayout::name)[0]
+            << std::string(BLayout::name)[0]
+            << std::string(CLayout::name)[0]
             << ">"
-            << " LoopScheduler: "
-            << LoopSchedToString[LoopSched] << ", "
-            << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];
+            << " BlkSize: "
+            << BlockSize << ", "
+            << "BlkTile: "
+            << MPerBlock<<"x"<<NPerBlock<<"x"<<KPerBlock << ", "
+            << "WaveTile: "
+            << MPerXDL<<"x"<<NPerXDL << ", "
+            << "WaveMap: "
+            << MXdlPerWave<<"x" << NXdlPerWave<<", "
+            << "VmemReadVec: "
+            << ABlockTransferSrcScalarPerVector<<"x"<<BBlockTransferSrcScalarPerVector<<", "
+            << "BlkGemmPipelineScheduler: "
+            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
+            << "BlkGemmPipelineVersion: "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer];
         // clang-format on
 
         return str.str();
