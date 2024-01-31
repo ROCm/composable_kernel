@@ -26,14 +26,14 @@ struct TileFmhaTraits
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
-template <bool kM0NeedPadding_ /* padding for seqlen_q */,
-          bool kK0N1NeedPadding_ /* paddding for hdim_q / hdim_v */,
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
           index_t kBlockPerCu_ = 2 /* hint to occupancy */>
 struct TileFmhaBwdOGradDotOTraits
 {
-    static constexpr bool kM0NeedPadding   = kM0NeedPadding_;
-    static constexpr bool kK0N1NeedPadding = kK0N1NeedPadding_;
-    static constexpr index_t kBlockPerCu   = kBlockPerCu_;
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
 } // namespace tile_program

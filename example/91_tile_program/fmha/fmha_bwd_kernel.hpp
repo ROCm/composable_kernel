@@ -39,13 +39,14 @@ struct FmhaBwdKernel
     using VGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::VGradDataType>;
     using BiasGradDataType = ck::remove_cvref_t<typename FmhaPipeline::BiasGradDataType>;
 
-    static constexpr bool kIsGroupMode     = FmhaPipeline::kIsGroupMode;
-    static constexpr bool kM0NeedPadding   = FmhaPipeline::kM0NeedPadding;
-    static constexpr bool kN0K1NeedPadding = FmhaPipeline::kN0K1NeedPadding;
-    static constexpr bool kK0N1NeedPadding = FmhaPipeline::kK0N1NeedPadding;
-    static constexpr bool kHasBias         = FmhaPipeline::kHasBias;
-    using FmhaMask                         = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
-    static constexpr bool kHasMask         = FmhaMask::IsMasking;
+    static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
+    static constexpr bool kHasBias     = FmhaPipeline::kHasBias;
+    using FmhaMask                     = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    static constexpr bool kHasMask     = FmhaMask::IsMasking;
 
     template <ck::index_t I> // to avoid duplicated base class prblem, introduce an template arg
     struct FmhaBwdEmptyKargs
@@ -481,14 +482,14 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kQKHeaddim>{}),
-                    Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenQ, kPadHeadDimQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     q_dram_naive,
                     make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kK0>{}),
-                    Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenQ, kPadHeadDimQ>{});
             }
         }();
 
@@ -504,14 +505,14 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     qt_dram_naive,
                     make_tuple(Number<FmhaPipeline::kQKHeaddim>{}, Number<FmhaPipeline::kM0>{}),
-                    Sequence<kK0N1NeedPadding, kM0NeedPadding>{});
+                    Sequence<kPadHeadDimQ, kPadSeqLenQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     qt_dram_naive,
                     make_tuple(Number<FmhaPipeline::kQKHeaddim>{}, Number<FmhaPipeline::kK3>{}),
-                    Sequence<kK0N1NeedPadding, kM0NeedPadding>{});
+                    Sequence<kPadHeadDimQ, kPadSeqLenQ>{});
             }
         }();
 
@@ -527,14 +528,14 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     k_dram_naive,
                     make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kQKHeaddim>{}),
-                    Sequence<kN0K1NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenK, kPadHeadDimQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     k_dram_naive,
                     make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kK0>{}),
-                    Sequence<kN0K1NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenK, kPadHeadDimQ>{});
             }
         }();
 
@@ -550,14 +551,14 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     kt_dram_naive,
                     make_tuple(Number<FmhaPipeline::kQKHeaddim>{}, Number<FmhaPipeline::kN0>{}),
-                    Sequence<kK0N1NeedPadding, kN0K1NeedPadding>{});
+                    Sequence<kPadHeadDimQ, kPadSeqLenK>{});
             }
             else
             {
                 return pad_tensor_view(
                     kt_dram_naive,
                     make_tuple(Number<FmhaPipeline::kQKHeaddim>{}, Number<FmhaPipeline::kK4>{}),
-                    Sequence<kK0N1NeedPadding, kN0K1NeedPadding>{});
+                    Sequence<kPadHeadDimQ, kPadSeqLenK>{});
             }
         }();
 
@@ -573,30 +574,29 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     v_dram_naive,
                     make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kVHeaddim>{}),
-                    Sequence<kN0K1NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenK, kPadHeadDimV>{});
             }
             else
             {
                 return pad_tensor_view(
                     v_dram_naive,
                     make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kK2>{}),
-                    Sequence<kN0K1NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenK, kPadHeadDimV>{});
             }
         }();
 
         const auto lse_dram = [&]() {
             const auto lse_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
                 lse_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
-            return pad_tensor_view(lse_dram_naive,
-                                   make_tuple(Number<FmhaPipeline::kM0>{}),
-                                   Sequence<kM0NeedPadding>{});
+            return pad_tensor_view(
+                lse_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
 
         const auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
                 d_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
             return pad_tensor_view(
-                d_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kM0NeedPadding>{});
+                d_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
 
         const auto do_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
@@ -611,14 +611,14 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     do_dram_naive,
                     make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kVHeaddim>{}),
-                    Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenQ, kPadHeadDimV>{});
             }
             else
             {
                 return pad_tensor_view(
                     do_dram_naive,
                     make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kK2>{}),
-                    Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                    Sequence<kPadSeqLenQ, kPadHeadDimV>{});
             }
         }();
 
@@ -634,14 +634,14 @@ struct FmhaBwdKernel
                 return pad_tensor_view(
                     dot_dram_naive,
                     make_tuple(Number<FmhaPipeline::kVHeaddim>{}, Number<FmhaPipeline::kM0>{}),
-                    Sequence<kK0N1NeedPadding, kM0NeedPadding>{});
+                    Sequence<kPadHeadDimV, kPadSeqLenQ>{});
             }
             else
             {
                 return pad_tensor_view(
                     dot_dram_naive,
                     make_tuple(Number<FmhaPipeline::kVHeaddim>{}, Number<FmhaPipeline::kK1>{}),
-                    Sequence<kK0N1NeedPadding, kM0NeedPadding>{});
+                    Sequence<kPadHeadDimV, kPadSeqLenQ>{});
             }
         }();
 
@@ -657,7 +657,7 @@ struct FmhaBwdKernel
             return pad_tensor_view(
                 dq_dram_naive,
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kQKHeaddim>{}),
-                Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                Sequence<kPadSeqLenQ, kPadHeadDimQ>{});
         }();
 
         auto q_dram_window = make_tile_window(
@@ -773,7 +773,7 @@ struct FmhaBwdKernel
 
                     return pad_tensor_view(bias_dram_naive,
                                            bias_dram_window_lengths,
-                                           Sequence<kM0NeedPadding, kN0K1NeedPadding>{});
+                                           Sequence<kPadSeqLenQ, kPadSeqLenK>{});
                 }();
 
                 return make_tile_window(bias_dram, bias_dram_window_lengths, {0, i_n0});
@@ -802,7 +802,7 @@ struct FmhaBwdKernel
 
                     return pad_tensor_view(dbias_dram_naive,
                                            bias_dram_window_lengths,
-                                           Sequence<kM0NeedPadding, kN0K1NeedPadding>{});
+                                           Sequence<kPadSeqLenQ, kPadSeqLenK>{});
                 }();
 
                 return make_tile_window(dbias_dram, bias_dram_window_lengths, {0, i_n0});
@@ -848,7 +848,7 @@ struct FmhaBwdKernel
             return pad_tensor_view(
                 dk_dram_naive,
                 make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kQKHeaddim>{}),
-                Sequence<kN0K1NeedPadding, kK0N1NeedPadding>{});
+                Sequence<kPadSeqLenK, kPadHeadDimQ>{});
         }();
 
         auto dv_dram = [&]() {
@@ -862,7 +862,7 @@ struct FmhaBwdKernel
             return pad_tensor_view(
                 dv_dram_naive,
                 make_tuple(Number<FmhaPipeline::kN0>{}, Number<FmhaPipeline::kVHeaddim>{}),
-                Sequence<kN0K1NeedPadding, kK0N1NeedPadding>{});
+                Sequence<kPadSeqLenK, kPadHeadDimV>{});
         }();
 
         auto dk_dram_window = make_tile_window(
@@ -893,9 +893,9 @@ struct FmhaBwdOGradDotOKernel
     using ODataType     = ck::remove_cvref_t<typename FmhaBwdOGradDotO::ODataType>;
     using OGradDataType = ck::remove_cvref_t<typename FmhaBwdOGradDotO::OGradDataType>;
 
-    static constexpr bool kIsGroupMode     = FmhaBwdOGradDotO::kIsGroupMode;
-    static constexpr bool kM0NeedPadding   = FmhaBwdOGradDotO::kM0NeedPadding;
-    static constexpr bool kK0N1NeedPadding = FmhaBwdOGradDotO::kK0N1NeedPadding;
+    static constexpr bool kIsGroupMode = FmhaBwdOGradDotO::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ  = FmhaBwdOGradDotO::kPadSeqLenQ;
+    static constexpr bool kPadHeadDimV = FmhaBwdOGradDotO::kPadHeadDimV;
 
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
@@ -1044,7 +1044,7 @@ struct FmhaBwdOGradDotOKernel
                 Number<1>{});
             return pad_tensor_view(o_dram_naive,
                                    make_tuple(Number<kM0>{}, Number<kVHeaddim>{}),
-                                   Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                                   Sequence<kPadSeqLenQ, kPadHeadDimV>{});
         }();
         const auto do_dram = [&]() {
             auto do_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
@@ -1055,13 +1055,13 @@ struct FmhaBwdOGradDotOKernel
                 Number<1>{});
             return pad_tensor_view(do_dram_naive,
                                    make_tuple(Number<kM0>{}, Number<kVHeaddim>{}),
-                                   Sequence<kM0NeedPadding, kK0N1NeedPadding>{});
+                                   Sequence<kPadSeqLenQ, kPadHeadDimV>{});
         }();
         auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
                 d_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
             return pad_tensor_view(
-                d_dram_naive, make_tuple(Number<kM0>{}), Sequence<kM0NeedPadding>{});
+                d_dram_naive, make_tuple(Number<kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
 
         auto o_dram_window =

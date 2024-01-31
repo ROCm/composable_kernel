@@ -439,8 +439,7 @@ bool run(const ArgParser& arg_parser)
 
     float ave_time         = 0;
     const auto check_hdims = [](ck::index_t hdim_q_, ck::index_t hdim_v_, ck::index_t threshold) {
-        const auto compare =
-            std::conditional_t<kK0N1NeedPadding, std::less_equal<>, std::equal_to<>>{};
+        const auto compare = std::conditional_t<kPadHeadDimV, std::less_equal<>, std::equal_to<>>{};
         return compare(hdim_q_, threshold) && compare(hdim_v_, threshold);
     };
 

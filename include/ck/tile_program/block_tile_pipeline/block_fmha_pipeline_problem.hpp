@@ -110,11 +110,12 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kM0NeedPadding   = Traits::kM0NeedPadding;
-    static constexpr bool kN0K1NeedPadding = Traits::kN0K1NeedPadding;
-    static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
-    static constexpr bool kHasBias         = Traits::kHasBias;
-    static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
+    static constexpr bool kHasBias       = Traits::kHasBias;
+    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 
 template <typename ODataType_,
@@ -139,9 +140,9 @@ struct BlockFmhaBwdOGradDotOPipelineProblem
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kM0NeedPadding   = Traits::kM0NeedPadding;
-    static constexpr bool kK0N1NeedPadding = Traits::kK0N1NeedPadding;
-    static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
+    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
+    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 
 } // namespace block

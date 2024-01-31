@@ -69,9 +69,10 @@ struct FmhaMasks
     using CausalMask  = ck::tile_program::block::GenericAttentionMask<true, false>;
 };
 
-inline constexpr bool kM0NeedPadding   = false;
-inline constexpr bool kN0K1NeedPadding = false;
-inline constexpr bool kK0N1NeedPadding = false;
+inline constexpr bool kPadSeqLenQ  = false;
+inline constexpr bool kPadSeqLenK  = false;
+inline constexpr bool kPadHeadDimQ = false;
+inline constexpr bool kPadHeadDimV = false;
 
 template <ck::index_t HDim>
 struct FmhaBlockTile;
@@ -182,7 +183,7 @@ struct FmhaBwdShape</* HDim = */ 128>
 
 template <bool kHasBias>
 using FmhaBwdTraits = ck::tile_program::
-    TileFmhaTraits<kM0NeedPadding, kN0K1NeedPadding, kK0N1NeedPadding, kHasBias, 1>;
+    TileFmhaTraits<kPadSeqLenQ, kPadSeqLenK, kPadHeadDimQ, kPadHeadDimV, kHasBias, 1>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
 using FmhaBwdPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProblem<
@@ -225,7 +226,7 @@ using FmhaBwdKernelSelector =
                   FmhaEpilogue<DataType>>;
 
 using FmhaBwdOGradDotOTraits =
-    ck::tile_program::TileFmhaBwdOGradDotOTraits<kM0NeedPadding, kK0N1NeedPadding>;
+    ck::tile_program::TileFmhaBwdOGradDotOTraits<kPadSeqLenQ, kPadHeadDimV>;
 
 template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
 using FmhaBwdOGradDotOPipelineProblem =

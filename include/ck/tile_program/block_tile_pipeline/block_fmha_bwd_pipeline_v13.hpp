@@ -66,11 +66,12 @@ struct BlockFmhaBwdPipelineV13
     static constexpr bool kOGradLoadOnce  = BlockFmhaShape::kOGradLoadOnce;
     static constexpr bool kOGradTLoadOnce = BlockFmhaShape::kOGradTLoadOnce;
 
-    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kM0NeedPadding   = Problem::kM0NeedPadding;
-    static constexpr bool kN0K1NeedPadding = Problem::kN0K1NeedPadding;
-    static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
-    static constexpr bool kHasBias         = Problem::kHasBias;
+    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
+    static constexpr bool kHasBias     = Problem::kHasBias;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -385,7 +386,7 @@ struct BlockFmhaBwdPipelineV13
             tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, st_acc);
 #endif
 
-            if constexpr(kN0K1NeedPadding || FmhaMask::IsMasking)
+            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto q_origin      = q_dram_block_window.GetWindowOrigin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.At(Number<0>{}),

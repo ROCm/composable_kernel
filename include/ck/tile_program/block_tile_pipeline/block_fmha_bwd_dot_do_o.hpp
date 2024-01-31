@@ -34,9 +34,9 @@ struct BlockFmhaBwdOGradDotO
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
     static constexpr index_t kVHeaddim   = Problem::kVHeaddim;
 
-    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kM0NeedPadding   = Problem::kM0NeedPadding;
-    static constexpr bool kK0N1NeedPadding = Problem::kK0N1NeedPadding;
+    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
+    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize() { return 0; }
 
