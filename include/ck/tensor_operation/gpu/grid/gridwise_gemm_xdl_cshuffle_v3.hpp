@@ -100,7 +100,6 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           tensor_operation::device::GemmSpecialization GemmSpec,
-          index_t NumGemmKPrefetchStage,
           index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
@@ -683,7 +682,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    __host__ static constexpr bool CheckValidity(const Problem& problem)
+    __host__ static constexpr bool CheckValidity(const Argument& problem)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -716,15 +715,16 @@ struct GridwiseGemm_xdl_cshuffle_v3
                      GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
                      GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding)
         {
-            if(!(CalculateKPadded(problem.K) % AK1Value == 0) ||
-               !(CalculateKPadded(problem.K) % BK1Value == 0))
+            if(!(CalculateKPadded(problem.K / problem.k_batch) % AK1Value == 0) ||
+               !(CalculateKPadded(problem.K / problem.k_batch) % BK1Value == 0))
             {
                 return false;
             }
         }
         else
         {
-            if(!(problem.K % AK1Value == 0) || !(problem.K % BK1Value == 0))
+            if(!((problem.K / problem.k_batch) % AK1Value == 0) ||
+               !((problem.K / problem.k_batch) % BK1Value == 0))
             {
                 return false;
             }

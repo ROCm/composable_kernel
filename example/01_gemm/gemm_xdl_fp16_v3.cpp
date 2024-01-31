@@ -30,7 +30,7 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         F16,   F16,  F16,  F32,  F16, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
-        1,   256,
+        256,
         128, 256, 
         32, 8, 4,
         32,   32,
