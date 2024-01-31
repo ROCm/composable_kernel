@@ -15,7 +15,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using F8  = ck::f8_t;
+using F8 = ck::f8_t;
 using F16 = ck::half_t;
 using F32 = float;
 
@@ -28,6 +28,7 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmKPadding   = ck::tensor_operation::device::GemmSpecialization::KPadding;
 static constexpr auto GemmMNPadding  = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -88,7 +89,8 @@ using device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_instances = std::tuple<
         DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    32,   128,     4,  8,   32,   32,    1,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               8,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
         DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,   128,    32,     4,  8,   32,   32,    2,    1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               8,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
         DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,    64,    32,    32,     4,  8,   32,   32,    1,    1,  S<1, 2, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,      true,           1,           1,                   S<1, 16, 1, 4>,               8,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
-        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,    64,    16,    32,     4,  8,   16,   16,    1,    2,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,      true,           1,           1,                   S<1, 16, 1, 4>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>, 
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,    64,    16,    32,     4,  8,   16,   16,    1,    2,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,      true,           1,           1,                   S<1, 16, 1, 4>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
+
 
         //PipelineVersion::v2
         DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,   256,   128,     4,  8,   32,   32,    4,    2,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,      true,           1,           1,                   S<1, 32, 1, 8>,               8,  F16, PipelineVersion::v2>,
@@ -110,18 +112,39 @@ using device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_instances = std::tuple<
     // clang-format on
     >;
 
-template <ck::tensor_operation::device::GemmSpecialization GemmSpec>
+template <ck::tensor_operation::device::GemmSpecialization GemmSpec,
+          ck::PipelineVersion PipVer,
+          ck::LoopScheduler LoopSche>
 using device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances = std::tuple<
     // clang-format off
         //#########################|AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
         //#########################| Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
         //#########################|     |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
         //#########################|     |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
-        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    32,   128,     4,  8,   32,   32,    1,    2,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
-        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   128,     4,  8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
-        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   256,     4,  8,   16,   16,    1,    8,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              8,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
-        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,    16,   256,     4,  8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>,
-        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,    16,   512,     4,  8,   16,   16,    1,    8,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              8,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipelineVersion::v1, LoopScheduler::Interwave>
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   128,     4,  8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   256,     4,  8,   16,   16,    1,    8,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              8,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,    16,   256,     4,  8,   16,   16,    1,    4,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 16>,              4,  F16, PipVer, LoopSche>,        
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,    16,   512,     4,  8,   16,   16,    1,    8,  S<1, 4, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              8,              8,      true,           1,           1,                   S<1, 16, 1, 16>,              4,  F16, PipVer, LoopSche>,
+
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,   128,    16,     4,  8,   16,   16,    4,    1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,   256,    16,     4,  8,   16,   16,    8,    1,  S<1, 4, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,   256,    16,     4,  8,   16,   16,    4,    1,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 64, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,   512,    16,     4,  8,   16,   16,    8,    1,  S<1, 4, 64, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 64, 1, 4>,               4,  F16, PipVer, LoopSche>,
+
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,    64,    16,    16,     8,  8,   16,   16,    1,    1,  S<1, 8,  8, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 16, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,    64,    16,    16,    16,  8,   16,   16,    1,    1,  S<1, 16, 4, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 16, 1, 4>,               4,  F16, PipVer, LoopSche>,
+
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,    32,     8,  8,   16,   16,    1,    1,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,    64,     8,  8,   16,   16,    1,    2,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              2,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   128,     8,  8,   16,   16,    1,    4,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   256,     8,  8,   16,   16,    1,    8,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 32, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              8,              8,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,    16,   256,     8,  8,   16,   16,    1,    4,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 4, 64, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              4,              8,      true,           1,           1,                   S<1, 16, 1, 16>,              4,  F16, PipVer, LoopSche>,        
+
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    32,    16,     8,  8,   16,   16,    1,    1,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    64,    16,     8,  8,   16,   16,    2,    1,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,   128,    16,     8,  8,   16,   16,    4,    1,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,   256,    16,     8,  8,   16,   16,    8,    1,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 32, 1, 4>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Row,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,   256,    16,     8,  8,   16,   16,    4,    1,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 1, 3, 2>,  S<0, 1, 3, 2>,             2,              1,              8,      true,           1,           1,                   S<1, 64, 1, 4>,               4,  F16, PipVer, LoopSche>
     // clang-format on
     >;
 
@@ -142,9 +165,51 @@ void add_device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_instances(
     add_device_operation_instances(
         instances, device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_instances<GemmMNKPadding>{});
 
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<GemmMNKPadding>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmDefault,
+                                       ck::PipelineVersion::v1,
+                                       ck::LoopScheduler::Default>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmDefault,
+                                       ck::PipelineVersion::v2,
+                                       ck::LoopScheduler::Default>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmDefault,
+                                       ck::PipelineVersion::v1,
+                                       ck::LoopScheduler::Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmKPadding,
+                                       ck::PipelineVersion::v1,
+                                       ck::LoopScheduler::Default>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmKPadding,
+                                       ck::PipelineVersion::v2,
+                                       ck::LoopScheduler::Default>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmKPadding,
+                                       ck::PipelineVersion::v1,
+                                       ck::LoopScheduler::Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmMNKPadding,
+                                       ck::PipelineVersion::v1,
+                                       ck::LoopScheduler::Default>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmMNKPadding,
+                                       ck::PipelineVersion::v2,
+                                       ck::LoopScheduler::Default>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_kn_mn_irregular_instances<
+                                       GemmMNKPadding,
+                                       ck::PipelineVersion::v1,
+                                       ck::LoopScheduler::Interwave>{});
 }
 
 } // namespace instance
