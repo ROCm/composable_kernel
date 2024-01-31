@@ -137,8 +137,14 @@ int profile_gemm(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(false)
-        ;
+    if(data_type != GemmDataType::F32_F32_F32 && data_type != GemmDataType::F16_F16_F16 &&
+       data_type != GemmDataType::BF16_BF16_BF16 && data_type != GemmDataType::INT8_INT8_INT8 &&
+       data_type != GemmDataType::F8_F8_F8)
+    {
+        // dummy clause before the else clauses for different data types
+        std::cout << "Gemm: this data_type is not implemented" << std::endl;
+        return 1;
+    }
 #ifdef CK_ENABLE_FP32
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -231,7 +237,7 @@ int profile_gemm(int argc, char* argv[])
 #endif
     else
     {
-        std::cout << "this data_type & layout is not implemented" << std::endl;
+        std::cout << "Gemm: this data_type & layout is not implemented" << std::endl;
 
         return 1;
     }
