@@ -152,23 +152,6 @@ auto get_elimit(int /*init_method*/)
     return ck::make_tuple(rtol, atol);
 }
 
-template <>
-auto get_elimit<ck::bhalf_t>(int init_method)
-{
-    if(init_method == 0)
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck::make_tuple(rtol, atol);
-    }
-    else
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck::make_tuple(rtol, atol);
-    }
-}
-
 template <typename DataType>
 bool run(const ArgParser& arg_parser)
 {
