@@ -89,3 +89,4 @@ Operations
 -------------------------------------
 
 .. doxygenfile:: copy.hpp
+.. doxygenfile:: gemm.hpp
