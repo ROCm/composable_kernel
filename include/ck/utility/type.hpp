@@ -43,7 +43,8 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 #if CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
     Y y;
 
-    __builtin_memcpy(&y, &x, sizeof(X));
+    y = __builtin_bit_cast(Y, x);
+    // __builtin_memcpy(&y, &x, sizeof(X));
 
     return y;
 #else
