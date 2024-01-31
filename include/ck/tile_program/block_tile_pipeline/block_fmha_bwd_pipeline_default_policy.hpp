@@ -1216,6 +1216,88 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                                   WarpGemm>;
         return BlockGemmASmemBSmemCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
     }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakePBlockTile()
+    {
+        using BlockGemmProblem =
+            BlockGemmPipelineProblem<typename Problem::KDataType,
+                                     typename Problem::QDataType,
+                                     typename Problem::AccDataType,
+                                     Problem::kBlockSize,
+                                     TileGemmShape<Problem::BlockFmhaShape::kN0,
+                                                   Problem::BlockFmhaShape::kM0,
+                                                   Problem::BlockFmhaShape::kK0>>;
+
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::KDataType, half_t> &&
+                         is_same_v<typename Problem::QDataType, half_t> &&
+                         is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(is_same_v<typename Problem::KDataType, bhalf_t> &&
+                              is_same_v<typename Problem::QDataType, bhalf_t> &&
+                              is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
+            }
+        }();
+
+        using BlockGemmPolicy =
+            BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::KDataType,
+                                                  typename Problem::QDataType,
+                                                  typename Problem::AccDataType,
+                                                  typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                                  decltype(warp_gemm)>;
+
+        constexpr auto p_gemm = BlockGemmASmemBSmemCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
+        constexpr auto p_block_dstr = p_gemm.MakeCBlockTile().GetTileDistribution();
+        auto p_block_tensor =
+            make_static_distributed_tensor<typename Problem::GemmDataType>(p_block_dstr);
+        return p_block_tensor;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeSGradBlockTile()
+    {
+        using BlockGemmProblem =
+            BlockGemmPipelineProblem<typename Problem::VDataType,
+                                     typename Problem::OGradDataType,
+                                     typename Problem::AccDataType,
+                                     Problem::kBlockSize,
+                                     TileGemmShape<Problem::BlockFmhaShape::kN0,
+                                                   Problem::BlockFmhaShape::kM0,
+                                                   Problem::BlockFmhaShape::kK2>>;
+
+        constexpr auto warp_gemm = []() {
+            if constexpr(is_same_v<typename Problem::VDataType, half_t> &&
+                         is_same_v<typename Problem::OGradDataType, half_t> &&
+                         is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
+            }
+            else if constexpr(is_same_v<typename Problem::VDataType, bhalf_t> &&
+                              is_same_v<typename Problem::OGradDataType, bhalf_t> &&
+                              is_same_v<typename Problem::AccDataType, float>)
+            {
+                return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
+            }
+        }();
+
+        using BlockGemmPolicy =
+            BlockGemmASmemBRegCRegV1CustomPolicy<typename Problem::VDataType,
+                                                 typename Problem::OGradDataType,
+                                                 typename Problem::AccDataType,
+                                                 typename Problem::BlockFmhaShape::Gemm3BlockWarps,
+                                                 decltype(warp_gemm)>;
+
+        constexpr auto ds_gemm = BlockGemmASmemBRegCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
+        constexpr auto ds_block_dstr = ds_gemm.MakeCBlockTile().GetTileDistribution();
+        auto ds_block_tensor =
+            make_static_distributed_tensor<typename Problem::GemmDataType>(ds_block_dstr);
+        return ds_block_tensor;
+    }
 };
 
 } // namespace block
