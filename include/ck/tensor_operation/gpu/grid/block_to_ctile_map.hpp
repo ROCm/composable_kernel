@@ -326,12 +326,20 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt<GroupNum, MPerBlock, NPerBlock, v
 
         const auto M0 = math::integer_divide_ceil(M_, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N_, NPerBlock);
-
+        // if(get_thread_local_1d_id()==0){
+        //     printf("blkid: %d, block_1d_id: %d, M0: %d, N0: %d \n", static_cast<int>(blockIdx.x),
+        //     block_1d_id, M0, N0);
+        // }
         block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
 
-        const auto group_size  = math::integer_divide_ceil(M0 * N0, GroupNum);
-        auto group_id          = block_1d_id % GroupNum;
-        auto remap_block_1d_id = group_id * group_size + block_1d_id / GroupNum;
+        const auto group_size    = math::integer_divide_ceil(M0 * N0, GroupNum);
+        const auto big_group_num = GroupNum - (group_size * GroupNum - M0 * N0);
+        auto group_id_x          = block_1d_id % GroupNum;
+        auto group_id_y          = block_1d_id / GroupNum;
+        auto remap_block_1d_id =
+            group_id_x <= big_group_num
+                ? group_id_x * group_size + group_id_y
+                : group_id_x * group_size + big_group_num - group_id_x + group_id_y;
 
         index_t idx_N0 = remap_block_1d_id % N0;
         index_t idx_M0 = remap_block_1d_id / N0;
@@ -341,6 +349,11 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt<GroupNum, MPerBlock, NPerBlock, v
         index_t idx_M00          = idx_M0 / M01_;
         index_t idx_M01          = idx_M0 % M01_;
         index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
+
+        // if(get_thread_local_1d_id()==0){
+        //     printf("blkid: %d, big_group_num: %d, block_1d_id: %d, remap_block_1d_id: %d \n",
+        //     static_cast<int>(blockIdx.x), big_group_num, block_1d_id, remap_block_1d_id);
+        // }
 
         /**
          *                        idxN0

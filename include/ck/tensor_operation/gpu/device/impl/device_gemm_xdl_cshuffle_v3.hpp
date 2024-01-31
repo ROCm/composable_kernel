@@ -20,9 +20,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-// Note: inter-wave loop scheduler is rolled out to c-shuffle version first. Becuase non c-shuffle
-// version currently has compiler issues with register spill which further causes validation
-// failures.
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -434,7 +431,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             {BlockGemmPipelineVersion::v4, "v4"}};
 
         // clang-format off
-        str << "OpName: DeviceGemm_Xdl_CShuffleV3"
+        str << "DeviceGemm_Xdl_CShuffleV3"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]

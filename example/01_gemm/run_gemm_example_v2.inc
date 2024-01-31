@@ -157,6 +157,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
+    bool pass = true;
     if(config.do_verification)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -179,24 +180,26 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+        pass &= ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 #endif
     }
 
-    ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+    if(config.time_kernel)
+    {
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
-    std::size_t flop = 2_uz * M * N * K;
-    std::size_t num_btype =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+        std::size_t flop = 2_uz * M * N * K;
+        std::size_t num_btype =
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
 
-    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+        float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+        float gb_per_sec = num_btype / 1.E6 / ave_time;
 
-    std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << gemm.GetTypeString() << std::endl;
-
-    return true;
+        std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << gemm.GetTypeString() << std::endl;
+    }
+    return pass;
 }
 
 bool run_gemm_splitk_example(int argc, char* argv[])

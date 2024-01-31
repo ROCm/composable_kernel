@@ -35,12 +35,12 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
     karg.K                   = splitk_batch_offset.K_split;
+    karg.AK0                 = splitk_batch_offset.AK0_split;
+    karg.BK0                 = splitk_batch_offset.BK0_split;
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -73,6 +73,8 @@ __global__ void
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
     karg.K                   = splitk_batch_offset.K_split;
+    karg.AK0                 = splitk_batch_offset.AK0_split;
+    karg.BK0                 = splitk_batch_offset.BK0_split;
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -571,6 +573,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 K_split = karg.K / karg.k_batch;
             }
 
+            AK0_split = K_split / AK1Value;
+            BK0_split = K_split / BK1Value;
+
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
                 a_k_split_offset = blockIdx.z * K_split;
@@ -590,6 +595,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }
 
+        index_t AK0_split;
+        index_t BK0_split;
         index_t K_split;
         index_t a_k_split_offset;
         index_t b_k_split_offset;
