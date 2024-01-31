@@ -37,7 +37,7 @@
 auto create_args(int argc, char* argv[])
 {
     ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do cpu validation or not")
+    arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
@@ -50,84 +50,33 @@ auto create_args(int argc, char* argv[])
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(seqlen)")
+        .insert("descale_q", "1", "scale factor for fp8 quantization")
+        .insert("descale_k", "1", "scale factor for fp8 quantization")
+        .insert("descale_v", "1", "scale factor for fp8 quantization")
         .insert("iperm",
                 "1",
                 "permute input\n"
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "1", "permute output")
         .insert("bias", "0", "add bias or not")
-        .insert("prec", "fp16", "data type. fp16 or bf16")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("mask",
                 "0",
                 "0: no mask, 1: top-left, 2:bottom-right\n"
                 "'t:l,r', top-left local-attn with left right size\n"
                 "'b:l,r', bottom-r local-attn with left right size\n"
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
+        .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
+        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
+        .insert("seed",
+                "0",
+                "random seed used for initializing input tensors. 0 to use "
+                "non-deterministic random number as seed");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
-
-template <ck::index_t HDim_, typename DataType_>
-struct fmha_fwd_kernel_invoker
-{
-    static constexpr ck::index_t HDim = HDim_;
-    using DataType                    = DataType_;
-    // these args are used to select kernel.
-    // args that may passed as karg shoule use operator()
-    mode_enum mode;
-    bool use_bias;
-    mask_info mask;
-    bool store_lse;
-
-    fmha_fwd_kernel_invoker(mode_enum mode_, bool use_bias_, mask_info mask_, bool store_lse_)
-        : mode(mode_), use_bias(use_bias_), mask(mask_), store_lse(store_lse_)
-    {
-    }
-
-    template <typename... Args>
-    float operator()(const StreamConfig& stream, Args&&... args)
-    {
-        float ave_time;
-        BOOL_SWITCH_3(
-            mode == mode_enum::group, kIsGroupMode, use_bias, kHasBias, store_lse, kStoreLSE, [&] {
-                if(mask.type == mask_enum::no_mask)
-                {
-                    using FmhaMask = FmhaMasks::NoMask;
-                    using Kernel   = FmhaFwdKernelSelector<HDim,
-                                                         DataType,
-                                                         kIsGroupMode,
-                                                         FmhaMask,
-                                                         kHasBias,
-                                                         kStoreLSE>;
-
-                    auto [kargs, grids] =
-                        fmha_fwd_create_kargs_and_grids<Kernel>(std::forward<Args>(args)...);
-                    ave_time = fmha_fwd_run<Kernel>(stream, kargs, grids);
-                }
-                else
-                {
-                    BOOL_SWITCH(mask.type == mask_enum::window_generic, kIsLocal, [&]() {
-                        using FmhaMask =
-                            ck::tile_program::block::GenericAttentionMask<true, kIsLocal>;
-                        using Kernel = FmhaFwdKernelSelector<HDim,
-                                                             DataType,
-                                                             kIsGroupMode,
-                                                             FmhaMask,
-                                                             kHasBias,
-                                                             kStoreLSE>;
-
-                        auto [kargs, grids] =
-                            fmha_fwd_create_kargs_and_grids<Kernel>(std::forward<Args>(args)...);
-                        ave_time = fmha_fwd_run<Kernel>(stream, kargs, grids);
-                    });
-                }
-            });
-        return ave_time;
-    }
-};
 
 // different threshold for different dtype
 template <typename DataType>
@@ -158,11 +107,12 @@ auto get_elimit<ck::bhalf_t>(int init_method)
 template <typename DataType>
 bool run(const ArgParser& arg_parser)
 {
-    int do_validation   = arg_parser.get_int("v");
-    auto mode           = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck::index_t batch   = arg_parser.get_int("b");
-    ck::index_t nhead   = arg_parser.get_int("h");
-    ck::index_t nhead_k = arg_parser.get_int("h_k");
+    std::string data_type = arg_parser.get_str("prec");
+    int do_validation     = arg_parser.get_int("v");
+    auto mode             = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    ck::index_t batch     = arg_parser.get_int("b");
+    ck::index_t nhead     = arg_parser.get_int("h");
+    ck::index_t nhead_k   = arg_parser.get_int("h_k");
     if(nhead_k == 0)
         nhead_k = nhead;
 
@@ -181,20 +131,29 @@ bool run(const ArgParser& arg_parser)
     if(hdim_v == 0)
         hdim_v = hdim_q;
 
-    int i_perm = arg_parser.get_int("iperm"); // if true, will be batch * nhead * seqlen * hdim
-    int o_perm = arg_parser.get_int("operm"); // if false, will be batch * seqlen * nhead * hdim
+    bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
+    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
 
     float scale = arg_parser.get_float("scale");
     if(scale == .0f)
         scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    bool use_bias = arg_parser.get_uint32("bias");
+    float descale_q = arg_parser.get_float("descale_q");
+    float descale_k = arg_parser.get_float("descale_k");
+    float descale_v = arg_parser.get_float("descale_v");
 
-    bool store_lse = arg_parser.get_uint32("lse");
+    std::string vlayout = arg_parser.get_str("vlayout");
+    bool use_bias       = arg_parser.get_uint32("bias");
+    bool lse            = arg_parser.get_uint32("lse");
 
-    mask_info mask = decode_mask_info(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
+    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
-    int init_method = arg_parser.get_int("init");
+    int init_method              = arg_parser.get_int("init");
+    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
+    if(*seed == 0)
+    {
+        seed.reset();
+    }
 
     int stream_warmup = env_get_int("CK_WARMUP", 5);
     int stream_repeat = env_get_int("CK_REPEAT", 20);
@@ -245,7 +204,7 @@ bool run(const ArgParser& arg_parser)
         }
     }
 
-    auto get_lengths = [&](int permute,
+    auto get_lengths = [&](bool permute,
                            ck::index_t b /*batch*/,
                            ck::index_t h /*nhead*/,
                            ck::index_t s /*seqlen*/,
@@ -256,7 +215,7 @@ bool run(const ArgParser& arg_parser)
             return std::array<ck::index_t, 4>{b, s, h, d};
     };
 
-    constexpr bool is_v_rowmajor = ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>;
+    bool is_v_rowmajor = vlayout == std::string("r");
 
     // host memory for storing all the tensor elements
     const ck::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
@@ -277,24 +236,24 @@ bool run(const ArgParser& arg_parser)
                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     Tensor<LSEDataType> lse_host(
-        store_lse ? std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
-                  : std::array<ck::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
+        lse ? std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
+            : std::array<ck::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
     if(init_method == 0)
     {
-        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
-        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
-        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
-        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f}(bias_host);
+        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
+        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
+        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
     }
     else if(init_method == 1)
     {
-        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
-        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
-        ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
-        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f}(bias_host);
+        ck::utils::FillNormalDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck::utils::FillNormalDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck::utils::FillNormalDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck::utils::FillNormalDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
     else if(init_method == 2)
     {
@@ -321,11 +280,11 @@ bool run(const ArgParser& arg_parser)
     seqstart_k.ToDevice(seqstart_k_host.data());
 
     // clang-format off
-    auto layout_str = [&](int permute){
+    auto layout_str = [&](bool permute){
         if (permute) return std::string("bhsd");
         else return std::string("bshd");
     };
-    auto io_layout = [&](int iperm_, int operm_) {
+    auto io_layout = [&](bool iperm_, bool operm_) {
         if (iperm_ == operm_) return layout_str(iperm_);
         else return layout_str(iperm_) + std::string("-") + layout_str(operm_);
     };
@@ -335,57 +294,40 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << store_lse << ", mask:" << mask
-              << ", v:" << std::string(VLayout::name)[0] << std::flush;
+              << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
-#define INVOKE_FMHA_KERNEL(hdim_)                                              \
-    fmha_fwd_kernel_invoker<hdim_, DataType>{mode, use_bias, mask, store_lse}( \
-        stream_config,                                                         \
-        q_buf.GetDeviceBuffer(),                                               \
-        k_buf.GetDeviceBuffer(),                                               \
-        v_buf.GetDeviceBuffer(),                                               \
-        bias_buf.GetDeviceBuffer(),                                            \
-        lse_buf.GetDeviceBuffer(),                                             \
-        o_buf.GetDeviceBuffer(),                                               \
-        seqstart_q.GetDeviceBuffer(),                                          \
-        seqstart_k.GetDeviceBuffer(),                                          \
-        nullptr,                                                               \
-        batch,                                                                 \
-        nhead,                                                                 \
-        nhead_k,                                                               \
-        shape_seqlen_q,                                                        \
-        shape_seqlen_k,                                                        \
-        hdim_q,                                                                \
-        hdim_v,                                                                \
-        max_seqlen_q,                                                          \
-        scale,                                                                 \
-        i_perm,                                                                \
-        o_perm,                                                                \
-        mask.y,                                                                \
-        mask.x)
+    auto fmha_traits = fmha_fwd_traits{
+        hdim_q, data_type, mode == mode_enum::group, is_v_rowmajor, mask.type, use_bias, lse};
+    auto fmha_args = fmha_fwd_args{q_buf.GetDeviceBuffer(),
+                                   k_buf.GetDeviceBuffer(),
+                                   v_buf.GetDeviceBuffer(),
+                                   bias_buf.GetDeviceBuffer(),
+                                   lse_buf.GetDeviceBuffer(),
+                                   o_buf.GetDeviceBuffer(),
+                                   seqstart_q.GetDeviceBuffer(),
+                                   seqstart_k.GetDeviceBuffer(),
+                                   nullptr,
+                                   batch,
+                                   nhead,
+                                   nhead_k,
+                                   shape_seqlen_q,
+                                   shape_seqlen_k,
+                                   hdim_q,
+                                   hdim_v,
+                                   max_seqlen_q,
+                                   scale,
+                                   descale_q * descale_k,
+                                   descale_v,
+                                   i_perm,
+                                   o_perm,
+                                   mask.y,
+                                   mask.x};
 
-    float ave_time         = 0;
-    const auto check_hdims = [](ck::index_t hdim_q_, ck::index_t hdim_v_, ck::index_t threshold) {
-        const auto compare =
-            std::conditional_t<kK0N1NeedPadding, std::less_equal<>, std::equal_to<>>{};
-        return compare(hdim_q_, threshold) && compare(hdim_v_, threshold);
-    };
+    float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
 
-    if(check_hdims(hdim_q, hdim_v, 32))
+    if(ave_time < 0)
     {
-        ave_time = INVOKE_FMHA_KERNEL(32);
-    }
-    else if(check_hdims(hdim_q, hdim_v, 64))
-    {
-        ave_time = INVOKE_FMHA_KERNEL(64);
-    }
-    else if(check_hdims(hdim_q, hdim_v, 128))
-    {
-        ave_time = INVOKE_FMHA_KERNEL(128);
-    }
-    else
-    {
-        std::cerr << "not support hdim, will not run" << std::endl;
+        std::cout << ", not supported yet" << std::flush << std::endl;
         return false;
     }
 
@@ -399,7 +341,7 @@ bool run(const ArgParser& arg_parser)
 
     if(!do_validation)
     {
-        std::cout << std::endl;
+        std::cout << std::flush << std::endl;
         return true;
     }
 
@@ -442,7 +384,7 @@ bool run(const ArgParser& arg_parser)
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
-        if constexpr (is_v_rowmajor) {
+        if (is_v_rowmajor) {
             //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
             if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
             //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
@@ -481,7 +423,7 @@ bool run(const ArgParser& arg_parser)
             reference_batched_masking<SaccDataType>(s_host_ref,
                 FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
         }
-        if(store_lse){
+        if(lse){
             reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref, p_host_ref, lse_host_ref);
         }
         else{
@@ -511,7 +453,7 @@ bool run(const ArgParser& arg_parser)
             break;
         }
 
-        if(store_lse)
+        if(lse)
         {
             Tensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
             lse_host_result.ForEach([&](auto& self, auto idx) {
@@ -554,6 +496,10 @@ int main(int argc, char* argv[])
     else if(data_type == "bf16")
     {
         return run<ck::bhalf_t>(arg_parser) ? 0 : -2;
+    }
+    else if(data_type == "fp8")
+    {
+        return run<ck::f8_t>(arg_parser) ? 0 : -2;
     }
 
     return -3;

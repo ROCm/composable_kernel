@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <optional>
 #include <random>
 #include <type_traits>
 #include <utility>
@@ -20,11 +21,12 @@ struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
+    std::optional<uint32_t> seed_{std::nullopt};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::mt19937 gen(11939);
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
         std::uniform_real_distribution<float> dis(a_, b_);
         std::generate(first, last, [&dis, &gen]() { return ck::type_convert<T>(dis(gen)); });
     }
@@ -32,6 +34,32 @@ struct FillUniformDistribution
     template <typename ForwardRange>
     auto operator()(ForwardRange&& range) const
         -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+template <typename T>
+struct FillNormalDistribution
+{
+    float mean_{0.f};
+    float variance_{1.f};
+    std::optional<uint32_t> seed_{std::nullopt};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+        std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
+        std::generate(first, last, [&dis, &gen]() { return ck::type_convert<T>(dis(gen)); });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillNormalDistribution&>()(
             std::begin(std::forward<ForwardRange>(range)),
             std::end(std::forward<ForwardRange>(range))))>
     {
@@ -64,11 +92,12 @@ struct FillUniformDistributionIntegerValue
 {
     float a_{-5.f};
     float b_{5.f};
+    std::optional<uint32_t> seed_{std::nullopt};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        std::mt19937 gen(11939);
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
         std::uniform_real_distribution<float> dis(a_, b_);
         std::generate(
             first, last, [&dis, &gen]() { return ck::type_convert<T>(std::round(dis(gen))); });
@@ -77,6 +106,33 @@ struct FillUniformDistributionIntegerValue
     template <typename ForwardRange>
     auto operator()(ForwardRange&& range) const
         -> std::void_t<decltype(std::declval<const FillUniformDistributionIntegerValue&>()(
+            std::begin(std::forward<ForwardRange>(range)),
+            std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+template <typename T>
+struct FillNormalDistributionIntegerValue
+{
+    float mean_{0.f};
+    float variance_{1.f};
+    std::optional<uint32_t> seed_{std::nullopt};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+        std::normal_distribution<float> dis(mean_, std::sqrt(variance_));
+        std::generate(
+            first, last, [&dis, &gen]() { return ck::type_convert<T>(std::round(dis(gen))); });
+    }
+
+    template <typename ForwardRange>
+    auto operator()(ForwardRange&& range) const
+        -> std::void_t<decltype(std::declval<const FillNormalDistributionIntegerValue&>()(
             std::begin(std::forward<ForwardRange>(range)),
             std::end(std::forward<ForwardRange>(range))))>
     {

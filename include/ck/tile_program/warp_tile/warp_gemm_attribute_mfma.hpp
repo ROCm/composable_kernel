@@ -207,6 +207,67 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     }
 };
 
+template <typename WarpGemmAttributeMfmaImpl_>
+struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
+{
+    using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
+
+    using ADataType = typename Impl::BDataType;
+    using BDataType = typename Impl::ADataType;
+    using CDataType = typename Impl::CDataType;
+
+    using AVecType = typename Impl::BVecType;
+    using BVecType = typename Impl::AVecType;
+    using CVecType = typename Impl::CVecType;
+
+    static constexpr index_t kM = Impl::kN;
+    static constexpr index_t kN = Impl::kM;
+    static constexpr index_t kK = Impl::kK;
+
+    using AWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kBNLane>, Sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+        Tuple<Sequence<2, 1>>,
+        Tuple<Sequence<0, 0>>,
+        Sequence<2>,
+        Sequence<1>>;
+
+    using BWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kAMLane / (Impl::kABKPerLane * Impl::kABKLane * 2),
+                       Impl::kABKLane,
+                       2,
+                       Impl::kABKPerLane>,
+              Sequence<Impl::kABKLane, Impl::kABKPerLane>>,
+        Tuple<Sequence<2, 1, 1, 1, 1>>,
+        Tuple<Sequence<0, 0, 2, 1, 3>>,
+        Sequence<2>,
+        Sequence<1>>;
+
+    using CWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kCNLane>,
+              Sequence<Impl::kCM0PerLane / 2, Impl::kCMLane, Impl::kCM1PerLane * 2>>,
+        Tuple<Sequence<2, 1>>,
+        Tuple<Sequence<1, 0>>,
+        Sequence<2, 2>,
+        Sequence<0, 2>>;
+
+    // c_vec += a_vec * b_vec
+    __device__ void operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        // swap A and B
+        Impl{}(c_vec, b_vec, a_vec);
+    }
+
+    // c_vec = a_vec * b_vec
+    __device__ CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        // swap A and B
+        return Impl{}(b_vec, a_vec);
+    }
+};
+
 template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter>
 struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
 {
@@ -287,7 +348,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     }
 };
 
-template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter>
+template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter, index_t SFactor_ = 2>
 struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
@@ -301,9 +362,10 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     using BVecType = typename vector_type_maker<typename Impl::AVecType, kKIter>::type::type;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM = Impl::kN;
-    static constexpr index_t kN = Impl::kM;
-    static constexpr index_t kK = Impl::kK * kKIter;
+    static constexpr index_t kM      = Impl::kN;
+    static constexpr index_t kN      = Impl::kM;
+    static constexpr index_t kK      = Impl::kK * kKIter;
+    static constexpr index_t SFactor = SFactor_; // group how many CM1 together
 
     using AWarpDstrEncoding = StaticTileDistributionEncoding<
         Sequence<>,
@@ -312,7 +374,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
         Tuple<Sequence<0, 0>>,
         Sequence<2>,
         Sequence<1>>;
-
+#if 0
     using BWarpDstrEncoding = StaticTileDistributionEncoding<
         Sequence<>,
         Tuple<Sequence<Impl::kAMLane / (Impl::kABKPerLane * Impl::kABKLane * 2),
@@ -333,7 +395,28 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
         Tuple<Sequence<1, 0>>,
         Sequence<2, 2>,
         Sequence<0, 2>>;
+#else
+    using BWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kAMLane / (SFactor * Impl::kCMLane * Impl::kCM1PerLane),
+                       SFactor,
+                       Impl::kCMLane,
+                       Impl::kCM1PerLane>,
+              Sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+        Tuple<Sequence<2, 1, 1, 1, 1>>,
+        Tuple<Sequence<0, 0, 2, 1, 3>>,
+        Sequence<2>,
+        Sequence<1>>;
 
+    using CWarpDstrEncoding = StaticTileDistributionEncoding<
+        Sequence<>,
+        Tuple<Sequence<Impl::kCNLane>,
+              Sequence<Impl::kCM0PerLane / SFactor, Impl::kCMLane, Impl::kCM1PerLane * SFactor>>,
+        Tuple<Sequence<2, 1>>,
+        Tuple<Sequence<1, 0>>,
+        Sequence<2, 2>,
+        Sequence<0, 2>>;
+#endif
     // c_vec += a_vec * b_vec
     __device__ void operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {

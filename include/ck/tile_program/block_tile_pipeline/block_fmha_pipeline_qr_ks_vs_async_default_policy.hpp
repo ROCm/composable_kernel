@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_custom_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -11,7 +11,11 @@ namespace block {
 
 // This pipeline is qkv all located in LDS
 using BlockFmhaPipelineQRKSVSAsyncDefaultPolicy =
-    BlockFmhaPipelineQRKSVSCustomPolicy<true, false, 3, 3>;
+    BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
+                                        /* AsyncCopyK = */ true,
+                                        /* AsyncCopyV = */ false,
+                                        /* NumPrefetchK = */ 3,
+                                        /* NumPrefetchV = */ 3>;
 
 } // namespace block
 } // namespace tile_program
