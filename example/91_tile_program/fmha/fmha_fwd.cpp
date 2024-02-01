@@ -70,7 +70,7 @@ auto create_args(int argc, char* argv[])
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
         .insert("seed",
-                "0",
+                "11939",
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed");
 
@@ -250,10 +250,10 @@ bool run(const ArgParser& arg_parser)
     }
     else if(init_method == 1)
     {
-        ck::utils::FillNormalDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck::utils::FillNormalDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck::utils::FillNormalDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck::utils::FillNormalDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck::utils::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
     else if(init_method == 2)
     {
