@@ -496,8 +496,14 @@ struct BlockFmhaPipelineQRKSVSAsync
                     {0, 0});
 
                 // register distribute
-                auto drop_dropout = make_static_distributed_tensor<DropDataType>(
+                auto drop_distr_origin = make_static_distributed_tensor<DropDataType>(
                     Policy::template MakeDropSramTileDistribution<Problem, decltype(gemm_0)>());
+
+                auto drop_lds_read_window = make_tile_window(
+                    drop_lds_window.GetBottomTensorView(),
+                    drop_lds_window.GetWindowLengths(),
+                    drop_lds_window.GetWindowOrigin(),
+                    Policy::template MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
                 constexpr auto config =
                     decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -516,26 +522,21 @@ struct BlockFmhaPipelineQRKSVSAsync
                     // generate random number
                     uint8_t tmp[16];
                     ph.get_random_16x8(tmp, element_global_1d_id);
-                    constexpr auto z_spans = decltype(drop_dropout)::GetDistributedSpans();
-                    int i_random_idx       = 0;
-                    sweep_tile_span(z_spans[Number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(z_spans[Number<1>{}], [&](auto idx1) {
+                    constexpr auto drop_origin_spans =
+                        decltype(drop_distr_origin)::GetDistributedSpans();
+                    int i_random_idx = 0;
+                    sweep_tile_span(drop_origin_spans[Number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(drop_origin_spans[Number<1>{}], [&](auto idx1) {
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            drop_dropout(i_j_idx) = type_convert<DropDataType>(tmp[i_random_idx++]);
+                            drop_distr_origin(i_j_idx) =
+                                type_convert<DropDataType>(tmp[i_random_idx++]);
                         });
                     });
                     // save to LDS
-                    store_tile(drop_lds_window, drop_dropout);
-
-                    auto droput_dram_window = make_tile_window(
-                        drop_lds_window.GetBottomTensorView(),
-                        drop_lds_window.GetWindowLengths(),
-                        drop_lds_window.GetWindowOrigin(),
-                        Policy::template MakeDropSramPartTileDistribution<Problem,
-                                                                          decltype(gemm_0)>());
+                    store_tile(drop_lds_window, drop_distr_origin);
                     block_sync_lds(); // wait data save to LDS
                     // read form LDS to register
-                    auto dropout              = load_tile(droput_dram_window);
+                    auto dropout              = load_tile(drop_lds_read_window);
                     constexpr auto drop_spans = decltype(dropout)::GetDistributedSpans();
                     sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
@@ -689,7 +690,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               int start_m_idx,
+               int global_idx,
                float rp_dropout,
                DropDataType p_dropout_in_uint8_t,
                ck::philox& ph) const
@@ -708,7 +709,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                           mask,
                           scale,
                           smem_ptr,
-                          start_m_idx,
+                          global_idx,
                           rp_dropout,
                           p_dropout_in_uint8_t,
                           ph);

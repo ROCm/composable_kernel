@@ -996,7 +996,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NWarp = config.template At<2>();
 
         constexpr index_t MIterPerWarp = 1;
-        constexpr index_t NIterPerWarp = 1;
+        constexpr index_t NIterPerWarp = 1; // only a part s_acc distribution
 
         constexpr auto c_block_outer_part_dstr_encoding = StaticTileDistributionEncoding<
             Sequence<>,

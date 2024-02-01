@@ -91,13 +91,13 @@ struct BlockFmhaPipelineQRKSVS
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
-               DropDramBlockWindowTmp&,
+               DropDramBlockWindowTmp& drop_dram_block_window_tmp,
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               int start_m0_idx,
+               int global_idx,
                float p_dropout_rescale,
                DropDataType p_dropout_in_uint8_t,
                ck::philox& ph) const
@@ -195,6 +195,13 @@ struct BlockFmhaPipelineQRKSVS
             bias_dram_block_window_tmp.GetWindowLengths(),
             {bias_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+
+        const auto drop_origin = drop_dram_block_window_tmp.GetWindowOrigin();
+        auto drop_dram_window  = make_tile_window(
+            drop_dram_block_window_tmp.GetBottomTensorView(),
+            make_tuple(Number<kM0>{}, Number<32>{}),
+            {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
+            Policy::template MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
@@ -408,58 +415,59 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
-                // Z tile in LDS
-                auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(
-                    reinterpret_cast<DropDataType*>(smem_ptr) +
-                        Policy::template GetSmemSizeKV<Problem>(),
+                // dropout tile in LDS
+                auto drop_lds = make_tensor_view<AddressSpaceEnum::Lds>(
+                    reinterpret_cast<DropDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                                    Policy::template GetSmemSizeKV<Problem>()),
                     Policy::template MakeDropLdsBlockDescriptor<Problem>());
 
-                auto z_lds_window = make_tile_window(
-                    z_lds,
+                auto drop_lds_window = make_tile_window(
+                    drop_lds,
                     Policy::template MakeDropLdsBlockDescriptor<Problem>().GetLengths(),
                     {0, 0});
 
                 // register distribute
-                auto z_dropout = make_static_distributed_tensor<DropDataType>(
+                auto drop_distr_origin = make_static_distributed_tensor<DropDataType>(
                     Policy::template MakeDropSramTileDistribution<Problem, decltype(gemm_0)>());
+
+                auto drop_lds_read_window = make_tile_window(
+                    drop_lds_window.GetBottomTensorView(),
+                    drop_lds_window.GetWindowLengths(),
+                    drop_lds_window.GetWindowOrigin(),
+                    Policy::template MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
                 constexpr auto config =
                     decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
                 using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
                 constexpr index_t kNPerStep = WG::kN;
                 const index_t start_n0_idx  = i_total_loops * kN0;
+                const index_t total_n_len   = kN0 * num_total_loop;
 
                 static_for<0, kN0 / kNPerStep, 1>{}([&](auto i_n0) {
                     auto warp_id  = get_warp_id();
                     auto lane_idx = get_lane_id();
                     auto idx_n    = lane_idx % kNPerStep + i_n0 * kNPerStep + start_n0_idx;
-                    auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * 32 + start_m0_idx;
-                    auto element_global_1d_id = idx_m * kK0BlockLength + idx_n;
+                    auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * 32;
+                    auto element_global_1d_id = idx_m * total_n_len + idx_n + global_idx;
 
                     // generate random number
                     uint8_t tmp[16];
                     ph.get_random_16x8(tmp, element_global_1d_id);
-
-                    constexpr auto z_spans = decltype(z_dropout)::GetDistributedSpans();
-                    int i_random_idx       = 0;
-                    sweep_tile_span(z_spans[Number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(z_spans[Number<1>{}], [&](auto idx1) {
+                    constexpr auto drop_origin_spans =
+                        decltype(drop_distr_origin)::GetDistributedSpans();
+                    int i_random_idx = 0;
+                    sweep_tile_span(drop_origin_spans[Number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(drop_origin_spans[Number<1>{}], [&](auto idx1) {
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            z_dropout(i_j_idx)     = tmp[i_random_idx++];
+                            drop_distr_origin(i_j_idx) =
+                                type_convert<DropDataType>(tmp[i_random_idx++]);
                         });
                     });
                     // save to LDS
-                    store_tile(z_lds_window, z_dropout);
+                    store_tile(drop_lds_window, drop_distr_origin);
+                    block_sync_lds(); // wait data save to LDS
                     // read form LDS to register
-                    auto droput_dram_window = make_tile_window(
-                        z_lds_window.GetBottomTensorView(),
-                        z_lds_window.GetWindowLengths(),
-                        z_lds_window.GetWindowOrigin(),
-                        Policy::template MakeDropSramPartTileDistribution<Problem,
-                                                                          decltype(gemm_0)>());
-
-                    auto dropout = load_tile(droput_dram_window);
-                    // dropout
+                    auto dropout              = load_tile(drop_lds_read_window);
                     constexpr auto drop_spans = decltype(dropout)::GetDistributedSpans();
                     sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
@@ -472,6 +480,10 @@ struct BlockFmhaPipelineQRKSVS
                                                        : float(0);
                         });
                     });
+                    // save to Global
+                    store_tile(drop_dram_window, dropout);
+                    __builtin_amdgcn_sched_barrier(0);
+                    move_tile_window(drop_dram_window, {0, WG::kN});
                 });
             }
 
@@ -597,7 +609,7 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               int start_m_idx,
+               int global_idx,
                float rp_dropout,
                DropDataType p_dropout_in_uint8_t,
                ck::philox& ph) const
@@ -616,7 +628,7 @@ struct BlockFmhaPipelineQRKSVS
                           mask,
                           scale,
                           smem_ptr,
-                          start_m_idx,
+                          global_idx,
                           rp_dropout,
                           p_dropout_in_uint8_t,
                           ph);
