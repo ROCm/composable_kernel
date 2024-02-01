@@ -32,10 +32,10 @@ void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_instances(
         DeviceGemmV2<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
-// void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(
-//     std::vector<std::unique_ptr<
-//         DeviceGemmSplitK<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
-//         instances);
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
 #endif
 
 template <typename ADataType,
@@ -78,11 +78,11 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
             }
-            // else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-            //                   is_same_v<CLayout, Row>)
-            // {
-            //     add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
-            // }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
+            }
             // else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
             //                   is_same_v<CLayout, Row>)
             // {

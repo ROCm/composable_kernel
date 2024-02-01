@@ -565,7 +565,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
             {
                 index_t k_grain = karg.k_batch * KPerBlock;
-                K_split         = (karg.K + k_grain - 1) / k_grain * k_grain;
+                K_split         = (karg.K + k_grain - 1) / k_grain * KPerBlock;
             }
             else
             {
