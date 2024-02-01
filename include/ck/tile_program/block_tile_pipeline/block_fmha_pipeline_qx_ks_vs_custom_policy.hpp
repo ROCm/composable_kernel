@@ -925,7 +925,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr auto MakeZLdsBlockDescriptor()
+    __host__ __device__ static constexpr auto MakeDropLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -952,7 +952,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem, typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeZSramTileDistribution()
+    __host__ __device__ static constexpr auto MakeDropSramTileDistribution()
     {
         constexpr index_t MPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t NPerBlock = Problem::BlockFmhaShape::kN0;
@@ -987,7 +987,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem, typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeZSramPartTileDistribution()
+    __host__ __device__ static constexpr auto MakeDropSramPartTileDistribution()
     {
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
 

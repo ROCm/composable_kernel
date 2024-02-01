@@ -406,16 +406,16 @@ struct BlockFmhaPipelineQRKSVSFp8
                 auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(
                     reinterpret_cast<DropDataType*>(smem_ptr) +
                         Policy::template GetSmemSizeKV<Problem>(),
-                    Policy::template MakeZLdsBlockDescriptor<Problem>());
+                    Policy::template MakeDropLdsBlockDescriptor<Problem>());
 
                 auto z_lds_window = make_tile_window(
                     z_lds,
-                    Policy::template MakeZLdsBlockDescriptor<Problem>().GetLengths(),
+                    Policy::template MakeDropLdsBlockDescriptor<Problem>().GetLengths(),
                     {0, 0});
 
                 // register distribute
                 auto z_dropout = make_static_distributed_tensor<DropDataType>(
-                    Policy::template MakeZSramTileDistribution<Problem, decltype(gemm_0)>());
+                    Policy::template MakeDropSramTileDistribution<Problem, decltype(gemm_0)>());
 
                 constexpr auto config =
                     decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -449,8 +449,8 @@ struct BlockFmhaPipelineQRKSVSFp8
                         z_lds_window.GetBottomTensorView(),
                         z_lds_window.GetWindowLengths(),
                         z_lds_window.GetWindowOrigin(),
-                        Policy::template MakeZSramPartTileDistribution<Problem,
-                                                                       decltype(gemm_0)>());
+                        Policy::template MakeDropSramPartTileDistribution<Problem,
+                                                                          decltype(gemm_0)>());
 
                     auto dropout = load_tile(droput_dram_window);
                     // dropout

@@ -128,7 +128,7 @@ struct FmhaFwdKernel
             seed   = std::get<0>(seeds);
             offset = std::get<1>(seeds);
         }
-        float rp_dropout; //              = 1;
+        float rp_dropout                  = 1;
         DropDataType p_dropout_in_uint8_t = 255;
         uint64_t seed                     = 1;
         uint64_t offset                   = 0;

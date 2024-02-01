@@ -241,7 +241,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             drop_dram_block_window_tmp.GetBottomTensorView(),
             make_tuple(Number<kM0>{}, Number<32>{}),
             {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
-            Policy::template MakeZSramPartTileDistribution<Problem, decltype(gemm_0)>());
+            Policy::template MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
@@ -484,20 +484,20 @@ struct BlockFmhaPipelineQRKSVSAsync
 
             if constexpr(kHasDropout)
             {
-                // Z tile in LDS
-                auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(
+                // dropout tile in LDS
+                auto drop_lds = make_tensor_view<AddressSpaceEnum::Lds>(
                     reinterpret_cast<DropDataType*>(reinterpret_cast<char*>(smem_ptr) +
                                                     Policy::template GetSmemSizeKV<Problem>()),
-                    Policy::template MakeZLdsBlockDescriptor<Problem>());
+                    Policy::template MakeDropLdsBlockDescriptor<Problem>());
 
-                auto z_lds_window = make_tile_window(
-                    z_lds,
-                    Policy::template MakeZLdsBlockDescriptor<Problem>().GetLengths(),
+                auto drop_lds_window = make_tile_window(
+                    drop_lds,
+                    Policy::template MakeDropLdsBlockDescriptor<Problem>().GetLengths(),
                     {0, 0});
 
                 // register distribute
-                auto z_dropout = make_static_distributed_tensor<DropDataType>(
-                    Policy::template MakeZSramTileDistribution<Problem, decltype(gemm_0)>());
+                auto drop_dropout = make_static_distributed_tensor<DropDataType>(
+                    Policy::template MakeDropSramTileDistribution<Problem, decltype(gemm_0)>());
 
                 constexpr auto config =
                     decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -516,23 +516,23 @@ struct BlockFmhaPipelineQRKSVSAsync
                     // generate random number
                     uint8_t tmp[16];
                     ph.get_random_16x8(tmp, element_global_1d_id);
-                    constexpr auto z_spans = decltype(z_dropout)::GetDistributedSpans();
+                    constexpr auto z_spans = decltype(drop_dropout)::GetDistributedSpans();
                     int i_random_idx       = 0;
                     sweep_tile_span(z_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(z_spans[Number<1>{}], [&](auto idx1) {
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            z_dropout(i_j_idx) = type_convert<DropDataType>(tmp[i_random_idx++]);
+                            drop_dropout(i_j_idx) = type_convert<DropDataType>(tmp[i_random_idx++]);
                         });
                     });
                     // save to LDS
-                    store_tile(z_lds_window, z_dropout);
+                    store_tile(drop_lds_window, drop_dropout);
 
                     auto droput_dram_window = make_tile_window(
-                        z_lds_window.GetBottomTensorView(),
-                        z_lds_window.GetWindowLengths(),
-                        z_lds_window.GetWindowOrigin(),
-                        Policy::template MakeZSramPartTileDistribution<Problem,
-                                                                       decltype(gemm_0)>());
+                        drop_lds_window.GetBottomTensorView(),
+                        drop_lds_window.GetWindowLengths(),
+                        drop_lds_window.GetWindowOrigin(),
+                        Policy::template MakeDropSramPartTileDistribution<Problem,
+                                                                          decltype(gemm_0)>());
                     block_sync_lds(); // wait data save to LDS
                     // read form LDS to register
                     auto dropout              = load_tile(droput_dram_window);
