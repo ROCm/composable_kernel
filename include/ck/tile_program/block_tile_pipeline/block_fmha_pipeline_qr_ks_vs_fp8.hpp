@@ -63,12 +63,23 @@ struct BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
-    static constexpr bool kAlignmentQ = kPadHeadDimQ ? 1 : (16 / sizeof(QDataType));
-    static constexpr bool kAlignmentK =
-        kPadHeadDimQ ? 1 : 4 / sizeof(KDataType); // since we use async copy...
-    static constexpr bool kAlignmentV    = 16 / sizeof(VDataType);
-    static constexpr bool kAlignmentO    = 16 / sizeof(ODataType); // indeed usually not this value
-    static constexpr bool kAlignmentBias = kPadSeqLenK ? 1 : (16 / sizeof(BiasDataType));
+    // last dimension vector length used to create tensor view(and decide buffer_load vector length)
+    // ... together with tensor distribution. tensor dist should able to overwrite this
+    static constexpr index_t kAlignmentQ =
+        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK =
+        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentV = []() {
+        if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        else
+            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
+    }();
+
+    static constexpr index_t kAlignmentO =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+    static constexpr index_t kAlignmentBias =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {

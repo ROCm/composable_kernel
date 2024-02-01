@@ -290,23 +290,43 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.mask_x);
 }
 
-// this is internal API, will be generated across different files to speedup compile
+// this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <ck::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
+          ck::index_t kM0_,
+          ck::index_t kN0_,
+          ck::index_t kK0_,
+          ck::index_t kN1_,
+          ck::index_t kK1_,
+          ck::index_t kK0BlockLength_,
           bool kIsVLayoutRowMajor_,
           typename FmhaMask_,
           bool kHasBias_,
-          bool kStoreLse_>
+          bool kStoreLse_,
+          bool kPadS_,
+          bool kPadSK_,
+          bool kPadD_,
+          bool kPadDv_>
 struct fmha_fwd_traits_
 {
-    static constexpr ck::index_t HDim        = HDim_;
-    using DataType                           = ck::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode       = kIsGroupMode_;
-    static constexpr bool kIsVLayoutRowMajor = kIsVLayoutRowMajor_;
-    using FmhaMask                           = ck::remove_cvref_t<FmhaMask_>;
-    static constexpr bool kHasBias           = kHasBias_;
-    static constexpr bool kStoreLse          = kStoreLse_;
+    static constexpr ck::index_t HDim           = HDim_;
+    using DataType                              = ck::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode          = kIsGroupMode_;
+    static constexpr ck::index_t kM0            = kM0_;
+    static constexpr ck::index_t kN0            = kN0_;
+    static constexpr ck::index_t kK0            = kK0_;
+    static constexpr ck::index_t kN1            = kN1_;
+    static constexpr ck::index_t kK1            = kK1_;
+    static constexpr ck::index_t kK0BlockLength = kK0BlockLength_;
+    static constexpr bool kIsVLayoutRowMajor    = kIsVLayoutRowMajor_;
+    using FmhaMask                              = ck::remove_cvref_t<FmhaMask_>;
+    static constexpr bool kHasBias              = kHasBias_;
+    static constexpr bool kStoreLse             = kStoreLse_;
+    static constexpr bool kPadS                 = kPadS_;
+    static constexpr bool kPadSK                = kPadSK_;
+    static constexpr bool kPadD                 = kPadD_;
+    static constexpr bool kPadDv                = kPadDv_;
 };
 
 template <typename Traits_>
@@ -322,5 +342,6 @@ struct fmha_fwd_traits
     mask_enum mask_type;
     bool has_bias;
     bool has_lse;
+    // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const StreamConfig&);

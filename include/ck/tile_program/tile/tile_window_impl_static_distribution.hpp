@@ -458,7 +458,9 @@ struct TileWindowWithStaticDistribution
         });
     }
 
-    __device__ void Store(const StaticDistributedTensor<DataType, TileDstr>& dstr_tensor) const
+    template <bool oob_conditional_check = true>
+    __device__ void Store(const StaticDistributedTensor<DataType, TileDstr>& dstr_tensor,
+                          bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = LoadStoreTraits;
 
@@ -501,7 +503,7 @@ struct TileWindowWithStaticDistribution
 
                 // write into bottom tensor
                 GetBottomTensorView().template SetVectorizedElements<vector_t>(
-                    bottom_tensor_thread_coord, vec_value);
+                    bottom_tensor_thread_coord, vec_value, bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -526,8 +528,8 @@ struct TileWindowWithStaticDistribution
         using vector_t      = typename vector_type_t::type;
         using SFC_Ys        = typename Traits::SFC_Ys;
 
-        constexpr auto tile_dstr                  = TileDstr{};
-        static constexpr bool use_buffer_store_if = true;
+        constexpr auto tile_dstr                    = TileDstr{};
+        static constexpr bool oob_conditional_check = true;
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -562,7 +564,7 @@ struct TileWindowWithStaticDistribution
 
                 // write into bottom tensor
                 GetBottomTensorView()
-                    .template SetVectorizedElementsRaw<vector_t, use_buffer_store_if>(
+                    .template SetVectorizedElementsRaw<vector_t, oob_conditional_check>(
                         bottom_tensor_thread_coord, vec_value);
 
                 // move thread coordinate

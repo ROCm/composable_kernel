@@ -208,6 +208,7 @@ struct BufferView<AddressSpaceEnum::Global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              bool oob_conditional_check     = true,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
@@ -251,7 +252,7 @@ struct BufferView<AddressSpaceEnum::Global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool use_buffer_store_if,
+              bool oob_conditional_check     = true,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
                                  bool>::type = false>
@@ -266,7 +267,7 @@ struct BufferView<AddressSpaceEnum::Global,
                       "wrong! X should contain multiple T");
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-        amd_buffer_store_raw<remove_cvref_t<T>, t_per_x, Coherence, use_buffer_store_if>(
+        amd_buffer_store_raw<remove_cvref_t<T>, t_per_x, Coherence, oob_conditional_check>(
             x, p_data_, i, is_valid_element, buffer_size_);
     }
 

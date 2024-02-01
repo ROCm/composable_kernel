@@ -56,28 +56,30 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    // TODO: for this pipeline, seq_q always support padding, hdim_q/v support multiple of
-    // vector(like 8x)
+    // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
     //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
-    static constexpr bool kPadSeqLenQ = true;
-    static constexpr bool kPadSeqLenK = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ =
-        true; // support multiple of vector(like 8x), not arbitrary size
-    static constexpr bool kPadHeadDimV =
-        true; // support multiple of vector(like 8x), not arbitrary size
-    static constexpr bool kHasBias  = Problem::kHasBias;
-    static constexpr bool kStoreLSE = Problem::kStoreLSE;
+    static_assert(Problem::kPadSeqLenQ == true && Problem::kPadHeadDimQ == true &&
+                  Problem::kPadHeadDimV == true);
+    static constexpr bool kPadSeqLenQ  = true;
+    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ = true; // support multiple of vector(like 8x)
+    static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
+    static constexpr bool kHasBias     = Problem::kHasBias;
+    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
-    // last dimension vector length used to create tensor view(and finally decide buffer_load vector
-    // length)
-    // ... together with tensor distribution. -> tensor dist should able to overwrite this vector
-    // size(or is a bug)
+    // last dimension vector length used to create tensor view(and decide buffer_load vector length)
+    // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ = Policy::template GetAlignmentQ<Problem>();
     static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
-    static constexpr index_t kAlignmentV = Policy::template GetAlignmentV<Problem>();
+    static constexpr index_t kAlignmentV = []() {
+        if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+            return Policy::template GetAlignmentV<Problem>();
+        else
+            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
+    }();
     static constexpr index_t kAlignmentO = Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
-        Policy::template GetAlignmentBias<Problem>(); // TODO: always 8x?
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
 #if CK_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / math::log2e_v<SaccDataType>;

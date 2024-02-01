@@ -63,6 +63,24 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
+    // last dimension vector length used to create tensor view(and decide buffer_load vector length)
+    // ... together with tensor distribution. tensor dist should able to overwrite this
+    static constexpr index_t kAlignmentQ =
+        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK =
+        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentV = []() {
+        if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
+            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        else
+            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
+    }();
+
+    static constexpr index_t kAlignmentO =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+    static constexpr index_t kAlignmentBias =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();

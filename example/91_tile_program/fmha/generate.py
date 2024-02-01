@@ -15,6 +15,14 @@ DTYPE_MAP = {
     "fp8" : "ck::f8_t"
 }
 
+DTYPE_BITS = {
+    "fp32": 32,
+    "fp16": 16,
+    "bf16": 16,
+    "fp8" : 8,
+    "bf8" : 8
+}
+
 MASK_MAP = {
     "no" : "FmhaMasks::NoMask",
     "causal" : "FmhaMasks::CausalMask",
@@ -96,14 +104,15 @@ using fmha_pipeline_{F_idx} = {F_pipeline}<
 
 using fmha_epilogue_{F_idx} =
     FmhaFwdEpilogue<FmhaFwdEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
-                                           typename FmhaFwdTypeConfig<{F_dtype}>::ODataType>>;
+                                           typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
+                                           {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel_{F_idx} = 
     FmhaFwdKernel<FmhaFwdTilePartitioner<fmha_shape_{F_idx}>,
                   fmha_pipeline_{F_idx},
                   fmha_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_vlayout}, fmha_mask_{F_idx}, {F_bias}, {F_lse}>;
+using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 template<>
 float fmha_fwd_<trait_{F_idx}>(const StreamConfig& s, fmha_fwd_args a)
@@ -126,17 +135,12 @@ float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const StreamConfig& s){{
 """
 
 FMHA_FWD_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-        switch (t.hdim){{
 {F_hdim_case}
-            default:
-            break;
-        }}
     }}
 """
-FMHA_FWD_API_PER_HDIM_CASE="""            case {F_hdim}: {{
+FMHA_FWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim <= {F_hdim}) {{
 {F_inner_dispatch}
-            }}
-            break;
+        }}
 """
 MASK_CHECK_MAP = {
     "no" : "t.mask_type == mask_enum::no_mask",
@@ -144,26 +148,107 @@ MASK_CHECK_MAP = {
     "generic" : "t.mask_type == mask_enum::window_generic",
 }
 
-FMHA_FWD_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_lse == {F_lse})) {{
-                    using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_vlayout}, {F_mask}, {F_bias}, {F_lse}>;
-                    return fmha_fwd_<trait_>(s, a);
-                }}
+FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_lse == {F_lse}) &&
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_mask}, {F_bias}, {F_lse}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                return fmha_fwd_<trait_>(s, a);
+            }}
 """
 
 @dataclass
 class FmhaFwdApiTrait:
+    pipeline_tag : str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim      : str
     dtype     : str  # data type
     mode      : str  # value from MODE_MAP
+    bm0       : int  # tile size along q seqlen (block size)
+    bn0       : int  # tile size along qk seqlen
+    bk0       : int  # tile size along qk gemm unroll
+    bn1       : int  # tile size along v head_dim
+    bk1       : int  # tile size along kv gemm unroll
+    bk0blen   : int 
     vlayout   : str
     mask      : str
     bias      : str  # true/false
     lse       : str  #
+    spad      : str
+    skpad     : str
+    dpad      : str
+    dvpad     : str
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.vlayout}-{self.mask}-{self.bias}-{self.lse}'
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0blen}-'+\
+                    f'{self.vlayout}-{self.mask}-{self.bias}-{self.lse}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
+
+    @property
+    def scheck(self) -> str:
+        if self.pipeline_tag == 'qr_async':
+            if self.spad == 't' : return 'true' # always support
+            else :                return 'true'
+        elif self.pipeline_tag in ['qr', 'qr_fp8']:
+            if self.spad == 't' : return f'a.seqlen_q % {self.bm0} != 0'
+            else :                return f'a.seqlen_q % {self.bm0} == 0'
+        else: assert False
+
+    @property
+    def skcheck(self) -> str:
+        if self.skpad == 't' : return f'a.seqlen_k % {self.bn0} != 0'
+        else :                 return f'a.seqlen_k % {self.bn0} == 0'
+
+    @property
+    def dcheck(self) -> str:
+        if self.pipeline_tag == 'qr_async':
+            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
+            if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
+            else :               assert False
+        elif self.pipeline_tag in ['qr', 'qr_fp8']:
+            if self.dpad == 't': return f'a.hdim_q % {self.bk0blen} != 0'
+            else :               return f'a.hdim_q % {self.bk0blen} == 0'
+        else:   assert False
+
+    @property
+    def dvcheck(self) -> str:
+        if self.pipeline_tag == 'qr_async':
+            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
+            if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
+            else :                assert False
+        elif self.pipeline_tag in ['qr', 'qr_fp8']:
+            if self.dvpad == 't': return f'a.hdim_v % {self.bk0blen} != 0'
+            else :                return f'a.hdim_v % {self.bk0blen} == 0'
+        else:   assert False
+
+@dataclass
+class FmhaFwdPipeline:
+    tag : str
+
+    F_vlayout   : str  # row/col
+    F_spad      : str  # true/false
+    F_skpad     : str  #
+    F_dpad      : str  #
+    F_dvpad     : str  #
+    F_bias      : str  # true/false
+    F_lse       : str  #
+    F_mask      : str  # value from MASK_MAP
+
+    @property
+    def name(self) -> str:
+        def pad_name() -> str:
+            n = ''
+            if self.F_spad == 't': n += 's'
+            if self.F_skpad == 't' : n += 'sk'
+            if self.F_dpad == 't' : n += 'd'
+            if self.F_dvpad == 't' : n += 'dv'
+            if n != '' : n = 'p' + n
+            return n
+        pn = pad_name()
+        n = f'{self.tag}_v{self.F_vlayout[0]}'
+        if pn != '' : n += f'_{pn}'
+        if self.F_bias == 't' : n += '_bias'
+        if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
+        if self.F_lse == 't' : n += '_lse'
+        return n
 
 class FmhaFwdApiPool:
     def __init__(self):
@@ -183,18 +268,21 @@ class FmhaFwdApiPool:
         per_dtypes=str()
         for i, dtype in enumerate(self.pool.keys()):
             per_hdim_case=str()
-            for hdim in self.pool[dtype].keys():
+            for j, hdim in enumerate(self.pool[dtype].keys()):
                 traits=self.pool[dtype][hdim]
                 inners=str()
-                for j, trait in enumerate(traits):
-                    if0 = 'if' if j == 0 else 'else if'
-                    inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if0, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout], F_mask=MASK_MAP[trait.mask],
-                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_lse=BOOL_MAP[trait.lse], F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
-            
-                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_hdim=hdim, F_inner_dispatch=inners)
-            if1 = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if1, F_dtype=dtype, F_hdim_case=per_hdim_case)
-
+                for k, trait in enumerate(traits):
+                    if_k = 'if' if k == 0 else 'else if'
+                    inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout], F_mask=MASK_MAP[trait.mask],
+                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_lse=BOOL_MAP[trait.lse],
+                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
+                                   F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
+                                   F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0blen=trait.bk0blen,
+                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                if_j = 'if' if j == 0 else 'else if'
+                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
+            if_i = 'if' if i == 0 else 'else if'
+            per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch = per_dtypes)
 
 @dataclass
@@ -223,17 +311,9 @@ class FmhaFwdKernel:
     F_idx       : int  # this is not a tunable, but a counter to differentiate symbol    
     F_hdim      : int  # hdim
     F_dtype     : str  # data type
-    F_tile      : FmhaFwdTileSize
-    F_vlayout   : str  # row/col
-    F_spad      : str  # true/false
-    F_skpad     : str  #
-    F_dpad      : str  #
-    F_dvpad     : str  #
-    F_bias      : str  # true/false
-    F_lse       : str  #
-    F_mask      : str  # value from MASK_MAP
     F_mode      : str  # value from MODE_MAP
-    F_pipeline  : str  # value from PIPIELINE_MAP
+    F_tile      : FmhaFwdTileSize
+    F_pipeline  : FmhaFwdPipeline
 
     @property
     def template(self) -> str:
@@ -254,53 +334,64 @@ class FmhaFwdKernel:
                 F_wm        = self.F_tile.F_wm,
                 F_wn        = self.F_tile.F_wn,
                 F_wk        = self.F_tile.F_wk,
-                F_vlayout   = LAYOUT_MAP[self.F_vlayout],
-                F_spad      = BOOL_MAP[self.F_spad],
-                F_skpad     = BOOL_MAP[self.F_skpad],
-                F_dpad      = BOOL_MAP[self.F_dpad],
-                F_dvpad     = BOOL_MAP[self.F_dvpad],
-                F_bias      = BOOL_MAP[self.F_bias],
-                F_lse       = BOOL_MAP[self.F_lse],
+                F_vlayout   = LAYOUT_MAP[self.F_pipeline.F_vlayout],
+                F_spad      = BOOL_MAP[self.F_pipeline.F_spad],
+                F_skpad     = BOOL_MAP[self.F_pipeline.F_skpad],
+                F_dpad      = BOOL_MAP[self.F_pipeline.F_dpad],
+                F_dvpad     = BOOL_MAP[self.F_pipeline.F_dvpad],
+                F_bias      = BOOL_MAP[self.F_pipeline.F_bias],
+                F_lse       = BOOL_MAP[self.F_pipeline.F_lse],
                 F_occupancy = self.F_tile.F_occupancy ,
-                F_mask      = MASK_MAP[self.F_mask],
+                F_mask      = MASK_MAP[self.F_pipeline.F_mask],
                 F_mode      = MODE_MAP[self.F_mode],
-                F_pipeline  = PIPELINE_MAP[self.F_pipeline])
+                F_pipeline  = PIPELINE_MAP[self.F_pipeline.tag])
 
     @property
     def name(self) -> str:
         # TODO: we don't encode idx here
-        return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name + f"_v{self.F_vlayout[0]}" +\
-            f"_p{BOOL_MAP[self.F_spad][0]}{BOOL_MAP[self.F_skpad][0]}{BOOL_MAP[self.F_dpad][0]}{BOOL_MAP[self.F_dvpad][0]}" +\
-            f"_{BOOL_MAP[self.F_bias][0]}_m{self.F_mask[0]}_l{BOOL_MAP[self.F_lse][0]}_{self.F_pipeline}"
+        return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" +\
+                self.F_tile.name + '_' + self.F_pipeline.name
 
     @property
     def filename(self) -> str:
         return self.name + ".cpp"
 
     def api_trait(self) -> FmhaFwdApiTrait:
-        return FmhaFwdApiTrait(hdim=str(self.F_hdim),
+        return FmhaFwdApiTrait(
+                pipeline_tag=self.F_pipeline.tag,
+                hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 mode=self.F_mode,
-                vlayout=self.F_vlayout,
-                mask=self.F_mask,
-                bias=self.F_bias,
-                lse=self.F_lse)
+                bm0=self.F_tile.F_bm0,
+                bn0=self.F_tile.F_bn0,
+                bk0=self.F_tile.F_bk0,
+                bn1=self.F_tile.F_bn1,
+                bk1=self.F_tile.F_bk1,
+                bk0blen=self.F_tile.F_bk0blen,
+                vlayout=self.F_pipeline.F_vlayout,
+                mask=self.F_pipeline.F_mask,
+                bias=self.F_pipeline.F_bias,
+                lse=self.F_pipeline.F_lse,
+                spad=self.F_pipeline.F_spad,
+                skpad=self.F_pipeline.F_skpad,
+                dpad=self.F_pipeline.F_dpad,
+                dvpad=self.F_pipeline.F_dvpad)
 
 # TODO: design a more practical way to do it
-# this is current supported tile size.
+# this is current supported tile size per hdim
 def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[dict]:
     if direction == 'fwd':
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-        #        '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, 2),
-        #        '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, 3),
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, 2),
-        #        '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, 1),
+                 '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, 2),
+                 '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, 3),
+                 '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, 2),
+                 '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, 1),
             }
-        # elif dtype == 'fp8' or dtype == 'bf8':
-        #     return {
-        #         '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, 2)
-        #     }
+        elif dtype == 'fp8' or dtype == 'bf8':
+            return {
+                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, 2)
+            }
         else:
             return None
     else:
@@ -309,25 +400,23 @@ def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[
 def get_blobs() -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
-    def get_vlayout(dtype, hdim):
+    def get_pipelines(dtype, hdim) -> List[FmhaFwdPipeline]:
+        # this function will populate a list possible pipelines
+        pipelines = []
         if dtype in ['fp16', 'bf16']:
-            return 'row'
+            for mask, bias, lse in itertools.product(MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+                if hdim == 256:
+                    pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, mask))
+                else:
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', bias, lse, mask))
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', bias, lse, mask))
         elif dtype in ['fp8', 'bf8']:
-            return 'col'
+            # no need lse kernels
+            for mask, bias in itertools.product(MASK_MAP.keys(), ["t", "f"]):
+                pipelines.append(FmhaFwdPipeline('qr_fp8', 'col', 'f', 'f', 'f', 'f', bias, 'f', mask))
         else:
             assert Fasle
-    def get_pipeline(dtype, hdim):
-        if dtype in ['fp16', 'bf16']:
-            if hdim == 256:
-                return 'qr'
-            else:
-                return 'qr_async'
-        elif dtype in ['fp8', 'bf8']:
-            return 'qr_fp8'
-        else:
-            assert Fasle
-    def get_pad(dtype, hdim):
-        return 'f'
+        return pipelines
 
     gen = list()
     api_pool = FmhaFwdApiPool()
@@ -336,17 +425,14 @@ def get_blobs() -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
         d = get_fmha_fwd_tile_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+        #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
             tile = d[hdim_str]
             hdim = int(hdim_str)
-            if dtype in ['fp8', 'bf8'] and lse == "t":
-                continue
-            k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile, F_vlayout=get_vlayout(dtype, hdim),
-                                F_spad=get_pad(dtype, hdim), F_skpad=get_pad(dtype, hdim), F_dpad=get_pad(dtype, hdim),
-                                F_dvpad=get_pad(dtype, hdim), F_bias=bias, F_lse=lse, F_mask=mask, F_mode=mode,
-                                F_pipeline=get_pipeline(dtype, hdim))
-            api_pool.register_traits(k.api_trait())
-            gen.append(k)
+            for pipeline in get_pipelines(dtype, hdim):
+                k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_mode=mode, F_tile=tile, F_pipeline=pipeline)
+                api_pool.register_traits(k.api_trait())
+                gen.append(k)
 
     return (api_pool, gen)
 

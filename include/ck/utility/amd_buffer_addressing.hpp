@@ -1760,7 +1760,8 @@ __device__ void amd_async_buffer_load_with_oob(T* smem,
 // It is user's responsibility to make sure that is true.
 template <typename T,
           index_t N,
-          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
+          AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence,
+          bool oob_conditional_check       = true>
 __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::type src_thread_data,
                                  T* p_dst_wave,
                                  const index_t dst_thread_element_offset,
@@ -1777,11 +1778,24 @@ __device__ void amd_buffer_store(const typename vector_type_maker<T, N>::type::t
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
 #if CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
-    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
+    uint32_t dst_addr_shift = [&]() {
+        if constexpr(oob_conditional_check)
+            return dst_thread_element_valid ? 0 : 0x80000000;
+        else
+            return 0;
+    }();
     amd_buffer_store_impl<scalar_t, vector_size, coherence>(
         src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
 #else
-    if(dst_thread_element_valid)
+    if constexpr(oob_conditional_check)
+    {
+        if(dst_thread_element_valid)
+        {
+            amd_buffer_store_impl<scalar_t, vector_size, coherence>(
+                src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        }
+    }
+    else
     {
         amd_buffer_store_impl<scalar_t, vector_size, coherence>(
             src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
