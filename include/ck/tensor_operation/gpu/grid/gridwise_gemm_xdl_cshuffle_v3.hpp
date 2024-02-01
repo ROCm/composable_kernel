@@ -176,7 +176,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __host__ static auto CalculateKPadded(index_t K)
     {
-        printf("KPadded: %d\n", math::integer_divide_ceil(K, KPerBlock) * KPerBlock);
         return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
 
@@ -726,7 +725,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
             if(!(CalculateKPadded(problem.K / problem.k_batch) % AK1Value == 0) ||
                !(CalculateKPadded(problem.K / problem.k_batch) % BK1Value == 0))
             {
-                printf("CP0\n");
                 return false;
             }
         }
