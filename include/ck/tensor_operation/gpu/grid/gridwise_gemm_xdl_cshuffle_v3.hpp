@@ -566,15 +566,30 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                          GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
             {
-                uint32_t k_grain = karg.k_batch * KPerBlock;
-                uint32_t k_split_raw_small = karg.K/karg.k_batch;
-                uint32_t k_split_raw_big_num =  karg.K % karg.k_batch;
-                K_split_raw = blockIdx.z < k_split_raw_big_num? k_split_raw_small + 1 : k_split_raw_small;
-                K_split_padded         = (karg.K + k_grain - 1) / k_grain * KPerBlock;
+                index_t k_grain        = karg.k_batch * KPerBlock;
+                index_t K_padded       = (karg.K + k_grain - 1) / k_grain * k_grain;
+                K_split_padded         = K_padded / karg.k_batch;
+                index_t kpad           = K_padded - karg.K;
+                index_t kpad_batch_num = (kpad + K_split_padded - 1) / K_split_padded;
+                index_t kpad_batch_id  = karg.k_batch - kpad_batch_num;
+
+                const index_t K_batch_id = __builtin_amdgcn_readfirstlane(blockIdx.z);
+                if(K_batch_id > kpad_batch_id)
+                {
+                    K_split_raw = 0;
+                }
+                else if(K_batch_id == kpad_batch_id)
+                {
+                    K_split_raw = K_split_padded - (kpad - (kpad_batch_num - 1) * K_split_padded);
+                }
+                else
+                {
+                    K_split_raw = K_split_padded;
+                }
             }
             else
             {
-                K_split_raw = karg.K / karg.k_batch;
+                K_split_raw    = karg.K / karg.k_batch;
                 K_split_padded = K_split_raw;
             }
 
@@ -600,12 +615,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }
 
-        uint32_t AK0_split;
-        uint32_t BK0_split;
-        uint32_t K_split_raw;
-        uint32_t K_split_padded;
-        uint32_t a_k_split_offset;
-        uint32_t b_k_split_offset;
+        index_t AK0_split;
+        index_t BK0_split;
+        index_t K_split_raw;
+        index_t K_split_padded;
+        index_t a_k_split_offset;
+        index_t b_k_split_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
