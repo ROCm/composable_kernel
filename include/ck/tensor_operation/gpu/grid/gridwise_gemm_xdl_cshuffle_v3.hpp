@@ -737,6 +737,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 return false;
             }
+
+            constexpr index_t KReadVec = math::lcm(AK1Number, BK1Number);
+
+            index_t k_read_grain = problem.k_batch*KReadVec;
+            index_t KReadPadded = (problem.K + k_read_grain)/k_read_grain * k_read_grain;
+            index_t KReadPadded_split = KReadPadded/problem.k_batch;
+
+            if((problem.k_batch-1)*(KReadPadded_split)>=problem.K)
+            {
+                return false;
+            }
         }
         else
         {
@@ -793,7 +804,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
 
         // check gridwise gemm pipeline
-        const auto num_k_loop = (problem.K+ problem.k_batch * KPerBlock-1)/(problem.k_batch * KPerBlock);
+        const index_t num_k_loop = problem.K/(problem.k_batch * KPerBlock);
 
         if(num_k_loop < BlockwiseGemmPipe::MinimumLoop)
         {

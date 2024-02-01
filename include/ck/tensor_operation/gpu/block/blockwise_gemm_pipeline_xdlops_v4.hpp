@@ -120,7 +120,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t MinimumLoop = 3;
+    static constexpr index_t MinimumLoop = 5;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {

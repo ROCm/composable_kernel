@@ -113,7 +113,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t MinimumLoop = 1;
+    static constexpr index_t MinimumLoop = 2;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -156,11 +156,6 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
-#if 0
-        if(get_thread_global_1d_id()==0){
-            printf("M,N repeat: %d, %d\n", MRepeat, NRepeat);
-        }
-#endif
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
@@ -272,26 +267,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
-#if 0
-            printf("Tid: %02d, a: %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x\n", 
-                        get_thread_global_1d_id(),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<0>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<1>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<2>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<3>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<4>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<5>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<6>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<7>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<8>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<9>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<10>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<11>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<12>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<13>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<14>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<15>{})))));
-#endif
+
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -306,18 +282,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
                         });
-#if 0
-                        printf("Tid: %02d, a: %04x %04x %04x %04x %04x %04x %04x %04x\n", 
-                                    get_thread_global_1d_id(),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<0>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<1>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<2>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<3>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<4>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<5>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<6>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<7>{})))));
-#endif
+
                         using mfma_input_type =
                             typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
 
@@ -431,7 +396,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     static constexpr index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
     static constexpr index_t KPerInnerLoop  = math::max(KPerThread / NumMacClusters, KPack);
     static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
-    static constexpr index_t MinimumLoop    = 1;
+    static constexpr index_t MinimumLoop    = 2;
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > MinimumLoop;
@@ -473,12 +438,6 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
-#if 0
-        if(get_thread_global_1d_id()==0)
-        {
-            printf("KRepeat: %d, KPerInnerLoop: %d, KPerThread: %d \n", KRepeat, KPerInnerLoop, KPerThread);
-        }
-#endif
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
@@ -501,12 +460,6 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
         // main body
         if constexpr(HasMainLoop)
         {
-#if 0
-            if(get_thread_global_1d_id()==0)
-            {
-                printf("Mistakely enter main loop \n");
-            }
-#endif
             index_t i = 0;
             do
             {
@@ -610,12 +563,6 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
         // tail
         if constexpr(TailNum == TailNumber::Odd)
         {
-#if 0
-            if(get_thread_global_1d_id()==0)
-            {
-                printf("Successfully enter tail \n");
-            }
-#endif
             block_sync_lds();
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -634,26 +581,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                            b_thread_buf);
                     });
                 });
-#if 0
-                printf("Tid: %02d, a: %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x %04x\n", 
-                        get_thread_global_1d_id(),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<0>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<1>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<2>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<3>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<4>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<5>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<6>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<7>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<8>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<9>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<10>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<11>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<12>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<13>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<14>{})))),
-                        *(reinterpret_cast<uint16_t*>(&(a_thread_buf(Number<15>{})))));
-#endif
+
                 __builtin_amdgcn_sched_barrier(0);
                 if constexpr(k0.value != 0 || KRepeat == 1)
                 {
@@ -674,18 +602,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                     b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                         make_tuple(n0, I0, k0, k_ + ik))>{}];
                             });
-#if 0
-                            printf("Tid: %02d, a: %04x %04x %04x %04x %04x %04x %04x %04x\n", 
-                                    get_thread_global_1d_id(),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<0>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<1>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<2>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<3>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<4>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<5>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<6>{})))),
-                                    *(reinterpret_cast<uint16_t*>(&(a_thread_vec.template AsType<FloatAB>()(Number<7>{})))));
-#endif
+
                             using mfma_input_type =
                                 typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
 
