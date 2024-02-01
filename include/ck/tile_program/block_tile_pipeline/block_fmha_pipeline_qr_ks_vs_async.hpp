@@ -236,10 +236,12 @@ struct BlockFmhaPipelineQRKSVSAsync
             {bias_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
+        constexpr auto config = decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
         const auto drop_origin = drop_dram_block_window_tmp.GetWindowOrigin();
         auto drop_dram_window  = make_tile_window(
             drop_dram_block_window_tmp.GetBottomTensorView(),
-            make_tuple(Number<kM0>{}, Number<32>{}),
+            make_tuple(Number<kM0>{}, Number<WG::kN>{}),
             {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
@@ -505,9 +507,6 @@ struct BlockFmhaPipelineQRKSVSAsync
                     drop_lds_window.GetWindowOrigin(),
                     Policy::template MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
-                constexpr auto config =
-                    decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-                using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
                 constexpr index_t kNPerStep = WG::kN;
                 const index_t start_n0_idx  = i_total_loops * kN0;
                 const index_t total_n_len   = kN0 * num_total_loop;
