@@ -32,6 +32,7 @@
 #include "reference/reference_batched_gemm.hpp"
 #include "reference/reference_batched_masking.hpp"
 #include "reference/reference_batched_softmax.hpp"
+#include "reference/reference_batched_dropout.hpp"
 #include "utils.hpp"
 
 auto create_args(int argc, char* argv[])
@@ -68,7 +69,7 @@ auto create_args(int argc, char* argv[])
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
-        .insert("p_drop", "0.0", "0~1 probability of dropout")
+        .insert("p_drop", "0.1", "0~1 probability of dropout")
         .insert("seed", "1", "seed for random number maker")
         .insert("offset", "0", "offset for random number maker")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
@@ -172,6 +173,7 @@ bool run(const ArgParser& arg_parser)
     using KDataType           = typename TypeConfig::KDataType;
     using VDataType           = typename TypeConfig::VDataType;
     using BiasDataType        = typename TypeConfig::BiasDataType;
+    using DropDataType        = typename TypeConfig::DropDataType;
     using LSEDataType         = typename TypeConfig::LSEDataType;
     using SaccDataType        = typename TypeConfig::SaccDataType;
     using SMPLComputeDataType = typename TypeConfig::SMPLComputeDataType;
@@ -243,6 +245,10 @@ bool run(const ArgParser& arg_parser)
 
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
+    Tensor<DropDataType> drop_host(
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, shape_seqlen_k)
+                   : std::array<ck::index_t, 4>{1, 1, 1, 1});
+
     if(init_method == 0)
     {
         ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
@@ -274,12 +280,15 @@ bool run(const ArgParser& arg_parser)
     DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
 
+    DeviceMem drop_buf(drop_host.GetElementSpaceSizeInBytes());
+
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
     v_buf.ToDevice(v_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    drop_buf.SetZero();
 
     // clang-format off
     auto layout_str = [&](bool permute){
@@ -311,6 +320,7 @@ bool run(const ArgParser& arg_parser)
                                    k_buf.GetDeviceBuffer(),
                                    v_buf.GetDeviceBuffer(),
                                    bias_buf.GetDeviceBuffer(),
+                                   drop_buf.GetDeviceBuffer(),
                                    lse_buf.GetDeviceBuffer(),
                                    o_buf.GetDeviceBuffer(),
                                    seqstart_q.GetDeviceBuffer(),
@@ -358,9 +368,12 @@ bool run(const ArgParser& arg_parser)
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
+    drop_buf.FromDevice(drop_host.data());
+    float p_dropout                   = 1.0 - p_drop;
+    DropDataType p_dropout_in_uint8_t = DropDataType(std::floor(p_dropout * 255.0));
+    float rp_dropout                  = 1.0 / p_dropout;
 
     bool pass = true;
-
     for(ck::index_t wb = 0; wb < batch; ++wb)
     {
         const ck::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
@@ -439,6 +452,14 @@ bool run(const ArgParser& arg_parser)
         }
         else{
             reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref, p_host_ref);
+        }
+
+        if(p_drop > 0){
+            Tensor<DropDataType> drop_host_result({nhead, real_seqlen_q, real_seqlen_k});
+            drop_host_result.ForEach([&](auto& self, auto idx) {
+                self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2]);
+            });
+            reference_batched_dropout(p_host_ref, drop_host_result, p_dropout_in_uint8_t, rp_dropout);
         }
         
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(p_host_ref, v_host_ref, o_host_ref);

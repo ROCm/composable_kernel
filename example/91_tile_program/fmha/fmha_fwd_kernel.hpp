@@ -28,6 +28,7 @@ struct FmhaFwdKernel
     using KDataType              = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType              = ck::remove_cvref_t<typename FmhaPipeline::VDataType>;
     using BiasDataType           = ck::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
+    using DropDataType           = ck::remove_cvref_t<typename FmhaPipeline::DropDataType>;
     using LSEDataType            = ck::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
     using ODataType              = ck::remove_cvref_t<typename FmhaPipeline::ODataType>;
     static constexpr bool kIsFp8 = FmhaPipeline::kIsFp8;
@@ -118,7 +119,6 @@ struct FmhaFwdKernel
 
     struct FmhaFwdDropoutKargs
     {
-        FmhaFwdDropoutKargs() : rp_dropout(1.0), p_dropout_in_uint8_t(255) {}
         void init_dropout(float p_drop, std::tuple<uint64_t, uint64_t>& seeds)
         {
             float p_dropout      = 1.0 - p_drop;
@@ -128,10 +128,18 @@ struct FmhaFwdKernel
             seed   = std::get<0>(seeds);
             offset = std::get<1>(seeds);
         }
-        float rp_dropout;
-        uint8_t p_dropout_in_uint8_t;
-        uint64_t seed;
-        uint64_t offset;
+        float rp_dropout; //              = 1;
+        DropDataType p_dropout_in_uint8_t = 255;
+        uint64_t seed                     = 1;
+        uint64_t offset                   = 0;
+        void* drop_ptr                    = nullptr;
+        ck::index_t stride_drop           = 0;
+        ck::index_t nhead_stride_drop     = 0;
+        ck::index_t raw_mn_padded         = 0;
+    };
+    struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
+    {
+        ck::index_t batch_stride_drop = 0;
     };
 
     struct FmhaFwdBatchModeKargs
@@ -140,7 +148,7 @@ struct FmhaFwdKernel
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdBatchModeLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdDropoutKargs, FmhaFwdEmptyKargs<4>>
+          std::conditional_t<kHasDropout, FmhaFwdBatchModelDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
@@ -169,6 +177,7 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
+              void* drop_ptr,
               void* lse_ptr,
               void* o_ptr,
               ck::index_t seqlen_q,
@@ -181,17 +190,20 @@ struct FmhaFwdKernel
               ck::index_t stride_k,
               ck::index_t stride_v,
               ck::index_t stride_bias,
+              ck::index_t stride_drop,
               ck::index_t stride_o,
               ck::index_t nhead_stride_q,
               ck::index_t nhead_stride_k,
               ck::index_t nhead_stride_v,
               ck::index_t nhead_stride_bias,
+              ck::index_t nhead_stride_drop,
               ck::index_t nhead_stride_lse,
               ck::index_t nhead_stride_o,
               ck::index_t batch_stride_q,
               ck::index_t batch_stride_k,
               ck::index_t batch_stride_v,
               ck::index_t batch_stride_bias,
+              ck::index_t batch_stride_drop,
               ck::index_t batch_stride_lse,
               ck::index_t batch_stride_o,
               ck::index_t mask_y,
@@ -260,6 +272,18 @@ struct FmhaFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, seeds);
+            kargs.drop_ptr          = drop_ptr;
+            kargs.stride_drop       = stride_drop;
+            kargs.nhead_stride_drop = nhead_stride_drop;
+            kargs.batch_stride_drop = batch_stride_drop;
+
+            ck::index_t raw_m_padded =
+                ck::math::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) *
+                FmhaPipeline::kM0;
+            ck::index_t raw_n_padded =
+                ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0) *
+                FmhaPipeline::kN0;
+            kargs.raw_mn_padded = raw_m_padded * raw_n_padded;
         }
 
         return kargs;
@@ -271,6 +295,7 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
+              void* drop_ptr,
               void* lse_ptr,
               void* o_ptr,
               const void* seqstart_q_ptr,
@@ -284,11 +309,13 @@ struct FmhaFwdKernel
               ck::index_t stride_k,
               ck::index_t stride_v,
               ck::index_t stride_bias,
+              ck::index_t stride_drop,
               ck::index_t stride_o,
               ck::index_t nhead_stride_q,
               ck::index_t nhead_stride_k,
               ck::index_t nhead_stride_v,
               ck::index_t nhead_stride_bias,
+              ck::index_t nhead_stride_drop,
               ck::index_t nhead_stride_lse,
               ck::index_t nhead_stride_o,
               ck::index_t mask_y,
@@ -354,6 +381,17 @@ struct FmhaFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, seeds);
+            kargs.drop_ptr          = drop_ptr;
+            kargs.stride_drop       = stride_drop;
+            kargs.nhead_stride_drop = nhead_stride_drop;
+
+            ck::index_t raw_m_padded =
+                ck::math::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) *
+                FmhaPipeline::kM0;
+            ck::index_t raw_n_padded =
+                ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0) *
+                FmhaPipeline::kN0;
+            kargs.raw_mn_padded = raw_m_padded * raw_n_padded;
         }
 
         return kargs;
@@ -387,28 +425,33 @@ struct FmhaFwdKernel
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] =
             TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
 
-        const index_t i_m0       = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1       = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
-        const index_t i_total_m0 = __builtin_amdgcn_readfirstlane(i_m0 * i_nhead * i_batch);
+        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q    = 0;
         long_index_t batch_offset_k    = 0;
         long_index_t batch_offset_v    = 0;
         long_index_t batch_offset_bias = 0;
+        long_index_t batch_offset_drop = 0;
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
-        float rp_dropout             = 1;
-        uint8_t p_dropout_in_uint8_t = 255;
-        uint64_t seed                = 0;
-        uint64_t offset              = 0;
+        float rp_dropout                  = 1;
+        DropDataType p_dropout_in_uint8_t = 255;
+        uint64_t seed                     = 0;
+        uint64_t offset                   = 0;
+        index_t raw_mn_padded             = 0;
+
         if constexpr(kHasDropout)
         {
             rp_dropout           = kargs.rp_dropout;
             p_dropout_in_uint8_t = kargs.p_dropout_in_uint8_t;
             seed                 = kargs.seed;
             offset               = kargs.offset;
+            raw_mn_padded        = kargs.raw_mn_padded;
         }
+        const index_t i_total_id = __builtin_amdgcn_readfirstlane(
+            raw_mn_padded * i_nhead + raw_mn_padded * gridDim.y * i_batch);
         ck::philox ph(seed, 0, offset);
 
         if constexpr(kIsGroupMode)
@@ -439,6 +482,11 @@ struct FmhaFwdKernel
             {
                 batch_offset_lse = query_start;
             }
+            if constexpr(kHasDropout)
+            {
+                batch_offset_drop = query_start * kargs.stride_drop;
+            }
+
             batch_offset_o = query_start * kargs.stride_o;
 
             // get real # queries & # keys under group mode
@@ -474,6 +522,10 @@ struct FmhaFwdKernel
             if constexpr(kStoreLSE)
             {
                 batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
+            }
+            if constexpr(kHasDropout)
+            {
+                batch_offset_drop = static_cast<long_index_t>(i_batch) * kargs.batch_stride_drop;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
@@ -649,6 +701,37 @@ struct FmhaFwdKernel
             }
         }();
 
+        auto drop_dram_window = [&, i_nhead_ = i_nhead]() {
+            constexpr auto drop_dram_window_lengths =
+                make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
+            if constexpr(kHasDropout)
+            {
+                DropDataType* drop_ptr =
+                    reinterpret_cast<DropDataType*>(kargs.drop_ptr) +
+                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_drop +
+                    batch_offset_drop;
+
+                const auto drop_dram = [&]() {
+                    const auto drop_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
+                        drop_ptr,
+                        make_tuple(kargs.seqlen_q, kargs.seqlen_k),
+                        make_tuple(kargs.stride_drop, 1),
+                        Number<32>{},
+                        Number<1>{});
+
+                    return pad_tensor_view(drop_dram_naive,
+                                           drop_dram_window_lengths,
+                                           Sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                }();
+
+                return make_tile_window(drop_dram, drop_dram_window_lengths, {i_m0, 0});
+            }
+            else
+            {
+                return make_null_tile_window(drop_dram_window_lengths);
+            }
+        }();
+
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
@@ -663,13 +746,14 @@ struct FmhaFwdKernel
                                       k_dram_window,
                                       v_dram_window,
                                       bias_dram_window,
+                                      drop_dram_window,
                                       lse_dram_window,
                                       mask,
                                       kargs.scale,
                                       kargs.descale_qk,
                                       kargs.descale_sv,
                                       smem_ptr,
-                                      i_total_m0,
+                                      i_total_id,
                                       rp_dropout,
                                       p_dropout_in_uint8_t,
                                       ph);
@@ -680,11 +764,12 @@ struct FmhaFwdKernel
                                       k_dram_window,
                                       v_dram_window,
                                       bias_dram_window,
+                                      drop_dram_window,
                                       lse_dram_window,
                                       mask,
                                       kargs.scale,
                                       smem_ptr,
-                                      i_total_m0,
+                                      i_total_id,
                                       rp_dropout,
                                       p_dropout_in_uint8_t,
                                       ph);

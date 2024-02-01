@@ -32,6 +32,7 @@ struct FmhaFwdTypeConfig<ck::half_t>
     using KDataType           = ck::half_t;
     using VDataType           = ck::half_t;
     using BiasDataType        = ck::half_t;
+    using DropDataType        = uint8_t;
     using LSEDataType         = float;      // data type for lse(logsumexp L_j = max_j + log(l_j))
     using SaccDataType        = float;      // data type for first gemm accumulation
     using SMPLComputeDataType = float;      // data type for reduction, softmax
@@ -47,6 +48,7 @@ struct FmhaFwdTypeConfig<ck::bhalf_t>
     using KDataType           = ck::bhalf_t;
     using VDataType           = ck::bhalf_t;
     using BiasDataType        = ck::bhalf_t;
+    using DropDataType        = uint8_t;
     using LSEDataType         = float;       // data type for lse(logsumexp L_j = max_j + log(l_j))
     using SaccDataType        = float;       // data type for first gemm accumulation
     using SMPLComputeDataType = float;       // data type for reduction, softmax
@@ -61,7 +63,8 @@ struct FmhaFwdTypeConfig<ck::f8_t>
     using QDataType           = ck::f8_t;
     using KDataType           = ck::f8_t;
     using VDataType           = ck::f8_t;
-    using BiasDataType        = float;    // TODO: fix me
+    using BiasDataType        = float; // TODO: fix me
+    using DropDataType        = uint8_t;
     using LSEDataType         = float;    // data type for lse(logsumexp L_j = max_j + log(l_j))
     using SaccDataType        = float;    // data type for first gemm accumulation
     using SMPLComputeDataType = float;    // data type for reduction, softmax
@@ -77,6 +80,7 @@ struct FmhaFwdTypeConfig<ck::bf8_t>
     using KDataType           = ck::bf8_t;
     using VDataType           = ck::bf8_t;
     using BiasDataType        = ck::bf8_t;
+    using DropDataType        = uint8_t;
     using LSEDataType         = float;     // data type for lse(logsumexp L_j = max_j + log(l_j))
     using SaccDataType        = float;     // data type for first gemm accumulation
     using SMPLComputeDataType = float;     // data type for reduction, softmax
@@ -98,6 +102,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      const void* k_ptr,
                                      const void* v_ptr,
                                      const void* bias_ptr,
+                                     void* drop_ptr,
                                      void* lse_ptr,
                                      void* o_ptr,
                                      const void* seqstart_q_ptr,
@@ -138,6 +143,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
             return i_perm ? seqlen_k : nhead_k * seqlen_k;
     }();
     const ck::index_t stride_bias = (i_perm ? seqlen_k : 1 * seqlen_k);
+    const ck::index_t stride_drop = (seqlen_k);
     const ck::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
     // setup nhead_stride_* arguments
     const ck::index_t nhead_stride_q = (i_perm ? seqlen_q * hdim_q : hdim_q);
@@ -149,6 +155,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
             return i_perm ? hdim_v * seqlen_k : seqlen_k;
     }();
     const ck::index_t nhead_stride_bias = (i_perm ? 0 * seqlen_q * seqlen_k : 0 * seqlen_k);
+    const ck::index_t nhead_stride_drop = (seqlen_q * seqlen_k);
     const ck::index_t nhead_stride_lse  = (seqlen_q * 1);
     const ck::index_t nhead_stride_o    = (o_perm ? seqlen_q * hdim_v : hdim_v);
     // setup batch_stride_* arguments
@@ -156,6 +163,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
     const ck::index_t batch_stride_k    = (nhead_k * seqlen_k * hdim_q);
     const ck::index_t batch_stride_v    = (nhead_k * hdim_v * seqlen_k);
     const ck::index_t batch_stride_bias = (0 * nhead * seqlen_q * seqlen_k);
+    const ck::index_t batch_stride_drop = (nhead * seqlen_q * seqlen_k);
     const ck::index_t batch_stride_lse  = (nhead * seqlen_q * 1);
     const ck::index_t batch_stride_o    = (nhead * seqlen_q * hdim_v);
 
@@ -167,6 +175,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          k_ptr,
                                          v_ptr,
                                          bias_ptr,
+                                         drop_ptr,
                                          lse_ptr,
                                          o_ptr,
                                          seqstart_q_ptr,
@@ -180,11 +189,13 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          stride_k,
                                          stride_v,
                                          stride_bias,
+                                         stride_drop,
                                          stride_o,
                                          nhead_stride_q,
                                          nhead_stride_k,
                                          nhead_stride_v,
                                          nhead_stride_bias,
+                                         nhead_stride_drop,
                                          nhead_stride_lse,
                                          nhead_stride_o,
                                          mask_y,
@@ -200,6 +211,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          k_ptr,
                                          v_ptr,
                                          bias_ptr,
+                                         drop_ptr,
                                          lse_ptr,
                                          o_ptr,
                                          seqlen_q,
@@ -212,17 +224,20 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          stride_k,
                                          stride_v,
                                          stride_bias,
+                                         stride_drop,
                                          stride_o,
                                          nhead_stride_q,
                                          nhead_stride_k,
                                          nhead_stride_v,
                                          nhead_stride_bias,
+                                         nhead_stride_drop,
                                          nhead_stride_lse,
                                          nhead_stride_o,
                                          batch_stride_q,
                                          batch_stride_k,
                                          batch_stride_v,
                                          batch_stride_bias,
+                                         batch_stride_drop,
                                          batch_stride_lse,
                                          batch_stride_o,
                                          mask_y,
@@ -245,6 +260,7 @@ struct fmha_fwd_args
     const void* k_ptr;
     const void* v_ptr;
     const void* bias_ptr;
+    void* drop_ptr;
     void* lse_ptr;
     void* o_ptr;
     const void* seqstart_q_ptr;
@@ -276,6 +292,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.k_ptr,
                                                        args.v_ptr,
                                                        args.bias_ptr,
+                                                       args.drop_ptr,
                                                        args.lse_ptr,
                                                        args.o_ptr,
                                                        args.seqstart_q_ptr,

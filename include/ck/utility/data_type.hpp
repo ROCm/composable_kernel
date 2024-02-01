@@ -956,6 +956,14 @@ using bhalf16_t = typename vector_type<bhalf_t, 16>::type;
 using bhalf32_t = typename vector_type<bhalf_t, 32>::type;
 using bhalf64_t = typename vector_type<bhalf_t, 64>::type;
 
+// uint16_t
+using uint16x2_t  = typename vector_type<uint16_t, 2>::type;
+using uint16x4_t  = typename vector_type<uint16_t, 4>::type;
+using uint16x8_t  = typename vector_type<uint16_t, 8>::type;
+using uint16x16_t = typename vector_type<uint16_t, 16>::type;
+using uint16x32_t = typename vector_type<uint16_t, 32>::type;
+using uint16x64_t = typename vector_type<uint16_t, 64>::type;
+
 // i32
 using int32x2_t  = typename vector_type<int32_t, 2>::type;
 using int32x4_t  = typename vector_type<int32_t, 4>::type;
@@ -972,6 +980,13 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
+// ui8
+using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
+using uint8x4_t  = typename vector_type<uint8_t, 4>::type;
+using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
+using uint8x16_t = typename vector_type<uint8_t, 16>::type;
+using uint8x32_t = typename vector_type<uint8_t, 32>::type;
+using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 // f8
 using f8x2_t  = typename vector_type<f8_t, 2>::type;
 using f8x4_t  = typename vector_type<f8_t, 4>::type;

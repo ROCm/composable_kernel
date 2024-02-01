@@ -34,6 +34,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
     using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
     using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
+    using DropDataType        = remove_cvref_t<typename Problem::DropDataType>;
     using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
     using PDataType           = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
@@ -78,6 +79,7 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename DropDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
@@ -93,14 +95,15 @@ struct BlockFmhaPipelineQRKSVSAsync
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
+               DropDramBlockWindowTmp& drop_dram_block_window_tmp,
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               int start_m0_idx,
+               int global_idx,
                float p_dropout_rescale,
-               uint8_t p_dropout_in_uint8_t,
+               DropDataType p_dropout_in_uint8_t,
                ck::philox& ph) const
     {
         static_assert(
@@ -232,6 +235,13 @@ struct BlockFmhaPipelineQRKSVSAsync
             bias_dram_block_window_tmp.GetWindowLengths(),
             {bias_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+
+        const auto drop_origin = drop_dram_block_window_tmp.GetWindowOrigin();
+        auto drop_dram_window  = make_tile_window(
+            drop_dram_block_window_tmp.GetBottomTensorView(),
+            make_tuple(Number<kM0>{}, Number<32>{}),
+            {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
+            Policy::template MakeZSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
@@ -474,8 +484,8 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 // Z tile in LDS
                 auto z_lds = make_tensor_view<AddressSpaceEnum::Lds>(
-                    reinterpret_cast<uint8_t*>(smem_ptr) +
-                        Policy::template GetSmemSizeKV<Problem>(),
+                    reinterpret_cast<DropDataType*>(reinterpret_cast<char*>(smem_ptr) +
+                                                    Policy::template GetSmemSizeKV<Problem>()),
                     Policy::template MakeZLdsBlockDescriptor<Problem>());
 
                 auto z_lds_window = make_tile_window(
@@ -484,7 +494,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     {0, 0});
 
                 // register distribute
-                auto z_dropout = make_static_distributed_tensor<uint8_t>(
+                auto z_dropout = make_static_distributed_tensor<DropDataType>(
                     Policy::template MakeZSramTileDistribution<Problem, decltype(gemm_0)>());
 
                 constexpr auto config =
@@ -492,38 +502,38 @@ struct BlockFmhaPipelineQRKSVSAsync
                 using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
                 constexpr index_t kNPerStep = WG::kN;
                 const index_t start_n0_idx  = i_total_loops * kN0;
+                const index_t total_n_len   = kN0 * num_total_loop;
 
                 static_for<0, kN0 / kNPerStep, 1>{}([&](auto i_n0) {
                     auto warp_id  = get_warp_id();
                     auto lane_idx = get_lane_id();
                     auto idx_n    = lane_idx % kNPerStep + i_n0 * kNPerStep + start_n0_idx;
-                    auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * 32 + start_m0_idx;
-                    auto element_global_1d_id = idx_m * kK0BlockLength + idx_n;
+                    auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * 32;
+                    auto element_global_1d_id = idx_m * total_n_len + idx_n + global_idx;
 
                     // generate random number
                     uint8_t tmp[16];
                     ph.get_random_16x8(tmp, element_global_1d_id);
-
                     constexpr auto z_spans = decltype(z_dropout)::GetDistributedSpans();
                     int i_random_idx       = 0;
                     sweep_tile_span(z_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(z_spans[Number<1>{}], [&](auto idx1) {
                             constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                            z_dropout(i_j_idx)     = tmp[i_random_idx++];
+                            z_dropout(i_j_idx) = type_convert<DropDataType>(tmp[i_random_idx++]);
                         });
                     });
                     // save to LDS
                     store_tile(z_lds_window, z_dropout);
-                    // read form LDS to register
+
                     auto droput_dram_window = make_tile_window(
                         z_lds_window.GetBottomTensorView(),
                         z_lds_window.GetWindowLengths(),
                         z_lds_window.GetWindowOrigin(),
                         Policy::template MakeZSramPartTileDistribution<Problem,
                                                                        decltype(gemm_0)>());
-
-                    auto dropout = load_tile(droput_dram_window);
-                    // dropout
+                    block_sync_lds(); // wait data save to LDS
+                    // read form LDS to register
+                    auto dropout              = load_tile(droput_dram_window);
                     constexpr auto drop_spans = decltype(dropout)::GetDistributedSpans();
                     sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
                         sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
@@ -536,6 +546,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                                                        : float(0);
                         });
                     });
+                    // save to Global
+                    store_tile(drop_dram_window, dropout);
+                    __builtin_amdgcn_sched_barrier(0);
+                    move_tile_window(drop_dram_window, {0, WG::kN});
                 });
             }
 
@@ -661,19 +675,21 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename DropDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               DropDramBlockWindowTmp& drop_dram_block_window_tmp,       // M0*N0 tile
                LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
                float scale,
                void* smem_ptr,
                int start_m_idx,
                float rp_dropout,
-               uint8_t p_dropout_in_uint8_t,
+               DropDataType p_dropout_in_uint8_t,
                ck::philox& ph) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -684,6 +700,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
+                          drop_dram_block_window_tmp,
                           lse_dram_block_window_tmp,
                           identity{},
                           mask,

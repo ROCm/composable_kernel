@@ -299,6 +299,27 @@ llvm_amdgcn_raw_buffer_store_i16x4(bhalf4_t vdata,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i16");
 
+// buffer store ui16
+__device__ void
+llvm_amdgcn_raw_buffer_store_ui16(uint16_t vdata,
+                                  int32x4_t rsrc,
+                                  index_t voffset,
+                                  index_t soffset,
+                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i16");
+
+__device__ void
+llvm_amdgcn_raw_buffer_store_ui16x2(uint16x2_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i16");
+
+__device__ void
+llvm_amdgcn_raw_buffer_store_ui16x4(uint16x4_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i16");
 // buffer store i32
 __device__ void
 llvm_amdgcn_raw_buffer_store_i32(int32_t vdata,
@@ -871,7 +892,9 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, f8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, uint16_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
     if constexpr(is_same<T, float>::value) // fp32
@@ -1007,6 +1030,53 @@ __device__ void amd_buffer_store_impl(const typename vector_type<T, N>::type src
                                                dst_thread_addr_offset,
                                                dst_wave_addr_offset + 4 * sizeof(bhalf_t),
                                                static_cast<index_t>(coherence));
+        }
+    }
+    else if constexpr(is_same<T, uint16_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16(src_thread_data,
+                                              dst_wave_buffer_resource,
+                                              dst_thread_addr_offset,
+                                              dst_wave_addr_offset,
+                                              static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 2)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16x2(src_thread_data,
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 4)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16x4(src_thread_data,
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 8)
+        {
+            vector_type<uint16_t, 8> tmp{src_thread_data};
+
+            llvm_amdgcn_raw_buffer_store_ui16x4(tmp.AsType<uint16x4_t>()[Number<0>{}],
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+
+            llvm_amdgcn_raw_buffer_store_ui16x4(tmp.AsType<uint16x4_t>()[Number<1>{}],
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset + 4 * sizeof(uint16_t),
+                                                static_cast<index_t>(coherence));
+        }
+        else
+        {
+            static_assert(0, "out put data size");
         }
     }
     else

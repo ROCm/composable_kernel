@@ -665,7 +665,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerStep  = 32;
-        return kMPerBlock * kNPerStep;
+        return kMPerBlock * kNPerStep * sizeof(typename Problem::DropDataType);
     }
 
     template <typename Problem>
