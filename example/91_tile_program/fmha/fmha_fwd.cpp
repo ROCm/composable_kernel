@@ -38,7 +38,7 @@
 auto create_args(int argc, char* argv[])
 {
     ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do cpu validation or not")
+    arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
@@ -69,10 +69,14 @@ auto create_args(int argc, char* argv[])
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
+        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
+        .insert("seed",
+                "11939",
+                "random seed used for initializing input tensors. 0 to use "
+                "non-deterministic random number as seed")
         .insert("p_drop", "0.1", "0~1 probability of dropout")
-        .insert("seed", "1", "seed for random number maker")
-        .insert("offset", "0", "offset for random number maker")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
+        .insert("drop_seed", "1", "seed for random number maker")
+        .insert("drop_offset", "0", "offset for random number maker");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -142,12 +146,12 @@ bool run(const ArgParser& arg_parser)
     float descale_k = arg_parser.get_float("descale_k");
     float descale_v = arg_parser.get_float("descale_v");
 
-    std::string vlayout = arg_parser.get_str("vlayout");
-    bool use_bias       = arg_parser.get_uint32("bias");
-    bool lse            = arg_parser.get_uint32("lse");
-    float p_drop        = arg_parser.get_float("p_drop");
-    uint64_t seed       = arg_parser.get_uint64("seed");
-    uint64_t offset     = arg_parser.get_uint32("offset");
+    std::string vlayout  = arg_parser.get_str("vlayout");
+    bool use_bias        = arg_parser.get_uint32("bias");
+    bool lse             = arg_parser.get_uint32("lse");
+    float p_drop         = arg_parser.get_float("p_drop");
+    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
+    uint64_t drop_offset = arg_parser.get_uint32("drop_offset");
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
@@ -156,7 +160,12 @@ bool run(const ArgParser& arg_parser)
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
-    int init_method = arg_parser.get_int("init");
+    int init_method              = arg_parser.get_int("init");
+    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
+    if(*seed == 0)
+    {
+        seed.reset();
+    }
 
     int stream_warmup = env_get_int("CK_WARMUP", 5);
     int stream_repeat = env_get_int("CK_REPEAT", 20);
@@ -251,17 +260,17 @@ bool run(const ArgParser& arg_parser)
 
     if(init_method == 0)
     {
-        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
-        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
-        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
-        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f}(bias_host);
+        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
+        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
+        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
     }
     else if(init_method == 1)
     {
-        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
-        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
-        ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
-        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f}(bias_host);
+        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck::utils::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
     else if(init_method == 2)
     {
@@ -342,7 +351,7 @@ bool run(const ArgParser& arg_parser)
                                    mask.y,
                                    mask.x,
                                    p_drop,
-                                   {seed, offset}};
+                                   {drop_seed, drop_offset}};
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
 

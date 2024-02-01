@@ -325,13 +325,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(1);
 
             // STAGE 2, scale, add bias, mask, softmax
-            if constexpr(is_null_tile_window(bias_dram_window))
-            {
-#if !CK_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
-#endif
-            }
-            else
+            if constexpr(kHasBias)
             {
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
@@ -344,6 +338,12 @@ struct BlockFmhaPipelineQRKSVSAsync
                     },
                     s_acc,
                     bias_tile);
+            }
+            else
+            {
+#if !CK_FMHA_FWD_FAST_EXP2
+                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
+#endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
@@ -412,7 +412,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(0);
 
             static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
-                if constexpr(FmhaMask::IsMasking)
+                /// NOTICE: bias might be materialized mask including -inf values, need
+                /// consideration
+                if constexpr(kHasBias || FmhaMask::IsMasking)
                 {
                     return raw_m == -NumericLimits<SMPLComputeDataType>::Infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
@@ -433,13 +435,13 @@ struct BlockFmhaPipelineQRKSVSAsync
                 sweep_tile_span(p_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_FMHA_FWD_FAST_EXP2
-                    if constexpr(is_null_tile_window(bias_dram_window))
+                    if constexpr(kHasBias)
                     {
-                        p_compute(i_j_idx) = math::exp2(scale * s[i_j_idx] - row_max);
+                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx) = math::exp2(scale * s[i_j_idx] - row_max);
                     }
 #else
                     p_compute(i_j_idx)     = math::exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -457,14 +459,14 @@ struct BlockFmhaPipelineQRKSVSAsync
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
                 const auto tmp = [&]() {
-                    if constexpr(is_null_tile_window(bias_dram_window))
+                    if constexpr(kHasBias)
                     {
-                        auto row_max = scale * get_validated_m(m[i_idx]);
-                        return math::exp2(scale * m_old[i_idx] - row_max);
+                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        auto row_max = scale * get_validated_m(m[i_idx]);
+                        return math::exp2(scale * m_old[i_idx] - row_max);
                     }
                 }();
 #else
@@ -633,13 +635,13 @@ struct BlockFmhaPipelineQRKSVSAsync
             sweep_tile_span(lse_spans[Number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
-                if constexpr(is_null_tile_window(bias_dram_window))
+                if constexpr(kHasBias)
                 {
-                    lse(i_idx) = m_[i_idx] * scale * R_LOG2E + math::log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] * R_LOG2E + math::log(l_[i_idx]);
                 }
                 else
                 {
-                    lse(i_idx) = m_[i_idx] * R_LOG2E + math::log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] * scale * R_LOG2E + math::log(l_[i_idx]);
                 }
 #else
                 lse(i_idx) = m_[i_idx] + math::log(l_[i_idx]);

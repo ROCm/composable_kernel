@@ -235,13 +235,13 @@ struct BlockFmhaPipelineQSKSVS
                 k_block_tile = load_tile(k_dram_window);
             }
 
-            if constexpr(!is_null_tile_window(bias_dram_window))
+            if constexpr(kHasBias)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
             }
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            if constexpr(!is_null_tile_window(bias_dram_window))
+            if constexpr(kHasBias)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
@@ -283,13 +283,7 @@ struct BlockFmhaPipelineQSKSVS
             }
 
             // STAGE 2, scale, add bias, mask, softmax
-            if constexpr(is_null_tile_window(bias_dram_window))
-            {
-#if !CK_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
-#endif
-            }
-            else
+            if constexpr(kHasBias)
             {
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
@@ -302,6 +296,12 @@ struct BlockFmhaPipelineQSKSVS
                     },
                     s_acc,
                     bias_tile);
+            }
+            else
+            {
+#if !CK_FMHA_FWD_FAST_EXP2
+                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
+#endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
@@ -338,7 +338,9 @@ struct BlockFmhaPipelineQSKSVS
                 s.GetTileDistribution()); // Pcompute{j}
 
             static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
-                if constexpr(FmhaMask::IsMasking)
+                /// NOTICE: bias might be materialized mask including -inf values, need
+                /// consideration
+                if constexpr(kHasBias || FmhaMask::IsMasking)
                 {
                     return raw_m == -NumericLimits<SMPLComputeDataType>::Infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
@@ -359,13 +361,13 @@ struct BlockFmhaPipelineQSKSVS
                 sweep_tile_span(p_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_FMHA_FWD_FAST_EXP2
-                    if constexpr(is_null_tile_window(bias_dram_window))
+                    if constexpr(kHasBias)
                     {
-                        p_compute(i_j_idx) = math::exp2(scale * s[i_j_idx] - row_max);
+                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx) = math::exp2(scale * s[i_j_idx] - row_max);
                     }
 #else
                     p_compute(i_j_idx)     = math::exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -383,14 +385,14 @@ struct BlockFmhaPipelineQSKSVS
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
                 const auto tmp = [&]() {
-                    if constexpr(is_null_tile_window(bias_dram_window))
+                    if constexpr(kHasBias)
                     {
-                        auto row_max = scale * get_validated_m(m[i_idx]);
-                        return math::exp2(scale * m_old[i_idx] - row_max);
+                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        auto row_max = scale * get_validated_m(m[i_idx]);
+                        return math::exp2(scale * m_old[i_idx] - row_max);
                     }
                 }();
 #else
@@ -474,13 +476,13 @@ struct BlockFmhaPipelineQSKSVS
             sweep_tile_span(lse_spans[Number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
-                if constexpr(is_null_tile_window(bias_dram_window))
+                if constexpr(kHasBias)
                 {
-                    lse(i_idx) = m_[i_idx] * scale / C_LOG2E + math::log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] / C_LOG2E + math::log(l_[i_idx]);
                 }
                 else
                 {
-                    lse(i_idx) = m_[i_idx] / C_LOG2E + math::log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] * scale / C_LOG2E + math::log(l_[i_idx]);
                 }
 #else
                 lse(i_idx) = m_[i_idx] + math::log(l_[i_idx]);
