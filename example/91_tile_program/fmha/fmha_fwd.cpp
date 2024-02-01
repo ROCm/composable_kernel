@@ -68,6 +68,7 @@ auto create_args(int argc, char* argv[])
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
+        .insert("kname", "0", "if set to 1 will print kernel name")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
         .insert("seed",
                 "11939",
@@ -157,8 +158,9 @@ bool run(const ArgParser& arg_parser)
 
     int stream_warmup = env_get_int("CK_WARMUP", 5);
     int stream_repeat = env_get_int("CK_REPEAT", 20);
+    bool kname        = arg_parser.get_bool("kname");
 
-    StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
+    StreamConfig stream_config{nullptr, true, kname ? 1 : 0, stream_warmup, stream_repeat};
 
     const auto [seqlens_q, seqstart_q_host] = generate_seqlens_seqstarts_q(mode, batch, seqlen_q);
     const std::vector<int32_t> seqstart_k_host =

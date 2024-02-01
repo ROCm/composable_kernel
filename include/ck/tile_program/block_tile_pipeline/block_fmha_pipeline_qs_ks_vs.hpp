@@ -63,6 +63,8 @@ struct BlockFmhaPipelineQSKSVS
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
+    static constexpr const char* name = "qs";
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();

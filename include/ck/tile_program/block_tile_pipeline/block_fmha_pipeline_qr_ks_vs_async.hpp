@@ -85,6 +85,8 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr auto R_LOG2E = 1.0 / math::log2e_v<SaccDataType>;
 #endif
 
+    static constexpr const char* name = "qr_async";
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();

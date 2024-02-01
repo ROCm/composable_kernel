@@ -4,6 +4,7 @@
 #pragma once
 
 #include <type_traits>
+#include <string>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor/tensor_view.hpp"
@@ -43,6 +44,46 @@ struct FmhaFwdKernel
     static constexpr bool kStoreLSE    = FmhaPipeline::kStoreLSE;
     using FmhaMask                     = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask     = FmhaMask::IsMasking;
+
+    // clang-format off
+    template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
+    template <> struct t2s<ck::half_t> { static constexpr const char * name = "fp16"; };
+    template <> struct t2s<ck::bhalf_t> { static constexpr const char * name = "bf16"; };
+    template <> struct t2s<ck::f8_t> { static constexpr const char * name = "fp8"; };
+    template <> struct t2s<ck::bf8_t> { static constexpr const char * name = "bf8"; };
+    // clang-format on
+
+    __host__ static std::string GetName()
+    {
+        // sync with generate.py
+        // clang-format off
+        using bfs = typename FmhaPipeline::BlockFmhaShape;
+        using gbr = typename bfs::Gemm0BlockWarps;
+        using gwt = typename bfs::Gemm0WarpTile;
+        #define _SS_  std::string
+        #define _TS_  std::to_string
+        auto pn = [&] () {
+            std::string n;
+            if (kPadSeqLenQ) n += "s";
+            if (kPadSeqLenK) n += "sk";
+            if (kPadHeadDimQ) n += "d";
+            if (kPadHeadDimV) n += "dv";
+            return n.empty() ? n : std::string("p") + n; }();
+        return
+            _SS_("fmha_fwd_d") + _TS_(bfs::kK0BlockLength) + "_" + _SS_(t2s<QDataType>::name) +
+            "_" + (kIsGroupMode ? "group" : "batch") + "_" +
+            "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
+                    _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kK0BlockLength) + "_" +
+            "r" + _TS_(gbr::At(ck::Number<0>{})) + "x" + _TS_(gbr::At(ck::Number<1>{})) + "x" + _TS_(gbr::At(ck::Number<2>{})) + "_" + 
+            "w" + _TS_(gwt::At(ck::Number<0>{})) + "x" + _TS_(gwt::At(ck::Number<1>{})) + "x" + _TS_(gwt::At(ck::Number<2>{})) + "_" +
+            "o" + _TS_(kBlockPerCu) + "_" + _SS_(FmhaPipeline::name) + "_" +
+            "v" + (ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
+            (kHasBias ? "_bias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kStoreLSE ? "_lse" : "" );
+        #undef _SS_
+        #undef _TS_
+        // clang-format on
+    }
 
     template <ck::index_t I> // to avoid duplicated base class prblem, introduce an template arg
     struct FmhaFwdEmptyKargs

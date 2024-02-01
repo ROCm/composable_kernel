@@ -114,10 +114,14 @@ using fmha_kernel_{F_idx} =
 
 using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
+#include <iostream>
+
 template<>
 float fmha_fwd_<trait_{F_idx}>(const StreamConfig& s, fmha_fwd_args a)
 {{
     using k_ = fmha_kernel_{F_idx};
+    if(s.log_level_ > 0)
+        std::cout << ", " << k_::GetName() << std::flush;
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
     constexpr dim3 blocks             = k_::BlockSize();
     constexpr ck::index_t kBlockPerCu = k_::kBlockPerCu;

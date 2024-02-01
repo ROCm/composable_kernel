@@ -81,6 +81,8 @@ struct BlockFmhaPipelineQRKSVSFp8
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
+    static constexpr const char* name = "qr_fp8";
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();

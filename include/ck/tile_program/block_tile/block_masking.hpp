@@ -57,13 +57,23 @@ namespace block {
         y = seq_q, x = seq_k -> no mask
 
 */
+namespace impl {
+    template <bool IsMasking_, bool IsLocal_> struct MaskName;
+    template<> struct MaskName<false, false> { static constexpr const char * name = "mn"; };
+    template<> struct MaskName<false, true> { static constexpr const char * name = "mn"; };
+    template<> struct MaskName<true, false> { static constexpr const char * name = "mc"; };
+    template<> struct MaskName<true, true> { static constexpr const char * name = "mg"; };
+}
 // clang-format on
+
 template <bool IsMasking_ = true, bool IsLocal_ = false>
 struct GenericAttentionMask
 {
     static constexpr bool IsMasking = IsMasking_; // false will disable masking
     static constexpr bool IsLocal   = IsLocal_;   // if true, upper/lower area could have mask,
                                                   // else only upper-right could have mask
+
+    static constexpr const char* name = impl::MaskName<IsMasking, IsLocal>::name;
 
     __host__ __device__ GenericAttentionMask(index_t y_total_, index_t x_total_)
         : GenericAttentionMask(0, 0, y_total_, x_total_)
