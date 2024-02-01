@@ -37,7 +37,7 @@ using DeviceGemmV2Instance =
         1,    1, 
         S<4, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 8, 8, 1,
-        S<8, 8, 1>,  S<0, 2, 1>,  S<0, 2, 1>,
+        S<8, 8, 1>,  S<0, 2, 1>,  S<0, 2, 1>, 
         1, 2, 4, 1,
         1, 1, S<1, 16, 1, 4>, 4,
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v1>;
