@@ -38,7 +38,7 @@ __global__ void
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-    karg.K                   = splitk_batch_offset.K_split_raw;
+    karg.K                   = splitk_batch_offset.K_split_read_padded;
     karg.KPadded             = splitk_batch_offset.K_split_padded;
     karg.AK0                 = splitk_batch_offset.AK0_split;
     karg.BK0                 = splitk_batch_offset.BK0_split;
@@ -73,7 +73,7 @@ __global__ void
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-    karg.K                   = splitk_batch_offset.K_split_raw;
+    karg.K                   = splitk_batch_offset.K_split_read_padded;
     karg.KPadded             = splitk_batch_offset.K_split_padded;
     karg.AK0                 = splitk_batch_offset.AK0_split;
     karg.BK0                 = splitk_batch_offset.BK0_split;
@@ -566,16 +566,26 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                          GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
             {
-                uint32_t k_grain = karg.k_batch * KPerBlock;
-                uint32_t k_split_raw_small = karg.K/karg.k_batch;
-                uint32_t k_split_raw_big_num =  karg.K % karg.k_batch;
-                K_split_raw = blockIdx.z < k_split_raw_big_num? k_split_raw_small + 1 : k_split_raw_small;
-                K_split_padded         = (karg.K + k_grain - 1) / k_grain * KPerBlock;
+                
+                index_t k_grain        = karg.k_batch * KPerBlock;
+                index_t K_padded       = (karg.K + k_grain - 1) / k_grain * k_grain;
+                K_split_padded         = K_padded / karg.k_batch;
+                
+                constexpr auto k_vector_len = math::lcm(AK1Number, BK1Number);
+                index_t k_read_grain   = karg.k_batch * k_vector_len;
+                index_t K_read_padded = (karg.K + k_read_grain - 1) / k_read_grain * k_read_grain;
+                if(static_cast<int>(blockIdx.z) == karg.k_batch - 1)
+                {
+                    K_split_read_padded  = karg.K - (K_read_padded / karg.k_batch)*(karg.k_batch - 1);
+                }
+                else{
+                    K_split_read_padded  = K_read_padded / karg.k_batch;
+                }
             }
             else
             {
-                K_split_raw = karg.K / karg.k_batch;
-                K_split_padded = K_split_raw;
+                K_split_read_padded    = karg.K / karg.k_batch;
+                K_split_padded = K_split_read_padded;
             }
 
             AK0_split = K_split_padded / AK1Value;
@@ -583,29 +593,29 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * K_split_padded;
+                a_k_split_offset = blockIdx.z * K_split_read_padded;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * K_split_padded * karg.M;
+                a_k_split_offset = blockIdx.z * K_split_read_padded * karg.M;
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * K_split_padded * karg.N;
+                b_k_split_offset = blockIdx.z * K_split_read_padded * karg.N;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * K_split_padded;
+                b_k_split_offset = blockIdx.z * K_split_read_padded;
             }
         }
 
-        uint32_t AK0_split;
-        uint32_t BK0_split;
-        uint32_t K_split_raw;
-        uint32_t K_split_padded;
-        uint32_t a_k_split_offset;
-        uint32_t b_k_split_offset;
+        index_t AK0_split;
+        index_t BK0_split;
+        index_t K_split_read_padded;;
+        index_t K_split_padded;
+        index_t a_k_split_offset;
+        index_t b_k_split_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -783,7 +793,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         }
 
         // check gridwise gemm pipeline
-        const auto num_k_loop = (CalculateAK0(problem.K) * AK1Value) / KPerBlock;
+        const auto num_k_loop = (problem.K+ problem.k_batch * KPerBlock-1)/(problem.k_batch * KPerBlock);
 
         if(num_k_loop < BlockwiseGemmPipe::MinimumLoop)
         {
