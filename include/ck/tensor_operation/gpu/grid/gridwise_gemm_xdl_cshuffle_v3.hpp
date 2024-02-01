@@ -38,7 +38,8 @@ __global__ void
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-    karg.K                   = splitk_batch_offset.K_split;
+    karg.K                   = splitk_batch_offset.K_split_raw;
+    karg.KPadded             = splitk_batch_offset.K_split_padded;
     karg.AK0                 = splitk_batch_offset.AK0_split;
     karg.BK0                 = splitk_batch_offset.BK0_split;
 
@@ -72,7 +73,8 @@ __global__ void
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-    karg.K                   = splitk_batch_offset.K_split;
+    karg.K                   = splitk_batch_offset.K_split_raw;
+    karg.KPadded             = splitk_batch_offset.K_split_padded;
     karg.AK0                 = splitk_batch_offset.AK0_split;
     karg.BK0                 = splitk_batch_offset.BK0_split;
 
@@ -174,6 +176,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __host__ static auto CalculateKPadded(index_t K)
     {
+        printf("KPadded: %d\n", math::integer_divide_ceil(K, KPerBlock) * KPerBlock);
         return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
 
@@ -564,41 +567,46 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                          GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
             {
-                index_t k_grain = karg.k_batch * KPerBlock;
-                K_split         = (karg.K + k_grain - 1) / k_grain * KPerBlock;
+                uint32_t k_grain = karg.k_batch * KPerBlock;
+                uint32_t k_split_raw_small = karg.K/karg.k_batch;
+                uint32_t k_split_raw_big_num =  karg.K % karg.k_batch;
+                K_split_raw = blockIdx.z < k_split_raw_big_num? k_split_raw_small + 1 : k_split_raw_small;
+                K_split_padded         = (karg.K + k_grain - 1) / k_grain * KPerBlock;
             }
             else
             {
-                K_split = karg.K / karg.k_batch;
+                K_split_raw = karg.K / karg.k_batch;
+                K_split_padded = K_split_raw;
             }
 
-            AK0_split = K_split / AK1Value;
-            BK0_split = K_split / BK1Value;
+            AK0_split = K_split_padded / AK1Value;
+            BK0_split = K_split_padded / BK1Value;
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * K_split;
+                a_k_split_offset = blockIdx.z * K_split_padded;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * K_split * karg.M;
+                a_k_split_offset = blockIdx.z * K_split_padded * karg.M;
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * K_split * karg.N;
+                b_k_split_offset = blockIdx.z * K_split_padded * karg.N;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * K_split;
+                b_k_split_offset = blockIdx.z * K_split_padded;
             }
         }
 
-        index_t AK0_split;
-        index_t BK0_split;
-        index_t K_split;
-        index_t a_k_split_offset;
-        index_t b_k_split_offset;
+        uint32_t AK0_split;
+        uint32_t BK0_split;
+        uint32_t K_split_raw;
+        uint32_t K_split_padded;
+        uint32_t a_k_split_offset;
+        uint32_t b_k_split_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -718,6 +726,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             if(!(CalculateKPadded(problem.K / problem.k_batch) % AK1Value == 0) ||
                !(CalculateKPadded(problem.K / problem.k_batch) % BK1Value == 0))
             {
+                printf("CP0\n");
                 return false;
             }
         }
