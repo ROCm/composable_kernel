@@ -33,7 +33,7 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (params.ROCMVERSION != "6.0"){
+    if (params.ROCMVERSION != "6.0.1"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -84,7 +84,7 @@ def build_compiler(){
         compiler = '/opt/rocm/bin/hipcc'
     }
     else{
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             compiler = "/llvm-project/build/bin/clang++"
         }
         else{
@@ -293,7 +293,7 @@ def buildHipClangJob(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -304,7 +304,7 @@ def buildHipClangJob(Map conf=[:]){
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
-                timeout(time: 5, unit: 'HOURS')
+                timeout(time: 48, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
@@ -348,7 +348,7 @@ def runCKProfiler(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -479,7 +479,7 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION != "" || params.COMPILER_COMMIT != ""){
+        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
 
@@ -560,7 +560,7 @@ def Build_CK(Map conf=[:]){
                             sh """#!/bin/bash
                                 mkdir -p build
                                 ls -ltr
-                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="/opt/rocm;${env.WORKSPACE}/install"
+                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install"
                                 cmake --build build -- -j
                             """
                         }
@@ -655,9 +655,9 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=5.7;COMPILER_VERSION=
-                                              0 21 * * * % ROCMVERSION=5.7;COMPILER_VERSION=;COMPILER_COMMIT=
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-stg-open;COMPILER_COMMIT=;USE_SCCACHE=false
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.0;COMPILER_VERSION=
+                                              0 21 * * * % ROCMVERSION=6.0;COMPILER_VERSION=;COMPILER_COMMIT=
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;COMPILER_COMMIT=;USE_SCCACHE=false
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
 
 pipeline {
@@ -675,12 +675,12 @@ pipeline {
             description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '5.7', 
-            description: 'Specify which ROCM version to use: 5.7 (default).')
+            defaultValue: '6.0', 
+            description: 'Specify which ROCM version to use: 6.0 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
-            description: 'Specify which version of compiler to use: release, amd-stg-open, amd-mainline-open, or leave blank (default).')
+            description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline-open, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT', 
             defaultValue: '', 
@@ -703,12 +703,20 @@ pipeline {
             description: "Use the CK build to verify hipTensor build and tests (default: ON)")
         string(
             name: 'hipTensor_branch',
-            defaultValue: 'develop',
-            description: 'Specify which branch of hipTensor to use (default: develop)')
+            defaultValue: 'mainline',
+            description: 'Specify which branch of hipTensor to use (default: mainline)')
         booleanParam(
             name: "USE_SCCACHE",
             defaultValue: true,
             description: "Use the sccache for building CK (default: ON)")
+        booleanParam(
+            name: "RUN_CPPCHECK",
+            defaultValue: false,
+            description: "Run the cppcheck static analysis (default: OFF)")
+        booleanParam(
+            name: "RUN_PERFORMANCE_TESTS",
+            defaultValue: false,
+            description: "Run the performance tests (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -735,7 +743,39 @@ pipeline {
         }
         stage("Static checks") {
             parallel{
+                stage('Clang Format and Cppcheck') {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CPPCHECK.toBoolean() }
+                    }
+                    agent{ label rocmnode("nogpu") }
+                    environment{
+                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
+                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
+                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
+                                -o -iname \'*.h.in\' \
+                                -o -iname \'*.hpp.in\' \
+                                -o -iname \'*.cpp.in\' \
+                                -o -iname \'*.cl\' \
+                                | grep -v 'build/' \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
+                                /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
+                                -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 -D DL_KERNELS \
+                                -D __gfx908__ -D __gfx90a__ -D __gfx940__ -D __gfx941__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
+                                -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
+                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        archiveArtifacts "build/ck_cppcheck.log"
+                        cleanWs()
+                    }
+                }
                 stage('Clang Format') {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_CPPCHECK.toBoolean() }
+                    }
                     agent{ label rocmnode("nogpu") }
                     environment{
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
@@ -854,7 +894,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && params.RUN_PERFORMANCE_TESTS.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx908 || gfx90a")}
@@ -870,7 +910,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() && params.RUN_PERFORMANCE_TESTS.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
@@ -889,6 +929,10 @@ pipeline {
             parallel
             {
                 stage("Process results"){
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() }
+                    }
                     agent { label 'mici' }
                     steps{
                         process_results()

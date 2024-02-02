@@ -4,22 +4,27 @@ if(POLICY CMP0140)
   cmake_policy(SET CMP0140 NEW)
 endif()
 
+get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
-if( NOT MSVC_IDE AND NOT CMAKE_BUILD_TYPE )
-    set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
+if(_GENERATOR_IS_MULTI_CONFIG)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
+            "Available build types (configurations) on multi-config generators")
+else()
+    set(CMAKE_BUILD_TYPE Release CACHE STRING
+            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
 # Default installation path
-if(WIN32)
-    set(CMAKE_INSTALL_PREFIX "/opt/rocm/x86_64-w64-mingw32" CACHE PATH "")
-else()
+if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel VERSION ${version})
+project(composable_kernel VERSION ${version} LANGUAGES CXX)
+include(CTest)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -61,6 +66,8 @@ endif()
 
 #for f8/bf8_t type
 add_compile_options(-Wno-bit-int-extension)
+add_compile_options(-Wno-pass-failed)
+add_compile_options(-Wno-switch-default)
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
@@ -72,15 +79,15 @@ if(INSTANCES_ONLY)
     set(CK_ENABLE_INSTANCES_ONLY "ON")
 endif()
 
+include(getopt)
+
 # CK config file to record supported datatypes, etc.
-configure_file("${PROJECT_SOURCE_DIR}/include/ck/config.h.in" "${PROJECT_BINARY_DIR}/include/ck/config.h")
+configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 # CK version file to record release version as well as git commit hash
 find_package(Git REQUIRED)
 execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
-configure_file("${PROJECT_SOURCE_DIR}/include/ck/version.h.in" "${PROJECT_BINARY_DIR}/include/ck/version.h")
-
-enable_testing()
+configure_file(include/ck/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/version.h)
 
 set(ROCM_SYMLINK_LIBS OFF)
 find_package(ROCM REQUIRED PATHS /opt/rocm)
@@ -96,7 +103,7 @@ include(TargetFlags)
 
 rocm_setup_version(VERSION ${version})
 
-list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
 message("GPU_TARGETS= ${GPU_TARGETS}")
 
@@ -141,13 +148,40 @@ find_package(hip)
 # SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
 message("hip_version_flat=${hip_VERSION_FLAT}")
-if(${hip_VERSION_FLAT} GREATER 500723302)
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
    message("Adding the fno-offload-uniform-block compiler flag")
    add_compile_options(-fno-offload-uniform-block)
 endif()
 
-option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
+#
+# Seperate linking jobs from compiling
+# Too many concurrent linking jobs can break the build
+# Copied from LLVM
+set(CK_PARALLEL_LINK_JOBS "" CACHE STRING
+  "Define the maximum number of concurrent link jobs (Ninja only).")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  if(CK_PARALLEL_LINK_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS link_job_pool=${CK_PARALLEL_LINK_JOBS})
+    set(CMAKE_JOB_POOL_LINK link_job_pool)
+  endif()
+elseif(CK_PARALLEL_LINK_JOBS)
+  message(WARNING "Job pooling is only available with Ninja generators.")
+endif()
+# Similar for compiling
+set(CK_PARALLEL_COMPILE_JOBS "" CACHE STRING
+  "Define the maximum number of concurrent compile jobs (Ninja only).")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  if(CK_PARALLEL_COMPILE_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_job_pool=${CK_PARALLEL_COMPILE_JOBS})
+    set(CMAKE_JOB_POOL_COMPILE compile_job_pool)
+  endif()
+elseif(CK_PARALLEL_COMPILE_JOBS)
+  message(WARNING "Job pooling is only available with Ninja generators.")
+endif()
+
+
+option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+option(USE_OPT_NAVI3X "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -167,7 +201,6 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-enable_language(CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -216,7 +249,11 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 link_libraries(hip::device)
-add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+if(CK_hip_VERSION VERSION_GREATER_EQUAL 6.0.23494)
+    add_compile_definitions(__HIP_PLATFORM_AMD__=1)
+else()
+    add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+endif()
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -434,7 +471,9 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   add_subdirectory(test)
+   if(BUILD_TESTING)
+      add_subdirectory(test)
+   endif()
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel

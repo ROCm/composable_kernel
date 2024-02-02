@@ -14,7 +14,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
-// M is invarient dimension, K is reduced dimension
+// M is Invariant dimension, K is reduced dimension
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -87,7 +87,6 @@ struct DeviceNormalizationBwdGammaBetaImpl
                                              Rank,
                                              NumReduceDim>
 {
-
     static constexpr index_t DYSrcVectorDim         = IsDYFastestDimReduced ? 1 : 0;
     static constexpr index_t XSrcVectorDim          = IsXFastestDimReduced ? 1 : 0;
     static constexpr index_t MeanInvStdSrcVectorDim = IsMeanInvStdFastestDimReduced ? 1 : 0;
@@ -103,15 +102,15 @@ struct DeviceNormalizationBwdGammaBetaImpl
                   "Invalid thread slice sizes and/or x vector sizes configuration, please check!");
 
     static_assert(
-        ((MThreadSliceSize % DGammaDstVectorSize == 0) ||
-         (MThreadSliceSize % DBetaDstVectorSize == 0)),
-        "Invalid thread slice sizes and/or Gamma and beta vector sizes configuration, please "
-        "check!");
-
-    static_assert(
         (MeanInvStdSrcVectorDim == 0 && MThreadSliceSize % MeanInvStdSrcVectorSize == 0) ||
             (MeanInvStdSrcVectorDim == 1 && KThreadSliceSize % MeanInvStdSrcVectorSize == 0),
         "Invalid thread slice sizes and/or mean and inverse std vector sizes configuration, please "
+        "check!");
+
+    static_assert(
+        ((MThreadSliceSize % DGammaDstVectorSize == 0) ||
+         (MThreadSliceSize % DBetaDstVectorSize == 0)),
+        "Invalid thread slice sizes and/or Gamma and beta vector sizes configuration, please "
         "check!");
 
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
@@ -298,7 +297,7 @@ struct DeviceNormalizationBwdGammaBetaImpl
         GridDesc_M dgamma_grid_desc_m_;
         GridDesc_M dbeta_grid_desc_m_;
 
-        index_t MRaw_; // invarient length
+        index_t MRaw_; // Invariant length
         index_t KRaw_; // reduce length
     };
 
@@ -456,6 +455,21 @@ struct DeviceNormalizationBwdGammaBetaImpl
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
     {
         return std::make_unique<Invoker>();
+    }
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceNormalizationBwdGammaBetaImpl<" << BlockSize << ",";
+        str << "Cluster_MK_" << MThreadClusterSize << "_" << KThreadClusterSize << ",";
+        str << "Slice_MK_" << MThreadSliceSize << "_" << KThreadSliceSize << ",";
+        str << "VectorSize_DY" << DYSrcVectorSize << "_X" << XSrcVectorSize ;
+        str << "_DGamma" << DGammaDstVectorSize << "_DBeta" << DBetaDstVectorSize << ">";
+        // clang-format on
+
+        return str.str();
     }
 };
 

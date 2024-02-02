@@ -43,10 +43,23 @@ gpu_naive_division(int32_t divisor, const int32_t* p_dividend, int32_t* p_result
     }
 }
 
+__host__ void cpu_magic_number_division(uint32_t magic_multiplier,
+                                        uint32_t magic_shift,
+                                        const int32_t* p_dividend,
+                                        int32_t* p_result,
+                                        uint64_t num)
+{
+    for(uint64_t data_id = 0; data_id < num; ++data_id)
+    {
+        p_result[data_id] =
+            ck::MagicDivision::DoMagicDivision(p_dividend[data_id], magic_multiplier, magic_shift);
+    }
+}
+
 int main(int, char*[])
 {
-    uint64_t num_divisor  = 1UL << 12;
-    uint64_t num_dividend = 1UL << 20;
+    uint64_t num_divisor  = 4096;
+    uint64_t num_dividend = 1L << 16;
 
     std::vector<int32_t> divisors_host(num_divisor);
     std::vector<int32_t> dividends_host(num_dividend);
@@ -58,7 +71,7 @@ int main(int, char*[])
     }
 
     // generate dividend
-    for(uint64_t i = 0; i < num_dividend; ++i)
+    for(uint64_t i = 0; i < num_divisor; ++i)
     {
         dividends_host[i] = i;
     }
@@ -69,6 +82,7 @@ int main(int, char*[])
 
     std::vector<int32_t> naive_result_host(num_dividend);
     std::vector<int32_t> magic_result_host(num_dividend);
+    std::vector<int32_t> magic_result_host2(num_dividend);
 
     dividends_dev_buf.ToDevice(dividends_host.data());
 
@@ -101,6 +115,20 @@ int main(int, char*[])
         magic_result_dev_buf.FromDevice(magic_result_host.data());
 
         bool res = ck::utils::check_err(magic_result_host, naive_result_host);
+
+        if(!res)
+        {
+            pass = false;
+            continue;
+        }
+
+        cpu_magic_number_division(magic_multiplier,
+                                  magic_shift,
+                                  dividends_host.data(),
+                                  magic_result_host2.data(),
+                                  num_dividend);
+
+        res = ck::utils::check_err(magic_result_host2, naive_result_host);
 
         if(!res)
         {

@@ -47,8 +47,8 @@ class TestGroupnorm : public ::testing::Test
 };
 
 using KernelTypes = ::testing::Types<
-    // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType>
-    std::tuple<F16, F16, F16, F32, F16, F32>>;
+    // XDataType, GammaDataType, BetaDataType, ComputeDataType, YDataType, SaveMeanInvStdDataType>
+    std::tuple<F16, F16, F16, F32, F16, F16>>;
 
 TYPED_TEST_SUITE(TestGroupnorm, KernelTypes);
 TYPED_TEST(TestGroupnorm, Test_FP16) { this->Run(); }
