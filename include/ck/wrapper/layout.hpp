@@ -163,22 +163,8 @@ struct Layout
         const auto lower_dims    = make_tuple(MergeElemsSequence::Reverse());
         const auto upper_dims    = make_tuple(Sequence<0>{});
         // Merge to 1d
-        if constexpr(!remove_cvref_t<UnrolledDescriptorType>::IsKnownAtCompileTime())
-        {
-            return transform_tensor_descriptor(
-                desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
-        }
-        else
-        {
-            // If the descriptor is known at the compilation time,
-            // use `make_merge_transform_v1_carry_check` because it doesn't use
-            // memcpy.
-            return transform_tensor_descriptor(
-                desc,
-                make_tuple(make_merge_transform_v1_carry_check(merge_elems)),
-                lower_dims,
-                upper_dims);
-        }
+        return transform_tensor_descriptor(
+            desc, make_tuple(make_merge_transform(merge_elems)), lower_dims, upper_dims);
     }
 
     /**
@@ -209,17 +195,8 @@ struct Layout
                     // If shape element is tuple and idx element is Number, then merge
                     // Unroll and reverse tuple to traverse column-major
                     const auto merge_elems = TupleReverse(UnrollNestedTuple(shape.At(i)));
-                    if constexpr(!remove_cvref_t<UnrolledDescriptorType>::IsKnownAtCompileTime())
-                    {
-                        return make_merge_transform(merge_elems);
-                    }
-                    else
-                    {
-                        // If the descriptor is known at the compilation time,
-                        // use `make_merge_transform_v1_carry_check` because
-                        // it doesn't use memcpy.
-                        return make_merge_transform_v1_carry_check(merge_elems);
-                    }
+
+                    return make_merge_transform(merge_elems);
                 }
                 else
                 {
