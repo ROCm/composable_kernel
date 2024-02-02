@@ -184,8 +184,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
                 return false;
             }
         }
-        else if(ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx940" ||
-                ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942")
+        else if(ck::is_lds_direct_load_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
                            is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
