@@ -18,8 +18,7 @@ Description
 
 
 The CK library provides a lightweight wrapper for more complex operations implemented in 
-the library. It allows indexing of nested layouts using a simple interface 
-(avoiding complex descriptor transformations) and memory access (using Tensor).
+the library.
 
 Example:
 
@@ -54,6 +53,11 @@ Output::
     1 5 9 13 17 21 25 29 
     2 6 10 14 18 22 26 30 
 
+
+Advanced examples:
+
+* `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_
+
 -------------------------------------
 Layout
 -------------------------------------
@@ -85,3 +89,4 @@ Operations
 -------------------------------------
 
 .. doxygenfile:: copy.hpp
+.. doxygenfile:: gemm.hpp

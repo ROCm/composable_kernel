@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-#error Should compile this file with ck::int4_t support
-#endif
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 #include "common.hpp"
 
@@ -43,3 +41,4 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 #include "run_gemm_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_example(argc, argv); }
+#endif

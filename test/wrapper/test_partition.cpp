@@ -29,91 +29,76 @@ TEST(TestPartition, LocalPartition)
     const auto tensor =
         ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Generic>(data.data(), layout);
 
-    const auto thread_steps =
-        ck::make_tuple(ck::make_tuple(ck::Number<2>{}, ck::Number<1>{}), ck::Number<1>{});
-    const auto thread_layout =
-        ck::make_tuple(ck::make_tuple(ck::Number<8>{}, ck::Number<1>{}), ck::Number<1>{});
+    const auto thread_steps  = ck::make_tuple(ck::Number<1>{}, ck::Number<8>{}, ck::Number<1>{});
+    const auto thread_layout = ck::make_tuple(ck::Number<4>{}, ck::Number<8>{}, ck::Number<1>{});
+    // 3d partition on 2d shape (calculate partition on 3d thread layout, and then skip first dim)
+    const auto thread_projection =
+        ck::make_tuple(ck::wrapper::slice(4), ck::Number<1>{}, ck::Number<1>{});
+    constexpr ck::index_t projection_thread_length = ck::Number<4>{};
 
-    for(ck::index_t thread_id = 0; thread_id < ck::wrapper::size(thread_layout); thread_id++)
-    {
-        const auto raked_partition =
-            ck::wrapper::make_local_partition(tensor, thread_layout, thread_id);
-
-        const auto expected_partition_size =
-            ck::wrapper::size(tensor) / ck::wrapper::size(thread_layout);
-        EXPECT_EQ(ck::wrapper::size(raked_partition), expected_partition_size);
-        EXPECT_EQ(raked_partition(0), thread_id);
-    }
-
-    for(ck::index_t thread_id = 0; thread_id < ck::wrapper::size(thread_layout); thread_id++)
+    for(ck::index_t thread_id = 0;
+        thread_id < ck::wrapper::size(thread_layout) / projection_thread_length;
+        thread_id++)
     {
         const auto packed_partition =
-            ck::wrapper::make_local_partition(tensor, thread_layout, thread_id, thread_steps);
+            ck::wrapper::make_local_partition(tensor, thread_layout, thread_id, thread_projection);
 
         const auto expected_partition_size =
-            ck::wrapper::size(tensor) / ck::wrapper::size(thread_layout);
-        const auto expected_partition_first_val = thread_id * ck::wrapper::size<0, 0>(thread_steps);
+            ck::wrapper::size(tensor) /
+            (ck::wrapper::size(thread_layout) / projection_thread_length);
+        const auto expected_partition_first_val  = thread_id * ck::wrapper::size<1>(thread_steps);
+        const auto expected_partition_second_val = expected_partition_first_val + 1;
         EXPECT_EQ(ck::wrapper::size(packed_partition), expected_partition_size);
         EXPECT_EQ(packed_partition(0), expected_partition_first_val);
+        EXPECT_EQ(packed_partition(1), expected_partition_second_val);
     }
 }
 
 TEST(TestPartition, LocalTile)
 {
-    const auto shape =
-        ck::make_tuple(ck::make_tuple(ck::Number<16>{}, ck::Number<4>{}), ck::Number<4>{});
-    const auto strides =
-        ck::make_tuple(ck::make_tuple(ck::Number<1>{}, ck::Number<16>{}), ck::Number<64>{});
-    const auto layout = ck::wrapper::make_layout(shape, strides);
+    const auto shape   = ck::make_tuple(ck::Number<16>{}, ck::Number<4>{}, ck::Number<4>{});
+    const auto strides = ck::make_tuple(ck::Number<1>{}, ck::Number<16>{}, ck::Number<64>{});
+    const auto layout  = ck::wrapper::make_layout(shape, strides);
 
     std::vector<ck::index_t> data(ck::wrapper::size(layout));
     std::iota(data.begin(), data.end(), 0);
 
     const auto tensor =
         ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Generic>(data.data(), layout);
-
-    const auto block_steps =
-        ck::make_tuple(ck::make_tuple(ck::Number<4>{}, ck::Number<2>{}), ck::Number<2>{});
+    // 4d tile partitioning on 3d shape (calculate tile on 4d tile layout, and then skip last dim)
     const auto block_shape =
-        ck::make_tuple(ck::make_tuple(ck::Number<4>{}, ck::Number<2>{}), ck::Number<2>{});
-    const auto block_layout =
-        ck::make_tuple(ck::make_tuple(ck::Number<4>{}, ck::Number<2>{}), ck::Number<2>{});
+        ck::make_tuple(ck::Number<2>{}, ck::Number<4>{}, ck::Number<2>{}, ck::Number<2>{});
+    const auto block_projection =
+        ck::make_tuple(ck::Number<1>{}, ck::Number<1>{}, ck::Number<1>{}, ck::wrapper::slice(2));
+    constexpr ck::index_t projection_block_dim = ck::Number<2>{};
+    const auto num_blocks =
+        ck::make_tuple(ck::wrapper::size<0>(shape) / ck::wrapper::size<0>(block_shape),
+                       ck::wrapper::size<1>(shape) / ck::wrapper::size<1>(block_shape),
+                       ck::wrapper::size<2>(shape) / ck::wrapper::size<2>(block_shape));
+    std::vector<ck::index_t> block_idxs(ck::wrapper::size(num_blocks));
+    std::iota(block_idxs.begin(), block_idxs.end(), 0);
 
-    std::vector<ck::Tuple<ck::Tuple<ck::index_t, ck::index_t>, ck::index_t>> block_idxs;
-    for(ck::index_t x = 0; x < ck::wrapper::size<0, 0>(block_layout); x++)
-    {
-        for(ck::index_t y = 0; y < ck::wrapper::size<0, 1>(block_layout); y++)
-        {
-            for(ck::index_t z = 0; z < ck::wrapper::size<1>(block_layout); z++)
-            {
-                block_idxs.emplace_back(ck::make_tuple(x, y), z);
-            }
-        }
-    }
-
-    for(const auto& block_idx : block_idxs)
-    {
-        const auto raked_tile = ck::wrapper::make_local_tile(tensor, block_shape, block_idx);
-
-        const auto expected_tile_size = ck::wrapper::size(block_shape);
-        EXPECT_EQ(ck::wrapper::size(raked_tile), expected_tile_size);
-        EXPECT_EQ(raked_tile(0), layout(block_idx));
-    }
-
-    for(const auto& block_idx : block_idxs)
+    for(auto block_idx : block_idxs)
     {
         const auto packed_tile =
-            ck::wrapper::make_local_tile(tensor, block_shape, block_idx, block_steps);
+            ck::wrapper::make_local_tile(tensor, block_shape, block_idx, block_projection);
 
-        const auto expected_tile_size = ck::wrapper::size(block_shape);
-        const auto expected_tile_first_val =
-            ck::wrapper::size<0, 0>(block_idx) * ck::wrapper::size<0, 0>(block_shape) *
-                ck::wrapper::size<0, 0>(strides) +
-            ck::wrapper::size<0, 1>(block_idx) * ck::wrapper::size<0, 1>(block_shape) *
-                ck::wrapper::size<0, 1>(strides) +
-            ck::wrapper::size<1>(block_idx) * ck::wrapper::size<1>(block_shape) *
-                ck::wrapper::size<1>(strides);
+        const auto expected_tile_size = ck::wrapper::size(block_shape) / projection_block_dim;
+        auto expected_tile_first_val  = (block_idx % ck::wrapper::size<2>(num_blocks)) *
+                                       ck::wrapper::size<2>(block_shape) *
+                                       ck::wrapper::size<2>(strides);
+        block_idx /= ck::wrapper::size<2>(num_blocks);
+        expected_tile_first_val += (block_idx % ck::wrapper::size<1>(num_blocks)) *
+                                   ck::wrapper::size<1>(block_shape) *
+                                   ck::wrapper::size<1>(strides);
+        block_idx /= ck::wrapper::size<1>(num_blocks);
+        expected_tile_first_val += (block_idx % ck::wrapper::size<0>(num_blocks)) *
+                                   ck::wrapper::size<0>(block_shape) *
+                                   ck::wrapper::size<0>(strides);
+
+        const auto expected_tile_second_val = expected_tile_first_val + 1;
         EXPECT_EQ(ck::wrapper::size(packed_tile), expected_tile_size);
         EXPECT_EQ(packed_tile(0), expected_tile_first_val);
+        EXPECT_EQ(packed_tile(1), expected_tile_second_val);
     }
 }
