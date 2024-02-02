@@ -135,7 +135,7 @@ def buildDocker(install_prefix){
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs + ' .')
             retimage.push()
-            sh """docker rmi $(docker images -a | grep "^<none>" | awk '{print $3}')"""
+            sh """docker rmi $(docker images -a | grep "^<none>" | awk '{print \$3}')"""
         }
         else{
             echo "Checking for image: ${image_name}"
