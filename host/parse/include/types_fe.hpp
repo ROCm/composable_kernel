@@ -31,7 +31,7 @@ enum class GemmType_fe
     Default
 };
 
-//std::string ToString(GemmType gt);
+// std::string ToString(GemmType gt);
 
 struct TensorDesc_fe
 {
@@ -39,9 +39,9 @@ struct TensorDesc_fe
     Layout_fe layout;
 };
 
-//std::string SequenceStr(const std::vector<int>& v);
+// std::string SequenceStr(const std::vector<int>& v);
 
-//std::string MakeTuple(const std::vector<std::string>& v);
+// std::string MakeTuple(const std::vector<std::string>& v);
 
 /**template <int... xs>
 const std::string S = SequenceStr({xs...});

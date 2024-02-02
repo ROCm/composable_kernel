@@ -9,7 +9,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
 find_package(ROCM)
-find_package(nlohmann_json 3.7.3 REQUIRED)
+#find_package(nlohmann_json 3.7.3 REQUIRED)
 include(ROCMInstallTargets)
 include(ROCMTest)
 
@@ -28,8 +28,8 @@ file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp parse/src/*.cpp)
 message(STATUS "SOURCES: ${SOURCES}")
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
-add_library(nlohmann_json INTERFACE IMPORTED GLOBAL)
-target_link_libraries(nlohmann_json INTERFACE nlohmann_json::nlohmann_json)
+#add_library(nlohmann_json INTERFACE IMPORTED GLOBAL)
+#target_link_libraries(nlohmann_json INTERFACE nlohmann_json::nlohmann_json)
 
 # TODO: Set -fPIC
 set_target_properties(ck_host PROPERTIES LINKER_LANGUAGE CXX)
@@ -38,7 +38,7 @@ target_include_directories(ck_host PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 
-add_executable(ck-template-driver driver/main.cpp build/CMakeFiles/ck_host.dir/parse/src/op.cpp.o)
+add_executable(ck-template-driver driver/main.cpp)
 target_link_libraries(ck-template-driver ck_host)
 
 rocm_install(

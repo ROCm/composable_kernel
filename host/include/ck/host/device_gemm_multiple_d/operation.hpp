@@ -9,7 +9,6 @@
 #include "ck/host/types.hpp"
 #include "ck/host/operation/gemm.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
-#include <nlohmann/json.hpp>
 
 namespace ck {
 namespace host {

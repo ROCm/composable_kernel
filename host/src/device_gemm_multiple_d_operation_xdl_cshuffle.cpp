@@ -8,7 +8,6 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
-#include <nlohmann/json.hpp>
 
 namespace ck {
 namespace host {
@@ -266,7 +265,7 @@ using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         LoopSched = make_default_loop_scheduler(), //will need to replace function
         PipelineVer = PipelineVersion::v1>;
 
-extern "C" __global__ void run_${name}(void *input, void *output)
+extern "C" __global__ void run_${name}(void *AGridDesc_AK0_M_AK1, void *BGridDesc_BK0_N_BK1, void *DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock, void *EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock, void *Block2Etile)
 {
     const auto kernel = kernel_gemm_multiple_d_xdl_cshuffle<
                     GridwiseGemm,
