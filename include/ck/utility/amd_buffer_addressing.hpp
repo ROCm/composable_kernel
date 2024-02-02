@@ -172,7 +172,7 @@ struct buffer_load_if<16>
         static_assert(sizeof(T) == 16);
         auto saved_exec = __builtin_amdgcn_read_exec();
         asm volatile(
-            "v_cmpx_le_u32 0, %5\n"
+            "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_dwordx4 %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
             : "+v"(value)
@@ -195,7 +195,7 @@ struct buffer_load_if<8>
         static_assert(sizeof(T) == 8);
         auto saved_exec = __builtin_amdgcn_read_exec();
         asm volatile(
-            "v_cmpx_le_u32 0, %5\n"
+            "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_dwordx2 %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
             : "+v"(value)
@@ -218,7 +218,7 @@ struct buffer_load_if<4>
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
         asm volatile(
-            "v_cmpx_le_u32 0, %5\n"
+            "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_dword %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
             : "+v"(value)
@@ -241,7 +241,7 @@ struct buffer_load_if<2>
         static_assert(sizeof(T) == 2);
         auto saved_exec = __builtin_amdgcn_read_exec();
         asm volatile(
-            "v_cmpx_le_u32 0, %5\n"
+            "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_ushort %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
             : "+v"(value)
@@ -264,7 +264,7 @@ struct buffer_load_if<1>
         static_assert(sizeof(T) == 1);
         auto saved_exec = __builtin_amdgcn_read_exec();
         asm volatile(
-            "v_cmpx_le_u32 0, %5\n"
+            "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_ubyte %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
             : "+v"(value)
@@ -345,7 +345,7 @@ struct buffer_store<2>
                                index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 2);
-        asm volatile("buffer_store_ushort %0, %1, %2, %3 offen offset:%4"
+        asm volatile("buffer_store_short %0, %1, %2, %3 offen offset:%4"
                      :
                      : "v"(value), "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
@@ -472,7 +472,7 @@ struct buffer_store_if<2>
         static_assert(sizeof(T) == 2);
         auto save_exec = __builtin_amdgcn_read_exec();
         asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
-                     "buffer_store_ushort %0, %1, %2, %3 offen offset:%4\n"
+                     "buffer_store_short %0, %1, %2, %3 offen offset:%4\n"
                      "s_mov_b64 exec %6"
                      :
                      : "v"(value),

@@ -413,7 +413,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                 constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
                 constexpr index_t warpSize   = ck::get_warp_size();
 
-                constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+                constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
                 constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
                 constexpr index_t kPad    = KPack;
 
@@ -431,7 +431,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             using VDataType                = remove_cvref_t<typename Problem::VDataType>;
             constexpr index_t Banks        = 32; // TODO: need change based on arch
             constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
-            constexpr index_t kKPack       = GetSmemKPackV<Problem>();
+            constexpr index_t kKPack       = GetSmemKPackK<Problem>();
             static_assert(PixelsPerRow % kKPack == 0);
             constexpr index_t NPerRow    = PixelsPerRow / kKPack;
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
@@ -483,7 +483,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-        constexpr index_t kKPack     = GetSmemKPackV<Problem>();
+        constexpr index_t kKPack     = GetSmemKPackK<Problem>();
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(Number<kKPerBlock / kKPack>{}, Number<kNPerBlock>{}, Number<kKPack>{}),
@@ -512,7 +512,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
 
-        constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
         constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
         constexpr index_t kPad =
             KPack; // for async-copy, this pad is between warps. Optimize this for lds_read speed
@@ -567,7 +567,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
 
-        constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
         constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
         constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
 
@@ -614,7 +614,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
 
-        constexpr index_t KPack   = GetSmemKPackV<Problem>(); // this is for lds
+        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
         constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
         constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
 

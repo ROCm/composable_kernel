@@ -298,9 +298,15 @@ bool run(const ArgParser& arg_parser)
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
               << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
-    auto fmha_traits = fmha_fwd_traits{
-        hdim_q, data_type, mode == mode_enum::group, is_v_rowmajor, mask.type, use_bias, lse};
-    auto fmha_args = fmha_fwd_args{q_buf.GetDeviceBuffer(),
+    auto fmha_traits = fmha_fwd_traits{hdim_q,
+                                       hdim_v,
+                                       data_type,
+                                       mode == mode_enum::group,
+                                       is_v_rowmajor,
+                                       mask.type,
+                                       use_bias,
+                                       lse};
+    auto fmha_args   = fmha_fwd_args{q_buf.GetDeviceBuffer(),
                                    k_buf.GetDeviceBuffer(),
                                    v_buf.GetDeviceBuffer(),
                                    bias_buf.GetDeviceBuffer(),

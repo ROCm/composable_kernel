@@ -142,7 +142,7 @@ FMHA_FWD_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
 {F_hdim_case}
     }}
 """
-FMHA_FWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim <= {F_hdim}) {{
+FMHA_FWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hdim}) {{
 {F_inner_dispatch}
         }}
 """
