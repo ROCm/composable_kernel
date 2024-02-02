@@ -691,7 +691,6 @@ struct FmhaFwdKernel
                              make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN1>{}),
                              {i_m0, i_n1});
 
-        // o_dram_window.foo();
         EpiloguePipeline{}(o_dram_window, o_acc_tile);
     }
 };

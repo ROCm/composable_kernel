@@ -411,9 +411,12 @@ def get_blobs() -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
             for mask, bias, lse in itertools.product(MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
                 if hdim == 256:
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, mask))
+                    pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, lse, mask))
                 else:
                     pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 'f', 't', 't', bias, lse, mask))
                     pipelines.append(FmhaFwdPipeline('qr_async', 'row', 't', 't', 't', 't', bias, lse, mask))
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', bias, lse, mask))
+                    pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', bias, lse, mask))
         elif dtype in ['fp8', 'bf8']:
             # no need lse kernels
             for mask, bias in itertools.product(MASK_MAP.keys(), ["t", "f"]):
