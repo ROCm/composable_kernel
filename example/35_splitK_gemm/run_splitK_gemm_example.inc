@@ -157,7 +157,7 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     if(config.time_kernel)
     {
-        float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 1, 300, 200});
+        float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 1, 20, 50});
 
         std::size_t flop = std::size_t(2) * M * N * K;
         std::size_t num_btype =

@@ -140,6 +140,7 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_generic_instances{});
 
+#if 0
     add_device_operation_instances(
         instances, device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances<GemmDefault>{});
 
@@ -148,6 +149,7 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances(
 
     add_device_operation_instances(
         instances, device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_instances<GemmMNKPadding>{});
+#endif
 
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_instances<

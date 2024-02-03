@@ -133,11 +133,29 @@ using device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_instances = std::tupl
     // clang-format on
     >;
 
+template <ck::tensor_operation::device::GemmSpecialization GemmSpec,
+          ck::PipelineVersion PipVer,
+          ck::LoopScheduler LoopSche>
+using device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances = std::tuple<
+    // clang-format off
+        //#########################|AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|
+        //#########################| Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|
+        //#########################|     |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _NBlock_NXdlPerWave_NWaveNPerXdl|   _NWaveNPerXdl|
+        //#########################|     |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                                 |                |
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Col,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,    32,     8, 16,   16,   16,    1,    1,  S<1, 8,  8, 2>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,             16,             16,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Col,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,    64,     8, 16,   16,   16,    1,    2,  S<1, 8,  8, 2>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,             16,             16,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche>,
+        DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Col,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   128,     8, 16,   16,   16,    1,    4,  S<1, 8,  8, 2>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,             16,             16,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche> 
+     ///DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Col,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   128,    16,   256,     8, 16,   16,   16,    1,    8,  S<1, 8,  8, 2>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 16, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,             16,             16,      true,           1,           1,                   S<1, 16, 1, 8>,               4,  F16, PipVer, LoopSche> 
+     ///DeviceGemmXdlSplitKCShuffle<  F16,    F8,   F16,     F32,     Row,      Col,    Row, PassThrough, PassThrough, PassThrough,      GemmSpec,   256,    16,   256,     8, 16,   16,   16,    1,    4,  S<1, 8,  8, 2>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,              3,              8,              8,      true,  S<1, 8, 32, 1>,  S<0, 2, 1, 3>,  S<0, 2, 1, 3>,             3,             16,             16,      true,           1,           1,                   S<1, 16, 1, 16>,              4,  F16, PipVer, LoopSche>
+    // clang-format on
+    >;
+
 void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<
         DeviceGemmSplitK<Row, Col, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
+#if 0
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_generic_instances{});
 
@@ -149,10 +167,38 @@ void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances(
 
     add_device_operation_instances(
         instances, device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances<GemmMNKPadding>{});
+#endif
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmDefault,
+            ck::PipelineVersion::v2,
+            ck::LoopScheduler::Default>{});
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmKPadding,
+            ck::PipelineVersion::v2,
+            ck::LoopScheduler::Default>{});
 
     add_device_operation_instances(instances,
                                    device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_instances<
                                        GemmDefault,
+                                       ck::PipelineVersion::v2,
+                                       ck::LoopScheduler::Default>{});
+
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_instances<
+                                       GemmKPadding,
+                                       ck::PipelineVersion::v2,
+                                       ck::LoopScheduler::Default>{});
+
+#if 0
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_instances<
+                                       GemmDefault,
                                        ck::PipelineVersion::v1,
                                        ck::LoopScheduler::Default>{});
     add_device_operation_instances(instances,
@@ -195,6 +241,7 @@ void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_instances(
                                        GemmMNKPadding,
                                        ck::PipelineVersion::v1,
                                        ck::LoopScheduler::Interwave>{});
+#endif
 }
 
 } // namespace instance

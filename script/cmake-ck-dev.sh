@@ -10,7 +10,7 @@ cmake                                                                           
 -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
 -D CMAKE_CXX_FLAGS="-std=c++17 -O3 -ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker -save-temps"     \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
--D BUILD_DEV=ON                                                                                   \
+-D BUILD_DEV=OFF                                                                                   \
 -D GPU_TARGETS="gfx942"                                                             \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
