@@ -404,7 +404,11 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             else
             {
-                store_tile(v_lds_window,
+                auto v_lds_window_tmp =
+                    get_slice_tile(v_lds_window,
+                                   Sequence<(LdsSeq.At(Number<k0_loops>{})) * kN1, 0>{},
+                                   Sequence<(LdsSeq.At(Number<k0_loops>{}) + 1) * kN1, kK1>{});
+                store_tile(v_lds_window_tmp,
                            tile_elementwise_in(v_element_func, v_buf)); // store the prefetch
             }
 
@@ -522,7 +526,11 @@ struct BlockFmhaPipelineQRKSVSAsync
                     }
                     else
                     {
-                        store_tile(v_lds_window,
+                        auto v_lds_window_tmp = get_slice_tile(
+                            v_lds_window,
+                            Sequence<(LdsSeq.At(Number<k0_loops + i_k1 + 1>{})) * kN1, 0>{},
+                            Sequence<(LdsSeq.At(Number<k0_loops + i_k1 + 1>{}) + 1) * kN1, kK1>{});
+                        store_tile(v_lds_window_tmp,
                                    tile_elementwise_in(v_element_func, v_buf)); // store next v_buf
                     }
                     if constexpr(i_k1 < k1_loops - 1)

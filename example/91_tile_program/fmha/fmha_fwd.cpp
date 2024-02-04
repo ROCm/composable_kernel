@@ -448,11 +448,11 @@ bool run(const ArgParser& arg_parser)
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
         bool cur_pass     = ck::utils::check_err(
-            o_host_result, o_host_ref, std::string("O Error: Incorrect results!"), rtol, atol);
+            o_host_result, o_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
         pass &= cur_pass;
         if(!cur_pass)
         {
-            std::cerr << "O mismatch found at batch: " << wb << std::endl
+            std::cerr << "OUT mismatch found at batch: " << wb << std::endl
                       << "\tseqlen_q: " << real_seqlen_q << std::endl
                       << "\tseqlen_k: " << real_seqlen_k << std::endl
                       << "\tseqstart_q: " << seqstart_q_host << std::endl

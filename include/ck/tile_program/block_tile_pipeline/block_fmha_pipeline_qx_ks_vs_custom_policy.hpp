@@ -772,8 +772,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     __device__ static constexpr auto MakeVDramTileDistribution()
     {
-        using VDataType = remove_cvref_t<typename Problem::VDataType>;
-        using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
@@ -822,7 +821,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
         else
         {
-            constexpr index_t K1 = 16 / sizeof(VDataType);
+            constexpr index_t K1 = GetAlignmentV<Problem>();
             constexpr index_t K0 = kKPerBlock / K1;
             constexpr index_t N2 = get_warp_size() / K0;
             constexpr index_t N1 = kBlockSize / get_warp_size();
