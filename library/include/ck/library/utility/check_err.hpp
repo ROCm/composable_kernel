@@ -31,9 +31,10 @@ typename std::enable_if<
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-5,
-          double atol            = 3e-6)
+          const std::string& msg  = "Error: Incorrect results!",
+          double rtol             = 1e-5,
+          double atol             = 3e-6,
+          bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {
@@ -41,6 +42,13 @@ check_err(const Range& out,
                   << std::endl;
         return false;
     }
+
+    const auto is_infinity_error = [=](auto o, auto r) {
+        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+
+        return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
+    };
 
     bool res{true};
     int err_count  = 0;
@@ -51,7 +59,7 @@ check_err(const Range& out,
         const double o = *std::next(std::begin(out), i);
         const double r = *std::next(std::begin(ref), i);
         err            = std::abs(o - r);
-        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
@@ -81,9 +89,10 @@ typename std::enable_if<
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-3,
-          double atol            = 1e-3)
+          const std::string& msg  = "Error: Incorrect results!",
+          double rtol             = 1e-3,
+          double atol             = 1e-3,
+          bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {
@@ -91,6 +100,13 @@ check_err(const Range& out,
                   << std::endl;
         return false;
     }
+
+    const auto is_infinity_error = [=](auto o, auto r) {
+        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+
+        return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
+    };
 
     bool res{true};
     int err_count = 0;
@@ -102,7 +118,7 @@ check_err(const Range& out,
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
-        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
@@ -132,9 +148,10 @@ typename std::enable_if<
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-3,
-          double atol            = 1e-3)
+          const std::string& msg  = "Error: Incorrect results!",
+          double rtol             = 1e-3,
+          double atol             = 1e-3,
+          bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {
@@ -142,6 +159,13 @@ check_err(const Range& out,
                   << std::endl;
         return false;
     }
+
+    const auto is_infinity_error = [=](auto o, auto r) {
+        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+
+        return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
+    };
 
     bool res{true};
     int err_count  = 0;
@@ -152,7 +176,7 @@ check_err(const Range& out,
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
-        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
@@ -236,9 +260,10 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
                  bool>
 check_err(const Range& out,
           const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-3,
-          double atol            = 1e-3)
+          const std::string& msg  = "Error: Incorrect results!",
+          double rtol             = 1e-3,
+          double atol             = 1e-3,
+          bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {
@@ -246,6 +271,13 @@ check_err(const Range& out,
                   << std::endl;
         return false;
     }
+
+    const auto is_infinity_error = [=](auto o, auto r) {
+        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+
+        return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
+    };
 
     bool res{true};
     int err_count  = 0;
@@ -256,7 +288,7 @@ check_err(const Range& out,
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
-        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
@@ -281,9 +313,10 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
                  bool>
 check_err(const Range& out,
           const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-3,
-          double atol            = 1e-3)
+          const std::string& msg  = "Error: Incorrect results!",
+          double rtol             = 1e-3,
+          double atol             = 1e-3,
+          bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {
@@ -291,6 +324,13 @@ check_err(const Range& out,
                   << std::endl;
         return false;
     }
+
+    const auto is_infinity_error = [=](auto o, auto r) {
+        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+
+        return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
+    };
 
     bool res{true};
     int err_count  = 0;
@@ -301,7 +341,7 @@ check_err(const Range& out,
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
-        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
+        if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r))
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
