@@ -5,6 +5,7 @@
 
 #include "ck/utility/buffer_view.hpp"
 #include "ck/tensor_description/tensor_coordinate.hpp"
+#include "ck/tensor_description/multi_index_transform_helper.hpp"
 
 namespace ck {
 
