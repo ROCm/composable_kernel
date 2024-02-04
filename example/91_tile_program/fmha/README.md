@@ -23,10 +23,10 @@ There are 3 template parameters for this kernel template.
 To speed up compile time, we instantiate the kernels into separate file. In this way we can benefit from parallel building from CMake/Make system. This is achieved by `generate.py` script. Besides, you can look into this script to learn how to instantiate a kernel instance step by step, which is described in `FMHA_FWD_KERNEL_BODY` variable.
 
 ## executable
-`example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/example_fmha_fwd -?` to list all supported args
+`example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/example_fmha_fwd -?` to list all supported args. Below is an example of the output (may subject to change)
 ```
 args:
-          -v    weather do CPU validation or not (default:1)
+                    -v    weather do CPU validation or not (default:1)
        -mode    kernel mode. 0:batch, 1:group (default:0)
           -b    batch size (default:2)
           -h    num of head, for q (default:8)
@@ -36,7 +36,10 @@ args:
         -s_k    seqlen_k, 0 means equal to s (default:0)
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, 0 means equal to d (default:0)
-      -scale    scale factor. 0 means equal to 1/sqrt(seqlen) (default:0)
+      -scale    scale factor. 0 means equal to 1/sqrt(hdim) (default:0)
+  -descale_q    scale factor for fp8 quantization (default:1)
+  -descale_k    scale factor for fp8 quantization (default:1)
+  -descale_v    scale factor for fp8 quantization (default:1)
       -iperm    permute input (default:1)
                  if true, will be b*h*s*d, else b*s*h*d
       -operm    permute output (default:1)
@@ -46,9 +49,10 @@ args:
                  't:l,r', top-left local-attn with left right size
                  'b:l,r', bottom-r local-attn with left right size
                  'g:y,x', generic attention mask coordinate with y/x size
+                 
     -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
         -lse    0 not store lse, 1 store lse (default:0)
-       -init    init method. 0:random int, 1:random float, 2:trig float (default:1)
+      -kname    if set to 1 will print kernel name (default:0)
 ```
 Example: `./bin/example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 
@@ -56,7 +60,7 @@ Example: `./bin/example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha cas
 Currently we are still in rapid development stage, so more features/optimizations will be coming soon.
 
 ### hdim
-Currently we support `32/64/128/256` hdim for `fp16`/`bf16`, within which `64`/`128` is better optimized. We may consider optimize other hdim performance if have more request. We also have an experimental support for arbitrary hdim(even odd number), one can change the return value of `get_pad()` inside `generate.py` to achieve this. (Note: we may change the method or optimize arbitrary hdim support in the future)
+Currently we support `32/64/128/256` hdim for `fp16`/`bf16`, within which `64`/`128` is better optimized. hdim should be multiple of 8, while seqlen_s can be arbitrary. For hdim be arbitrary number, it can be support through padding kernel of `qr` pipeline (we didn't generate this in generate.py by default)
 
 ### group/batch mode
 Currently we support both batch and group mode, by setting `-mode` = `0` or `1`, where in group mode we support each batch can have different seqlen
@@ -68,7 +72,7 @@ By setting `-h`(nhead for q) and `-h_k`(nhead for k/v) with different number, yo
 If you look at the kernel argument inside `fmha_fwd_kernel.hpp`, we support providing arbitrary stride for seqlen(stride_q/k/v), nhead, batch of q/k/v matrix, hence it is very flexible to support `b*h*s*d` or `b*s*h*d` input/output permute. The `-iperm=0/1`, `-operm=0/1` is a convenient way to achieve this through the executable. We didn't provide a command-line arg to test `b*s*3*h*d` layout which is by default used by torch/FA, but it's trivial to achieve this if one set the proper `stride_q/k/v` value as `3*h*d`.
 
 ### attention bias
-Attention bias is supported with the layout of `b*h*s*s` and bias value in float number.
+Attention bias is supported with the layout of `b*h*s*s`(same as input/output, different layout can be supported by changing the stride value for bias) and bias value in float number.
 
 ### lse
 For training kernels, "log sum exp" need to store out in forward and used in backward. We support this by setting `-lse=1`

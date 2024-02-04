@@ -73,7 +73,9 @@ auto create_args(int argc, char* argv[])
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 to use "
-                "non-deterministic random number as seed");
+                "non-deterministic random number as seed")
+        .insert("warmup", "5", "number of iterations before benchmark the kernel")
+        .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -156,8 +158,8 @@ bool run(const ArgParser& arg_parser)
         seed.reset();
     }
 
-    int stream_warmup = env_get_int("CK_WARMUP", 5);
-    int stream_repeat = env_get_int("CK_REPEAT", 20);
+    int stream_warmup = arg_parser.get_int("warmup");
+    int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
 
     StreamConfig stream_config{nullptr, true, kname ? 1 : 0, stream_warmup, stream_repeat};
