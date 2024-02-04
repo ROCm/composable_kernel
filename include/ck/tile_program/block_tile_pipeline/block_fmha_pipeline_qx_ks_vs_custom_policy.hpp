@@ -663,9 +663,16 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeDropout()
     {
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kNPerStep  = 32;
-        return kMPerBlock * kNPerStep * sizeof(typename Problem::DropDataType);
+        if constexpr(Problem::kHasDropout)
+        {
+            constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+            constexpr index_t kNPerStep  = 32;
+            return kMPerBlock * kNPerStep * sizeof(typename Problem::DropDataType);
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     template <typename Problem>

@@ -484,7 +484,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasDropout)
             {
-                batch_offset_drop = query_start * kargs.stride_drop;
+                batch_offset_drop = query_start * kargs.stride_drop + key_start;
             }
 
             batch_offset_o = query_start * kargs.stride_o;
