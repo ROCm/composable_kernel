@@ -466,7 +466,7 @@ bool run(const ArgParser& arg_parser)
         if(p_drop > 0){
             Tensor<DropDataType> drop_host_result({nhead, real_seqlen_q, real_seqlen_k});
             drop_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2]);
+                self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2] + key_offset);
             });
             reference_batched_dropout(p_host_ref, drop_host_result, p_dropout_in_uint8_t, rp_dropout);
         }
