@@ -3,7 +3,10 @@
 
 #pragma once
 
+#include <cmath>
+#include <limits>
 #include <optional>
+
 #include "ck/utility/common_header.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
@@ -16,7 +19,7 @@ void reference_batched_softmax(
     const int N = a_b_m_n.mDesc.GetLengths()[2];
 
     auto f = [&](auto batch, auto m) {
-        CompDataType v_max = ck::NumericLimits<CompDataType>::Lowest();
+        CompDataType v_max = -ck::NumericLimits<CompDataType>::Infinity();
 
         // max
         for(int n = 0; n < N; ++n)
@@ -27,6 +30,11 @@ void reference_batched_softmax(
         }
 
         CompDataType v_exp_sum = 0;
+        // validate v_max if all the elements within a row are -INF
+        if(std::isinf(v_max) && v_max < 0)
+        {
+            v_max = ck::type_convert<CompDataType>(0.f);
+        }
 
         // sum
         for(int n = 0; n < N; ++n)
@@ -37,7 +45,7 @@ void reference_batched_softmax(
         }
 
         // if sum is zero(masked), or nan/inf(other computation error), don't do divide
-        CompDataType inv_sum = (v_exp_sum == 0.f || v_exp_sum != v_exp_sum) ? 1.f : 1.f / v_exp_sum;
+        CompDataType inv_sum = (v_exp_sum == 0.f ? 1.f : 1.f / v_exp_sum);
 
         // elementwise
         for(int n = 0; n < N; ++n)
