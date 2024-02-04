@@ -113,7 +113,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t MinimumLoop = 2;
+    static constexpr index_t MinimumLoop = 1;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -396,7 +396,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     static constexpr index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
     static constexpr index_t KPerInnerLoop  = math::max(KPerThread / NumMacClusters, KPack);
     static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
-    static constexpr index_t MinimumLoop    = 2;
+    static constexpr index_t MinimumLoop    = 1;
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > MinimumLoop;

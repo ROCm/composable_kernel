@@ -159,152 +159,52 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 K_split = arg.K / arg.k_batch;
             }
 
-            // Tail number always 1
-            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-            {
+            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
+
+            const auto Run = [&](const auto& kernel) {
                 if(arg.k_batch > 1)
-                {
                     hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                      0,
                                                      arg.M * arg.N * sizeof(CDataType),
                                                      stream_config.stream_id_));
 
-                    const auto kernel =
-                        kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                    true,
-                                                    InMemoryDataOperationEnum::AtomicAdd>;
-                    ave_time = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                }
-                else
-                {
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set>;
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                }
-            }
-            // Tail number always 2
-            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
-            {
-                if(arg.k_batch > 1)
-                {
-                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                     0,
-                                                     arg.M * arg.N * sizeof(CDataType),
-                                                     stream_config.stream_id_));
+                ave_time = launch_and_time_kernel(
+                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+            };
 
-                    const auto kernel =
-                        kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                    true,
-                                                    InMemoryDataOperationEnum::AtomicAdd,
-                                                    TailNumber::Even>;
-                    ave_time = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                }
-                else
-                {
-                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    TailNumber::Even>;
-                    ave_time          = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                }
-            }
-            // Tail number could be Odd or Even, double lds buffer have blockers on unified with
-            // single buffer
-            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            if(has_main_k_block_loop)
             {
-                if(arg.k_batch > 1)
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                     0,
-                                                     arg.M * arg.N * sizeof(CDataType),
-                                                     stream_config.stream_id_));
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::AtomicAdd>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::AtomicAdd,
-                                                             TailNumber::Even>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                    }
-                }
-                else
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::Set>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::Set,
-                                                             TailNumber::Even>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                    }
-                }
-            }
-            // Tail number could be Odd or Even
-            else
-            {
-                if(arg.k_batch > 1)
-                {
-                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                     0,
-                                                     arg.M * arg.N * sizeof(CDataType),
-                                                     stream_config.stream_id_));
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                    if(arg.k_batch > 1)
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::AtomicAdd>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                        Run(kernel);
                     }
                     else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set>;
+                        Run(kernel);
+                    }
+                }
+                // Tail number always 2
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+                {
+                    if(arg.k_batch > 1)
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::AtomicAdd,
                                                         TailNumber::Even>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-                    }
-                }
-                else
-                {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                        Run(kernel);
                     }
                     else
                     {
@@ -313,8 +213,230 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         TailNumber::Even>;
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                        Run(kernel);
+                    }
+                }
+                // Tail number could be Odd or Even, double lds buffer have blockers on unified with
+                // single buffer
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+                {
+                    if(arg.k_batch > 1)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                                GridwiseGemm,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                }
+                // Tail number could be Odd or Even
+                else
+                {
+                    if(arg.k_batch > 1)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::AtomicAdd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+                    if(arg.k_batch > 1)
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::AtomicAdd>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::Set>;
+                        Run(kernel);
+                    }
+                }
+                // Tail number always 2
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+                {
+                    if(arg.k_batch > 1)
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::AtomicAdd,
+                                                        TailNumber::Even>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        TailNumber::Even>;
+                        Run(kernel);
+                    }
+                }
+                // Tail number could be Odd or Even, double lds buffer have blockers on unified with
+                // single buffer
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+                {
+                    if(arg.k_batch > 1)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                                GridwiseGemm,
+                                false,
+                                InMemoryDataOperationEnum::AtomicAdd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                                GridwiseGemm,
+                                false,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 InMemoryDataOperationEnum::Set>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 false,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                }
+                // Tail number could be Odd or Even
+                else
+                {
+                    if(arg.k_batch > 1)
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::AtomicAdd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::Set>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            TailNumber::Even>;
+                            Run(kernel);
+                        }
                     }
                 }
             }
