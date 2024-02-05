@@ -250,7 +250,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_interwave_instances(
+                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_irregular_instances(
                     op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_irregular_instances(op_ptrs);

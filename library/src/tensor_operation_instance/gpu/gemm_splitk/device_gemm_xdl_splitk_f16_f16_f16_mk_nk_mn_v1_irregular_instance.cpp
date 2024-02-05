@@ -67,7 +67,7 @@ using device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_irregular_instances = std::tup
     // clang-format on
     >;
 
-void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instances(
+void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_instances(
     std::vector<std::unique_ptr<
         DeviceGemmSplitK<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
