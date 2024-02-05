@@ -303,11 +303,12 @@ class FmhaFwdTileSize:
     F_wm        : int  # warp size along m (warp size)
     F_wn        : int  # warp size along n
     F_wk        : int  # warp size along k
-    F_occupancy : int  # occupancy
+    F_occupancy : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
     @property
     def name(self) -> str:
         return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bn0}x{self.F_bk1}x{self.F_bk0blen}" +\
-        f"_r{self.F_rm}x{self.F_rn}x{self.F_rk}_w{self.F_wm}x{self.F_wn}x{self.F_wk}_o{self.F_occupancy}"
+        f"_r{self.F_rm}x{self.F_rn}x{self.F_rk}_w{self.F_wm}x{self.F_wn}x{self.F_wk}" +\
+            ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
 
 @dataclass
 class FmhaFwdKernel:
@@ -387,14 +388,14 @@ def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[
     if direction == 'fwd':
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                 '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, 2),
-                 '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, 3),
-                 '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, 2),
-                 '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, 1),
+                 '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
+                 '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
+                 '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
+                 '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
             }
         elif dtype == 'fp8' or dtype == 'bf8':
             return {
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, 2)
+                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1)
             }
         else:
             return None

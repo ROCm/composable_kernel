@@ -72,7 +72,7 @@ By setting `-h`(nhead for q) and `-h_k`(nhead for k/v) with different number, yo
 If you look at the kernel argument inside `fmha_fwd_kernel.hpp`, we support providing arbitrary stride for seqlen(stride_q/k/v), nhead, batch of q/k/v matrix, hence it is very flexible to support `b*h*s*d` or `b*s*h*d` input/output permute. The `-iperm=0/1`, `-operm=0/1` is a convenient way to achieve this through the executable. We didn't provide a command-line arg to test `b*s*3*h*d` layout which is by default used by torch/FA, but it's trivial to achieve this if one set the proper `stride_q/k/v` value as `3*h*d`.
 
 ### attention bias
-Attention bias is supported with the layout of `b*h*s*s`(same as input/output, different layout can be supported by changing the stride value for bias) and bias value in float number.
+Attention bias is supported with the layout of `1*1*s*s`(similiar to input/output, different layout can be supported by changing the stride value for bias, or even extend to `b*h*s*s`) and bias value in float number.
 
 ### lse
 For training kernels, "log sum exp" need to store out in forward and used in backward. We support this by setting `-lse=1`

@@ -24,9 +24,11 @@ namespace tile_program {
 namespace block {
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
-template <typename Problem, typename Policy = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy>
 struct BlockFmhaPipelineQRKSVSAsync
 {
+    using Problem             = remove_cvref_t<Problem_>;
+    using Policy              = remove_cvref_t<Policy_>;
     using QDataType           = remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = remove_cvref_t<typename Problem::KDataType>;
     using VDataType           = remove_cvref_t<typename Problem::VDataType>;
@@ -45,8 +47,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static_assert(kQLoadOnce == Policy::QLoadOnce);
     static constexpr bool kIsFp8 = Problem::kIsFp8;
 
-    static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
-    static constexpr index_t kBlockSize  = Problem::kBlockSize;
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kM0            = BlockFmhaShape::kM0;
     static constexpr index_t kN0            = BlockFmhaShape::kN0;
@@ -84,6 +85,39 @@ struct BlockFmhaPipelineQRKSVSAsync
 #if CK_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / math::log2e_v<SaccDataType>;
 #endif
+
+    static constexpr index_t kBlockPerCu = []() {
+        if constexpr(Problem::kBlockPerCu != -1)
+            return Problem::kBlockPerCu;
+        else
+        {
+            if constexpr(kK0BlockLength <= 32)
+            {
+                if constexpr(kPadSeqLenK && kHasBias && FmhaMask::IsMasking)
+                    return 1;
+                else
+                    return 2;
+            }
+            else if constexpr(kK0BlockLength <= 64)
+            {
+                if constexpr(kPadSeqLenK && kHasBias)
+                    return 2;
+                else
+                    return 3;
+            }
+            else if constexpr(kK0BlockLength <= 128)
+            {
+                if constexpr(kPadSeqLenK && kHasBias)
+                    return 1;
+                else
+                    return 2;
+            }
+            else if constexpr(kK0BlockLength <= 256)
+            {
+                return 1;
+            }
+        }
+    }();
 
     static constexpr const char* name = "qr_async";
 

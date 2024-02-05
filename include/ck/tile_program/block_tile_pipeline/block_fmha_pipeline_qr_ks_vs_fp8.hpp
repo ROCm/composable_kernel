@@ -24,9 +24,11 @@ namespace tile_program {
 namespace block {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem, typename Policy = BlockFmhaPipelineQRKSVSDefaultPolicy>
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
 struct BlockFmhaPipelineQRKSVSFp8
 {
+    using Problem             = remove_cvref_t<Problem_>;
+    using Policy              = remove_cvref_t<Policy_>;
     using QDataType           = remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = remove_cvref_t<typename Problem::KDataType>;
     using VDataType           = remove_cvref_t<typename Problem::VDataType>;
@@ -45,8 +47,7 @@ struct BlockFmhaPipelineQRKSVSFp8
     static_assert(kQLoadOnce == Policy::QLoadOnce);
     static constexpr bool kIsFp8 = Problem::kIsFp8;
 
-    static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
-    static constexpr index_t kBlockSize  = Problem::kBlockSize;
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kM0            = BlockFmhaShape::kM0;
     static constexpr index_t kN0            = BlockFmhaShape::kN0;
@@ -80,6 +81,33 @@ struct BlockFmhaPipelineQRKSVSFp8
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+
+    static constexpr index_t kBlockPerCu = []() {
+        if constexpr(Problem::kBlockPerCu != -1)
+            return Problem::kBlockPerCu;
+        else
+        {
+            if constexpr(kK0BlockLength <= 32)
+            {
+                return 2;
+            }
+            else if constexpr(kK0BlockLength <= 64)
+            {
+                return 3;
+            }
+            else if constexpr(kK0BlockLength <= 128)
+            {
+                if constexpr(kHasBias)
+                    return 1;
+                else
+                    return 2;
+            }
+            else if constexpr(kK0BlockLength <= 256)
+            {
+                return 1;
+            }
+        }
+    }();
 
     static constexpr const char* name = "qr_fp8";
 

@@ -24,6 +24,8 @@ struct FmhaFwdKernel
     using EpiloguePipeline                   = ck::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+    static_assert(kBlockPerCu > 0);
+    static constexpr ck::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
     using QDataType              = ck::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType              = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
@@ -77,7 +79,7 @@ struct FmhaFwdKernel
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kK0BlockLength) + "_" +
             "r" + _TS_(gbr::At(ck::Number<0>{})) + "x" + _TS_(gbr::At(ck::Number<1>{})) + "x" + _TS_(gbr::At(ck::Number<2>{})) + "_" + 
             "w" + _TS_(gwt::At(ck::Number<0>{})) + "x" + _TS_(gwt::At(ck::Number<1>{})) + "x" + _TS_(gwt::At(ck::Number<2>{})) + "_" +
-            "o" + _TS_(kBlockPerCu) + "_" + _SS_(FmhaPipeline::name) + "_" +
+            (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
             (kHasBias ? "_bias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kStoreLSE ? "_lse" : "" );
         #undef _SS_
