@@ -13,8 +13,6 @@ using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
 
-#include <iostream>
-
 template <typename Tuple>
 class TestGemmAdd : public ::testing::Test
 {
