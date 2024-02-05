@@ -7,6 +7,7 @@ list(APPEND GEMM_SPLITK_INSTANCES device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_in
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_irregular_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_interwave_instance.cpp
+                                  device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_interwave_irregular_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v2_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v2_irregular_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instance.cpp
