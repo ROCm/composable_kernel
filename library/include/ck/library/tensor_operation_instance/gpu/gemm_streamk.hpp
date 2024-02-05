@@ -94,8 +94,11 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmSt
                               is_same_v<CLayout, Row>)
             {
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular__instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_irregular_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_irregular_instances(op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
