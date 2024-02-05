@@ -62,7 +62,7 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instances(
         DeviceGemmSplitK<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
-void irregular_(
+void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_instances(
     std::vector<std::unique_ptr<
         DeviceGemmSplitK<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
