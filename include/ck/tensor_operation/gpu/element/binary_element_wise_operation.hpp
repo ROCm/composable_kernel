@@ -277,7 +277,7 @@ struct AddRelu
     __host__ __device__ constexpr void
     operator()<bhalf_t, float, bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
     {
-        const float a = x0 + x1;
+        const float a = x0 + type_convert<float>(x1);
         y             = a > type_convert<bhalf_t>(0.0f) ? a : type_convert<bhalf_t>(0.0f);
     };
 
@@ -376,12 +376,11 @@ struct AddFastGelu
     __host__ __device__ constexpr void
     operator()<bhalf_t, float, bhalf_t>(bhalf_t& e, const float& c, const bhalf_t& d) const
     {
-        const float x0_f = c + d;
+        const float x0_f = c + type_convert<float>(d);
 
         float x1_f = 0;
 
-        ck::tensor_operation::element_wise::FastGelu{}.template operator()<float, float>(x1_f,
-                                                                                         x0_f);
+        FastGelu{}.template operator()<float, float>(x1_f, x0_f);
 
         e = type_convert<bhalf_t>(x1_f);
     }
@@ -408,7 +407,7 @@ struct AddSilu
     {
         const half_t x = c + d;
 
-        ck::tensor_operation::element_wise::Silu{}.template operator()<half_t>(e, x);
+        Silu{}.template operator()<half_t>(e, x);
     }
 
     template <>
@@ -419,7 +418,7 @@ struct AddSilu
 
         float x1_f = 0;
 
-        ck::tensor_operation::element_wise::Silu{}.template operator()<float>(x1_f, x0_f);
+        Silu{}.template operator()<float>(x1_f, x0_f);
 
         e = type_convert<half_t>(x1_f);
     }
@@ -428,11 +427,11 @@ struct AddSilu
     __host__ __device__ constexpr void
     operator()<bhalf_t, float, bhalf_t>(bhalf_t& e, const float& c, const bhalf_t& d) const
     {
-        const float x0_f = c + d;
+        const float x0_f = c + type_convert<float>(d);
 
         float x1_f = 0;
 
-        ck::tensor_operation::element_wise::Silu{}.template operator()<float>(x1_f, x0_f);
+        Silu{}.template operator()<float>(x1_f, x0_f);
 
         e = type_convert<bhalf_t>(x1_f);
     }

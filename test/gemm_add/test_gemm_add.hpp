@@ -13,6 +13,8 @@ using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
 
+#include <iostream>
+
 template <typename Tuple>
 class TestGemmAdd : public ::testing::Test
 {
@@ -42,7 +44,9 @@ class TestGemmAdd : public ::testing::Test
     void Run()
     {
         std::vector<std::vector<ck::index_t>> lengths = {
-            {16, 32, 64}, {2048, 4096, 8192}, {2048, 4096}};
+            {16, 32, 64}, {2048, 4096, 8192}, {2048, 1024, 16}};
+
+        bool all_success = true;
 
         for(auto length : lengths)
         {
@@ -54,11 +58,12 @@ class TestGemmAdd : public ::testing::Test
             int StrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
             int StrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-            bool success =
+            all_success =
+                all_success &
                 GetImpl()(true, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideE);
-
-            EXPECT_TRUE(success);
         }
+
+        EXPECT_TRUE(all_success);
     }
 };
 

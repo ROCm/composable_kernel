@@ -132,7 +132,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-#if defined CK_ENABLE_INT8
+#if defined defined(CK_ENABLE_INT8) && defined(CK_ENABLE_FP16)
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, int8_t> &&
                      is_same_v<D0DataType, half_t> && is_same_v<EDataType, half_t>)
         {
@@ -145,7 +145,7 @@ struct DeviceOperationInstanceFactory<
         }
 #endif
 
-#if defined CK_ENABLE_BF16 && CK_ENABLE_INT8
+#if defined(CK_ENABLE_BF16) && defined(CK_ENABLE_INT8)
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
                      is_same_v<D0DataType, bhalf_t> && is_same_v<EDataType, bhalf_t>)
         {
