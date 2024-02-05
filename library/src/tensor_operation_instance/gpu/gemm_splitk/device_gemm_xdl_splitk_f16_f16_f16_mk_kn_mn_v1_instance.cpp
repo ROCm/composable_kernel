@@ -27,7 +27,6 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
-static constexpr auto GemmKPadding   = ck::tensor_operation::device::GemmSpecialization::KPadding;
 static constexpr auto GemmMNPadding  = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
