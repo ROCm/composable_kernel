@@ -210,7 +210,7 @@ struct FillTrigValue
             if constexpr(UseAbs_)
                 v = abs(v);
             i++;
-            return static_cast<T_>(v);
+            return ck::type_convert<T_>(v);
         }
     };
     template <typename ForwardIter>

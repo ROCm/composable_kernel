@@ -175,6 +175,15 @@ struct BlockFmhaPipelineQSKSVS
         {
             if(num_total_loop <= 0)
             {
+                if constexpr(kStoreLSE)
+                {
+                    auto lse = make_static_distributed_tensor<LSEDataType>(m.GetTileDistribution());
+
+                    set_tile(lse, -NumericLimits<SMPLComputeDataType>::Infinity());
+
+                    store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
+                }
+
                 // Note: here occ are all cleard, return it
                 // Note: q loaded but no fence, ignore it.
                 return o_acc;

@@ -146,9 +146,9 @@ bool run(const ArgParser& arg_parser)
     float descale_k = arg_parser.get_float("descale_k");
     float descale_v = arg_parser.get_float("descale_v");
 
-    std::string vlayout  = arg_parser.get_str("vlayout");
-    bool use_bias        = arg_parser.get_uint32("bias");
-    bool lse             = arg_parser.get_uint32("lse");
+    std::string vlayout = arg_parser.get_str("vlayout");
+    bool use_bias       = arg_parser.get_bool("bias");
+    bool lse            = arg_parser.get_bool("lse");
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint32("drop_offset");
@@ -157,6 +157,7 @@ bool run(const ArgParser& arg_parser)
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
         return false;
     }
+
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
@@ -172,9 +173,8 @@ bool run(const ArgParser& arg_parser)
 
     StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
 
-    const auto [seqlens_q, seqstart_q_host] = generate_seqlens_seqstarts_q(mode, batch, seqlen_q);
-    const std::vector<int32_t> seqstart_k_host =
-        generate_seqstarts_k(mode, batch, seqlen_k, seqlens_q, seqlen_q);
+    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
+    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
 
     using TypeConfig = FmhaFwdTypeConfig<DataType>;
 
@@ -427,40 +427,60 @@ bool run(const ArgParser& arg_parser)
             if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[1], i[2] + key_offset); });
             else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[1], i[0] / nr, i[2] + key_offset); });
         }
+        // clang-format on
 
         // reference
         reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
-            q_host_ref, k_host_ref, s_host_ref,
-            ck::identity{}, ck::identity{},
+            q_host_ref,
+            k_host_ref,
+            s_host_ref,
+            ck::identity{},
+            ck::identity{},
             [&](SaccDataType x) { return scale * x; });
 
         if(use_bias)
         {
             Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
+            // clang-format off
             if(i_perm)
                 bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
             else
                 bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+            // clang-format on
 
-            // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q, real_seqlen_k]
-            reference_batched_elementwise<SMPLComputeDataType, BiasDataType, SMPLComputeDataType, SMPLComputeDataType>(
+            // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
+            // real_seqlen_k]
+            reference_batched_elementwise<SMPLComputeDataType,
+                                          BiasDataType,
+                                          SMPLComputeDataType,
+                                          SMPLComputeDataType>(
                 s_host_ref, bias_host_ref, s_host_ref);
         }
 
-        if(mask.type == mask_enum::no_mask) {
-            reference_batched_masking<SaccDataType>(s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
-        } else if(mask.type == mask_enum::window_generic) {
-            reference_batched_masking<SaccDataType>(s_host_ref,
-                FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
-        } else {
-            reference_batched_masking<SaccDataType>(s_host_ref,
-                FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+        if(mask.type == mask_enum::no_mask)
+        {
+            reference_batched_masking<SaccDataType>(
+                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         }
-        if(lse){
-            reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref, p_host_ref, lse_host_ref);
+        else if(mask.type == mask_enum::window_generic)
+        {
+            reference_batched_masking<SaccDataType>(
+                s_host_ref, FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
         }
-        else{
-            reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(s_host_ref, p_host_ref);
+        else
+        {
+            reference_batched_masking<SaccDataType>(
+                s_host_ref, FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+        }
+        if(lse)
+        {
+            reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+                s_host_ref, p_host_ref, lse_host_ref);
+        }
+        else
+        {
+            reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+                s_host_ref, p_host_ref);
         }
 
         if(p_drop > 0){
@@ -471,9 +491,11 @@ bool run(const ArgParser& arg_parser)
             reference_batched_dropout(p_host_ref, drop_host_result, p_dropout_in_uint8_t, rp_dropout);
         }
         
-        reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(p_host_ref, v_host_ref, o_host_ref);
+        reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
+            p_host_ref, v_host_ref, o_host_ref);
 
         Tensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
+        // clang-format off
         // permute
         if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b, idx[0], idx[1] + query_offset, idx[2]); });
         else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b, idx[1] + query_offset, idx[0], idx[2]); });
@@ -501,8 +523,12 @@ bool run(const ArgParser& arg_parser)
                 self(idx) = lse_host(b, idx[0], idx[1] + query_offset);
             });
 
-            bool lse_pass = ck::utils::check_err(
-                lse_host_result, lse_host_ref, "LSE Error: Incorrect results!", rtol, atol);
+            bool lse_pass = ck::utils::check_err(lse_host_result,
+                                                 lse_host_ref,
+                                                 "LSE Error: Incorrect results!",
+                                                 rtol,
+                                                 atol,
+                                                 /* allow_infinity_ref = */ true);
 
             pass &= lse_pass;
             if(!cur_pass)
