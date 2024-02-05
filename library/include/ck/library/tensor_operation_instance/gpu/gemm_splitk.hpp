@@ -82,7 +82,7 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_instances(
         DeviceGemmSplitK<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
-    void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_irregular_instances(
+void add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_irregular_instances(
     std::vector<std::unique_ptr<
         DeviceGemmSplitK<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
@@ -250,7 +250,8 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_interwave_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular_interwave_instances(
+                    op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_instances(op_ptrs);
                 add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_irregular_instances(op_ptrs);
             }
