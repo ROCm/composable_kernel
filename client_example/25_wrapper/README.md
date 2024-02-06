@@ -1,11 +1,18 @@
-# CK Wrapper Client Examples
-## GEMM tutorial
+# Composable Kernel wrapper GEMM tutorial
 
-The tutorial shows how to implement matrix multiplication using CK Wrapper. The tutorial presents the base version of gemm without most of the optimizations. It is worth keeping in mind that CK has kernels with different optimizations . If you want to use these optimizations, you can implement them using the CK wrapper or directly use available instances in CK. You can also refer to [optimized gemm example](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp) implemented using CK Wrapper based on the [gridwise_gemm_xdlops_v2r3](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp) implementation.
+This tutorial demonstrates how to implement matrix multiplication using Composable Kernel (CK)
+wrapper. We present the base version of GEMM without most of the available optimizations; however,
+it's worth noting that CK has kernels with different optimizations.
 
-The kernel definition might look like this:
+To implement these optimizations, you can use the CK wrapper or directly use available instances in
+CK. You can also refer to the
+[optimized GEMM example](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp),
+that uses CK wrapper based on the
+[`gridwise_gemm_xdlops_v2r3`](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp) implementation.
 
-```
+The kernel definition should look similar to:
+
+```cpp
 template <typename DataType,
           typename GemmTraits,
           ck::index_t scalar_per_vector,
@@ -21,12 +28,15 @@ __global__ void __CK_WRAPPER_LAUNCH_BOUNDS__ DeviceGemm(const void* p_a,
                                                         const ThreadLayout thread_layout)
 ```
 
-As arguments, we pass pointers to global memory and matrix dimensions. Additionally, we pass a selected lengths of processed data through each block (`tile_shape`) and thread layout (`thread_layout`).
-As compilation time parameters, we define the data type, [traits for the gemm operation](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/wrapper/traits/blockwise_gemm_xdl_traits.hpp) and scalar per vector value during copy.
+We pass pointers to global memory and matrix dimensions via arguments. Additionally, we pass
+selected lengths of processed data through each block (`tile_shape`) and thread layout
+(`thread_layout`). For compilation time parameters, we define the data type,
+[traits for the GEMM operation](https://github.com/ROCm/composable_kernel/blob/develop/include/ck/wrapper/traits/blockwise_gemm_xdl_traits.hpp)
+and scalar per vector value during copy.
 
+Step 1: Create layouts for global and LDS memory.
 
-The first step is to create layouts for global and lds memory:
-```
+```cpp
     // Specify layouts for global memory.
     const auto a_global_layout =
         ck::wrapper::make_layout(ck::make_tuple(M, K), ck::make_tuple(K, 1));
@@ -48,11 +58,13 @@ The first step is to create layouts for global and lds memory:
     auto b_global_layout_padded = ck::wrapper::pad(b_global_layout, shape(b_tile_layout));
     auto c_global_layout_padded = ck::wrapper::pad(c_global_layout, shape(c_tile_layout));
 ```
-We pad layouts for global tensors in case of M, N, K are not divisible by MPerBlock, NPerBlock, KPerBlock.
 
-The next step is to create tensors for global and lds memory:
+We pad layouts for global tensors in case M, N, and K are not divisible by `MPerBlock`, `NPerBlock`, or
+`KPerBlock`.
 
-```
+Step 2: Create tensors for global and LDS memory.
+
+```cpp
     // Make tensors for global memory.
     auto a_global_tensor = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
         static_cast<const DataType*>(p_a), a_global_layout_padded);
@@ -61,7 +73,7 @@ The next step is to create tensors for global and lds memory:
     auto c_global_tensor = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
         static_cast<DataType*>(p_c), c_global_layout_padded);
 
-    // Allocate lds memory.
+    // Allocate LDS memory.
     __shared__ DataType lds_a[ck::wrapper::size(a_tile_layout)];
     __shared__ DataType lds_b[ck::wrapper::size(b_tile_layout)];
 
@@ -71,8 +83,10 @@ The next step is to create tensors for global and lds memory:
     auto b_lds_tensor = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
         static_cast<DataType*>(lds_b), b_tile_layout);
 ```
-There is also a need to specify parameters for copy and convert block indexes to tuple:
-```
+
+We must specify parameters for copy and convert block indexes to tuple:
+
+```cpp
     // Specify block index as tuple.
     const auto block_idxs = ck::make_tuple(static_cast<ck::index_t>(blockIdx.x),
                                            static_cast<ck::index_t>(blockIdx.y),
@@ -82,8 +96,10 @@ There is also a need to specify parameters for copy and convert block indexes to
     constexpr ck::index_t vector_dim = 1;
 ```
 
-We create a local tile (per block) and local partitions (per thread) for the global memory `C`. We also define and clear an output register `c_vgpr_reg` for the accumulation.
-```
+We create a local tile (per block) and local partitions (per thread) for the global memory (`C`). We also
+define and clear an output register (`c_vgpr_reg`) for the accumulation.
+
+```cpp
     auto c_global_local_tile = ck::wrapper::make_local_tile(
         c_global_tensor,
         tile_shape,
@@ -104,10 +120,15 @@ We create a local tile (per block) and local partitions (per thread) for the glo
     // Clear C vgpr.
     ck::wrapper::clear(c_vgpr_reg);
 ```
-Two specific functions for blockwise_gemm are used here: `make_blockwise_gemm_xdl_c_local_partition` and `make_blockwise_gemm_xdl_c_vgpr`. This helps to choose the appropriate partition for the C output and to define tensors with specific layouts for `blockwise_gemm`. In the following, only generic functions for the ck wrapper will be used.
 
-Finally we can create the compute loop:
-```
+We use two specific functions for `blockwise_gemm`: `make_blockwise_gemm_xdl_c_local_partition` and
+`make_blockwise_gemm_xdl_c_vgpr`. This helps to choose the appropriate partition for the `C` output
+and define tensors with specific layouts for `blockwise_gemm`. In the following step, we use only
+generic functions for the CK wrapper.
+
+Step 3: Create the compute loop.
+
+```cpp
     const ck::index_t num_loop = ck::math::integer_divide_ceil(K, KPerBlock);
     ck::index_t i              = 0;
     do
@@ -127,25 +148,30 @@ Finally we can create the compute loop:
             tile_shape,
             block_idxs,
             make_tuple(ck::wrapper::slice(M), ck::Number<1>{}, ck::Number<1>{}));
-        // Copy from global to lds.
+        // Copy from global to LDS.
         ck::wrapper::blockwise_copy<DimAccessOrder, vector_dim, scalar_per_vector>(
             a_global_local_tile, a_lds_tensor, thread_layout);
         ck::wrapper::blockwise_copy<DimAccessOrder, vector_dim, scalar_per_vector>(
             b_global_local_tile, b_lds_tensor, thread_layout);
         // Synchronize lds.
         ck::block_sync_lds();
-        // Execute blockwise gemm.
+        // Execute blockwise GEMM.
         ck::wrapper::blockwise_gemm_xdl<DataType, ck::wrapper::size(thread_layout), GemmTraits>(
             a_lds_tensor, b_lds_tensor, c_vgpr_reg);
 
         ++i;
     } while(i < num_loop);
 ```
-Loop iterate over `K / KPerBlock`. Each time a local tile is created for A and B tensors (tensor per block) then the data is copied from global memory to lds. The `blockwise_gemm` function perform gemm operation on `a_lds_tensor` and `b_lds_tensor` and store results in `c_vgpr_reg`.
 
-At the end result from `c_vgpr_reg` is stored in C local partition (tensor per thread):
-```
+Loop iterate over `K / KPerBlock`. Each time a local tile is created for A and B tensors (tensor per block),
+data is copied from global memory to LDS. The `blockwise_gemm` function performs the GEMM
+operation on `a_lds_tensor` and `b_lds_tensor`, and stores results in `c_vgpr_reg`.
+
+The end result from `c_vgpr_reg` is stored in the `C` local partition (tensor per thread):
+
+```cpp
     ck::wrapper::copy(c_vgpr_reg, c_global_local_partition);
 ```
 
-For more details, the entire example is available [here](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp).
+For additional detail, you can find the entire example
+[here](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp).
