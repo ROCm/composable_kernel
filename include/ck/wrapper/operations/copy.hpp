@@ -171,10 +171,12 @@ template <typename DimAccessOrderTuple,
           index_t ScalarPerVector,
           typename SrcTensorType,
           typename DstTensorType,
-          typename ThreadLayout>
-__device__ void blockwise_copy(const SrcTensorType& src_tensor,
-                               DstTensorType& dst_tensor,
-                               [[maybe_unused]] ThreadLayout& thread_layout)
+          typename ThreadShape,
+          typename ThreadFlattenDesc>
+__device__ void
+blockwise_copy(const SrcTensorType& src_tensor,
+               DstTensorType& dst_tensor,
+               [[maybe_unused]] const Layout<ThreadShape, ThreadFlattenDesc>& thread_layout)
 {
     static_assert(SrcTensorType::IsDynamicBuffer && DstTensorType::IsDynamicBuffer);
     static_assert(is_detected<is_tuple, DimAccessOrderTuple>::value);
@@ -188,11 +190,11 @@ __device__ void blockwise_copy(const SrcTensorType& src_tensor,
     constexpr auto tile_lengths_seq =
         generate_sequence_v2([](auto I) { return size(SrcShapeType{}.At(I)); }, Number<num_dims>{});
     constexpr auto thread_layout_seq =
-        generate_sequence_v2([](auto I) { return size<I>(ThreadLayout{}); }, Number<num_dims>{});
+        generate_sequence_v2([](auto I) { return size<I>(ThreadShape{}); }, Number<num_dims>{});
     constexpr auto dim_access_order = generate_sequence_v2(
         [](auto I) { return DimAccessOrderTuple{}.At(I); }, Number<num_dims>{});
 
-    using ThisThreadBlock = ThisThreadBlock<size(ThreadLayout{})>;
+    using ThisThreadBlock = ThisThreadBlock<size(ThreadShape{})>;
 
     // Perform copy between DynamicBuffers
     auto transfer = ThreadGroupTensorSliceTransfer_v7<
