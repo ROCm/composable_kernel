@@ -25,10 +25,11 @@ namespace ck {
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          TailNumber TailNum = TailNumber::Odd>
+          index_t MinimumOccupancy = 1,
+          TailNumber TailNum       = TailNumber::Odd>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 2)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
@@ -38,10 +39,6 @@ __global__ void
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-    karg.K                   = splitk_batch_offset.K_split_read_padded;
-    karg.KPadded             = splitk_batch_offset.K_split_padded;
-    karg.AK0                 = splitk_batch_offset.AK0_split;
-    karg.BK0                 = splitk_batch_offset.BK0_split;
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -57,10 +54,11 @@ __global__ void
 template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          TailNumber TailNum = TailNumber::Odd>
+          index_t MinimumOccupancy = 1,
+          TailNumber TailNum       = TailNumber::Odd>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, 1)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
@@ -73,10 +71,6 @@ __global__ void
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-    karg.K                   = splitk_batch_offset.K_split_read_padded;
-    karg.KPadded             = splitk_batch_offset.K_split_padded;
-    karg.AK0                 = splitk_batch_offset.AK0_split;
-    karg.BK0                 = splitk_batch_offset.BK0_split;
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -159,19 +153,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t k_batch)
+    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
-        return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, k_batch);
+        return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
     }
 
     __host__ static auto CalculateMPadded(index_t M)
     {
-        return math::integer_divide_ceil(M, MPerBlock) * MPerBlock;
+        return math::integer_least_multiple(M, MPerBlock);
     }
 
     __host__ static auto CalculateNPadded(index_t N)
     {
-        return math::integer_divide_ceil(N, NPerBlock) * NPerBlock;
+        return math::integer_least_multiple(N, NPerBlock);
     }
 
     __host__ static auto CalculateKPadded(index_t K)
@@ -179,38 +173,29 @@ struct GridwiseGemm_xdl_cshuffle_v3
         return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
 
-    __host__ static auto CalculateAK0(index_t K)
+    __host__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
     {
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
-
-        if constexpr(GemmSpec == GemmSpecialization::MKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding ||
-                     GemmSpec == GemmSpecialization::KPadding ||
-                     GemmSpec == GemmSpecialization::NKPadding)
-        {
-            return CalculateKPadded(K) / AK1Value;
-        }
-        else
-        {
-            return K / AK1Value;
-        }
+        auto K_t = K_Batch * KPerBlock;
+        return (K + K_t - 1) / K_t * (KPerBlock / AK1Value);
     }
 
-    __host__ static auto CalculateBK0(index_t K)
+    __host__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
     {
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+        auto K_t = K_Batch * KPerBlock;
+        return (K + K_t - 1) / K_t * (KPerBlock / BK1Value);
+    }
 
-        if constexpr(GemmSpec == GemmSpecialization::NKPadding ||
-                     GemmSpec == GemmSpecialization::MNKPadding ||
-                     GemmSpec == GemmSpecialization::KPadding ||
-                     GemmSpec == GemmSpecialization::MKPadding)
-        {
-            return CalculateKPadded(K) / BK1Value;
-        }
-        else
-        {
-            return K / BK1Value;
-        }
+    __host__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    {
+        auto K_t = K_Batch * KPerBlock;
+        return (K + K_t - 1) / K_t * KPerBlock;
+    }
+
+    __host__ static auto CalculateKRead(index_t K, index_t K_Batch = 1)
+    {
+        constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
+        auto K_t                = K_Batch * KReadVec;
+        return (K + K_t - 1) / K_t * KReadVec;
     }
 
     __host__ static auto CalculateMBlock(index_t M)
@@ -480,18 +465,21 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          index_t K_,
                          index_t StrideA_,
                          index_t StrideB_,
-                         index_t StrideC_)
+                         index_t StrideC_,
+                         index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
               StrideA{StrideA_},
               StrideB{StrideB_},
               StrideC{StrideC_},
+              KBatch{KBatch_},
               MPadded{CalculateMPadded(M_)},
               NPadded{CalculateNPadded(N_)},
-              KPadded{CalculateKPadded(K_)},
-              AK0{CalculateAK0(K_)},
-              BK0{CalculateBK0(K_)},
+              KRead{CalculateKRead(K_, KBatch_)},
+              KPadded{CalculateKPadded(K_, KBatch_)},
+              AK0{CalculateAK0Padded(K_, KBatch_)},
+              BK0{CalculateAK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)}
         {
@@ -508,6 +496,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                       << "SC:" << StrideC << ", "
                       << "MP:" << MPadded << ", "
                       << "NP:" << NPadded << ", "
+                      << "KRead:" << KRead << ", "
                       << "KP:" << KPadded << ", "
                       << "AK0:" << AK0 << ", "
                       << "BK0:" << BK0 << ", "
@@ -521,8 +510,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t StrideA;
         index_t StrideB;
         index_t StrideC;
+        index_t KBatch;
         index_t MPadded;
         index_t NPadded;
+        index_t KRead;
         index_t KPadded;
         index_t AK0;
         index_t BK0;
@@ -543,80 +534,50 @@ struct GridwiseGemm_xdl_cshuffle_v3
                           index_t StrideB_,
                           index_t StrideC_,
                           index_t k_batch_)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_},
+            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_},
-              k_batch{k_batch_}
+              p_c_grid{p_c_grid_}
         {
         }
 
         const FloatA* p_a_grid;
         const FloatB* p_b_grid;
         FloatC* p_c_grid;
-        index_t k_batch;
     };
 
     struct SplitKBatchOffset
     {
-        __device__ SplitKBatchOffset(const Argument& karg)
+        __device__ SplitKBatchOffset(Argument& karg)
         {
-            if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
-                         GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                         GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                         GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
-            {
-
-                index_t k_grain  = karg.k_batch * KPerBlock;
-                index_t K_padded = (karg.K + k_grain - 1) / k_grain * k_grain;
-                K_split_padded   = K_padded / karg.k_batch;
-
-                constexpr auto k_vector_len = math::lcm(AK1Number, BK1Number);
-                index_t k_read_grain        = karg.k_batch * k_vector_len;
-                index_t K_read_padded = (karg.K + k_read_grain - 1) / k_read_grain * k_read_grain;
-                if(static_cast<int>(blockIdx.z) == karg.k_batch - 1)
-                {
-                    K_split_read_padded =
-                        karg.K - (K_read_padded / karg.k_batch) * (karg.k_batch - 1);
-                }
-                else
-                {
-                    K_split_read_padded = K_read_padded / karg.k_batch;
-                }
-            }
-            else
-            {
-                K_split_read_padded = karg.K / karg.k_batch;
-                K_split_padded      = K_split_read_padded;
-            }
-
-            AK0_split = K_split_padded / AK1Value;
-            BK0_split = K_split_padded / BK1Value;
-
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * K_split_read_padded;
+                a_k_split_offset = blockIdx.z * karg.KRead;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * K_split_read_padded * karg.M;
+                a_k_split_offset = blockIdx.z * karg.KRead * karg.M;
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * K_split_read_padded * karg.N;
+                b_k_split_offset = blockIdx.z * karg.KRead * karg.N;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * K_split_read_padded;
+                b_k_split_offset = blockIdx.z * karg.KRead;
+            }
+
+            if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
+            {
+                karg.K = karg.KRead;
+            }
+            else
+            {
+                karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
         }
 
-        index_t AK0_split;
-        index_t BK0_split;
-        index_t K_split_read_padded;
-        ;
-        index_t K_split_padded;
         index_t a_k_split_offset;
         index_t b_k_split_offset;
     };
@@ -702,7 +663,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    __host__ static constexpr bool CheckValidity(const Argument& problem)
+    __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -713,8 +674,14 @@ struct GridwiseGemm_xdl_cshuffle_v3
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-            if(!(problem.M % MPerBlock == 0))
+            if(!(karg.M % MPerBlock == 0))
             {
+#if DEBUG_LOG
+                std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
@@ -724,38 +691,42 @@ struct GridwiseGemm_xdl_cshuffle_v3
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-            if(!(problem.N % NPerBlock == 0))
+            if(!(karg.N % NPerBlock == 0))
             {
+#if DEBUG_LOG
+                std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding ||
-                     GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
-                     GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding)
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
-            if(!(CalculateKPadded(problem.K / problem.k_batch) % AK1Value == 0) ||
-               !(CalculateKPadded(problem.K / problem.k_batch) % BK1Value == 0))
+
+            auto K_t = karg.KBatch * KPerBlock;
+            if(!(karg.K % K_t == 0))
             {
-                return false;
-            }
+#if DEBUG_LOG
+                std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
+                          << karg.K << " " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
 
-            constexpr index_t KReadVec = math::lcm(AK1Number, BK1Number);
-
-            index_t k_read_grain      = problem.k_batch * KReadVec;
-            index_t KReadPadded       = (problem.K + k_read_grain) / k_read_grain * k_read_grain;
-            index_t KReadPadded_split = KReadPadded / problem.k_batch;
-
-            if((problem.k_batch - 1) * (KReadPadded_split) >= problem.K)
-            {
+#endif // DEBUG_LOG
                 return false;
             }
         }
         else
         {
-            if(!((problem.K / problem.k_batch) % AK1Value == 0) ||
-               !((problem.K / problem.k_batch) % BK1Value == 0))
+            constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
+            auto K_t                = karg.KBatch * KReadVec;
+            auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
+            if((KReadPadSplited * (karg.KBatch - 1)) >= karg.K)
             {
                 return false;
             }
@@ -763,51 +734,95 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            if(problem.K % ABlockTransferSrcScalarPerVector != 0)
+            if(karg.K % ABlockTransferSrcScalarPerVector != 0)
             {
+#if DEBUG_LOG
+                std::cout << "Arg K (" << karg.K
+                          << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                          << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
         else
         {
-            if(problem.M % ABlockTransferSrcScalarPerVector != 0)
+            if(karg.M % ABlockTransferSrcScalarPerVector != 0)
             {
+#if DEBUG_LOG
+                std::cout << "Arg M (" << karg.M
+                          << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                          << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
-            if(problem.N % BBlockTransferSrcScalarPerVector != 0)
+            if(karg.N % BBlockTransferSrcScalarPerVector != 0)
             {
+#if DEBUG_LOG
+                std::cout << "Arg N (" << karg.N
+                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
         else
         {
-            if(problem.K % BBlockTransferSrcScalarPerVector != 0)
+            if(karg.K % BBlockTransferSrcScalarPerVector != 0)
             {
+#if DEBUG_LOG
+                std::cout << "Arg K (" << karg.K
+                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
 
         if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
         {
-            if(problem.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
+#if DEBUG_LOG
+                std::cout << "Arg N (" << karg.N
+                          << ") value is not a multiple of "
+                             "CShuffleBlockTransferScalarPerVector_NPerBlock ("
+                          << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
         else
         {
-            if(problem.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
+            if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
+#if DEBUG_LOG
+                std::cout << "Arg M (" << karg.M
+                          << ") value is not a multiple of "
+                             "CShuffleBlockTransferScalarPerVector_NPerBlock ("
+                          << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
                 return false;
             }
         }
 
         // check gridwise gemm pipeline
-        const index_t num_k_loop = problem.K / (problem.k_batch * KPerBlock);
+        const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
         if(num_k_loop < BlockwiseGemmPipe::MinimumLoop)
         {
@@ -849,6 +864,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
+    // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -895,12 +911,15 @@ struct GridwiseGemm_xdl_cshuffle_v3
             return;
         }
 
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
@@ -925,7 +944,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
-                                                Sequence<1, 0, 2>,
+                                                Sequence<0, 1, 2>,
                                                 ABlockTransferSrcVectorDim,
                                                 2,
                                                 ABlockTransferSrcScalarPerVector,
@@ -955,7 +974,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
-                                                Sequence<1, 0, 2>,
+                                                Sequence<0, 1, 2>,
                                                 BBlockTransferSrcVectorDim,
                                                 2,
                                                 BBlockTransferSrcScalarPerVector,
@@ -1145,7 +1164,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                 make_multi_index(block_m_id, 0, block_n_id, 0),
                  c_element_op};
 
             // space filling curve for threadwise C in VGPR
@@ -1253,12 +1272,15 @@ struct GridwiseGemm_xdl_cshuffle_v3
             return;
         }
 
+        const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
+
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
+            __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
 
         const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
+            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
 
         // lds max alignment
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
@@ -1283,7 +1305,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
-                                                Sequence<1, 0, 2>,
+                                                Sequence<0, 1, 2>,
                                                 ABlockTransferSrcVectorDim,
                                                 2,
                                                 ABlockTransferSrcScalarPerVector,
@@ -1313,7 +1335,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
-                                                Sequence<1, 0, 2>,
+                                                Sequence<0, 1, 2>,
                                                 BBlockTransferSrcVectorDim,
                                                 2,
                                                 BBlockTransferSrcScalarPerVector,
@@ -1513,7 +1535,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
                  make_multi_index(0, 0, 0, 0),
                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                 make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0),
+                 make_multi_index(block_m_id, 0, block_n_id, 0),
                  c_element_op};
 
             // space filling curve for threadwise C in VGPR

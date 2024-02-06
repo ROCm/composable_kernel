@@ -71,7 +71,7 @@ struct PassThrough
 {
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
-
+#if 0
     __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
     {
         // fake conversion
@@ -116,7 +116,7 @@ struct PassThrough
     }
 
     constexpr const static bool is_pack2_invocable = true;
-
+#endif
     template <>
     __host__ __device__ void operator()<double, double>(double& y, const double& x) const
     {

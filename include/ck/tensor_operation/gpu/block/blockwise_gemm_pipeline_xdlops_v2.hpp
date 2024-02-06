@@ -156,11 +156,6 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Intrawave,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
-#if 0
-        if(get_thread_global_1d_id()==0){
-            printf("M,N repeat: %d, %d\n", MRepeat, NRepeat);
-        }
-#endif
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(

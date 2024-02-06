@@ -129,7 +129,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
-        if((num_loop - MinimumLoop) % 2 == 1)
+        if(num_loop % 2 == 1)
         {
             return TailNumber::Odd;
         }
