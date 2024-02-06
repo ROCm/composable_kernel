@@ -75,6 +75,14 @@ struct TileFmhaBwdShape
     using Gemm4BlockWarps = remove_cvref_t<Gemm4BlockWarps_>;
     using Gemm4WarpTile   = remove_cvref_t<Gemm4WarpTile_>;
 
+    static constexpr index_t NumWarps =
+        reduce_on_sequence(Gemm0BlockWarps{}, math::multiplies{}, Number<1>{});
+
+    static_assert(NumWarps ==
+                      reduce_on_sequence(Gemm1BlockWarps{}, math::multiplies{}, Number<1>{}) &&
+                  NumWarps ==
+                      reduce_on_sequence(Gemm4BlockWarps{}, math::multiplies{}, Number<1>{}));
+
     static constexpr index_t kM0 = BlockTile::At(Number<0>{}); // tile size along q seqlen
     static constexpr index_t kN0 = BlockTile::At(Number<1>{}); // tile size along k seqlen
     static constexpr index_t kK0 =

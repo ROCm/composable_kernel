@@ -69,186 +69,7 @@ struct FmhaMasks
     using CausalMask  = ck::tile_program::block::GenericAttentionMask<true, false>;
 };
 
-inline constexpr bool kPadSeqLenQ  = false;
-inline constexpr bool kPadSeqLenK  = false;
-inline constexpr bool kPadHeadDimQ = false;
-inline constexpr bool kPadHeadDimV = false;
-
-template <ck::index_t HDim>
-struct FmhaBlockTile;
-
-// GEMM0: Q@K=S^T
-// GEMM1: P^T@dO^T=dV(This was chosen as G1 to match fwd, but N1 must be equal to headdim_v)
-// GEMM2: dO@V=dP^T(This was chosen as G2 because of the calculation order)
-// GEMM3: dS^T@Q^T=dK(Similar to G1, but N3 must be equal to headdim_qk)
-// GEMM4: dS@K^T=dQ(N4 must be equal to headdim_qk)
-// Is it necessary to distinguish between K0~K4?
-// clang-format off
-// #################################################|  M0|  N0|  K0|  K1|  K2|  K3|  K4| QKHD|  VHD|
-template <>
-struct FmhaBlockTile</* HDim = */ 32>  : ck::Sequence<128, 128,  32,  32,  32,  32,  32,   32,   32>
-{
-};
-template <>
-struct FmhaBlockTile</* HDim = */ 64>  : ck::Sequence< 64, 128,  32,  32,  32,  32,  32,   64,   64>
-{
-};
-template <>
-struct FmhaBlockTile</* HDim = */ 128> : ck::Sequence< 64, 128,  32,  32,  32,  32,  32,  128,  128>
-{
-};
-// clang-format on
-
-template <ck::index_t HDim>
-struct FmhaLoadStrategy;
-
-// clang-format off
-// ######################################################| QLoadOnce| QTLoadOnce| KLoadOnce| KTLoadOnce| VLoadOnce| OGradLoadOnce| OGradTLoadOnce|
-template <>
-struct FmhaLoadStrategy</* HDim = */ 32>   : ck::Sequence<      true,      false,      true,      false,      true,          true,          false> // 10
-// struct FmhaLoadStrategy</* HDim = */ 32>   : ck::Sequence<     false,      false,      true,       true,      true,         false,          false> // 9
-{
-};
-template <>
-struct FmhaLoadStrategy</* HDim = */ 64>   : ck::Sequence<     false,      false,      true,       true,      true,         false,          false> // 9
-// struct FmhaLoadStrategy</* HDim = */ 64>   : ck::Sequence<      true,      false,      true,      false,      true,          true,          false> // 10
-{
-};
-template <>
-struct FmhaLoadStrategy</* HDim = */ 128>  : ck::Sequence<     false,      false,      true,      false,      true,         false,          false> // 13
-{
-};
-// clang-format on
-
-using FmhaBlockWarps0 = ck::Sequence<1, 4, 1>;
-using FmhaBlockWarps1 = ck::Sequence<4, 1, 1>;
-using FmhaBlockWarps2 = ck::Sequence<2, 2, 1>;
-using FmhaWarpTile0   = ck::Sequence<32, 32, 16>;
-using FmhaWarpTile1   = ck::Sequence<16, 16, 16>;
-// TODO: simplify Gemm0~4BlockWarps in TileFmhaBwdShape
-//       G0&G2 -> GSdP
-//       G1&G3 -> GdKV
-//       G4    -> GdQ
-template <ck::index_t HDim>
-struct FmhaBwdShape;
-
-template <>
-struct FmhaBwdShape</* HDim = */ 32>
-    : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 32>,
-                                         FmhaLoadStrategy</* HDim = */ 32>,
-                                         FmhaBlockWarps0,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps0,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0>
-{
-};
-template <>
-struct FmhaBwdShape</* HDim = */ 64>
-    : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 64>,
-                                         FmhaLoadStrategy</* HDim = */ 64>,
-                                         FmhaBlockWarps0,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps0,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps2,
-                                         FmhaWarpTile0>
-{
-};
-template <>
-struct FmhaBwdShape</* HDim = */ 128>
-    : ck::tile_program::TileFmhaBwdShape<FmhaBlockTile</* HDim = */ 128>,
-                                         FmhaLoadStrategy</* HDim = */ 128>,
-                                         FmhaBlockWarps0,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps0,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps1,
-                                         FmhaWarpTile0,
-                                         FmhaBlockWarps2,
-                                         FmhaWarpTile0>
-{
-};
-
-template <bool kHasBias>
-using FmhaBwdTraits = ck::tile_program::
-    TileFmhaTraits<kPadSeqLenQ, kPadSeqLenK, kPadHeadDimQ, kPadHeadDimV, kHasBias, 1>;
-
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
-using FmhaBwdPipelineProblem = ck::tile_program::block::BlockFmhaBwdPipelineProblem<
-    typename FmhaBwdTypeConfig<DataType>::QDataType,
-    typename FmhaBwdTypeConfig<DataType>::KDataType,
-    typename FmhaBwdTypeConfig<DataType>::VDataType,
-    typename FmhaBwdTypeConfig<DataType>::GemmDataType,
-    typename FmhaBwdTypeConfig<DataType>::LSEDataType,
-    typename FmhaBwdTypeConfig<DataType>::AccDataType,
-    typename FmhaBwdTypeConfig<DataType>::DDataType,
-    typename FmhaBwdTypeConfig<DataType>::ZDataType,
-    typename FmhaBwdTypeConfig<DataType>::BiasDataType,
-    typename FmhaBwdTypeConfig<DataType>::ODataType,
-    typename FmhaBwdTypeConfig<DataType>::OGradDataType,
-    typename FmhaBwdTypeConfig<DataType>::QGradDataType,
-    typename FmhaBwdTypeConfig<DataType>::KGradDataType,
-    typename FmhaBwdTypeConfig<DataType>::VGradDataType,
-    typename FmhaBwdTypeConfig<DataType>::BiasGradDataType,
-    /* BlockSize = */ 256,
-    FmhaBwdShape<HDim>,
-    kIsGroupMode,
-    FmhaMask,
-    FmhaBwdTraits<kHasBias>>;
-
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
-using FmhaBwdPipeline = typename ck::tile_program::block::BlockFmhaBwdPipelineDispatcher<
-    FmhaLoadStrategy<HDim>,
-    FmhaBwdPipelineProblem<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>>::BlockPipeline;
-
-template <typename DataType>
-using FmhaEpilogue =
-    FmhaBwdEpilogue<FmhaBwdEpilogueProblem<typename FmhaBwdTypeConfig<DataType>::AccDataType,
-                                           typename FmhaBwdTypeConfig<DataType>::KGradDataType,
-                                           typename FmhaBwdTypeConfig<DataType>::VGradDataType>>;
-
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode, typename FmhaMask, bool kHasBias>
-using FmhaBwdKernelSelector =
-    FmhaBwdKernel<FmhaBwdTilePartitioner<FmhaBwdShape<HDim>>,
-                  FmhaBwdPipeline<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>,
-                  FmhaEpilogue<DataType>>;
-
-using FmhaBwdOGradDotOTraits =
-    ck::tile_program::TileFmhaBwdOGradDotOTraits<kPadSeqLenQ, kPadHeadDimV>;
-
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
-using FmhaBwdOGradDotOPipelineProblem =
-    ck::tile_program::block::BlockFmhaBwdOGradDotOPipelineProblem<
-        typename FmhaBwdTypeConfig<DataType>::ODataType,
-        typename FmhaBwdTypeConfig<DataType>::OGradDataType,
-        typename FmhaBwdTypeConfig<DataType>::DDataType,
-        /* BlockSize = */ 256,
-        FmhaBwdShape<HDim>::kVHeaddim,
-        kIsGroupMode,
-        FmhaBwdOGradDotOTraits>;
-
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
-using FmhaBwdOGradDotO = ck::tile_program::block::BlockFmhaBwdOGradDotO<
-    FmhaBwdOGradDotOPipelineProblem<HDim, DataType, kIsGroupMode>>;
-
-template <ck::index_t HDim, typename DataType, bool kIsGroupMode>
-using FmhaBwdOGradDotOKernelSelector =
-    FmhaBwdOGradDotOKernel<FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>,
-                           FmhaBwdOGradDotO<HDim, DataType, kIsGroupMode>>;
-
-// Kernel API
+// internal API, don't use this directly
 template <typename FmhaBwdKernel>
 auto fmha_bwd_create_kargs_and_grids(const void* q_ptr,
                                      const void* k_ptr,
@@ -453,29 +274,144 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(const void* o_ptr,
     return ck::make_tuple(kargs, grids);
 }
 
-// will instantiate this function across different source file
-template <typename FmhaBwdKernel>
-float fmha_bwd_run(const StreamConfig&, typename FmhaBwdKernel::Kargs, dim3);
+// This is the args from caller to underneath API, different from the kernel
+struct fmha_bwd_args
+{
+    const void* q_ptr;
+    const void* k_ptr;
+    const void* v_ptr;
+    const void* bias_ptr;
+    const void* lse_ptr;
+    const void* do_ptr;
+    const void* d_ptr;
+    // void* z_ptr;
+    void* dq_ptr;
+    void* dk_ptr;
+    void* dv_ptr;
+    void* dbias_ptr;
+    const void* seqstart_q_ptr;
+    const void* seqstart_k_ptr;
+    const void* seqlen_k_ptr;
+    ck::index_t batch;
+    ck::index_t nhead;
+    ck::index_t nhead_k;
+    ck::index_t seqlen_q;
+    ck::index_t seqlen_k;
+    ck::index_t hdim_q;
+    ck::index_t hdim_v;
+    ck::index_t max_seqlen_k;
+    float scale;
+    bool i_perm;
+    bool o_perm;
+    ck::index_t mask_y;
+    ck::index_t mask_x;
+};
 
-#define FMHA_BWD_KERNEL_DEFINE(KERNEL_)                                                          \
-    template <>                                                                                  \
-    float fmha_bwd_run<KERNEL_>(                                                                 \
-        const StreamConfig& stream, typename KERNEL_::Kargs kargs, dim3 grids)                   \
-    {                                                                                            \
-        constexpr dim3 blocks             = KERNEL_::BlockSize();                                \
-        constexpr ck::index_t kBlockPerCu = KERNEL_::kBlockPerCu;                                \
-        return launch_kernel<blocks.x, kBlockPerCu>(stream, KERNEL_{}, grids, blocks, 0, kargs); \
-    }
+template <typename FmhaBwdKernel>
+auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
+{
+    return fmha_bwd_create_kargs_and_grids<FmhaBwdKernel>(args.q_ptr,
+                                                          args.k_ptr,
+                                                          args.v_ptr,
+                                                          args.bias_ptr,
+                                                          args.lse_ptr,
+                                                          args.do_ptr,
+                                                          args.d_ptr,
+                                                          args.dq_ptr,
+                                                          args.dk_ptr,
+                                                          args.dv_ptr,
+                                                          args.dbias_ptr,
+                                                          args.seqstart_q_ptr,
+                                                          args.seqstart_k_ptr,
+                                                          args.seqlen_k_ptr,
+                                                          args.batch,
+                                                          args.nhead,
+                                                          args.nhead_k,
+                                                          args.seqlen_q,
+                                                          args.seqlen_k,
+                                                          args.hdim_q,
+                                                          args.hdim_v,
+                                                          args.max_seqlen_q,
+                                                          args.scale,
+                                                          args.i_perm,
+                                                          args.o_perm,
+                                                          args.mask_y,
+                                                          args.mask_x);
+}
+
+struct fmha_bwd_dot_do_o_args
+{
+    const void* o_ptr;
+    const void* do_ptr;
+    void* d_ptr;
+    const void* seqstart_q_ptr;
+    ck::index_t batch;
+    ck::index_t nhead;
+    ck::index_t seqlen_q;
+    ck::index_t hdim_v;
+    ck::index_t max_seqlen_q;
+    bool o_perm;
+};
 
 template <typename FmhaBwdOGradDotOKernel>
-float fmha_bwd_dot_do_o_run(const StreamConfig&, typename FmhaBwdOGradDotOKernel::Kargs, dim3);
+auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_dot_do_o_args args)
+{
+    return fmha_bwd_dot_do_o_create_kargs_and_grids<FmhaBwdOGradDotOKernel>(args.o_ptr,
+                                                                            args.do_ptr,
+                                                                            args.d_ptr,
+                                                                            args.seqstart_q_ptr,
+                                                                            args.batch,
+                                                                            args.nhead,
+                                                                            args.seqlen_q,
+                                                                            args.hdim_v,
+                                                                            args.max_seqlen_q,
+                                                                            args.o_perm);
+}
 
-#define FMHA_BWD_DOT_DO_O_KERNEL_DEFINE(KERNEL_)                                                 \
-    template <>                                                                                  \
-    float fmha_bwd_dot_do_o_run<KERNEL_>(                                                        \
-        const StreamConfig& stream, typename KERNEL_::Kargs kargs, dim3 grids)                   \
-    {                                                                                            \
-        constexpr dim3 blocks             = KERNEL_::BlockSize();                                \
-        constexpr ck::index_t kBlockPerCu = KERNEL_::kBlockPerCu;                                \
-        return launch_kernel<blocks.x, kBlockPerCu>(stream, KERNEL_{}, grids, blocks, 0, kargs); \
-    }
+// this is internal API, will be generated across different files to speedup compile
+template <ck::index_t HDim_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          typename FmhaMask_,
+          bool kHasBias_>
+struct fmha_bwd_traits_
+{
+    static constexpr ck::index_t HDim  = HDim_;
+    using DataType                     = ck::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
+    using FmhaMask                     = ck::remove_cvref_t<FmhaMask_>;
+    static constexpr bool kHasBias     = kHasBias_;
+};
+
+template <typename Traits_>
+float fmha_bwd_(const StreamConfig&, fmha_bwd_args);
+
+template <ck::index_t HDim_, typename DataType_, bool kIsGroupMode_>
+struct fmha_bwd_dot_do_o_traits_
+{
+    static constexpr ck::index_t HDim  = HDim_;
+    using DataType                     = ck::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode = kIsGroupMode_;
+};
+
+template <typename Traits_>
+float fmha_bwd_dot_do_o_(const StreamConfig&, fmha_bwd_dot_do_o_args);
+
+// This is the public API, will be generated by script
+struct fmha_bwd_traits
+{
+    int hdim;
+    std::string data_type;
+    bool is_group_mode;
+    mask_enum mask_type;
+    bool has_bias;
+};
+float fmha_bwd(fmha_bwd_traits, fmha_bwd_args, const StreamConfig&);
+
+struct fmha_bwd_dot_do_o_traits
+{
+    int hdim;
+    std::string data_type;
+    bool is_group_mode;
+};
+float fmha_bwd_dot_do_o(fmha_bwd_dot_do_o_traits, fmha_bwd_dot_do_o_args, const StreamConfig&);

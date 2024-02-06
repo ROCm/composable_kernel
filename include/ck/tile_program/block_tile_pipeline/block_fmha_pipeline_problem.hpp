@@ -77,7 +77,6 @@ template <typename QDataType_,
           typename KGradDataType_,
           typename VGradDataType_,
           typename BiasGradDataType_,
-          index_t kBlockSize_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           typename FmhaMask_,
@@ -103,10 +102,7 @@ struct BlockFmhaBwdPipelineProblem
     using FmhaMask         = remove_cvref_t<FmhaMask_>;
     using Traits           = remove_cvref_t<Traits_>;
 
-    static_assert(0 < kBlockSize_ && kBlockSize_ % get_warp_size() == 0,
-                  "kBlockSize should be divisible by get_warp_size()");
-
-    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     // attributes from traits

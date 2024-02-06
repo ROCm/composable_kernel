@@ -37,7 +37,7 @@
 auto create_args(int argc, char* argv[])
 {
     ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do cpu validation or not")
+    arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
@@ -63,85 +63,15 @@ auto create_args(int argc, char* argv[])
                 "'t:l,r', top-left local-attn with left right size\n"
                 "'b:l,r', bottom-r local-attn with left right size\n"
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float");
+        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
+        .insert("seed",
+                "0",
+                "random seed used for initializing input tensors. 0 to use "
+                "non-deterministic random number as seed");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
-
-template <ck::index_t HDim_, typename DataType_>
-struct fmha_bwd_dot_do_o_kernel_invoker
-{
-    static constexpr ck::index_t HDim = HDim_;
-    using DataType                    = DataType_;
-    // this arg is used to select kernel.
-    // args that may passed as karg shoule use operator()
-    mode_enum mode;
-
-    fmha_bwd_dot_do_o_kernel_invoker(mode_enum mode_) : mode(mode_) {}
-
-    template <typename... Args>
-    float operator()(const StreamConfig& stream, Args&&... args)
-    {
-        float ave_time;
-        BOOL_SWITCH(mode == mode_enum::group, kIsGroupMode, [&] {
-            using Kernel = FmhaBwdOGradDotOKernelSelector<HDim, DataType, kIsGroupMode>;
-
-            auto [kargs, grids] =
-                fmha_bwd_dot_do_o_create_kargs_and_grids<Kernel>(std::forward<Args>(args)...);
-            ave_time = fmha_bwd_dot_do_o_run<Kernel>(stream, kargs, grids);
-        });
-        return ave_time;
-    }
-};
-
-template <ck::index_t HDim_, typename DataType_>
-struct fmha_bwd_kernel_invoker
-{
-    static constexpr ck::index_t HDim = HDim_;
-    using DataType                    = DataType_;
-    // these args are used to select kernel.
-    // args that may passed as karg shoule use operator()
-    mode_enum mode;
-    bool use_bias;
-    mask_info mask;
-
-    fmha_bwd_kernel_invoker(mode_enum mode_, bool use_bias_, mask_info mask_)
-        : mode(mode_), use_bias(use_bias_), mask(mask_)
-    {
-    }
-
-    template <typename... Args>
-    float operator()(const StreamConfig& stream, Args&&... args)
-    {
-        float ave_time;
-        BOOL_SWITCH_2(mode == mode_enum::group, kIsGroupMode, use_bias, kHasBias, [&] {
-            if(mask.type == mask_enum::no_mask)
-            {
-                using FmhaMask = FmhaMasks::NoMask;
-                using Kernel =
-                    FmhaBwdKernelSelector<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>;
-
-                auto [kargs, grids] =
-                    fmha_bwd_create_kargs_and_grids<Kernel>(std::forward<Args>(args)...);
-                ave_time = fmha_bwd_run<Kernel>(stream, kargs, grids);
-            }
-            else
-            {
-                BOOL_SWITCH(mask.type == mask_enum::window_generic, kIsLocal, [&]() {
-                    using FmhaMask = ck::tile_program::block::GenericAttentionMask<true, kIsLocal>;
-                    using Kernel =
-                        FmhaBwdKernelSelector<HDim, DataType, kIsGroupMode, FmhaMask, kHasBias>;
-
-                    auto [kargs, grids] =
-                        fmha_bwd_create_kargs_and_grids<Kernel>(std::forward<Args>(args)...);
-                    ave_time = fmha_bwd_run<Kernel>(stream, kargs, grids);
-                });
-            }
-        });
-        return ave_time;
-    }
-};
 
 // different threshold for different dtype
 template <typename DataType>
@@ -155,11 +85,12 @@ auto get_elimit(int /*init_method*/)
 template <typename DataType>
 bool run(const ArgParser& arg_parser)
 {
-    int do_validation   = arg_parser.get_int("v");
-    auto mode           = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck::index_t batch   = arg_parser.get_int("b");
-    ck::index_t nhead   = arg_parser.get_int("h");
-    ck::index_t nhead_k = arg_parser.get_int("h_k");
+    std::string data_type = arg_parser.get_str("prec");
+    int do_validation     = arg_parser.get_int("v");
+    auto mode             = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    ck::index_t batch     = arg_parser.get_int("b");
+    ck::index_t nhead     = arg_parser.get_int("h");
+    ck::index_t nhead_k   = arg_parser.get_int("h_k");
     if(nhead_k == 0)
         nhead_k = nhead;
 
@@ -178,18 +109,23 @@ bool run(const ArgParser& arg_parser)
     if(hdim_v == 0)
         hdim_v = hdim_q;
 
-    int i_perm = arg_parser.get_int("iperm"); // if true, will be batch * nhead * seqlen * hdim
-    int o_perm = arg_parser.get_int("operm"); // if false, will be batch * seqlen * nhead * hdim
+    bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
+    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
 
     float scale = arg_parser.get_float("scale");
     if(scale == .0f)
         scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q));
 
-    bool use_bias = arg_parser.get_uint32("bias");
+    bool use_bias = arg_parser.get_bool("bias");
 
-    mask_info mask = decode_mask_info(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
+    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
-    int init_method = arg_parser.get_int("init");
+    int init_method              = arg_parser.get_int("init");
+    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
+    if(*seed == 0)
+    {
+        seed.reset();
+    }
 
     int stream_warmup = env_get_int("CK_WARMUP", 5);
     int stream_repeat = env_get_int("CK_REPEAT", 20);
@@ -259,7 +195,7 @@ bool run(const ArgParser& arg_parser)
         }
     }
 
-    auto get_lengths = [&](int permute,
+    auto get_lengths = [&](bool permute,
                            ck::index_t b /*batch*/,
                            ck::index_t h /*nhead*/,
                            ck::index_t s /*seqlen*/,
@@ -300,19 +236,24 @@ bool run(const ArgParser& arg_parser)
 
     if(init_method == 0)
     {
-        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f}(q_host);
-        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f}(k_host);
-        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f}(v_host);
-        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f}(bias_host);
-        ck::utils::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f}(do_host);
+        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
+        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
+        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck::utils::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
     }
     else if(init_method == 1)
     {
-        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
-        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
-        ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
-        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f}(bias_host);
-        ck::utils::FillUniformDistribution<OGradDataType>{-.5f, .5f}(do_host);
+        // ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
+        // ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
+        // ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
+        // ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f}(bias_host);
+        // ck::utils::FillUniformDistribution<OGradDataType>{-.5f, .5f}(do_host);
+        ck::utils::FillNormalDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck::utils::FillNormalDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck::utils::FillNormalDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck::utils::FillNormalDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck::utils::FillNormalDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
     }
     else if(init_method == 2)
     {
@@ -348,11 +289,11 @@ bool run(const ArgParser& arg_parser)
     seqstart_k.ToDevice(seqstart_k_host.data());
 
     // clang-format off
-    auto layout_str = [&](int permute){
+    auto layout_str = [&](bool permute){
         if (permute) return std::string("bhsd");
         else return std::string("bshd");
     };
-    auto io_layout = [&](int iperm_, int operm_) {
+    auto io_layout = [&](bool iperm_, bool operm_) {
         if (iperm_ == operm_) return layout_str(iperm_);
         else return layout_str(iperm_) + std::string("-") + layout_str(operm_);
     };
@@ -364,103 +305,56 @@ bool run(const ArgParser& arg_parser)
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
               << ", mask:" << mask << std::flush;
 
-#define INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(hdim_)                                            \
-    fmha_bwd_dot_do_o_kernel_invoker<hdim_, DataType>{mode}(stream_config,                \
-                                                            o_buf.GetDeviceBuffer(),      \
-                                                            do_buf.GetDeviceBuffer(),     \
-                                                            d_buf.GetDeviceBuffer(),      \
-                                                            seqstart_q.GetDeviceBuffer(), \
-                                                            batch,                        \
-                                                            nhead,                        \
-                                                            shape_seqlen_q,               \
-                                                            hdim_v,                       \
-                                                            max_seqlen_q,                 \
-                                                            o_perm)
+    auto fmha_dot_do_o_traits =
+        fmha_bwd_dot_do_o_traits{hdim_v, data_type, mode == mode_enum::group};
+    auto fmha_dot_do_o_args = fmha_bwd_dot_do_o_args{o_buf.GetDeviceBuffer(),
+                                                     do_buf.GetDeviceBuffer(),
+                                                     d_buf.GetDeviceBuffer(),
+                                                     seqstart_q.GetDeviceBuffer(),
+                                                     batch,
+                                                     nhead,
+                                                     shape_seqlen_q,
+                                                     hdim_v,
+                                                     max_seqlen_q,
+                                                     o_perm};
 
-#define INVOKE_FMHA_BWD_KERNEL(hdim_)                                                            \
-    fmha_bwd_kernel_invoker<hdim_, DataType>{mode, use_bias, mask}(stream_config,                \
-                                                                   q_buf.GetDeviceBuffer(),      \
-                                                                   k_buf.GetDeviceBuffer(),      \
-                                                                   v_buf.GetDeviceBuffer(),      \
-                                                                   bias_buf.GetDeviceBuffer(),   \
-                                                                   lse_buf.GetDeviceBuffer(),    \
-                                                                   do_buf.GetDeviceBuffer(),     \
-                                                                   d_buf.GetDeviceBuffer(),      \
-                                                                   dq_buf.GetDeviceBuffer(),     \
-                                                                   dk_buf.GetDeviceBuffer(),     \
-                                                                   dv_buf.GetDeviceBuffer(),     \
-                                                                   dbias_buf.GetDeviceBuffer(),  \
-                                                                   seqstart_q.GetDeviceBuffer(), \
-                                                                   seqstart_k.GetDeviceBuffer(), \
-                                                                   nullptr,                      \
-                                                                   batch,                        \
-                                                                   nhead,                        \
-                                                                   nhead_k,                      \
-                                                                   shape_seqlen_q,               \
-                                                                   shape_seqlen_k,               \
-                                                                   hdim_q,                       \
-                                                                   hdim_v,                       \
-                                                                   max_seqlen_k,                 \
-                                                                   scale,                        \
-                                                                   i_perm,                       \
-                                                                   o_perm,                       \
-                                                                   mask.y,                       \
-                                                                   mask.x)
+    auto fmha_traits =
+        fmha_bwd_traits{hdim_q, data_type, mode == mode_enum::group, mask.type, use_bias};
+    auto fmha_args = fmha_bwd_args{q_buf.GetDeviceBuffer(),
+                                   k_buf.GetDeviceBuffer(),
+                                   v_buf.GetDeviceBuffer(),
+                                   bias_buf.GetDeviceBuffer(),
+                                   lse_buf.GetDeviceBuffer(),
+                                   do_buf.GetDeviceBuffer(),
+                                   d_buf.GetDeviceBuffer(),
+                                   dq_buf.GetDeviceBuffer(),
+                                   dk_buf.GetDeviceBuffer(),
+                                   dv_buf.GetDeviceBuffer(),
+                                   dbias_buf.GetDeviceBuffer(),
+                                   seqstart_q.GetDeviceBuffer(),
+                                   seqstart_k.GetDeviceBuffer(),
+                                   nullptr,
+                                   batch,
+                                   nhead,
+                                   nhead_k,
+                                   shape_seqlen_q,
+                                   shape_seqlen_k,
+                                   hdim_q,
+                                   hdim_v,
+                                   max_seqlen_k,
+                                   scale,
+                                   i_perm,
+                                   o_perm,
+                                   mask.y,
+                                   mask.x};
 
-#define INVOKE_FMHA_BWD_KERNEL_V(hdim_)                                                          \
-    fmha_bwd_kernel_invoker<hdim_, DataType>{mode, use_bias, mask}(stream_vconfig,               \
-                                                                   q_buf.GetDeviceBuffer(),      \
-                                                                   k_buf.GetDeviceBuffer(),      \
-                                                                   v_buf.GetDeviceBuffer(),      \
-                                                                   bias_buf.GetDeviceBuffer(),   \
-                                                                   lse_buf.GetDeviceBuffer(),    \
-                                                                   do_buf.GetDeviceBuffer(),     \
-                                                                   d_buf.GetDeviceBuffer(),      \
-                                                                   dq_buf.GetDeviceBuffer(),     \
-                                                                   dk_buf.GetDeviceBuffer(),     \
-                                                                   dv_buf.GetDeviceBuffer(),     \
-                                                                   dbias_buf.GetDeviceBuffer(),  \
-                                                                   seqstart_q.GetDeviceBuffer(), \
-                                                                   seqstart_k.GetDeviceBuffer(), \
-                                                                   nullptr,                      \
-                                                                   batch,                        \
-                                                                   nhead,                        \
-                                                                   nhead_k,                      \
-                                                                   shape_seqlen_q,               \
-                                                                   shape_seqlen_k,               \
-                                                                   hdim_q,                       \
-                                                                   hdim_v,                       \
-                                                                   max_seqlen_k,                 \
-                                                                   scale,                        \
-                                                                   i_perm,                       \
-                                                                   o_perm,                       \
-                                                                   mask.y,                       \
-                                                                   mask.x)
+    float ave_time = 0;
 
-    float ave_time         = 0;
-    const auto check_hdims = [](ck::index_t hdim_q_, ck::index_t hdim_v_, ck::index_t threshold) {
-        const auto compare = std::conditional_t<kPadHeadDimV, std::less_equal<>, std::equal_to<>>{};
-        return compare(hdim_q_, threshold) && compare(hdim_v_, threshold);
-    };
-
-    if(check_hdims(hdim_q, hdim_v, 32))
+    ave_time = fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_config);
+    ave_time += fmha_bwd(fmha_traits, fmha_args, stream_config);
+    if(ave_time < 0)
     {
-        ave_time = INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(32);
-        ave_time += INVOKE_FMHA_BWD_KERNEL(32);
-    }
-    else if(check_hdims(hdim_q, hdim_v, 64))
-    {
-        ave_time = INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(64);
-        ave_time += INVOKE_FMHA_BWD_KERNEL(64);
-    }
-    else if(check_hdims(hdim_q, hdim_v, 128))
-    {
-        ave_time = INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(128);
-        ave_time += INVOKE_FMHA_BWD_KERNEL(128);
-    }
-    else
-    {
-        std::cerr << "not support hdim, will not run" << std::endl;
+        std::cout << ", not supported yet" << std::flush << std::endl;
         return false;
     }
 
@@ -474,7 +368,7 @@ bool run(const ArgParser& arg_parser)
 
     if(!do_validation)
     {
-        std::cout << std::endl;
+        std::cout << std::flush << std::endl;
         return true;
     }
 
@@ -581,21 +475,8 @@ bool run(const ArgParser& arg_parser)
     lse_buf.ToDevice(lse_host.data());
     dq_buf.SetZero();
 
-    if(check_hdims(hdim_q, hdim_v, 32))
-    {
-        INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(32);
-        INVOKE_FMHA_BWD_KERNEL_V(32);
-    }
-    else if(check_hdims(hdim_q, hdim_v, 64))
-    {
-        INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(64);
-        INVOKE_FMHA_BWD_KERNEL_V(64);
-    }
-    else if(check_hdims(hdim_q, hdim_v, 128))
-    {
-        INVOKE_FMHA_BWD_DOT_DO_O_KERNEL(128);
-        INVOKE_FMHA_BWD_KERNEL_V(128);
-    }
+    fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_vconfig);
+    fmha_bwd(fmha_traits, fmha_args, stream_vconfig);
 
     dq_buf.FromDevice(dq_host.data());
     dk_buf.FromDevice(dk_host.data());
