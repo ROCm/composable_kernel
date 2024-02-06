@@ -33,8 +33,35 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
+void Operation_Xdl_CShuffle::update_prologue(const std::string& prologue)
+{
+    if(!prologue.empty())
+    {
+        this->prologue    = prologue;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->prologue = "";
+    }
+}
+
+void Operation_Xdl_CShuffle::update_epilogue(const std::string& epilogue)
+{
+    if(!epilogue.empty())
+    {
+        this->epilogue    = epilogue;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->epilogue = "";
+    }
+}
+
 template <class F>
-std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, Layout BLayout)
+std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(
+    F f, Layout ALayout, Layout BLayout, const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Operation_Xdl_CShuffle> result;
 
@@ -175,7 +202,9 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, La
         x.b_block_transfer = b_block_descriptions[i];
         x.cshuffle         = cshuffle_descriptions[i];
         x.c_block_transfer = c_block_descriptions[i];
-        auto all           = f(x);
+        x.update_prologue(prologue);
+        x.update_epilogue(epilogue);
+        auto all = f(x);
         result.insert(result.end(), all.begin(), all.end());
     }
 
@@ -184,13 +213,17 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(F f, Layout ALayout, La
 
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations()
+std::vector<Operation_Xdl_CShuffle>
+Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std::string& epilogue)
 {
     return CreateOperationsImpl([](auto x) -> std::vector<Operation_Xdl_CShuffle> { return {x}; },
                                 Layout::Column,
-                                Layout::Row);
+                                Layout::Row,
+                                prologue,
+                                epilogue);
 }
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
+    const Problem& prob, const std::string& prologue, const std::string& epilogue)
 {
     return CreateOperationsImpl(
         [&](Operation_Xdl_CShuffle x) -> std::array<Operation_Xdl_CShuffle, 1> {
@@ -212,10 +245,16 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
             return {x};
         },
         ToLayout(prob.TransA),
-        ToLayout(prob.TransB));
+        ToLayout(prob.TransB),
+        prologue,
+        epilogue);
 }
 
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate = R"(
+${Prologue}
+${Epilogue}
+
+using CDEElementOp = Prologue;
 ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>
 
 // GridwiseGemm
@@ -310,6 +349,8 @@ Solution Operation_Xdl_CShuffle::ToSolution() const
         {"AElementwiseOperation", this->a_elem_op},
         {"BElementwiseOperation", this->b_elem_op},
         {"CDEElementwiseOperation", this->cde_elem_op},
+        {"Prologue", this->prologue},
+        {"Epilogue", this->epilogue},
         {"GemmSpecialization", this->gemm_specialization},
         {"NumGemmkPrefetchStage", std::to_string(this->tile_desc.num_gemmk_prefetch_stage)},
         {"BlockSize", std::to_string(this->tile_desc.block_size)},

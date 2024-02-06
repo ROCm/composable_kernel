@@ -31,7 +31,9 @@ struct Problem
 
     std::string GetIncludeHeader() const;
 
-    std::vector<Solution> GetSolutions(const std::string& arch) const;
+    std::vector<Solution> GetSolutions(const std::string& arch,
+                                       const std::string& prologue,
+                                       const std::string& epilogue) const;
 };
 
 } // namespace device_gemm_multiple_d

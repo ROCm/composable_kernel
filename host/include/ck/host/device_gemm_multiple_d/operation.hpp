@@ -16,8 +16,10 @@ namespace device_gemm_multiple_d {
 
 struct Operation_Xdl_CShuffle
 {
-    static std::vector<Operation_Xdl_CShuffle> CreateOperations();
-    static std::vector<Operation_Xdl_CShuffle> CreateOperations(const Problem& prob);
+    static std::vector<Operation_Xdl_CShuffle> CreateOperations(const std::string& prologue,
+                                                                const std::string& epilogue);
+    static std::vector<Operation_Xdl_CShuffle>
+    CreateOperations(const Problem& prob, const std::string& prologue, const std::string& epilogue);
     TensorDesc A{};
     TensorDesc B{};
     DataType acc               = DataType::Float;
@@ -27,6 +29,8 @@ struct Operation_Xdl_CShuffle
     std::string a_elem_op           = PassThrough;
     std::string b_elem_op           = PassThrough;
     std::string cde_elem_op         = Bilinear;
+    std::string prologue            = "";
+    std::string epilogue            = "";
     std::string gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::Default";
     operation::TileDesc tile_desc{};
     operation::BlockTransferDesc a_block_transfer{};
@@ -34,6 +38,8 @@ struct Operation_Xdl_CShuffle
     operation::CShuffleDesc cshuffle{};
     operation::CBlockTransferDesc c_block_transfer{};
 
+    void update_prologue(const std::string& prologue);
+    void update_epilogue(const std::string& epilogue);
     Solution ToSolution() const;
 };
 
