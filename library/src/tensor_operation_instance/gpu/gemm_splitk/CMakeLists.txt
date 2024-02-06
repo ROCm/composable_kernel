@@ -22,8 +22,13 @@ list(APPEND GEMM_SPLITK_INSTANCES device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_in
                                   device_gemm_xdl_splitk_fp8_f16_f16_mk_nk_mn_instance.cpp
                                   device_gemm_xdl_splitk_fp8_f16_f16_km_kn_mn_instance.cpp
                                   device_gemm_xdl_splitk_fp8_f16_f16_km_nk_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_instance.cpp
-                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_nk_mn_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_v1_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_v1_interwave_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_v2_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_kn_mn_irregular_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_nk_mn_v1_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_nk_mn_v1_interwave_instance.cpp
+                                  device_gemm_xdl_splitk_f16_fp8_f16_mk_nk_mn_v2_instance.cpp
                                   device_gemm_xdl_splitk_f16_fp8_f16_km_kn_mn_instance.cpp
                                   device_gemm_xdl_splitk_f16_fp8_f16_km_nk_mn_instance.cpp
                                   device_gemm_xdl_splitk_f16_f16_f16_comp_fp8_mk_kn_mn_instance.cpp
