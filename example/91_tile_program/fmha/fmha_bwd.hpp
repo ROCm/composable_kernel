@@ -18,6 +18,7 @@
 #include "fmha_bwd_epilogue.hpp"
 #include "fmha_bwd_kernel.hpp"
 #include "fmha_bwd_tile_partitioner.hpp"
+#include "mask.hpp"
 
 template <typename DataType>
 struct FmhaBwdTypeConfig;
@@ -331,7 +332,7 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                                           args.seqlen_k,
                                                           args.hdim_q,
                                                           args.hdim_v,
-                                                          args.max_seqlen_q,
+                                                          args.max_seqlen_k,
                                                           args.scale,
                                                           args.i_perm,
                                                           args.o_perm,

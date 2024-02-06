@@ -745,7 +745,7 @@ FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE="""            case {F_hdim}: {{
             break;
 """
 
-FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode})) {{
+FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH="""                {F_if}(t.is_group_mode == {F_mode}) {{
                     using trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}>;
                     return fmha_bwd_dot_do_o_<trait_>(s, a);
                 }}

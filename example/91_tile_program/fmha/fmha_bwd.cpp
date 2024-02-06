@@ -65,7 +65,7 @@ auto create_args(int argc, char* argv[])
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
         .insert("seed",
-                "0",
+                "11939",
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed");
 
@@ -133,9 +133,8 @@ bool run(const ArgParser& arg_parser)
     StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
     StreamConfig stream_vconfig{nullptr, false, 0, 0, 0};
 
-    const auto [seqlens_q, seqstart_q_host] = generate_seqlens_seqstarts_q(mode, batch, seqlen_q);
-    const std::vector<int32_t> seqstart_k_host =
-        generate_seqstarts_k(mode, batch, seqlen_k, seqlens_q, seqlen_q);
+    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
+    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
 
     using TypeConfig = FmhaBwdTypeConfig<DataType>;
 
@@ -249,11 +248,11 @@ bool run(const ArgParser& arg_parser)
         // ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
         // ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f}(bias_host);
         // ck::utils::FillUniformDistribution<OGradDataType>{-.5f, .5f}(do_host);
-        ck::utils::FillNormalDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck::utils::FillNormalDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck::utils::FillNormalDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck::utils::FillNormalDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
-        ck::utils::FillNormalDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
+        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck::utils::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck::utils::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
     }
     else if(init_method == 2)
     {
@@ -418,49 +417,64 @@ bool run(const ArgParser& arg_parser)
         if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
         // v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
         else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[2] + key_offset, i[0] / nr, i[1]); });
+        // clang-format on
 
         // reference
         // S = scale * Q * K^T
         reference_batched_gemm<QDataType, KDataType, AccDataType, AccDataType>(
-            q_host_ref, k_host_ref, s_host_ref,
-            ck::identity{}, ck::identity{},
-            [&](AccDataType x) { return scale * x; }); // s_g_m_n = scale * q_g_m_k@k_g_n_k
+            q_host_ref, k_host_ref, s_host_ref, ck::identity{}, ck::identity{}, [&](AccDataType x) {
+                return scale * x;
+            }); // s_g_m_n = scale * q_g_m_k@k_g_n_k
 
         if(use_bias)
         {
+            // clang-format off
             Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
             if(i_perm)
                 bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
             else
                 bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+            // clang-format on
 
-            // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q, real_seqlen_k]
+            // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
+            // real_seqlen_k]
             reference_batched_elementwise<AccDataType, BiasDataType, AccDataType, AccDataType>(
                 s_host_ref, bias_host_ref, s_host_ref);
         }
 
-        if(mask.type == mask_enum::no_mask) {
-            reference_batched_masking<AccDataType>(s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
-        } else if(mask.type == mask_enum::window_generic) {
+        if(mask.type == mask_enum::no_mask)
+        {
             reference_batched_masking<AccDataType>(s_host_ref,
-                FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
-        } else {
-            reference_batched_masking<AccDataType>(s_host_ref,
-                FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+                                                   FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         }
-        reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(s_host_ref, p_hp_host_ref, lse_host_ref);
+        else if(mask.type == mask_enum::window_generic)
+        {
+            reference_batched_masking<AccDataType>(
+                s_host_ref, FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+        }
+        else
+        {
+            reference_batched_masking<AccDataType>(
+                s_host_ref, FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+        }
+        reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
+            s_host_ref, p_hp_host_ref, lse_host_ref);
 
-        p_hp_host_ref.ForEach(
-            [&](auto& self, auto idx) { p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx)); });
+        p_hp_host_ref.ForEach([&](auto& self, auto idx) {
+            p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+        });
 
         // O = P * V
-        reference_batched_gemm<GemmDataType, VDataType, AccDataType, ODataType>(p_lp_host_ref, v_host_ref, o_host_ref); // o_g_m_o = p_lp_g_m_n@v_g_o_n
+        reference_batched_gemm<GemmDataType, VDataType, AccDataType, ODataType>(
+            p_lp_host_ref, v_host_ref, o_host_ref); // o_g_m_o = p_lp_g_m_n@v_g_o_n
 
+        // clang-format off
         // permute
         if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
         else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
 
         lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
+        // clang-format on
 
         q_host_refs.push_back(q_host_ref);
         k_host_refs.push_back(k_host_ref);
@@ -468,7 +482,6 @@ bool run(const ArgParser& arg_parser)
         o_host_refs.push_back(o_host_ref);
         p_hp_host_refs.push_back(p_hp_host_ref);
         p_lp_host_refs.push_back(p_lp_host_ref);
-        // clang-format on
     }
 
     o_buf.ToDevice(o_host.data());
@@ -509,6 +522,7 @@ bool run(const ArgParser& arg_parser)
         // clang-format off
         if(o_perm) do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[0], i[1] + query_offset, i[2]); });
         else       do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[1] + query_offset, i[0], i[2]); });
+        // clang-format on
 
         // dP_dropout = dO@V
         // dP = dO@V w/o dropout
@@ -529,17 +543,19 @@ bool run(const ArgParser& arg_parser)
                             ck::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
             }
             self(idx_gmn) = ck::type_convert<AccDataType>(p_hp_host_refs[wb](idx_gmn) *
-                                                           (dp_hp_host_ref(idx_gmn) - do_dot_o));
+                                                          (dp_hp_host_ref(idx_gmn) - do_dot_o));
         });
 
         if(use_bias)
         {
-            ds_hp_host_ref.ForEach(
-                [&](auto& self, auto idx) { dbias_host_ref(idx) = ck::type_convert<BiasGradDataType>(self(idx)); });
+            ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
+                dbias_host_ref(idx) = ck::type_convert<BiasGradDataType>(self(idx));
+            });
         }
 
-        ds_hp_host_ref.ForEach(
-            [&](auto& self, auto idx) { ds_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx)); });
+        ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
+            ds_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+        });
 
         // dV = P_drop^T@dO^T
         // dV = P^T@dO^T w/o dropout
@@ -559,8 +575,8 @@ bool run(const ArgParser& arg_parser)
             [&scale](const AccDataType& x) { return scale * x; }); // dq_g_m_k = ds_g_m_n@k_g_k_n
 
         // dK = scale * dS^T@Q^T
-        auto ds_t_lp_host_ref = ds_lp_host_ref.Transpose({0, 2, 1});     // ds_g_m_n -> ds_g_n_m
-        auto q_t_host_ref  = q_host_refs[wb].Transpose({0, 2, 1}); // q_g_m_k -> q_g_k_m
+        auto ds_t_lp_host_ref = ds_lp_host_ref.Transpose({0, 2, 1});  // ds_g_m_n -> ds_g_n_m
+        auto q_t_host_ref     = q_host_refs[wb].Transpose({0, 2, 1}); // q_g_m_k -> q_g_k_m
         reference_batched_gemm<GemmDataType, QDataType, AccDataType, KGradDataType>(
             ds_t_lp_host_ref,
             q_t_host_ref,
@@ -572,8 +588,10 @@ bool run(const ArgParser& arg_parser)
         Tensor<QGradDataType> dq_host_result({nhead, real_seqlen_q, hdim_q}); // dq_g_m_k
         Tensor<KGradDataType> dk_host_result({nhead, real_seqlen_k, hdim_q}); // dk_g_n_k
         Tensor<VGradDataType> dv_host_result({nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
-        Tensor<BiasGradDataType> dbias_host_result({nhead, real_seqlen_q, real_seqlen_k}); // dbias_g_m_n
+        Tensor<BiasGradDataType> dbias_host_result(
+            {nhead, real_seqlen_q, real_seqlen_k}); // dbias_g_m_n
 
+        // clang-format off
         // permute
         if(i_perm) dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[0], idx[1] + query_offset, idx[2]); });
         else       dq_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dq_host(b, idx[1] + query_offset, idx[0], idx[2]); });
