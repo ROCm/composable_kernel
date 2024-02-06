@@ -562,9 +562,8 @@ struct Silu
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
-        static_assert(is_same_v<T, float>::value || is_same_v<T, double>::value ||
-                          is_same_v<T, ck::half_t>::value || is_same_v<T, int8_t>::value ||
-                          is_same_v<T, int32_t>::value,
+        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, ck::half_t> ||
+                          is_same_v<T, int8_t> || is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
         y               = x * (one / (one + ck::math::exp(-x)));
