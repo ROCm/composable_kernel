@@ -21,7 +21,7 @@ struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
-    std::optional<uint32_t> seed_{std::nullopt};
+    std::optional<uint32_t> seed_{11939};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
@@ -47,7 +47,7 @@ struct FillNormalDistribution
 {
     float mean_{0.f};
     float variance_{1.f};
-    std::optional<uint32_t> seed_{std::nullopt};
+    std::optional<uint32_t> seed_{11939};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
@@ -92,7 +92,7 @@ struct FillUniformDistributionIntegerValue
 {
     float a_{-5.f};
     float b_{5.f};
-    std::optional<uint32_t> seed_{std::nullopt};
+    std::optional<uint32_t> seed_{11939};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
@@ -119,7 +119,7 @@ struct FillNormalDistributionIntegerValue
 {
     float mean_{0.f};
     float variance_{1.f};
-    std::optional<uint32_t> seed_{std::nullopt};
+    std::optional<uint32_t> seed_{11939};
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
