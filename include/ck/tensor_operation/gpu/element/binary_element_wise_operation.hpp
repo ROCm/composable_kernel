@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -72,6 +72,15 @@ struct Add
         const float x1_tmp = ck::type_convert<float>(x0);
         const float x2_tmp = ck::type_convert<float>(x1);
         const float y_tmp  = x1_tmp + x2_tmp;
+        y                  = ck::type_convert<bhalf_t>(y_tmp);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float x2_tmp = ck::type_convert<float>(x1);
+        const float y_tmp  = x0 + x2_tmp;
         y                  = ck::type_convert<bhalf_t>(y_tmp);
     }
 
@@ -266,6 +275,14 @@ struct AddRelu
 
     template <>
     __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float a = x0 + type_convert<float>(x1);
+        y             = a > type_convert<bhalf_t>(0.0f) ? a : type_convert<bhalf_t>(0.0f);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<int, int, int8_t>(int& y, const int& x0, const int8_t& x1) const
     {
         const int8_t a = x0 + x1;
@@ -353,6 +370,70 @@ struct AddFastGelu
                                                                                          x0_f);
 
         e = type_convert<half_t>(x1_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& e, const float& c, const bhalf_t& d) const
+    {
+        const float x0_f = c + type_convert<float>(d);
+
+        float x1_f = 0;
+
+        FastGelu{}.template operator()<float, float>(x1_f, x0_f);
+
+        e = type_convert<bhalf_t>(x1_f);
+    }
+};
+
+// E = Silu(C + D)
+struct AddSilu
+{
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, float>(float& e, const float& c, const float& d) const
+    {
+        const float x = c + d;
+
+        Silu{}.template operator()<float>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, half_t, half_t>(half_t& e, const half_t& c, const half_t& d) const
+    {
+        const half_t x = c + d;
+
+        Silu{}.template operator()<half_t>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, float, half_t>(half_t& e, const float& c, const half_t& d) const
+    {
+        const float x0_f = c + d;
+
+        float x1_f = 0;
+
+        Silu{}.template operator()<float>(x1_f, x0_f);
+
+        e = type_convert<half_t>(x1_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& e, const float& c, const bhalf_t& d) const
+    {
+        const float x0_f = c + type_convert<float>(d);
+
+        float x1_f = 0;
+
+        Silu{}.template operator()<float>(x1_f, x0_f);
+
+        e = type_convert<bhalf_t>(x1_f);
     }
 };
 
