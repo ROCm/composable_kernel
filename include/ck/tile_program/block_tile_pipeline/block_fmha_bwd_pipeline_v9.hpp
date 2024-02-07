@@ -466,7 +466,7 @@ struct BlockFmhaBwdPipelineV9
             }
             move_tile_window(dot_dram_window, {0, kK1});
 
-            const auto pt_gemm = tile_elementwise_in(type_convert<GemmDataType, AccDataType>, pt);
+            const auto pt_gemm = cast_tile<GemmDataType>(pt);
 
             if constexpr(k1_loops > 1)
             {
@@ -572,7 +572,7 @@ struct BlockFmhaBwdPipelineV9
             }
             move_tile_window(qt_dram_window, {0, kK3});
 
-            const auto dst_gemm = tile_elementwise_in(type_convert<GemmDataType, AccDataType>, dst);
+            const auto dst_gemm = cast_tile<GemmDataType>(dst);
 
             if constexpr(k3_loops > 1)
             {
@@ -625,7 +625,7 @@ struct BlockFmhaBwdPipelineV9
 
             // QGrad Scale
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
-            const auto dq = tile_elementwise_in(type_convert<QGradDataType, AccDataType>, dq_acc);
+            const auto dq = cast_tile<QGradDataType>(dq_acc);
             update_tile(dq_dram_block_window, dq);
 
             // move tile windows

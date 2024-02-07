@@ -399,7 +399,7 @@ struct BlockFmhaBwdPipelineV10
             block_sync_lds();
             store_tile(do_lds_window, do_block_tile); // store the prefetch
 
-            const auto pt_gemm = tile_elementwise_in(type_convert<GemmDataType, AccDataType>, pt);
+            const auto pt_gemm = cast_tile<GemmDataType>(pt);
 
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 block_sync_lds();
@@ -442,7 +442,7 @@ struct BlockFmhaBwdPipelineV10
 
             // STAGE 6, SGrad^T@Q^T Gemm3
             block_sync_lds();
-            const auto dst_gemm = tile_elementwise_in(type_convert<GemmDataType, AccDataType>, dst);
+            const auto dst_gemm = cast_tile<GemmDataType>(dst);
 
             static_for<0, k3_loops, 1>{}([&](auto i_k3) {
                 block_sync_lds();
@@ -476,7 +476,7 @@ struct BlockFmhaBwdPipelineV10
 
             // QGrad Scale
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
-            const auto dq = tile_elementwise_in(type_convert<QGradDataType, AccDataType>, dq_acc);
+            const auto dq = cast_tile<QGradDataType>(dq_acc);
             update_tile(dq_dram_block_window, dq);
 
             // move tile windows

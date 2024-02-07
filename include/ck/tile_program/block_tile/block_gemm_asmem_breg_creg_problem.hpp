@@ -10,13 +10,13 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-// Problem Description for BlockGemmASemeBRegCReg
+// Problem Description for BlockGemmASmemBRegCReg
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           index_t kBlockSize_,
           typename BlockGemmShape_>
-struct BlockGemmASemeBRegCRegProblem
+struct BlockGemmASmemBRegCRegProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;

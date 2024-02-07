@@ -37,10 +37,7 @@ struct FmhaBwdEpilogue
         using namespace ck;
         using namespace ck::tile_program;
 
-        const auto dk = tile_elementwise_in(type_convert<KGradDataType, AccDataType>, dk_acc_tile);
-        store_tile(dk_dram_window_tmp, dk);
-
-        const auto dv = tile_elementwise_in(type_convert<VGradDataType, AccDataType>, dv_acc_tile);
-        store_tile(dv_dram_window_tmp, dv);
+        store_tile(dk_dram_window_tmp, cast_tile<KGradDataType>(dk_acc_tile));
+        store_tile(dv_dram_window_tmp, cast_tile<VGradDataType>(dv_acc_tile));
     }
 };
