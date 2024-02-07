@@ -91,9 +91,9 @@ int profile_grouped_gemm_multiple_d_splitk(int argc, char* argv[])
     const auto StrideAs   = argToIntArray(argv[11]);
     const auto StrideBs   = argToIntArray(argv[12]);
     const auto StrideCs   = argToIntArray(argv[13]);
-    const int kbatch      = argc == 15 ? std::stoi(argv[14]) : 1;
-    const int warmup_iter = argc == 16 ? std::stoi(argv[15]) : 1;
-    const int kernel_iter = argc == 17 ? std::stoi(argv[16]) : 10;
+    const int kbatch      = argc >= 15 ? std::stoi(argv[14]) : 1;
+    const int warmup_iter = argc >= 16 ? std::stoi(argv[15]) : 1;
+    const int kernel_iter = argc >= 17 ? std::stoi(argv[16]) : 10;
 #ifdef CK_ENABLE_FP16
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {

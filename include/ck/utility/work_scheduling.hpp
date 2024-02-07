@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -75,12 +75,11 @@ class StridedReductionTileLoop
     ///
     /// @return     The workgroup flag index.
     ///
-    __device__ uint32_t GetWorkgroupFlagIdx([[maybe_unused]] index_t k_tiles,
+    __device__ uint32_t GetWorkgroupFlagIdx(index_t k_tiles,
                                             index_t output_tile_idx,
                                             index_t output_tile_idx_offset) const
     {
         return (output_tile_idx + output_tile_idx_offset) % GetFlagCount(k_tiles);
-        // return output_tile_idx + output_tile_idx_offset;
     }
 
     ///

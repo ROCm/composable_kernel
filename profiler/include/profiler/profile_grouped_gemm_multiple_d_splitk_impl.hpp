@@ -307,12 +307,12 @@ bool profile_ggemm_multid_splitk(int do_verification,
                               << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
 
                     pass = pass && instance_pass;
-                    std::cout << ">>>>>CPU verification end!" << std::endl;
+                    // std::cout << ">>>>>CPU verification end!" << std::endl;
                 }
 
                 if(time_kernel)
                 {
-                    std::cout << ">>>>>GPU time profiling start!" << std::endl;
+                    // std::cout << ">>>>>GPU time profiling start!" << std::endl;
                     float avg_time = invoker_ptr->Run(
                         argument_ptr.get(),
                         StreamConfig{nullptr, time_kernel, 0, warmup_iter, kernel_iter});
