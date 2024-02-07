@@ -841,7 +841,7 @@ struct FmhaBwdKernel
             const auto dk_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
                 dk_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_q),
-                make_tuple(kargs.stride_k, 1),
+                make_tuple(kargs.stride_dk, 1),
                 Number<32>{},
                 Number<1>{});
 
@@ -855,7 +855,7 @@ struct FmhaBwdKernel
             const auto dv_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
                 dv_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_v),
-                make_tuple(kargs.stride_v, 1),
+                make_tuple(kargs.stride_dv, 1),
                 Number<32>{},
                 Number<1>{});
 

@@ -243,11 +243,6 @@ bool run(const ArgParser& arg_parser)
     }
     else if(init_method == 1)
     {
-        // ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f}(q_host);
-        // ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f}(k_host);
-        // ck::utils::FillUniformDistribution<VDataType>{-.5f, .5f}(v_host);
-        // ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f}(bias_host);
-        // ck::utils::FillUniformDistribution<OGradDataType>{-.5f, .5f}(do_host);
         ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
         ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
         ck::utils::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
