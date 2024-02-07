@@ -52,7 +52,10 @@ __device__ int32x4_t make_wave_buffer_resource_with_default_range(T* p_wave)
 // TODO: glc/slc/...
 template <index_t bytes>
 struct buffer_load;
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
+// TODO: strict aliasing rule seems fail when reinterpret_cast between vector type
+// (exp_vector_type(xxx))
 template <>
 struct buffer_load<16>
 {
@@ -65,12 +68,9 @@ struct buffer_load<16>
                                index_t /*flag*/ = 0)
     {
         static_assert(sizeof(T) == 16);
-        using dummy_vector = float __attribute__((ext_vector_type(4)));
-        // using dummy_vector = vector_type<float, 4>;
-        // using dummy_vector = StaticallyIndexedArray<float, 4>;
+        using mubuf_t = float __attribute__((ext_vector_type(4)));
         asm volatile("buffer_load_dwordx4 %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<dummy_vector&>(value))
-                     // : "+v"(value)
+                     : "+v"(reinterpret_cast<mubuf_t&>(value))
                      : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
     }
@@ -88,10 +88,9 @@ struct buffer_load<8>
                                index_t /*flag*/ = 0)
     {
         static_assert(sizeof(T) == 8);
-        // using dummy_vector = vector_type<float, 2>;
-        using dummy_vector = float __attribute__((ext_vector_type(2)));
+        using mubuf_t = float __attribute__((ext_vector_type(2)));
         asm volatile("buffer_load_dwordx2 %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<dummy_vector&>(value))
+                     : "+v"(reinterpret_cast<mubuf_t&>(value))
                      : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
     }
@@ -109,10 +108,9 @@ struct buffer_load<4>
                                index_t /*flag*/ = 0)
     {
         static_assert(sizeof(T) == 4);
-        // using dummy_vector = vector_type<float, 1>;
-        using dummy_vector = float __attribute__((ext_vector_type(1)));
+        using mubuf_t = float;
         asm volatile("buffer_load_dword %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<dummy_vector&>(value))
+                     : "+v"(reinterpret_cast<mubuf_t&>(value))
                      : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
     }
@@ -129,9 +127,10 @@ struct buffer_load<2>
                                index_t i_offset /*max 0xFFF*/,
                                index_t /*flag*/ = 0)
     {
-        static_assert(sizeof(T) == 2);
+        static_assert(sizeof(T) == 4); // subdword is buggy, use dword buf and convert manually
+        using mubuf_t = float;
         asm volatile("buffer_load_ushort %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(value)
+                     : "+v"(reinterpret_cast<mubuf_t&>(value))
                      : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
     }
@@ -148,9 +147,10 @@ struct buffer_load<1>
                                index_t i_offset /*max 0xFFF*/,
                                index_t /*flag*/ = 0)
     {
-        static_assert(sizeof(T) == 1);
+        static_assert(sizeof(T) == 4);
+        using mubuf_t = float;
         asm volatile("buffer_load_ubyte %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(value)
+                     : "+v"(reinterpret_cast<mubuf_t&>(value))
                      : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
     }
@@ -172,11 +172,13 @@ struct buffer_load_if<16>
     {
         static_assert(sizeof(T) == 16);
         auto saved_exec = __builtin_amdgcn_read_exec();
+        using mubuf_t   = float __attribute__((ext_vector_type(4)));
+        static_assert(sizeof(mubuf_t) == sizeof(T));
         asm volatile(
             "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_dwordx4 %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
-            : "+v"(value)
+            : "+v"(reinterpret_cast<mubuf_t&>(value))
             : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
             : "memory");
     }
@@ -195,11 +197,12 @@ struct buffer_load_if<8>
     {
         static_assert(sizeof(T) == 8);
         auto saved_exec = __builtin_amdgcn_read_exec();
+        using mubuf_t   = float __attribute__((ext_vector_type(2)));
         asm volatile(
             "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_dwordx2 %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
-            : "+v"(value)
+            : "+v"(reinterpret_cast<mubuf_t&>(value))
             : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
             : "memory");
     }
@@ -218,11 +221,12 @@ struct buffer_load_if<4>
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
+        using mubuf_t   = float;
         asm volatile(
             "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_dword %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
-            : "+v"(value)
+            : "+v"(reinterpret_cast<mubuf_t&>(value))
             : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
             : "memory");
     }
@@ -239,13 +243,14 @@ struct buffer_load_if<2>
                                index_t i_offset /*max 0xFFF*/,
                                index_t flag = 0)
     {
-        static_assert(sizeof(T) == 2);
+        static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
+        using mubuf_t   = float;
         asm volatile(
             "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_ushort %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
-            : "+v"(value)
+            : "+v"(reinterpret_cast<mubuf_t&>(value))
             : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
             : "memory");
     }
@@ -262,18 +267,19 @@ struct buffer_load_if<1>
                                index_t i_offset /*max 0xFFF*/,
                                index_t flag = 0)
     {
-        static_assert(sizeof(T) == 1);
+        static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
+        using mubuf_t   = float;
         asm volatile(
             "v_cmpx_le_u32 exec, 1, %5\n"
             "buffer_load_ubyte %0, %1, %2, %3 offen offset:%4\n"
             "s_mov_b64 exec %6"
-            : "+v"(value)
+            : "+v"(reinterpret_cast<mubuf_t&>(value))
             : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
             : "memory");
     }
 };
-
+#pragma clang diagnostic pop // "-Wundefined-reinterpret-cast"
 template <index_t bytes>
 struct buffer_store;
 
