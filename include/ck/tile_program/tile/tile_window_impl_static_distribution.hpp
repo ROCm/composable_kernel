@@ -327,12 +327,6 @@ struct TileWindowWithStaticDistribution
         return dst_tensor;
     }
 
-    __device__ auto MakeLoadTile()
-    {
-        constexpr auto tile_dstr = TileDstr{};
-        return make_static_distributed_tensor<DataType>(tile_dstr);
-    }
-
     template <typename DstTile, bool oob_conditional_check = true>
     __device__ void LoadRaw(DstTile& dst_tensor, bool_constant<oob_conditional_check> = {}) const
     {

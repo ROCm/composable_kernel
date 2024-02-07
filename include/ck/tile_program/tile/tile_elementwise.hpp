@@ -69,6 +69,11 @@ __device__ void set_tile(DstrTensors& dstr_tensor, const T& value)
         dstr_tensor);
 }
 
+template <typename T>
+__device__ void set_tile(NullTensor&, const T&)
+{
+}
+
 template <typename DstrTensors>
 __device__ void clear_tile(DstrTensors& dstr_tensor)
 {

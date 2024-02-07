@@ -65,11 +65,12 @@ struct buffer_load<16>
                                index_t /*flag*/ = 0)
     {
         static_assert(sizeof(T) == 16);
+        using dummy_vector = float __attribute__((ext_vector_type(4)));
         // using dummy_vector = vector_type<float, 4>;
         // using dummy_vector = StaticallyIndexedArray<float, 4>;
         asm volatile("buffer_load_dwordx4 %0, %1, %2, %3 offen offset:%4"
-                     // : "+v"(reinterpret_cast<dummy_vector&>(value))
-                     : "+v"(value)
+                     : "+v"(reinterpret_cast<dummy_vector&>(value))
+                     // : "+v"(value)
                      : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
                      : "memory");
     }
@@ -517,6 +518,115 @@ struct buffer_store_if<1>
 __device__ void buffer_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
+// clang-format off
+template<typename T_, index_t N_>
+struct static_buffer_c {
+    using type = T_;
+    static constexpr index_t N = N_;
+
+    type data[N];
+    __host__ __device__ static constexpr auto size() { return N; }
+    __host__ __device__ auto & get() {return data; }
+    __host__ __device__ const auto & get() const {return data; }
+    __host__ __device__ auto & get(index_t i) {return data[i]; }
+    __host__ __device__ const auto & get(index_t i) const {return data[i]; }
+
+#define SB_COMMON_AS() \
+            static_assert(sizeof(type) * N % sizeof(Tx) == 0); \
+            constexpr int vx = sizeof(type) * N / sizeof(Tx)
+
+    template<typename Tx>
+    __host__ __device__ auto & get_as() {SB_COMMON_AS();
+            return reinterpret_cast<static_buffer_c<Tx, vx>&>(data);}
+    template<typename Tx>
+    __host__ __device__ const auto & get_as() const {SB_COMMON_AS();
+            return reinterpret_cast<const static_buffer_c<Tx, vx>&>(data);}
+    template<typename Tx>
+    __host__ __device__ auto & get_as(index_t i) {SB_COMMON_AS();
+            return reinterpret_cast<static_buffer_c<Tx, vx>&>(data).get(i);}
+    template<typename Tx>
+    __host__ __device__ const auto & get_as(index_t i) const {SB_COMMON_AS();
+            return reinterpret_cast<const static_buffer_c<Tx, vx>&>(data).get(i);}
+#undef SB_COMMON_AS
+};
+
+namespace impl{
+
+// can't use "+v" since there could be potential extra move(read/write)
+// use "v" can help remove such duplicated moves
+// besides, fake this as "memory" operation to force later valu after this fence
+template<index_t N>
+__device__ void insert_dummy_dep_per_dword(static_buffer_c<float, N>& b)
+{
+    for (auto i = 0; i < b.size(); i++) asm volatile(" " : : "v"(b.get(i)) : "memory");
+}
+
+template<>
+__device__ void insert_dummy_dep_per_dword<2>(static_buffer_c<float, 2>& b)
+{
+    asm volatile(" " : : "v"(b.get(0)), "v"(b.get(1)) : "memory");
+}
+
+template<>
+__device__ void insert_dummy_dep_per_dword<3>(static_buffer_c<float, 3>& b)
+{
+    asm volatile(" " : : "v"(b.get(0)), "v"(b.get(1)), "v"(b.get(2)) : "memory");
+}
+
+template<>
+__device__ void insert_dummy_dep_per_dword<4>(static_buffer_c<float, 4>& b)
+{
+    asm volatile(" " : : "v"(b.get(0)), "v"(b.get(1)), "v"(b.get(2)), "v"(b.get(3)) : "memory");
+}
+
+template<>
+__device__ void insert_dummy_dep_per_dword<8>(static_buffer_c<float, 8>& b)
+{
+    asm volatile(" " : : "v"(b.get(0)), "v"(b.get(1)), "v"(b.get(2)), "v"(b.get(3)), "v"(b.get(4)), "v"(b.get(5)), "v"(b.get(6)), "v"(b.get(7)) : "memory");
+}
+
+template<>
+__device__ void insert_dummy_dep_per_dword<16>(static_buffer_c<float, 16>& b)
+{
+    asm volatile(" " : : "v"(b.get(0)), "v"(b.get(1)), "v"(b.get(2)), "v"(b.get(3)), "v"(b.get(4)), "v"(b.get(5)), "v"(b.get(6)), "v"(b.get(7)),
+                       "v"(b.get(8)), "v"(b.get(9)), "v"(b.get(10)), "v"(b.get(11)), "v"(b.get(12)), "v"(b.get(13)), "v"(b.get(14)), "v"(b.get(15)) : "memory");
+}
+
+template<>
+__device__ void insert_dummy_dep_per_dword<32>(static_buffer_c<float, 32>& b)
+{
+    asm volatile(" " : : "v"(b.get(0)), "v"(b.get(1)), "v"(b.get(2)), "v"(b.get(3)), "v"(b.get(4)), "v"(b.get(5)), "v"(b.get(6)), "v"(b.get(7)),
+                       "v"(b.get(8)), "v"(b.get(9)), "v"(b.get(10)), "v"(b.get(11)), "v"(b.get(12)), "v"(b.get(13)), "v"(b.get(14)), "v"(b.get(15)),
+                       "v"(b.get(16)), "v"(b.get(17)), "v"(b.get(18)), "v"(b.get(19)), "v"(b.get(20)), "v"(b.get(21)), "v"(b.get(22)), "v"(b.get(23)),
+                       "v"(b.get(24)), "v"(b.get(25)), "v"(b.get(26)), "v"(b.get(27)), "v"(b.get(28)), "v"(b.get(29)), "v"(b.get(30)), "v"(b.get(31)) : "memory");
+}
+
+__device__ void insert_dummy_dep() {}
+
+template<typename T>
+__device__ void insert_dummy_dep(T & buffer)
+{
+    // TODO: indeed we expect T to be multiple of dword. subdword is always buggy
+    using da_type = static_buffer_c<float, (sizeof(T) + 3) / 4>;
+    auto & dummy = reinterpret_cast<da_type&>(buffer);
+    insert_dummy_dep_per_dword(dummy);
+}
+
+template<typename Tx, typename... Ty>
+__device__ void insert_dummy_dep(Tx& bx, Ty&... by)
+{
+    insert_dummy_dep(bx);
+    insert_dummy_dep(by...);
+}
+}
+// clang-format on
+template <typename... T>
+__device__ void buffer_load_fence(index_t cnt = 0, T&... o)
+{
+    asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
+    impl::insert_dummy_dep(o...);
 }
 
 __device__ void buffer_store_fence(index_t cnt = 0)

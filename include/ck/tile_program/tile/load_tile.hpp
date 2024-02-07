@@ -72,5 +72,10 @@ __device__ auto load_tile(const NullTileWindow<WindowLengths>&)
     return NullTensor{};
 }
 
+template <typename T, typename WindowLengths>
+__device__ auto load_tile_raw(T& /*null_tile*/, const NullTileWindow<WindowLengths>&)
+{
+}
+
 } // namespace tile_program
 } // namespace ck
