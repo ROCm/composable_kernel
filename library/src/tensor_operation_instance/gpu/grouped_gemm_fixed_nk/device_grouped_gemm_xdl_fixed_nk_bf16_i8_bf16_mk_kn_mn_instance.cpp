@@ -33,7 +33,7 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-using device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_irregular_tile_instances = std::tuple<
+using device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances = std::tuple<
     // clang-format off
         //############################|      A|      B|          Ds|      E| AData| BData| AccData| CShuffle|      DsData| EData|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
         //############################| Layout| Layout|      Layout| Layout|  Type|  Type|    Type| DataType|        Type|  Type| Elementwise| Elementwise| Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
@@ -57,16 +57,16 @@ void add_device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_instances(
                                                          Row,
                                                          DsLayout,
                                                          Row,
-                                                         F16,
+                                                         BF16,
                                                          I8,
                                                          DsDataType,
-                                                         F16,
+                                                         BF16,
                                                          PassThrough,
                                                          PassThrough,
                                                          PassThrough>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_irregular_tile_instances{});
+        instances, device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances{});
 }
 
 } // namespace instance
