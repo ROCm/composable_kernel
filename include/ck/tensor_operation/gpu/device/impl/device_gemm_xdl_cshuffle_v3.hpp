@@ -567,7 +567,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             {BlockGemmPipelineVersion::v4, "v4"}};
 
         // clang-format off
-        str << "DeviceGemm_Xdl_CShuffleV3"
+        str << "DeviceGemmXdlUniversal"
             << "<"
             << getGemmSpecializationString(GemmSpec) << ", "
             << std::string(ALayout::name)[0]
@@ -587,7 +587,9 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer];
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << "BlkGemmPipelinePrefetchStages: "
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

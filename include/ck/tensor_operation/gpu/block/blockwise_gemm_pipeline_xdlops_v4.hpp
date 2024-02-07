@@ -7,10 +7,11 @@
 
 namespace ck {
 
-// Double LDS buffer
-// Global Prefetech 3
-// Local  prefill   2
-// Local  prefetch  1
+// Compute optimimal pipeline with highest resource request
+// GlobalPrefetchStages: 3
+// LocalPreFillStages: 1
+// LocalPreFetchStages: 1
+// LocalSharedMemoryBuffer: 2
 
 template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t BlockSize,
@@ -120,11 +121,11 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t MinimumLoop = 3;
+    static constexpr index_t PrefetchStages = 3;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-        return num_loop > MinimumLoop;
+        return num_loop > PrefetchStages;
     }
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
@@ -455,7 +456,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                 __builtin_amdgcn_sched_barrier(0);
 
                 i += 2;
-            } while(i < (num_loop - 3));
+            } while(i < (num_loop - PrefetchStages));
         }
 
         // tail
