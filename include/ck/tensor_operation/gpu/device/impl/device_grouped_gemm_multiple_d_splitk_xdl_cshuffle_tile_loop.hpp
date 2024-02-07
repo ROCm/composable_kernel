@@ -215,6 +215,9 @@ __global__ void
     ignore = p_workspace;
     ignore = tile_count;
     ignore = k_batch;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = cde_element_op;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 

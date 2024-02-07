@@ -16,6 +16,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#if defined(CK_ENABLE_FP16)
 // MultiD version
 void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_irregular_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
@@ -42,6 +43,7 @@ void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_irregu
                                                   PassThrough,
                                                   PassThrough,
                                                   PassThrough>>>& instances);
+#endif
 
 template <typename ALayout,
           typename BLayout,
@@ -87,14 +89,18 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
             {
+#if defined(CK_ENABLE_FP16)
                 add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instances(
                     op_ptrs);
+#endif
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                               is_same_v<ELayout, Row>)
             {
+#if defined(CK_ENABLE_FP16)
                 add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_irregular_instances(
                     op_ptrs);
+#endif
             }
         }
         return op_ptrs;
