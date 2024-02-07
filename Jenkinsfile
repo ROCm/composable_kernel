@@ -135,6 +135,7 @@ def buildDocker(install_prefix){
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs + ' .')
             retimage.push()
+            sh 'docker images -q -f dangling=true | xargs --no-run-if-empty docker rmi'
         }
         else{
             echo "Checking for image: ${image_name}"
