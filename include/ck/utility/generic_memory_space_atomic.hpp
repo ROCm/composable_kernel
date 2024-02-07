@@ -85,21 +85,21 @@ inline __host__ __device__ bhalf2_t add_bf16x2_t(const bhalf2_t& a, const bhalf2
     return rtn;
 }
 
-union U32BF162_ADDR
-{
-    uint32_t* u32_a;
-    bhalf2_t* bf162_a;
-};
-
-union U32BF162
-{
-    uint32_t u32;
-    bhalf2_t bf162;
-};
-
 template <>
 __device__ bhalf2_t atomic_add<bhalf2_t>(bhalf2_t* p_dst, const bhalf2_t& x)
 {
+    union U32BF162_ADDR
+    {
+        uint32_t* u32_a;
+        bhalf2_t* bf162_a;
+    };
+
+    union U32BF162
+    {
+        uint32_t u32;
+        bhalf2_t bf162;
+    };
+
     U32BF162_ADDR dword_addr;
     U32BF162 cur_v;
     U32BF162 new_;

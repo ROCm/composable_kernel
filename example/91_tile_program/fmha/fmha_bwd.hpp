@@ -9,7 +9,7 @@
 #include "ck/host_utility/kernel_launch.hpp"
 
 #include "ck/tile_program/block_tile/block_masking.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_problem.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_problem.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_dispatcher.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dot_do_o.hpp"
 #include "ck/tile_program/tile/tile_fmha_shape.hpp"
