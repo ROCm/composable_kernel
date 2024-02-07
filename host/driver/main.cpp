@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
+#include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/conv/conv_op.hpp"
 #include "../parse/include/op.hpp"
 #include "../parse/include/op_conv.hpp"
@@ -33,6 +34,31 @@ struct Emitters
     std::vector<std::string> List() const
     {
         return ck::host::Transform(m, [](auto&& p) { return p.first; });
+    }
+
+    void Select(ck::host::device_gemm_multiple_d::Problem& prob,
+                const std::string& name,
+                const std::string& prologue,
+                const std::string& epilogue)
+    {
+        auto M = std::to_string(prob.M);
+        auto N = std::to_string(prob.N);
+        auto K = std::to_string(prob.K);
+        std::cout << "M: " << M << std::endl;
+        std::cout << "N: " << N << std::endl;
+        std::cout << "K: " << K << std::endl;
+
+        // TODO: add argument check here
+        Solution result = prob.GetSolutions("gfx90a", prologue, epilogue);
+        // go through and find matching instances
+        for(int x = 0; x < m[name]().size(); x++)
+        {
+            // TODO: create the ops on my own?
+            // if(prob.ADataType == m[name]()[x].GetTemplateParameter("ADataType")){
+            //		    std::cout << "success" << std::endl;
+            //  }
+            std::cout << m[name]()[x] << "\n";
+        }
     }
 };
 
@@ -83,8 +109,14 @@ using Prologue = AlphaBetaAdd;)";
         return 0;
     }
 
-    for(auto name : args)
-        std::cout << e.Emit(name) << std::endl;
+    ck::host::device_gemm_multiple_d::Problem prob;
+    prob.M = 1024;
+    prob.N = 1024;
+    prob.K = 1024;
+    e.Select(prob, "DeviceGemmMultipleD_Xdl_CShuffle");
+
+    // for(auto name : args)
+    //  std::cout << e.Emit(name) << std::endl;
 
     return 0;
 }
