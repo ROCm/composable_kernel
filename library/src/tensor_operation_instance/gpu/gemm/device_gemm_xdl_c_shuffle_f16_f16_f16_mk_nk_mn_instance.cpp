@@ -109,7 +109,7 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
         instances)
 {
     add_device_operation_instances(
-        instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_generic_instances<GemmDefault>{});
+        instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_generic_instances{});
 
     add_device_operation_instances(
         instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances<GemmDefault>{});
