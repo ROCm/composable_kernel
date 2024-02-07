@@ -48,8 +48,8 @@ struct GemmArgDesc
 
 template <index_t MPerBlock, index_t NPerBlock, index_t KPerBlock>
 __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p_gemm_descs,
-                                                            float* p_workspace,
-                                                            uint32_t* p_flags,
+                                                            volatile float* p_workspace,
+                                                            volatile uint32_t* p_flags,
                                                             index_t tile_count,
                                                             index_t k_batch)
 {
@@ -139,6 +139,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
             p_workspace[get_block_1d_id() * MPerBlock * NPerBlock + get_thread_local_1d_id()] =
                 partial_result;
         }
+        __threadfence();
 
         const index_t output_tile_idx =
             __builtin_amdgcn_readfirstlane(b2c_tile_map.GetOutputTileIdx());
@@ -160,6 +161,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
                 partial_result += p_workspace[(get_block_1d_id()) * MPerBlock * NPerBlock +
                                               i * MPerBlock * NPerBlock + get_thread_local_1d_id()];
             }
+            __threadfence();
             // Signal waiting blocks that they can start use their workspace.
             work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
 

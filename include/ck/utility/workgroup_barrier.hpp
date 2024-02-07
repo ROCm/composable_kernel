@@ -5,7 +5,7 @@
 namespace ck {
 struct workgroup_barrier
 {
-    __device__ workgroup_barrier(uint32_t* ptr) : base_ptr(ptr) {}
+    __device__ workgroup_barrier(volatile uint32_t* ptr) : base_ptr(ptr) {}
 
     __device__ uint32_t ld(uint32_t offset) const
     {
@@ -53,7 +53,7 @@ struct workgroup_barrier
     {
         if(threadIdx.x == 0)
         {
-            while(atomicCAS(base_ptr + offset, compare, value) != compare) {}
+            while(atomicCAS(const_cast<uint32_t*>(base_ptr + offset), compare, value) != compare) {}
         }
         __syncthreads();
     }
@@ -66,11 +66,11 @@ struct workgroup_barrier
 
     __device__ void inc(uint32_t offset)
     {
-        __syncthreads();
         if(threadIdx.x == 0)
         {
-            atomicAdd(base_ptr + offset, 1);
+            atomicAdd(const_cast<uint32_t*>(base_ptr + offset), 1);
         }
+        __syncthreads();
     }
 
     __device__ void reset(uint32_t offset)
@@ -82,6 +82,6 @@ struct workgroup_barrier
         __syncthreads();
     }
 
-    uint32_t* base_ptr;
+    volatile uint32_t* base_ptr;
 };
 } // namespace ck

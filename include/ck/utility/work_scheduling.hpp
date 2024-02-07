@@ -33,12 +33,12 @@ class StridedReductionTileLoop
 {
     public:
     __device__ StridedReductionTileLoop(index_t tile_count,
-                                        uint32_t* const __restrict__ p_flag_count)
+                                        volatile uint32_t* const __restrict__ p_flags)
         : tile_count_{tile_count},
           tiles_per_block_{(tile_count_ + get_grid_size() - 1) / get_grid_size()},
           tile_id_{get_block_1d_id() * tiles_per_block_},
           block_tile_idx_{0},
-          finished_block_flags_{p_flag_count}
+          finished_block_flags_{p_flags}
     {
     }
 
