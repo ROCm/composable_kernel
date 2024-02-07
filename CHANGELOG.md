@@ -11,7 +11,7 @@ None
 None
 
 ### Additions
-* Introduced wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126)
+* Introduced wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126, #1139)
 
 ### Changes
 None
