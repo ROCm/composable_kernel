@@ -1,0 +1,6 @@
+add_custom_target(test_permute)
+add_gtest_executable(test_permute_scale test_permute_scale.cpp)
+if(result EQUAL 0)
+  target_link_libraries(test_permute_scale PRIVATE utility device_permute_scale_instance)
+  add_dependencies(test_permute test_permute_scale)
+endif()

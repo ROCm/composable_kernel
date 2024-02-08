@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -157,6 +157,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<bhalf_t, int8_t>(bhalf_t& y, const int8_t& x) const
+    {
+        y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
     {
         y = type_convert<int8_t>(x);
@@ -173,6 +179,11 @@ struct PassThrough
     __host__ __device__ void operator()<int4_t, int4_t>(int4_t& y, const int4_t& x) const
     {
         y = x;
+    }
+    template <>
+    __host__ __device__ void operator()<int4_t, int>(int4_t& y, const int& x) const
+    {
+        y = type_convert<int4_t>(x);
     }
 #endif
 
@@ -447,27 +458,29 @@ struct FastGelu
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-
-        y = x * cdf;
+        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = exp(u);
+        y               = x / (1.f + emu);
     }
 
     // device code, use lower precision "__expf" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = __expf(-u);
+        // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = __expf(u);
 
 #if !CK_WORKAROUND_SWDEV_383542
-        const float cdf = 0.5f + 0.5f * (2.f * __frcp_rn(1.f + emu) - 1.f);
+        y = x * __frcp_rn(1.f + emu);
 #else
-        const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
+        y = x * __ocml_native_recip_f32(1.f + emu);
 #endif
-
-        y = x * cdf;
     }
 
     template <>
@@ -543,6 +556,19 @@ struct Sigmoid
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
         y               = one / (one + ck::math::exp(-x));
+    };
+};
+
+struct Silu
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, ck::half_t> ||
+                          is_same_v<T, int8_t> || is_same_v<T, int32_t>,
+                      "Data type is not supported by this operation!");
+        constexpr T one = type_convert<T>(1);
+        y               = x * (one / (one + ck::math::exp(-x)));
     };
 };
 

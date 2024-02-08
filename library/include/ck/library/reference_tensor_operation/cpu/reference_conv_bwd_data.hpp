@@ -313,6 +313,9 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
                 return 0;
             }
+            throw std::runtime_error(
+                "Conv_bwd_data: number of dimensions must be between 1 and 3.");
+            return 1;
         }
 
         float Run(const device::BaseArgument* p_arg,

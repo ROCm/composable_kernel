@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <cstdlib>
 
@@ -67,6 +70,8 @@ int main()
 
     float scale = 1.f;
     auto i      = 0;
+    std::mt19937 gen(11939);
+    std::uniform_int_distribution<int> dis(0, 1);
     for(std::size_t w = 0; w < a.mDesc.GetLengths()[3]; ++w)
         for(std::size_t h = 0; h < a.mDesc.GetLengths()[2]; ++h)
             for(std::size_t c = 0; c < a.mDesc.GetLengths()[1]; ++c)
@@ -74,7 +79,7 @@ int main()
                 {
                     a.mData[(n * nchw[1] * nchw[2] * nchw[3]) + (c * nchw[2] * nchw[3]) +
                             (h * nchw[3]) + w] = i;
-                    i++;
+                    i                          = dis(gen);
                 }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());
