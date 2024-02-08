@@ -28,6 +28,8 @@ using S = ck::Sequence<Is...>;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmMNPadding  = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmKPadding   = ck::tensor_operation::device::GemmSpecialization::KPadding;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 template <ck::tensor_operation::device::GemmSpecialization GemmSpec,
@@ -47,12 +49,12 @@ using device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances = st
     // clang-format on
     >;
 
-
 void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_kpb128_instances(
     std::vector<std::unique_ptr<
         DeviceGemmSplitK<Row, Col, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
+    // default
     add_device_operation_instances(
         instances,
         device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
@@ -74,6 +76,7 @@ void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_kpb128_instances(
             ck::PipelineVersion::v1,
             ck::LoopScheduler::Default>{});
 
+    // MNKPadding
     add_device_operation_instances(
         instances,
         device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
@@ -92,6 +95,50 @@ void add_device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_kpb128_instances(
         instances,
         device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
             GemmMNKPadding,
+            ck::PipelineVersion::v1,
+            ck::LoopScheduler::Default>{});
+
+    // KPadding
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmKPadding,
+            ck::PipelineVersion::v2,
+            ck::LoopScheduler::Default>{});
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmKPadding,
+            ck::PipelineVersion::v1,
+            ck::LoopScheduler::Interwave>{});
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmKPadding,
+            ck::PipelineVersion::v1,
+            ck::LoopScheduler::Default>{});
+
+    // MNPadding
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmMNPadding,
+            ck::PipelineVersion::v2,
+            ck::LoopScheduler::Default>{});
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmMNPadding,
+            ck::PipelineVersion::v1,
+            ck::LoopScheduler::Interwave>{});
+
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_splitk_f16_f8_f16_mk_nk_mn_irregular_kpb128_instances<
+            GemmMNPadding,
             ck::PipelineVersion::v1,
             ck::LoopScheduler::Default>{});
 }
