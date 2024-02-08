@@ -39,7 +39,7 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           typename ComputeTypeA = FloatA,
-          typename ComputeTypeB = ComputeTypeA>
+          typename ComputeTypeB = FloatB>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -402,7 +402,7 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           typename ComputeTypeA  = FloatA,
-          typename ComputeTypeB  = ComputeTypeA,
+          typename ComputeTypeB  = FloatB,
           index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS>
 struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     : public BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -415,7 +415,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                  NPerXDL,
                                                                  MRepeat,
                                                                  NRepeat,
-                                                                 KPack>
+                                                                 KPack,
+                                                                 ComputeTypeA,
+                                                                 ComputeTypeB>
 {
     using Base = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                      FloatA,
@@ -427,7 +429,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                      NPerXDL,
                                                                      MRepeat,
                                                                      NRepeat,
-                                                                     KPack>;
+                                                                     KPack,
+                                                                     ComputeTypeA,
+                                                                     ComputeTypeB>;
 
 #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
     using Base::a_block_desc_m0_m1_m2_k;
@@ -591,7 +595,9 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          LoopScheduler LoopSched>
+          LoopScheduler LoopSched,
+          typename ComputeTypeA = FloatA,
+          typename ComputeTypeB = FloatB>
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
     if constexpr(LoopSched == LoopScheduler::Default)
@@ -606,7 +612,9 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                    NPerXDL,
                                                                    MRepeat,
                                                                    NRepeat,
-                                                                   KPack>{};
+                                                                   KPack,
+                                                                   ComputeTypeA,
+                                                                   ComputeTypeB>{};
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {
@@ -620,7 +628,9 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                             NPerXDL,
                                                                             MRepeat,
                                                                             NRepeat,
-                                                                            KPack>{};
+                                                                            KPack,
+                                                                            ComputeTypeA,
+                                                                            ComputeTypeB>{};
     }
 };
 
