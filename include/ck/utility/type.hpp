@@ -43,11 +43,8 @@ __host__ __device__ constexpr Y bit_cast(const X& x)
 #if CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
     Y y;
 
-    auto t = reinterpret_cast<const Y*>(&x);
-    // y = __builtin_bit_cast(Y, x);
-    // __builtin_memcpy(&y, &x, sizeof(X));
+    __builtin_memcpy(&y, &x, sizeof(X));
 
-    y = *t;
     return y;
 #else
     union AsType

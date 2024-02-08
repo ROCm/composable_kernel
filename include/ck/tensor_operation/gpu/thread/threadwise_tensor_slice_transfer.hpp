@@ -1163,7 +1163,8 @@ struct ThreadwiseTensorSliceTransfer_v4
             }
 
             if constexpr(is_same<remove_cvref_t<SrcData>, f8_t>::value &&
-                         is_same<remove_cvref_t<DstData>, half_t>::value)
+                         is_same<remove_cvref_t<DstData>, half_t>::value &&
+                         SrcScalarPerVector % pack_size == 0 && DstScalarPerVector % pack_size == 0)
             {
                 // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
                 // DstData)
