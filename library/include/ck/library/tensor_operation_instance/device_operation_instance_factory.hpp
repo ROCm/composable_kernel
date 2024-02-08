@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -86,9 +86,9 @@ using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
 //
-using GK          = ck::tensor_layout::convolution::G_K;
-using GK_Tuple    = ck::Tuple<GK>;
-using GK_GK_Tuple = ck::Tuple<GK, GK>;
+using G_K         = ck::tensor_layout::convolution::G_K;
+using GK_Tuple    = ck::Tuple<G_K>;
+using GK_GK_Tuple = ck::Tuple<G_K, G_K>;
 
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
@@ -98,6 +98,8 @@ using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 using AddFastGelu    = ck::tensor_operation::element_wise::AddFastGelu;
+using AddRelu        = ck::tensor_operation::element_wise::AddRelu;
+using AddSilu        = ck::tensor_operation::element_wise::AddSilu;
 using AddReluAdd     = ck::tensor_operation::element_wise::AddReluAdd;
 using FastGelu       = ck::tensor_operation::element_wise::FastGelu;
 using AddMultiply    = ck::tensor_operation::element_wise::AddMultiply;

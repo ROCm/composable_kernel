@@ -35,9 +35,8 @@ __global__ void
                                 const Block2ETileMap block_2_tile_map,
                                 const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||             \
-    defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx1030__) || defined(__gfx1100__) || \
-    defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
+    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__))
     GridwiseTensorRearrangeKernel::Run(in_grid_desc,
                                        p_in_global,
                                        out_grid_desc,
@@ -50,7 +49,9 @@ __global__ void
     ignore = p_in_global;
     ignore = out_grid_desc;
     ignore = p_out_global;
+    ignore = batch_count;
     ignore = block_2_tile_map;
+    ignore = compute_ptr_offset_of_batch;
 #endif
 }
 

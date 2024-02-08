@@ -24,7 +24,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     // Following shapes are selected to avoid overflow. Expect inf in case of
     // size increase for some elementwise ops.
     ck::utils::conv::ConvParam conv_param{
-        3, 1, 16, 128, 8, {3, 3, 3}, {17, 17, 17}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
+        3, 2, 16, 128, 8, {3, 3, 3}, {17, 17, 17}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
 
     if(argc == 1)
     {

@@ -19,7 +19,7 @@ namespace instance {
 
 // FP16
 void add_device_normalization_fwd_rank_5_3_swish_f16_instances(
-    std::vector<std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, Swish, 5, 3>>>&);
+    std::vector<std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F16, Swish, 5, 3>>>&);
 
 // FP32
 void add_device_normalization_fwd_rank_5_3_swish_f32_instances(
@@ -61,7 +61,7 @@ struct DeviceOperationInstanceFactory<
 
         if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F16> &&
                      is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16> &&
-                     is_same_v<SaveMeanInvStdDataType, F32>)
+                     is_same_v<SaveMeanInvStdDataType, F16>)
         {
             if constexpr(Rank == 5 && NumReduceDim == 3)
             {
