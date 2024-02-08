@@ -248,6 +248,9 @@ struct Layout
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
 
     public:
+    using LayoutShape                  = Shape;
+    using LayoutUnrolledDescriptorType = UnrolledDescriptorType;
+
     /**
      * \brief Transform descriptor to align to passed indexes.
      *
