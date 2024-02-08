@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -199,6 +199,12 @@ struct PassThrough
     __host__ __device__ void operator()<half_t, int8_t>(half_t& y, const int8_t& x) const
     {
         y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, int8_t>(bhalf_t& y, const int8_t& x) const
+    {
+        y = type_convert<bhalf_t>(x);
     }
 
     template <>
@@ -593,6 +599,19 @@ struct Sigmoid
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
         y               = one / (one + ck::math::exp(-x));
+    };
+};
+
+struct Silu
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, ck::half_t> ||
+                          is_same_v<T, int8_t> || is_same_v<T, int32_t>,
+                      "Data type is not supported by this operation!");
+        constexpr T one = type_convert<T>(1);
+        y               = x * (one / (one + ck::math::exp(-x)));
     };
 };
 
