@@ -40,6 +40,7 @@ struct Operation_Xdl_CShuffle
 
     void update_prologue(const std::string& prologue);
     void update_epilogue(const std::string& epilogue);
+    /**constexpr**/ bool IsSupported(std::size_t MRaw_, std::size_t NRaw_, std::size_t KRaw_);
     Solution ToSolution() const;
 };
 

@@ -399,6 +399,85 @@ Solution Operation_Xdl_CShuffle::ToSolution() const
                     std::move(values)};
 }
 
+/**constexpr**/ bool
+Operation_Xdl_CShuffle::IsSupported(std::size_t MRaw_, std::size_t NRaw_, std::size_t KRaw_)
+{
+    // check vector load/store
+    std::string Row = "ck::tensor_layout::gemm::RowMajor";
+    std::string Col = "ck::tensor_layout::gemm::ColumnMajor";
+    // FIXME: use strings for comparison, can't use CK terms
+    // check vector load of A
+    if(ToString(this->A.layout) == Row && this->a_block_transfer.src_vec_dim == 2)
+    {
+        if(KRaw_ % this->a_block_transfer.src_scalar_per_vector != 0)
+        {
+            return false;
+        }
+    }
+    else if(ToString(this->A.layout) == Col && this->a_block_transfer.src_vec_dim == 1)
+    {
+        // FIXME: not rigorous
+        if(MRaw_ % this->a_block_transfer.src_scalar_per_vector != 0)
+        {
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+    // check vector laod of B
+    if(ToString(this->B.layout) == Col && this->b_block_transfer.src_vec_dim == 2)
+    {
+        if(KRaw_ % this->b_block_transfer.src_scalar_per_vector != 0)
+        {
+            return false;
+        }
+    }
+    else if(ToString(this->B.layout) == Row && this->b_block_transfer.src_vec_dim == 1)
+    {
+        // FIXME: not rigorous
+        if(NRaw_ % this->b_block_transfer.src_scalar_per_vector != 0)
+        {
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+
+    // check vector load of Ds
+    // only support RowMajor for now
+    /** bool all_valid = true;
+
+     static_for<0, NumDTensor, 1>{}([&](auto i) {
+         using DLayout = remove_cvref_t<tuple_element_t<i.value, this->Ds.layout>>;
+         //MakeTuple(Transform(this->Ds, [](auto tensor) { return ToString(tensor.layout); }))
+         if constexpr(!std::is_same_v<DLayout, Row>)
+         {
+             all_valid = false;
+         }
+     });
+
+
+     if(!all_valid)
+     {
+         return false;
+     }
+
+     // check vector store of E
+     // only support RowMajor for now
+     {
+         if(NRaw_ % this->c_block_transfer.scalar_per_vector_n_wave_n_per_Xdl != 0)
+         {
+             return false;
+         }
+     }
+     else { return false; }**/
+    return true;
+}
+
 } // namespace device_gemm_multiple_d
 } // namespace host
 } // namespace ck

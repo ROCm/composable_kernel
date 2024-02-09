@@ -50,6 +50,7 @@ enum class Layout
 };
 
 std::string ToString(Layout dl);
+Layout ToLayout(bool Trans);
 
 enum class GemmType
 {

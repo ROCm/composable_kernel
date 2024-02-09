@@ -29,6 +29,8 @@ std::string ToString(DataType dt)
     throw std::runtime_error("Incorrect data type");
 }
 
+Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
+
 std::string ToString(Layout dl)
 {
     switch(dl)

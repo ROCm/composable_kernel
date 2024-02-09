@@ -10,6 +10,7 @@
 #include "../parse/include/op.hpp"
 #include "../parse/include/op_conv.hpp"
 #include "ck/host/stringutils.hpp"
+#include "ck/host/types.hpp"
 #include <iomanip>
 #include <fstream>
 
@@ -36,6 +37,7 @@ struct Emitters
         return ck::host::Transform(m, [](auto&& p) { return p.first; });
     }
 
+    template <class T>
     void Select(ck::host::device_gemm_multiple_d::Problem& prob,
                 const std::string& name,
                 const std::string& prologue,
@@ -49,15 +51,21 @@ struct Emitters
         std::cout << "K: " << K << std::endl;
 
         // TODO: add argument check here
-        Solution result = prob.GetSolutions("gfx90a", prologue, epilogue);
-        // go through and find matching instances
-        for(int x = 0; x < m[name]().size(); x++)
+        // generate all instances
+        auto ops = T::CreateOperations(prologue, epilogue);
+        std::vector<std::string> match;
+        for(auto op : ops)
         {
-            // TODO: create the ops on my own?
-            // if(prob.ADataType == m[name]()[x].GetTemplateParameter("ADataType")){
-            //		    std::cout << "success" << std::endl;
-            //  }
-            std::cout << m[name]()[x] << "\n";
+            // check that user's prob desc matches the instances
+            if(prob.ADataType == op.A.element || prob.BDataType == op.B.element ||
+               prob.EDataType == op.E.element || ck::host::ToLayout(prob.TransA) == op.A.layout ||
+               ck::host::ToLayout(prob.TransB) == op.B.layout ||
+               ck::host::ToLayout(prob.TransE) == op.E.layout || prob.AElementOp == op.a_elem_op ||
+               prob.BElementOp == op.b_elem_op || prob.CDEElementOp == op.cde_elem_op)
+            {
+                match.push_back(op.ToSolution().ToTemplateString());
+                std::cout << op.ToSolution().ToTemplateString() << std::endl;
+            }
         }
     }
 };
@@ -90,7 +98,7 @@ using Prologue = AlphaBetaAdd;)";
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
         "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
-    // e.Register<ck::host::conv::Operation_Conv>("DeviceConv");
+    e.Register<ck::host::conv::Operation_Conv>("DeviceConv", prologue, epilogue);
 
     if(args.empty() or std::any_of(args.begin(), args.end(), [](auto arg) {
            return arg == "-h" or arg == "--help";
@@ -113,7 +121,8 @@ using Prologue = AlphaBetaAdd;)";
     prob.M = 1024;
     prob.N = 1024;
     prob.K = 1024;
-    e.Select(prob, "DeviceGemmMultipleD_Xdl_CShuffle");
+    e.Select<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
+        prob, "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
 
     // for(auto name : args)
     //  std::cout << e.Emit(name) << std::endl;
