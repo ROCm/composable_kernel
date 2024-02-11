@@ -52,11 +52,11 @@ struct BlockFmhaBwdPipelineDispatcher
     // template<> struct BlockPipelineDispatcher<     false,      false,      true,       true,      true,          true,           true> { using Type = BlockFmhaBwdPipelineV6<Problem>; };
     // template<> struct BlockPipelineDispatcher<      true,      false,      true,       true,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV7<Problem>; };
     // template<> struct BlockPipelineDispatcher<     false,      false,      true,       true,      true,          true,          false> { using Type = BlockFmhaBwdPipelineV8<Problem>; };
-    template<> struct BlockPipelineDispatcher<     false,      false,      true,       true,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV9<Problem>; };
-    template<> struct BlockPipelineDispatcher<      true,      false,      true,      false,      true,          true,          false> { using Type = BlockFmhaBwdPipelineV10<Problem>; };
+       template<> struct BlockPipelineDispatcher<     false,      false,      true,       true,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV9<Problem>; };
+       template<> struct BlockPipelineDispatcher<      true,      false,      true,      false,      true,          true,          false> { using Type = BlockFmhaBwdPipelineV10<Problem>; };
     // template<> struct BlockPipelineDispatcher<      true,      false,      true,      false,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV11<Problem>; };
     // template<> struct BlockPipelineDispatcher<     false,      false,      true,      false,      true,          true,          false> { using Type = BlockFmhaBwdPipelineV12<Problem>; };
-    template<> struct BlockPipelineDispatcher<     false,      false,      true,      false,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV13<Problem>; };
+       template<> struct BlockPipelineDispatcher<     false,      false,      true,      false,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV13<Problem>; };
     // template<> struct BlockPipelineDispatcher<     false,      false,     false,      false,      true,         false,          false> { using Type = BlockFmhaBwdPipelineV14<Problem>; };
     // template<> struct BlockPipelineDispatcher<     false,      false,     false,      false,     false,         false,          false> { using Type = BlockFmhaBwdPipelineV15<Problem>; };
     // clang-format on
