@@ -116,7 +116,7 @@ void PerformImageToColumnPad0(const ck::index_t G,
         ck::wrapper::make_layout(ck::make_tuple(ck::Number<8>{}, ck::Number<16>{}),
                                  ck::make_tuple(ck::Number<16>{}, ck::Number<1>{}));
     // This example doesn't support padding, user should select tile sizes
-    // which divides the shape completely
+    // which are divisible by the shape.
     const auto tile_shape = ck::make_tuple(ck::Number<32>{}, ck::Number<64>{});
 
     // Create buffers for global memory

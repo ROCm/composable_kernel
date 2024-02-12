@@ -9,9 +9,6 @@
 
 #include "ck/library/utility/host_tensor.hpp"
 
-#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -111,8 +108,8 @@ __global__ void __CK_WRAPPER_LAUNCH_BOUNDS__ DeviceGemm(const void* p_a,
         ck::make_tuple(K0PerBlock, NPerBlock, K1),
         ck::make_tuple((NPerBlock + ck::Number<1>{}) * K1, K1, ck::Number<1>{}));
 
-    __shared__ DataType lds_a[ck::wrapper::size(a_tile_layout) + NPerBlock];
-    __shared__ DataType lds_b[ck::wrapper::size(b_tile_layout) + NPerBlock];
+    __shared__ DataType lds_a[ck::wrapper::size(a_tile_layout) + K0PerBlock];
+    __shared__ DataType lds_b[ck::wrapper::size(b_tile_layout) + K0PerBlock];
 
     auto a_lds_tensor = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
         static_cast<DataType*>(lds_a), a_tile_layout);
@@ -241,7 +238,7 @@ __global__ void __CK_WRAPPER_LAUNCH_BOUNDS__ DeviceGemm(const void* p_a,
             ++i;
         } while(i < (num_loop - 1));
     }
-    // Handle tile.
+    // Handle tail.
     ck::block_sync_lds();
     ck::wrapper::blockwise_gemm_xdl<DataType, ck::wrapper::size(thread_layout), GemmTraits>(
         a_lds_tensor, b_lds_tensor, c_vgpr_reg);

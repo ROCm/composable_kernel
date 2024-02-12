@@ -173,5 +173,5 @@ The end result from `c_vgpr_reg` is stored in the `C` local partition (tensor pe
     ck::wrapper::copy(c_vgpr_reg, c_global_local_partition);
 ```
 
-For additional detail, you can find the entire example
+If you want to dive deep into the details, you can find the entire example
 [here](https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp).

@@ -172,11 +172,11 @@ template <typename DimAccessOrderTuple,
           typename SrcTensorType,
           typename DstTensorType,
           typename ThreadShape,
-          typename ThreadFlattenDesc>
+          typename ThreadUnrolledDesc>
 __device__ void
 blockwise_copy(const SrcTensorType& src_tensor,
                DstTensorType& dst_tensor,
-               [[maybe_unused]] const Layout<ThreadShape, ThreadFlattenDesc>& thread_layout)
+               [[maybe_unused]] const Layout<ThreadShape, ThreadUnrolledDesc>& thread_layout)
 {
     static_assert(SrcTensorType::IsDynamicBuffer && DstTensorType::IsDynamicBuffer);
     static_assert(is_detected<is_tuple, DimAccessOrderTuple>::value);

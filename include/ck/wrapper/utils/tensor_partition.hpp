@@ -180,7 +180,7 @@ __host__ __device__ constexpr auto GetDimsToPartition([[maybe_unused]] const Blo
  * \return Parsed dims.
  */
 template <typename BlockIdxs>
-__host__ __device__ constexpr auto RemoveSlicesWithZeros(const BlockIdxs& block_idxs)
+__host__ __device__ constexpr auto ReplaceSlicesWithZeros(const BlockIdxs& block_idxs)
 {
     return generate_tuple(
         [&](auto i) {
@@ -216,14 +216,14 @@ GenerateDefaultProjection([[maybe_unused]] const TileShape tile_shape)
  * \param thread_id Thread index represented as integer.
  * \return Multi index.
  */
-template <typename ThreadShape, typename ThreadFlattenDesc>
+template <typename ThreadShape, typename ThreadUnrolledDesc>
 __host__ __device__ constexpr auto CalculateThreadMultiIdx(
-    [[maybe_unused]] const Layout<ThreadShape, ThreadFlattenDesc>& thread_layout,
+    [[maybe_unused]] const Layout<ThreadShape, ThreadUnrolledDesc>& thread_layout,
     const index_t thread_id)
 {
-    static_assert(ThreadFlattenDesc::GetNumOfTransform() == 1,
+    static_assert(ThreadUnrolledDesc::GetNumOfTransform() == 1,
                   "Thread layout should not be transformed.");
-    constexpr auto embed_transform = ThreadFlattenDesc{}.GetTransforms().At(Number<0>{});
+    constexpr auto embed_transform = ThreadUnrolledDesc{}.GetTransforms().At(Number<0>{});
     constexpr auto shape           = ThreadShape{};
     constexpr auto strides         = embed_transform.coefficients_;
 
@@ -251,11 +251,11 @@ __host__ __device__ constexpr auto CalculateThreadMultiIdx(
  */
 template <typename TensorType,
           typename ThreadShape,
-          typename ThreadFlattenDesc,
+          typename ThreadUnrolledDesc,
           typename ProjectionTuple>
 __host__ __device__ constexpr auto
 make_local_partition(TensorType& tensor,
-                     [[maybe_unused]] const Layout<ThreadShape, ThreadFlattenDesc>& thread_layout,
+                     [[maybe_unused]] const Layout<ThreadShape, ThreadUnrolledDesc>& thread_layout,
                      const index_t thread_id,
                      const ProjectionTuple& projection)
 {
@@ -310,10 +310,10 @@ make_local_partition(TensorType& tensor,
  * \param thread_id Thread index represented as integer.
  * \return Partition tensor.
  */
-template <typename TensorType, typename ThreadShape, typename ThreadFlattenDesc>
+template <typename TensorType, typename ThreadShape, typename ThreadUnrolledDesc>
 __host__ __device__ constexpr auto
 make_local_partition(TensorType& tensor,
-                     const Layout<ThreadShape, ThreadFlattenDesc>& thread_lengths,
+                     const Layout<ThreadShape, ThreadUnrolledDesc>& thread_lengths,
                      const index_t thread_id)
 {
     const auto projection = detail::GenerateDefaultProjection(ThreadShape{});
@@ -359,7 +359,7 @@ __host__ __device__ constexpr auto make_local_tile(const TensorType& tensor,
         detail::ApplyProjection(BlockShapeTuple{}, ProjectionTuple{});
     // Number of dims which are partitioned
     constexpr auto dims_to_partition = detail::GetDimsToPartition(BlockIdxs{});
-    const auto parsed_block_idxs     = detail::RemoveSlicesWithZeros(block_idxs);
+    const auto parsed_block_idxs     = detail::ReplaceSlicesWithZeros(block_idxs);
     if constexpr(decltype(dims_to_partition)::Size() == I2)
     {
         const auto shape_with_projection_dims =

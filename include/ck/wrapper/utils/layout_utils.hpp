@@ -155,8 +155,8 @@ __host__ __device__ constexpr auto get(const Tuple<Dims...>& tuple)
  * \param layout Layout to create sub layout.
  * \return Requsted sub layout.
  */
-template <index_t idx, typename Shape, typename FlattenDesc>
-__host__ __device__ constexpr auto get(const Layout<Shape, FlattenDesc>& layout)
+template <index_t idx, typename Shape, typename UnrolledDesc>
+__host__ __device__ constexpr auto get(const Layout<Shape, UnrolledDesc>& layout)
 {
     const auto& shape    = layout.GetShape();
     const auto new_shape = get<idx>(shape);
@@ -439,12 +439,11 @@ __host__ __device__ constexpr const auto& shape(const LayoutType& layout)
  * \param tile_lengths Tile lengths to align layout shape.
  * \return Padded layout.
  */
-template <typename Shape, typename FlattenDesc, typename TileLengths>
-__host__ __device__ constexpr auto pad(const Layout<Shape, FlattenDesc>& layout,
+template <typename Shape, typename UnrolledDesc, typename TileLengths>
+__host__ __device__ constexpr auto pad(const Layout<Shape, UnrolledDesc>& layout,
                                        const TileLengths& tile_lengths)
 {
-    const auto& layout_shape = shape(layout);
-    auto& unrolled_desc      = layout.GetUnrolledDescriptor();
+    auto& unrolled_desc = layout.GetUnrolledDescriptor();
     // Generate sequence with ones to mark that all dims will be padded
     constexpr auto do_pads_seq =
         generate_sequence_v2([](auto) { return Number<1>{}; }, Number<Shape::Size()>{});
@@ -453,12 +452,7 @@ __host__ __device__ constexpr auto pad(const Layout<Shape, FlattenDesc>& layout,
         tensor_operation::device::PadTensorDescriptor(unrolled_desc, tile_lengths, do_pads_seq);
     // Generate padded shape
     const auto padded_shape = generate_tuple(
-        [&](auto i) {
-            const auto& dim         = size<i>(layout_shape);
-            const auto& tile_length = size<i>(tile_lengths);
-            return ck::math::integer_divide_ceil(dim, tile_length) * tile_length;
-        },
-        Number<TileLengths::Size()>{});
+        [&](auto i) { return padded_desc.GetLength(Number<i>{}); }, Number<TileLengths::Size()>{});
     // Create layout
     return Layout<decltype(padded_shape), decltype(padded_desc)>(padded_shape, padded_desc);
 }
@@ -473,8 +467,8 @@ __host__ __device__ constexpr auto pad(const Layout<Shape, FlattenDesc>& layout,
  * \param new_indexes Indexes to shuffle dims. Dims for unmerged dim should be nested.
  * \return Unmerged layout.
  */
-template <index_t Idx, typename Shape, typename FlattenDesc, typename NewLengths, typename NewIdxs>
-__host__ __device__ constexpr auto unmerge(const Layout<Shape, FlattenDesc>& layout,
+template <index_t Idx, typename Shape, typename UnrolledDesc, typename NewLengths, typename NewIdxs>
+__host__ __device__ constexpr auto unmerge(const Layout<Shape, UnrolledDesc>& layout,
                                            const NewLengths& new_lengths,
                                            [[maybe_unused]] const NewIdxs& new_indexes)
 {
