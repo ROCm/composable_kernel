@@ -8,6 +8,8 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
 namespace ck {
 
 // Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
@@ -1156,27 +1158,56 @@ struct ThreadwiseTensorSliceTransfer_v4
                         src_ref_to_origin_disp_idx + data_to_origin_disp_idx +
                         i * src_scalar_step_in_vector);
 
-                    // apply type convert
                     src_tmp_vector.template AsType<SrcData>()(i) = src_buf[Number<src_offset>{}];
                 });
             }
-            // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
-            // DstData)
-            vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
 
-            // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
-            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                dst_tmp_vector.template AsType<DstData>()(i) =
-                    type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
-            });
+            if constexpr(is_same<remove_cvref_t<SrcData>, f8_t>::value &&
+                         is_same<remove_cvref_t<DstData>, half_t>::value &&
+                         SrcScalarPerVector % 2 == 0)
+            {
+                // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
+                // DstData)
+                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
 
-            // copy data from dst_tmp_vector into dst_buf
-            static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                constexpr index_t dst_offset = dst_desc.CalculateOffset(
-                    dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+                constexpr index_t pack_size = 2;
 
-                dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
-            });
+                using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
+                using src_v_t = typename vector_type_maker_t<SrcData, pack_size>::type;
+                static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
+                    ck::tensor_operation::element_wise::PassThroughPack2{}(
+                        dst_tmp_vector.template AsType<dst_v_t>()(i),
+                        src_tmp_vector.template AsType<src_v_t>()[i]);
+                });
+
+                // copy data from dst_tmp_vector into dst_buf
+                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                        dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+
+                    dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+                });
+            }
+            else
+            {
+                // copy data from src_tmp_vector to dst_tmp_vector (data cast data from SrcData to
+                // DstData)
+                vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
+
+                // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
+                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                    dst_tmp_vector.template AsType<DstData>()(i) =
+                        type_convert<DstData>(src_tmp_vector.template AsType<SrcData>()[i]);
+                });
+
+                // copy data from dst_tmp_vector into dst_buf
+                static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
+                    constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                        dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
+
+                    dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+                });
+            }
         });
     }
 
