@@ -1174,8 +1174,6 @@ struct ThreadwiseTensorSliceTransfer_v4
 
                 using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
                 using src_v_t = typename vector_type_maker_t<SrcData, pack_size>::type;
-
-                // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
                 static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
                     ck::tensor_operation::element_wise::PassThroughPack2{}(
                         dst_tmp_vector.template AsType<dst_v_t>()(i),
