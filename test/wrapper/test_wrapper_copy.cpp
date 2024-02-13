@@ -20,23 +20,25 @@
 template <typename InputTensor,
           typename OutputTensor,
           typename BlockShape,
-          typename ThreadLayoutShape,
+          typename ThreadLayout,
           bool UseOptimizedCopy>
 __global__ void TestCopyDevice(const InputTensor input_tensor,
                                OutputTensor output_tensor,
                                const BlockShape tile_shape,
-                               const ThreadLayoutShape thread_layout)
+                               const ThreadLayout thread_layout)
 {
     __shared__ ck::index_t p_shared[ck::wrapper::size(tile_shape)];
     const auto tensor_lds = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Lds>(
         p_shared, ck::wrapper::make_layout(tile_shape));
 
-    const auto block_idx = static_cast<ck::index_t>(blockIdx.x);
+    const auto block_idxs =
+        ck::make_tuple(static_cast<ck::index_t>(blockIdx.x), static_cast<ck::index_t>(blockIdx.y));
 
     // Get local tiles for global memory
-    const auto input_local_tile = ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idx);
+    const auto input_local_tile =
+        ck::wrapper::make_local_tile(input_tensor, tile_shape, block_idxs);
     const auto output_local_tile =
-        ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idx);
+        ck::wrapper::make_local_tile(output_tensor, tile_shape, block_idxs);
 
     // Get partition per thread
     const auto input_local_partition =
@@ -49,7 +51,7 @@ __global__ void TestCopyDevice(const InputTensor input_tensor,
     // Allocate VGPR
     auto tensor_vgpr =
         ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Vgpr, ck::index_t>(
-            layout(lds_local_partition));
+            ck::wrapper::make_layout(shape(lds_local_partition)));
 
     // Perform copy
     if constexpr(UseOptimizedCopy)
@@ -99,11 +101,14 @@ void PerformCopyGlobalToGlobalViaLDS()
     auto output_tensor_global = ck::wrapper::make_tensor<ck::wrapper::MemoryTypeEnum::Global>(
         static_cast<ck::index_t*>(out_buf.GetDeviceBuffer()), layout);
 
-    const auto thread_layout = ck::make_tuple(ck::Number<1>{}, ck::Number<32>{});
-    const auto tile_shape    = ck::make_tuple(ck::Number<4>{}, ck::Number<64>{});
+    const auto thread_layout =
+        ck::wrapper::make_layout(ck::make_tuple(ck::Number<1>{}, ck::Number<32>{}));
+    const auto tile_shape = ck::make_tuple(ck::Number<4>{}, ck::Number<64>{});
 
-    const ck::index_t grid_size = ck::math::integer_divide_ceil(
-        ck::wrapper::size(input_tensor_global), ck::wrapper::size(tile_shape));
+    const ck::index_t grid_size_x = ck::math::integer_divide_ceil(
+        ck::wrapper::size<0>(input_tensor_global), ck::wrapper::size<0>(tile_shape));
+    const ck::index_t grid_size_y = ck::math::integer_divide_ceil(
+        ck::wrapper::size<1>(input_tensor_global), ck::wrapper::size<1>(tile_shape));
 
     const auto kernel = TestCopyDevice<decltype(input_tensor_global),
                                        decltype(output_tensor_global),
@@ -112,7 +117,7 @@ void PerformCopyGlobalToGlobalViaLDS()
                                        UseOptimizedCopy>;
     launch_and_time_kernel(StreamConfig{},
                            kernel,
-                           dim3(grid_size),
+                           dim3(grid_size_x, grid_size_y, 1),
                            dim3(ck::wrapper::size(thread_layout)),
                            0,
                            input_tensor_global,
