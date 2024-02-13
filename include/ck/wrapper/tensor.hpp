@@ -172,10 +172,10 @@ __host__ __device__ constexpr auto GenerateUpperDims(const Tuple<Transforms...>&
     }
 }
 
-template <typename... Ts, typename Shape, typename FlattenDescriptor>
+template <typename... Ts, typename Shape, typename UnrolledDescriptor>
 __host__ __device__ constexpr auto GenerateSlicedDescriptor(const Tuple<Ts...>& idx,
                                                             const Shape& shape,
-                                                            const FlattenDescriptor& flatten_desc)
+                                                            const UnrolledDescriptor& flatten_desc)
 {
     constexpr auto old_shape_dims = decltype(UnrollNestedTuple(shape))::Size();
 
