@@ -5,65 +5,53 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_image_to_column.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_image_to_column.hpp"
+#include "ck/tensor_operation/gpu/device/device_conv_tensor_rearrange.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_tensor_rearrange.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/conv_tensor_rearrange_op.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/io.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename InputGridDesc,
-          typename InputDataType,
-          typename OutputGridDesc,
-          typename OutputDataType,
-          typename Block2ETileMap,
-          typename GridwiseImageToColumnKernel>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_image_to_column(const InputGridDesc in_grid_desc,
-                               const InputDataType* __restrict__ p_in_global,
-                               const OutputGridDesc out_grid_desc,
-                               OutputDataType* __restrict__ p_out_global,
-                               const Block2ETileMap block_2_tile_map)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||             \
-    defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx1030__) || defined(__gfx1100__) || \
-    defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx941__) || defined(__gfx942__))
-    GridwiseImageToColumnKernel::Run(
-        in_grid_desc, p_in_global, out_grid_desc, p_out_global, block_2_tile_map);
-#else
-    ignore = in_grid_desc;
-    ignore = p_in_global;
-    ignore = out_grid_desc;
-    ignore = p_out_global;
-    ignore = block_2_tile_map;
-#endif
-}
-
-// Image to column for input layout NDHWC:
-//   input : input image [N, Di, Hi, Wi, C],
-//   output : output image [N * Do * Ho * Wo, Z * Y * X * C]
+// Image to column:
+//   input : input image [G, N, Di, Hi, Wi, C]
+//   output : gemm form [G * N * Do * Ho * Wo, Z * Y * X * C]
+//   input : input image [N, Di, Hi, Wi, G, C]
+//   output : gemm form [N * Do * Ho * Wo * G, Z * Y * X * C]
 template <index_t NDimSpatial,
-          typename InputLayout,
+          typename ImageLayout,
           typename InputDataType,
           typename OutputDataType,
           index_t BlockSize,
           index_t MPerBlock,
           index_t KPerBlock,
           typename ThreadClusterLengths,
-          index_t ScalarPerVector>
+          index_t ScalarPerVector,
+          typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct DeviceImageToColumnImpl
-    : public DeviceImageToColumn<NDimSpatial, InputLayout, InputDataType, OutputDataType>
+    : public DeviceConvTensorRearrange<NDimSpatial,
+                                       ImageLayout,
+                                       InputDataType,
+                                       OutputDataType,
+                                       conv_tensor_rearrange_op::ImageToColumn>
 {
+    static constexpr bool is_NSpatialGC =
+        std::is_same_v<ImageLayout, tensor_layout::convolution::NWGC> ||
+        std::is_same_v<ImageLayout, tensor_layout::convolution::NHWGC> ||
+        std::is_same_v<ImageLayout, tensor_layout::convolution::NDHWGC>;
+    static constexpr bool is_GNSpatialC =
+        std::is_same_v<ImageLayout, tensor_layout::convolution::GNWC> ||
+        std::is_same_v<ImageLayout, tensor_layout::convolution::GNHWC> ||
+        std::is_same_v<ImageLayout, tensor_layout::convolution::GNDHWC>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -83,7 +71,7 @@ struct DeviceImageToColumnImpl
                             const std::array<index_t, NDimSpatial>& input_spatial_lengths,
                             const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                             const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& input_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -110,9 +98,9 @@ struct DeviceImageToColumnImpl
         c_g_n_k_wos_lengths[I1] = N;
 
         const auto in_gemmmraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeADescriptor_M_K<InputLayout>(
+            conv_to_gemm_transformer.template MakeADescriptor_M_K<ImageLayout>(
                 a_g_n_c_wis_lengths,
-                input_g_n_c_wis_strides,
+                image_g_n_c_wis_strides,
                 b_g_k_c_xs_lengths,
                 {}, // not needed for A Descriptor
                 c_g_n_k_wos_lengths,
@@ -132,7 +120,7 @@ struct DeviceImageToColumnImpl
                           const ck::index_t C,
                           const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                           const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                          const std::array<index_t, 2>& output_m_k_strides)
+                          const std::array<index_t, 3>& gemm_g_m_k_strides)
     {
         const index_t NDoHoWo =
             N * ck::accumulate_n<index_t>(
@@ -140,11 +128,10 @@ struct DeviceImageToColumnImpl
         const index_t CZYX =
             C * ck::accumulate_n<index_t>(
                     filter_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>());
-        const auto desc_mraw_kraw = make_naive_tensor_descriptor(
-            make_tuple(NDoHoWo, CZYX), make_tuple(output_m_k_strides[I0], output_m_k_strides[I1]));
 
-        const auto desc_m_k = matrix_padder.PadADescriptor_M_K(desc_mraw_kraw);
-        return desc_m_k;
+        const auto desc_mraw_kraw = make_naive_tensor_descriptor(
+            make_tuple(NDoHoWo, CZYX), make_tuple(gemm_g_m_k_strides[I1], gemm_g_m_k_strides[I2]));
+        return matrix_padder.PadADescriptor_M_K(desc_mraw_kraw);
     }
 
     using InputGridDesc =
@@ -155,37 +142,41 @@ struct DeviceImageToColumnImpl
         decltype(BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(
             OutputGridDesc{}))>;
 
-    using GridwiseImageToColumnKernel = GridwiseImageToColumn<InputGridDesc,
-                                                              InputDataType,
-                                                              OutputGridDesc,
-                                                              OutputDataType,
-                                                              BlockSize,
-                                                              MPerBlock,
-                                                              KPerBlock,
-                                                              ThreadClusterLengths,
-                                                              ScalarPerVector,
-                                                              Block2ETileMap>;
+    using GridwiseTensorRearrangeKernel = GridwiseTensorRearrange<InputGridDesc,
+                                                                  InputDataType,
+                                                                  OutputGridDesc,
+                                                                  OutputDataType,
+                                                                  BlockSize,
+                                                                  MPerBlock,
+                                                                  KPerBlock,
+                                                                  ThreadClusterLengths,
+                                                                  ScalarPerVector,
+                                                                  InMemoryDataOperationEnum::Set,
+                                                                  Block2ETileMap,
+                                                                  ComputePtrOffsetOfStridedBatch<>>;
 
     struct Argument : public BaseArgument
     {
         Argument(const void* p_in, // input image
-                 void* p_out,      // output image
+                 void* p_out,      // gemm form
+                 const ck::index_t G,
                  const ck::index_t N,
                  const ck::index_t C,
                  const std::array<index_t, NDimSpatial>& input_spatial_lengths,
                  const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                  const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                 const std::array<index_t, NDimSpatial + 3>& input_g_n_c_wis_strides,
-                 const std::array<index_t, 2>& output_m_k_strides,
+                 const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
+                 const std::array<index_t, 3>& gemm_g_m_k_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_strides,
                  const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                  const std::array<index_t, NDimSpatial>& input_left_pads,
                  const std::array<index_t, NDimSpatial>& input_right_pads)
-            : C_(C),
+            : G_(G),
+              C_(C),
               X_(filter_spatial_lengths[NDimSpatial - I1]),
               p_in_{static_cast<const InputDataType*>(p_in)},
               p_out_{static_cast<OutputDataType*>(p_out)},
-              input_g_n_c_wis_strides_{input_g_n_c_wis_strides},
+              image_g_n_c_wis_strides_{image_g_n_c_wis_strides},
               conv_filter_strides_{conv_filter_strides},
               conv_filter_dilations_{conv_filter_dilations},
               input_left_pads_{input_left_pads},
@@ -197,15 +188,17 @@ struct DeviceImageToColumnImpl
                                                         input_spatial_lengths,
                                                         filter_spatial_lengths,
                                                         output_spatial_lengths,
-                                                        input_g_n_c_wis_strides,
-
+                                                        image_g_n_c_wis_strides,
                                                         conv_filter_strides,
                                                         conv_filter_dilations,
                                                         input_left_pads,
                                                         input_right_pads);
 
             out_grid_desc_m_k_ = MakeOutDescriptor_M_K(
-                N, C, filter_spatial_lengths, output_spatial_lengths, output_m_k_strides);
+                N, C, filter_spatial_lengths, output_spatial_lengths, gemm_g_m_k_strides);
+
+            compute_ptr_offset_of_batch_.BatchStrideA_ = image_g_n_c_wis_strides[I0];
+            compute_ptr_offset_of_batch_.BatchStrideC_ = gemm_g_m_k_strides[I0];
         }
 
         void Print() const
@@ -214,13 +207,14 @@ struct DeviceImageToColumnImpl
             std::cout << out_grid_desc_m_k_ << std::endl;
         }
 
+        const ck::index_t G_;
         const ck::index_t C_;
         const ck::index_t X_;
 
         const InputDataType* p_in_;
         OutputDataType* p_out_;
 
-        const std::array<index_t, NDimSpatial + 3>& input_g_n_c_wis_strides_;
+        const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides_;
         const std::array<index_t, NDimSpatial>& conv_filter_strides_;
         const std::array<index_t, NDimSpatial>& conv_filter_dilations_;
         const std::array<index_t, NDimSpatial>& input_left_pads_;
@@ -228,6 +222,8 @@ struct DeviceImageToColumnImpl
 
         InputGridDesc in_grid_desc_m_k_;
         OutputGridDesc out_grid_desc_m_k_;
+
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
     };
 
     struct Invoker : public BaseInvoker
@@ -242,13 +238,15 @@ struct DeviceImageToColumnImpl
             const auto block_2_tile_map =
                 BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, OutputGridDesc>(
                     arg.out_grid_desc_m_k_);
-            const index_t grid_size = block_2_tile_map.CalculateGridSize(arg.out_grid_desc_m_k_);
-            const auto kernel       = kernel_image_to_column<InputGridDesc,
-                                                       InputDataType,
-                                                       OutputGridDesc,
-                                                       OutputDataType,
-                                                       Block2ETileMap,
-                                                       GridwiseImageToColumnKernel>;
+            const index_t grid_size =
+                block_2_tile_map.CalculateGridSize(arg.out_grid_desc_m_k_) * arg.G_;
+            const auto kernel = kernel_tensor_rearrange<InputGridDesc,
+                                                        InputDataType,
+                                                        OutputGridDesc,
+                                                        OutputDataType,
+                                                        Block2ETileMap,
+                                                        ComputePtrOffsetOfStridedBatch<>,
+                                                        GridwiseTensorRearrangeKernel>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
@@ -259,7 +257,9 @@ struct DeviceImageToColumnImpl
                                                         arg.p_in_,
                                                         arg.out_grid_desc_m_k_,
                                                         arg.p_out_,
-                                                        block_2_tile_map);
+                                                        arg.G_,
+                                                        block_2_tile_map,
+                                                        arg.compute_ptr_offset_of_batch_);
             return elapsed_time;
         }
 
@@ -272,13 +272,7 @@ struct DeviceImageToColumnImpl
 
     bool IsSupportedArgument(const Argument& arg)
     {
-        using namespace tensor_layout::convolution;
-        if(!(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
-             std::is_same_v<InputLayout, GNDHWC>))
-        {
-            return false;
-        }
-        if(!(NDimSpatial >= 1 && NDimSpatial <= 3))
+        if constexpr(!(is_NSpatialGC || is_GNSpatialC))
         {
             return false;
         }
@@ -287,8 +281,8 @@ struct DeviceImageToColumnImpl
         const auto w_pad_right = arg.input_right_pads_[NDimSpatial - I1];
         const auto dilation_x  = arg.conv_filter_dilations_[NDimSpatial - I1];
         const auto stride_x    = arg.conv_filter_strides_[NDimSpatial - I1];
-        bool is_w_packed       = arg.input_g_n_c_wis_strides_[NDimSpatial + I2] == arg.C_;
-        bool is_c_packed       = arg.input_g_n_c_wis_strides_[I2] == 1;
+        bool is_w_packed       = arg.image_g_n_c_wis_strides_[NDimSpatial + I2] == arg.C_;
+        bool is_c_packed       = arg.image_g_n_c_wis_strides_[I2] == 1;
 
         // check vector acces with c not packed
         if(!is_c_packed && ScalarPerVector != 1)
@@ -310,8 +304,8 @@ struct DeviceImageToColumnImpl
         if(dilation_x > 1 && arg.C_ % ScalarPerVector != 0)
             return false;
 
-        return GridwiseImageToColumnKernel::CheckValidity(arg.in_grid_desc_m_k_,
-                                                          arg.out_grid_desc_m_k_);
+        return GridwiseTensorRearrangeKernel::CheckValidity(arg.in_grid_desc_m_k_,
+                                                            arg.out_grid_desc_m_k_);
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
@@ -320,14 +314,15 @@ struct DeviceImageToColumnImpl
     }
 
     static auto MakeArgument(const void* p_in, // input image
-                             void* p_out,      // output image
+                             void* p_out,      // gemm form
+                             const ck::index_t G,
                              const ck::index_t N,
                              const ck::index_t C,
                              const std::array<index_t, NDimSpatial>& input_spatial_lengths,
                              const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                              const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                             const std::array<index_t, NDimSpatial + 3>& input_g_n_c_wis_strides,
-                             const std::array<index_t, 2>& output_m_k_strides,
+                             const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
+                             const std::array<index_t, 3>& gemm_g_m_k_strides,
                              const std::array<index_t, NDimSpatial>& conv_filter_strides,
                              const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                              const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -335,13 +330,14 @@ struct DeviceImageToColumnImpl
     {
         return Argument{static_cast<const InputDataType*>(p_in),
                         static_cast<OutputDataType*>(p_out),
+                        G,
                         N,
                         C,
                         input_spatial_lengths,
                         filter_spatial_lengths,
                         output_spatial_lengths,
-                        input_g_n_c_wis_strides,
-                        output_m_k_strides,
+                        image_g_n_c_wis_strides,
+                        gemm_g_m_k_strides,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -352,14 +348,15 @@ struct DeviceImageToColumnImpl
 
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in, // input image
-                        void* p_out,      // output image
+                        void* p_out,      // gemm form
+                        const ck::index_t G,
                         const ck::index_t N,
                         const ck::index_t C,
                         const std::array<index_t, NDimSpatial>& input_spatial_lengths,
                         const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
                         const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& input_g_n_c_wis_strides,
-                        const std::array<index_t, 2>& output_m_k_strides,
+                        const std::array<index_t, NDimSpatial + 3>& image_g_n_c_wis_strides,
+                        const std::array<index_t, 3>& gemm_g_m_k_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
@@ -367,13 +364,14 @@ struct DeviceImageToColumnImpl
     {
         return std::make_unique<Argument>(static_cast<const InputDataType*>(p_in),
                                           static_cast<OutputDataType*>(p_out),
+                                          G,
                                           N,
                                           C,
                                           input_spatial_lengths,
                                           filter_spatial_lengths,
                                           output_spatial_lengths,
-                                          input_g_n_c_wis_strides,
-                                          output_m_k_strides,
+                                          image_g_n_c_wis_strides,
+                                          gemm_g_m_k_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,

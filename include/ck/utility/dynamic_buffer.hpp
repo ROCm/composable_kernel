@@ -140,11 +140,57 @@ struct DynamicBuffer
         }
         else if constexpr(Op == InMemoryDataOperationEnum::Add)
         {
-            auto tmp = this->template Get<X>(i, is_valid_element);
-            this->template Set<X>(i, is_valid_element, x + tmp);
-            // tmp += x;
-            // this->template Set<X>(i, is_valid_element, tmp);
+            auto tmp       = this->template Get<X>(i, is_valid_element);
+            using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
+            // handle bfloat addition
+            if constexpr(is_same_v<scalar_t, bhalf_t>)
+            {
+                if constexpr(is_scalar_type<X>::value)
+                {
+                    // Scalar type
+                    auto result =
+                        type_convert<X>(type_convert<float>(x) + type_convert<float>(tmp));
+                    this->template Set<X>(i, is_valid_element, result);
+                }
+                else
+                {
+                    // Vector type
+                    constexpr auto vector_size = scalar_type<remove_cvref_t<X>>::vector_size;
+                    const vector_type<scalar_t, vector_size> a_vector{tmp};
+                    const vector_type<scalar_t, vector_size> b_vector{x};
+                    static_for<0, vector_size, 1>{}([&](auto idx) {
+                        auto result = type_convert<scalar_t>(
+                            type_convert<float>(a_vector.template AsType<scalar_t>()[idx]) +
+                            type_convert<float>(b_vector.template AsType<scalar_t>()[idx]));
+                        this->template Set<scalar_t>(i + idx, is_valid_element, result);
+                    });
+                }
+            }
+            else
+            {
+                this->template Set<X>(i, is_valid_element, x + tmp);
+            }
         }
+    }
+
+    template <typename DstBuffer, index_t NumElemsPerThread>
+    __host__ __device__ void DirectCopyToLds(DstBuffer& dst_buf,
+                                             index_t src_offset,
+                                             index_t dst_offset,
+                                             bool is_valid_element) const
+    {
+        // Copy data from global to LDS memory using direct loads.
+        static_assert(GetAddressSpace() == AddressSpaceEnum::Global,
+                      "Source data must come from a global memory buffer.");
+        static_assert(DstBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
+                      "Destination data must be stored in an LDS memory buffer.");
+
+        amd_direct_load_global_to_lds<T, NumElemsPerThread>(p_data_,
+                                                            src_offset,
+                                                            dst_buf.p_data_,
+                                                            dst_offset,
+                                                            is_valid_element,
+                                                            element_space_size_);
     }
 
     template <typename X,

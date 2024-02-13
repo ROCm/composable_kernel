@@ -649,7 +649,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
             Gemm1KPack,
             true,       // TransposeC
             Gemm1KPack, // AMmaKStride
-            Gemm1KPack * XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, false>{}.K0PerXdlops>{
+            Gemm1KPack *
+                XdlopsGemm<FloatAB, MPerXdl, NPerXdl, Gemm1KPack, FloatAB, false>{}.K0PerXdlops>{
             // BMmaKStride
             make_tuple(0, 0, 0, 0)}; // A_origin
 

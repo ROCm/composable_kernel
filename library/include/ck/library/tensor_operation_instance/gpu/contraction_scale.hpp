@@ -17,7 +17,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 #ifdef CK_ENABLE_FP32
-// float
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_kkn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
                                                            2,
@@ -28,7 +27,8 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_kkn_instanc
                                                            F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
+                                                           Scale,
+                                                           F32>>>& instances);
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_knn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -40,7 +40,8 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_knn_instanc
                                                            F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
+                                                           Scale,
+                                                           F32>>>& instances);
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mkn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -52,7 +53,8 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mkn_instanc
                                                            F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
+                                                           Scale,
+                                                           F32>>>& instances);
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -64,10 +66,115 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mnn_instanc
                                                            F32,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
-#endif
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_kkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_knn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_mkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_mnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_kkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           BF16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_knn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           BF16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_mkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           BF16>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_mnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F32,
+                                                           F32,
+                                                           Empty_Tuple,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           BF16>>>& instances);
+#endif // CK_ENABLE_FP32
+
 #ifdef CK_ENABLE_FP64
-// double
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_kkn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
                                                            2,
@@ -78,7 +185,8 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_kkn_instanc
                                                            F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
+                                                           Scale,
+                                                           F64>>>& instances);
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_knn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -90,7 +198,8 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_knn_instanc
                                                            F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
+                                                           Scale,
+                                                           F64>>>& instances);
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mkn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -102,7 +211,8 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mkn_instanc
                                                            F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
+                                                           Scale,
+                                                           F64>>>& instances);
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mnn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
@@ -114,15 +224,178 @@ void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mnn_instanc
                                                            F64,
                                                            PassThrough,
                                                            PassThrough,
-                                                           Scale>>>& instances);
-#endif
+                                                           Scale,
+                                                           F64>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_kkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           Empty_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_knn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           Empty_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_mkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           Empty_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_mnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F64,
+                                                           F64,
+                                                           Empty_Tuple,
+                                                           F64,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+#endif // CK_ENABLE_FP64
+
+#ifdef CK_ENABLE_FP16
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_kkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F16,
+                                                           F16,
+                                                           Empty_Tuple,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_knn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F16,
+                                                           F16,
+                                                           Empty_Tuple,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_mkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F16,
+                                                           F16,
+                                                           Empty_Tuple,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_mnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           F16,
+                                                           F16,
+                                                           Empty_Tuple,
+                                                           F16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+#endif // CK_ENABLE_FP16
+
+#ifdef CK_ENABLE_BF16
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_kkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           BF16,
+                                                           BF16,
+                                                           Empty_Tuple,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_knn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           BF16,
+                                                           BF16,
+                                                           Empty_Tuple,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_mkn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           BF16,
+                                                           BF16,
+                                                           Empty_Tuple,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+
+void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_mnn_instance(
+    std::vector<std::unique_ptr<DeviceContractionMultipleD<2,
+                                                           2,
+                                                           2,
+                                                           BF16,
+                                                           BF16,
+                                                           Empty_Tuple,
+                                                           BF16,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           Scale,
+                                                           F32>>>& instances);
+#endif // CK_ENABLE_FP16
+
 // Contraction + Scale
 template <index_t NumDimM,
           index_t NumDimN,
           index_t NumDimK,
           typename ADataType,
           typename BDataType,
-          typename EDataType>
+          typename EDataType,
+          typename ComputeDataType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContractionMultipleD<
     NumDimM,
     NumDimN,
@@ -133,7 +406,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
     EDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::Scale>>
+    ck::tensor_operation::element_wise::Scale,
+    ComputeDataType>>
 {
     using DeviceOp = DeviceContractionMultipleD<NumDimM,
                                                 NumDimN,
@@ -144,7 +418,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
                                                 EDataType,
                                                 ck::tensor_operation::element_wise::PassThrough,
                                                 ck::tensor_operation::element_wise::PassThrough,
-                                                ck::tensor_operation::element_wise::Scale>;
+                                                ck::tensor_operation::element_wise::Scale,
+                                                ComputeDataType>;
 
     static auto GetInstances()
     {
@@ -155,34 +430,113 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceContra
         {
             if constexpr(NumDimM == 2 && NumDimN == 2 && NumDimK == 2)
             {
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_kkn_instance(
-                    op_ptrs);
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_knn_instance(
-                    op_ptrs);
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mkn_instance(
-                    op_ptrs);
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mnn_instance(
-                    op_ptrs);
+                if constexpr(is_same_v<ComputeDataType, float>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_mnn_instance(
+                        op_ptrs);
+                }
+                else if constexpr(is_same_v<ComputeDataType, ck::half_t>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_f16_mnn_instance(
+                        op_ptrs);
+                }
+                else if constexpr(is_same_v<ComputeDataType, ck::bhalf_t>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_compute_bf16_mnn_instance(
+                        op_ptrs);
+                }
             }
         }
-#endif
+#endif // CK_ENABLE_FP32
 #ifdef CK_ENABLE_FP64
         if constexpr(is_same_v<ADataType, double> && is_same_v<BDataType, double> &&
                      is_same_v<EDataType, double>)
         {
             if constexpr(NumDimM == 2 && NumDimN == 2 && NumDimK == 2)
             {
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_kkn_instance(
-                    op_ptrs);
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_knn_instance(
-                    op_ptrs);
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mkn_instance(
-                    op_ptrs);
-                add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mnn_instance(
-                    op_ptrs);
+                if constexpr(is_same_v<ComputeDataType, double>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_mnn_instance(
+                        op_ptrs);
+                }
+                else if constexpr(is_same_v<ComputeDataType, float>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_compute_f32_mnn_instance(
+                        op_ptrs);
+                }
             }
         }
-#endif
+#endif // CK_ENABLE_FP64
+#ifdef CK_ENABLE_FP16
+        if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
+                     is_same_v<EDataType, ck::half_t>)
+        {
+            if constexpr(NumDimM == 2 && NumDimN == 2 && NumDimK == 2)
+            {
+                if constexpr(is_same_v<ComputeDataType, float>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_mnn_instance(
+                        op_ptrs);
+                }
+            }
+        }
+#endif // CK_ENABLE_FP16
+#ifdef CK_ENABLE_BF16
+        if constexpr(is_same_v<ADataType, ck::bhalf_t> && is_same_v<BDataType, ck::bhalf_t> &&
+                     is_same_v<EDataType, ck::bhalf_t>)
+        {
+            if constexpr(NumDimM == 2 && NumDimN == 2 && NumDimK == 2)
+            {
+                if constexpr(is_same_v<ComputeDataType, float>)
+                {
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_kkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_knn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_mkn_instance(
+                        op_ptrs);
+                    add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_bf16_bf16_bf16_compute_f32_mnn_instance(
+                        op_ptrs);
+                }
+            }
+        }
+#endif // CK_ENABLE_BF16
         return op_ptrs;
     }
 };

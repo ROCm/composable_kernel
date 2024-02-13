@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 
 using InDataType           = int8_t;
 using WeiDataType          = int8_t;
@@ -33,7 +33,7 @@ template <ck::index_t NDimSpatial,
           typename RequantScaleLayout,
           typename OutLayout>
 using DeviceGroupedConvNDFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
         WeiLayout,

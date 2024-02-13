@@ -226,7 +226,9 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         }
     }
 
-    void SetWorkSpacePointer(BaseArgument* pArg, void* p_workspace) const override
+    void SetWorkSpacePointer(BaseArgument* pArg,
+                             void* p_workspace,
+                             const StreamConfig& = StreamConfig{}) const override
     {
         Argument* pArg_ = dynamic_cast<Argument*>(pArg);
 
@@ -241,9 +243,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
 
     static bool IsSupportedArgument(const Argument& karg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-             ck::get_device_name() == "gfx942"))
+        if(!(ck::is_xdl_supported()))
         {
             return false;
         }

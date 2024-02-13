@@ -297,13 +297,11 @@ int main(int argc, char* argv[])
 
     problem_size.group_count = 16;
 
-    problem_size.Ms = {
-        167, 183, 177, 181, 153, 139, 156, 173, 163, 150, 204, 184, 168, 156, 168, 148};
-
     for(int i = 0; i < problem_size.group_count; i++)
     {
-        problem_size.Ns.push_back(768);
-        problem_size.Ks.push_back(4608);
+        problem_size.Ms.push_back(256 + 256 * i);
+        problem_size.Ns.push_back(256);
+        problem_size.Ks.push_back(128);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);
