@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,25 +25,35 @@ template <ck::index_t NDimSpatial,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
+          ck::index_t NumAElementwiseTensor                                         = 0,
+          ck::index_t NumBElementwiseTensor                                         = 0,
+          ck::index_t NumDElementwiseTensor                                         = 0,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvBwdData : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
     {
-        Argument(Tensor<InDataType>& input,
-                 const Tensor<WeiDataType>& weight,
-                 const Tensor<OutDataType>& output,
-                 std::vector<ck::index_t> conv_filter_strides,
-                 std::vector<ck::index_t> conv_filter_dilations,
-                 std::vector<ck::index_t> input_left_pads,
-                 std::vector<ck::index_t> input_right_pads,
-                 InElementwiseOperation in_element_op,
-                 WeiElementwiseOperation wei_element_op,
-                 OutElementwiseOperation out_element_op)
+        Argument(
+            Tensor<InDataType>& input,
+            const Tensor<WeiDataType>& weight,
+            const Tensor<OutDataType>& output,
+            std::vector<ck::index_t> conv_filter_strides,
+            std::vector<ck::index_t> conv_filter_dilations,
+            std::vector<ck::index_t> input_left_pads,
+            std::vector<ck::index_t> input_right_pads,
+            InElementwiseOperation in_element_op,
+            WeiElementwiseOperation wei_element_op,
+            OutElementwiseOperation out_element_op,
+            const std::array<Tensor<InDataType>, NumAElementwiseTensor>& elementwise_a_tensors,
+            const std::array<Tensor<WeiDataType>, NumBElementwiseTensor>& elementwise_b_tensors,
+            const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors)
             : input_{input},
               weight_{weight},
               output_{output},
+              elementwise_a_tensors_{elementwise_a_tensors},
+              elementwise_b_tensors_{elementwise_b_tensors},
+              elementwise_d_tensors_{elementwise_d_tensors},
               conv_strides_{conv_filter_strides},
               conv_dilations_{conv_filter_dilations},
               in_left_pads_{input_left_pads},
@@ -57,6 +67,10 @@ struct ReferenceConvBwdData : public device::BaseOperator
         Tensor<InDataType>& input_;
         const Tensor<WeiDataType>& weight_;
         const Tensor<OutDataType>& output_;
+
+        const std::array<Tensor<InDataType>, NumAElementwiseTensor>& elementwise_a_tensors_;
+        const std::array<Tensor<WeiDataType>, NumBElementwiseTensor>& elementwise_b_tensors_;
+        const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors_;
 
         std::vector<index_t> conv_strides_;
         std::vector<index_t> conv_dilations_;
@@ -106,26 +120,46 @@ struct ReferenceConvBwdData : public device::BaseOperator
                             {
                                 for(std::size_t k = 0; k < K; ++k)
                                 {
-                                    float v_out = 0;
-                                    float v_wei = 0;
+                                    OutDataType v_out;
+                                    WeiDataType v_wei;
 
-                                    arg.out_element_op_(
-                                        v_out, ck::type_convert<float>(arg.output_(g, n, k, wo)));
+                                    ExecuteElementwiseOp(arg.out_element_op_,
+                                                         arg.elementwise_a_tensors_,
+                                                         Number<NumAElementwiseTensor>{},
+                                                         v_out,
+                                                         arg.output_(g, n, k, wo),
+                                                         g,
+                                                         n,
+                                                         k,
+                                                         wo);
+                                    ExecuteElementwiseOp(arg.wei_element_op_,
+                                                         arg.elementwise_b_tensors_,
+                                                         Number<NumBElementwiseTensor>{},
+                                                         v_wei,
+                                                         arg.weight_(g, k, c, x),
+                                                         g,
+                                                         k,
+                                                         c,
+                                                         x);
 
-                                    arg.wei_element_op_(
-                                        v_wei, ck::type_convert<float>(arg.weight_(g, k, c, x)));
-
-                                    v_acc += v_out * v_wei;
+                                    v_acc += ck::type_convert<float>(v_out) *
+                                             ck::type_convert<float>(v_wei);
                                 }
                             }
                         }
                     }
 
-                    float v_in;
-
-                    arg.in_element_op_(v_in, v_acc);
-
-                    arg.input_(g, n, c, wi) = ck::type_convert<InDataType>(v_in);
+                    InDataType v_acc_converted = ck::type_convert<InDataType>(v_acc);
+                    InDataType& v_in           = arg.input_(g, n, c, wi);
+                    ExecuteElementwiseOp(arg.in_element_op_,
+                                         arg.elementwise_d_tensors_,
+                                         Number<NumDElementwiseTensor>{},
+                                         v_in,
+                                         v_acc_converted,
+                                         g,
+                                         n,
+                                         c,
+                                         wi);
                 };
 
                 make_ParallelTensorFunctor(f_ncw,
@@ -175,20 +209,34 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                         {
                                             for(std::size_t k = 0; k < K; ++k)
                                             {
-                                                float v_out = 0;
-                                                float v_wei = 0;
+                                                OutDataType v_out;
+                                                WeiDataType v_wei;
 
-                                                arg.out_element_op_(
+                                                ExecuteElementwiseOp(
+                                                    arg.out_element_op_,
+                                                    arg.elementwise_a_tensors_,
+                                                    Number<NumAElementwiseTensor>{},
                                                     v_out,
-                                                    ck::type_convert<float>(
-                                                        arg.output_(g, n, k, ho, wo)));
-
-                                                arg.wei_element_op_(
+                                                    arg.output_(g, n, k, ho, wo),
+                                                    g,
+                                                    n,
+                                                    k,
+                                                    ho,
+                                                    wo);
+                                                ExecuteElementwiseOp(
+                                                    arg.wei_element_op_,
+                                                    arg.elementwise_b_tensors_,
+                                                    Number<NumBElementwiseTensor>{},
                                                     v_wei,
-                                                    ck::type_convert<float>(
-                                                        arg.weight_(g, k, c, y, x)));
+                                                    arg.weight_(g, k, c, y, x),
+                                                    g,
+                                                    k,
+                                                    c,
+                                                    y,
+                                                    x);
 
-                                                v_acc += v_out * v_wei;
+                                                v_acc += ck::type_convert<float>(v_out) *
+                                                         ck::type_convert<float>(v_wei);
                                             }
                                         }
                                     }
@@ -197,11 +245,18 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         }
                     }
 
-                    float v_in;
-
-                    arg.in_element_op_(v_in, v_acc);
-
-                    arg.input_(g, n, c, hi, wi) = ck::type_convert<InDataType>(v_in);
+                    InDataType v_acc_converted = ck::type_convert<InDataType>(v_acc);
+                    InDataType& v_in           = arg.input_(g, n, c, hi, wi);
+                    ExecuteElementwiseOp(arg.in_element_op_,
+                                         arg.elementwise_d_tensors_,
+                                         Number<NumDElementwiseTensor>{},
+                                         v_in,
+                                         v_acc_converted,
+                                         g,
+                                         n,
+                                         c,
+                                         hi,
+                                         wi);
                 };
 
                 make_ParallelTensorFunctor(f_nchw,
@@ -270,20 +325,37 @@ struct ReferenceConvBwdData : public device::BaseOperator
                                                     {
                                                         for(std::size_t k = 0; k < K; ++k)
                                                         {
-                                                            float v_out = 0;
-                                                            float v_wei = 0;
+                                                            OutDataType v_out;
+                                                            WeiDataType v_wei;
 
-                                                            arg.out_element_op_(
+                                                            ExecuteElementwiseOp(
+                                                                arg.out_element_op_,
+                                                                arg.elementwise_a_tensors_,
+                                                                Number<NumAElementwiseTensor>{},
                                                                 v_out,
-                                                                ck::type_convert<float>(arg.output_(
-                                                                    g, n, k, do_, ho, wo)));
-
-                                                            arg.wei_element_op_(
+                                                                arg.output_(g, n, k, do_, ho, wo),
+                                                                g,
+                                                                n,
+                                                                k,
+                                                                do_,
+                                                                ho,
+                                                                wo);
+                                                            ExecuteElementwiseOp(
+                                                                arg.wei_element_op_,
+                                                                arg.elementwise_b_tensors_,
+                                                                Number<NumBElementwiseTensor>{},
                                                                 v_wei,
-                                                                ck::type_convert<float>(
-                                                                    arg.weight_(g, k, c, z, y, x)));
+                                                                arg.weight_(g, k, c, z, y, x),
+                                                                g,
+                                                                k,
+                                                                c,
+                                                                z,
+                                                                y,
+                                                                x);
 
-                                                            v_acc += v_out * v_wei;
+                                                            v_acc +=
+                                                                ck::type_convert<float>(v_out) *
+                                                                ck::type_convert<float>(v_wei);
                                                         }
                                                     }
                                                 }
@@ -295,11 +367,19 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         }
                     }
 
-                    float v_in;
-
-                    arg.in_element_op_(v_in, v_acc);
-
-                    arg.input_(g, n, c, di, hi, wi) = ck::type_convert<InDataType>(v_in);
+                    InDataType v_acc_converted = ck::type_convert<InDataType>(v_acc);
+                    InDataType& v_in           = arg.input_(g, n, c, di, hi, wi);
+                    ExecuteElementwiseOp(arg.in_element_op_,
+                                         arg.elementwise_d_tensors_,
+                                         Number<NumDElementwiseTensor>{},
+                                         v_in,
+                                         v_acc_converted,
+                                         g,
+                                         n,
+                                         c,
+                                         di,
+                                         hi,
+                                         wi);
                 };
 
                 make_ParallelTensorFunctor(f_ncdhw,
@@ -325,6 +405,36 @@ struct ReferenceConvBwdData : public device::BaseOperator
         }
     };
 
+    template <typename... Args,
+              typename ElementwiseOp,
+              typename ElementwiseTensor,
+              typename NumTensor,
+              typename T>
+    static void ExecuteElementwiseOp(ElementwiseOp& elementwise_op,
+                                     ElementwiseTensor& elementwise_tensors,
+                                     NumTensor,
+                                     T& y,
+                                     const T& x,
+                                     Args... dims)
+    {
+        if constexpr(NumTensor::value == 0)
+        {
+            elementwise_op(y, x);
+        }
+        else if constexpr(NumTensor::value == 1)
+        {
+            elementwise_op(y, x, elementwise_tensors[0](dims...));
+        }
+        else if constexpr(NumTensor::value == 2)
+        {
+            elementwise_op(y, x, elementwise_tensors[0](dims...), elementwise_tensors[1](dims...));
+        }
+        else
+        {
+            throw std::runtime_error("ElementOp not supported in reference.");
+        }
+    }
+
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
@@ -333,16 +443,20 @@ struct ReferenceConvBwdData : public device::BaseOperator
 
     bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
-    static auto MakeArgument(Tensor<InDataType>& input,
-                             const Tensor<WeiDataType>& weight,
-                             const Tensor<OutDataType>& output,
-                             std::vector<ck::index_t> conv_filter_strides,
-                             std::vector<ck::index_t> conv_filter_dilations,
-                             std::vector<ck::index_t> input_left_pads,
-                             std::vector<ck::index_t> input_right_pads,
-                             InElementwiseOperation in_element_op,
-                             WeiElementwiseOperation wei_element_op,
-                             OutElementwiseOperation out_element_op)
+    static auto MakeArgument(
+        Tensor<InDataType>& input,
+        const Tensor<WeiDataType>& weight,
+        const Tensor<OutDataType>& output,
+        std::vector<ck::index_t> conv_filter_strides,
+        std::vector<ck::index_t> conv_filter_dilations,
+        std::vector<ck::index_t> input_left_pads,
+        std::vector<ck::index_t> input_right_pads,
+        InElementwiseOperation in_element_op,
+        WeiElementwiseOperation wei_element_op,
+        OutElementwiseOperation out_element_op,
+        const std::array<Tensor<InDataType>, NumAElementwiseTensor>& elementwise_a_tensors  = {},
+        const std::array<Tensor<WeiDataType>, NumBElementwiseTensor>& elementwise_b_tensors = {},
+        const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors = {})
     {
         return Argument{input,
                         weight,
@@ -353,7 +467,10 @@ struct ReferenceConvBwdData : public device::BaseOperator
                         input_right_pads,
                         in_element_op,
                         wei_element_op,
-                        out_element_op};
+                        out_element_op,
+                        elementwise_a_tensors,
+                        elementwise_b_tensors,
+                        elementwise_d_tensors};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

@@ -1,0 +1,17 @@
+add_subdirectory(binary)
+add_subdirectory(multi_AB)
+add_subdirectory(unary)
+
+list(APPEND gpu_list gfx908 gfx90a gfx940 gfx941 gfx942)
+set(target 0)
+foreach(gpu IN LISTS GPU_TARGETS)
+ if(gpu IN_LIST gpu_list AND target EQUAL 0)
+      add_custom_target(example_convnd_activ_xdl)
+      # ScaleAdd ScaleAdd Relu
+      add_example_executable(example_convnd_fwd_xdl_scaleadd_scaleadd_relu_fp16 convnd_fwd_xdl_scaleadd_scaleadd_relu_fp16.cpp)
+      add_example_dependencies(example_convnd_activ_xdl example_convnd_fwd_xdl_scaleadd_scaleadd_relu_fp16)
+      add_example_executable(example_convnd_fwd_xdl_scaleadd_scaleadd_relu_bcasted_bias_fp16 convnd_fwd_xdl_scaleadd_scaleadd_relu_bcasted_bias_fp16.cpp)
+      add_example_dependencies(example_convnd_activ_xdl example_convnd_fwd_xdl_scaleadd_scaleadd_relu_bcasted_bias_fp16)
+   set(target 1)
+ endif()
+endforeach()
