@@ -15,9 +15,9 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I8  = int8_t;
+using I8   = int8_t;
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -52,7 +52,7 @@ using device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_irregular_tile_inst
     // clang-format on
     >;
 
-void add_device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_instances(
+void add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                          Row,
                                                          DsLayout,
@@ -66,7 +66,8 @@ void add_device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_instances(
                                                          PassThrough>>>& instances)
 {
     add_device_operation_instances(
-        instances, device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances{});
+        instances,
+        device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances{});
 }
 
 } // namespace instance
