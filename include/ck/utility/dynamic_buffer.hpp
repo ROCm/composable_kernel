@@ -52,6 +52,77 @@ struct DynamicBuffer
 
     __host__ __device__ constexpr T& operator()(index_t i) { return p_data_[i]; }
 
+    // custom type implementaiton
+    template <typename X,
+              typename enable_if<!(is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                           typename scalar_type<remove_cvref_t<T>>::type>::value),
+                                 bool>::type = false>
+    __host__ __device__ constexpr auto Get(index_t i, bool is_valid_element) const
+    {
+        // unpack the custom data type
+        using T_data = typename T::data_type;
+
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = scalar_type<remove_cvref_t<T_data>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = scalar_type<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+#if CK_USE_AMD_BUFFER_LOAD
+        bool constexpr use_amd_buffer_addressing = true;
+#else
+        bool constexpr use_amd_buffer_addressing = false;
+#endif
+
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
+        {
+            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+            if constexpr(InvalidElementUseNumericalZeroValue)
+            {
+                return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
+                                                                   t_per_x,
+                                                                   coherence>(
+                    p_data_, i, is_valid_element, element_space_size_);
+            }
+            else
+            {
+                return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
+                                                                               t_per_x,
+                                                                               coherence>(
+                    p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
+            }
+        }
+        else
+        {
+            if(is_valid_element)
+            {
+#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+                X tmp;
+
+                __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
+
+                return tmp;
+#else
+                return *c_style_pointer_cast<const X*>(&p_data_[i]);
+#endif
+            }
+            else
+            {
+                if constexpr(InvalidElementUseNumericalZeroValue)
+                {
+                    return X{0};
+                }
+                else
+                {
+                    return X{invalid_element_value_};
+                }
+            }
+        }
+    }
+
     template <typename X,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value,
