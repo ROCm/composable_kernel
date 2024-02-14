@@ -195,7 +195,7 @@ __host__ __device__ Y run_cast_from_f8(X x)
     constexpr int out_mant = NumericUtils<Y>::mant;
 
     // prepare the codes
-    constexpr X nan_code = 0x80;
+    constexpr typename X::data_type nan_code = 0x80;
     Y Inf, NegInf, NaN, Neg0;
     using T_bitwise = typename NumericUtils<Y>::bitwise_type;
 
@@ -209,14 +209,16 @@ __host__ __device__ Y run_cast_from_f8(X x)
     NaN    = *(reinterpret_cast<const Y*>(&NaN_bitwise));
     Neg0   = *(reinterpret_cast<const Y*>(&Neg0_bitwise));
 
+    auto x_ = x.data;
+
     // check if x is 0.0
-    if(x == 0)
+    if(x_ == 0)
         return static_cast<Y>(0);
 
     // unpack the input
-    uint32_t sign     = x >> (in_exp + in_mant);
-    uint32_t mantissa = x & ((1 << in_mant) - 1);
-    int exponent      = (x & 0x7F) >> in_mant;
+    uint32_t sign     = x_ >> (in_exp + in_mant);
+    uint32_t mantissa = x_ & ((1 << in_mant) - 1);
+    int exponent      = (x_ & 0x7F) >> in_mant;
 
     constexpr int exp_low_cutoff =
         (1 << (out_exp - 1)) - (1 << (in_exp - 1)) + 1 - (negative_zero_nan ? 1 : 0);
@@ -224,7 +226,7 @@ __host__ __device__ Y run_cast_from_f8(X x)
 
     if constexpr(negative_zero_nan)
     {
-        if(x == nan_code)
+        if(x_ == nan_code)
             return NaN;
     }
     else
@@ -237,7 +239,7 @@ __host__ __device__ Y run_cast_from_f8(X x)
 
     if((NumericUtils<Y>::mant == 10) && (NumericUtils<X>::mant == 2) && !negative_zero_nan)
     {
-        retval = x;
+        retval = x_;
         retval <<= 8;
         return *(reinterpret_cast<const Y*>(&retval));
     }
