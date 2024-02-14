@@ -294,7 +294,7 @@ struct DeviceElementwise3dImpl : public DeviceElementwise<InDataTypeTuple,
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         if((ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-            ck::get_device_name() == "gfx942"))
+            ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ))
         {
             return false;
         }

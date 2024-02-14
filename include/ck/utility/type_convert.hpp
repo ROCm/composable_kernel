@@ -9,7 +9,7 @@
 
 namespace ck {
 // Define the common macro for MI300 models
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
 
