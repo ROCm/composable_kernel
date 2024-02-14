@@ -32,6 +32,17 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 static constexpr auto MNPadding   = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 static constexpr auto MNKPadding  = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
+// Compilation parameters for a[m, k] * b[n, k] = c[m, n]
+using device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_generic_instances = std::tuple<
+    // clang-format off
+        //#####################| ALayout| BLayout| CLayout| AData| BData| CData| AccData| CShuffle|           A|           B|           C|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|          LoopScheduler|                    Pipeline|
+        //#####################|        |        |        |  Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|                       |                            |
+        //#####################|        |        |        |      |      |      |        |         |   Operation|   Operation|   Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|                       |                            |
+        //#####################|        |        |        |      |      |      |        |         |            |            |            |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                       |                            |
+        DeviceGemm_Xdl_CShuffle<     Row,     Col,     Row,   F16,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough,     MNKPadding,        1,   128,   128,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1,           1,           1,               S<1, 16, 1, 8>,              1,  LoopScheduler::Default,        PipelineVersion::v1>
+    // clang-format on
+    >;
+
 template <ck::tensor_operation::device::GemmSpecialization GemmSpec>
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
 using device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances = std::tuple<
@@ -97,6 +108,9 @@ void add_device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances(
         DeviceGemm<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances)
 {
+    add_device_operation_instances(
+        instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_generic_instances{});
+
     add_device_operation_instances(
         instances, device_gemm_xdl_c_shuffle_f16_f16_f16_mk_nk_mn_instances<GemmDefault>{});
 

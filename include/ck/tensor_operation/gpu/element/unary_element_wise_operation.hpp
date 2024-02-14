@@ -21,50 +21,11 @@ struct PassThroughPack2
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
-    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
-    {
-        // fake conversion
-        uint16_t t = ck::bit_cast<uint32_t>(x);
-        y          = ck::bit_cast<ck::f8x2_t>(t);
-    }
-
     __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
     {
         auto t = type_convert<float2_t>(x);
         y      = type_convert<half2_t>(t);
     }
-
-    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::half2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::f8x2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::float2_t& y, const ck::float2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::int8x2_t& y, const ck::int8x2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::bhalf2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::double2_t& y, const ck::double2_t& x) const
-    {
-        y = x;
-    }
-
-    constexpr const static bool is_pack2_invocable = true;
 };
 
 struct PassThrough
@@ -458,27 +419,29 @@ struct FastGelu
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-
-        y = x * cdf;
+        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = exp(u);
+        y               = x / (1.f + emu);
     }
 
     // device code, use lower precision "__expf" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = __expf(-u);
+        // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = __expf(u);
 
 #if !CK_WORKAROUND_SWDEV_383542
-        const float cdf = 0.5f + 0.5f * (2.f * __frcp_rn(1.f + emu) - 1.f);
+        y = x * __frcp_rn(1.f + emu);
 #else
-        const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
+        y = x * __ocml_native_recip_f32(1.f + emu);
 #endif
-
-        y = x * cdf;
     }
 
     template <>
