@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,13 +26,20 @@ namespace device {
 template <typename GridwiseGemm,
           typename GemmDesc,
           bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation>
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+          typename AElementwiseOperation = ck::tensor_operation::element_wise::PassThrough,
+          typename BElementwiseOperation = ck::tensor_operation::element_wise::PassThrough,
+          typename CElementwiseOperation = ck::tensor_operation::element_wise::PassThrough>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_xdl_splitk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                       const index_t group_count)
+        kernel_grouped_gemm_xdl_splitk(
+            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+            const index_t group_count,
+            const AElementwiseOperation a_element_op = AElementwiseOperation{},
+            const BElementwiseOperation b_element_op = BElementwiseOperation{},
+            const CElementwiseOperation c_element_op = CElementwiseOperation{})
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -64,10 +71,16 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
         gemm_desc_ptr[group_id].karg_,
         static_cast<void*>(p_shared),
-        gemm_desc_ptr[group_id].block_2_ctile_map_);
+        gemm_desc_ptr[group_id].block_2_ctile_map_,
+        a_element_op,
+        b_element_op,
+        c_element_op);
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
+    ignore = a_element_op;
+    ignore = b_element_op;
+    ignore = c_element_op;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
