@@ -237,13 +237,17 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
 
-            using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
-            using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+            using src_elem_op_vec_t =
+                typename vector_type<SrcData, elem_op_vec_len>::conversion_type;
+            using dst_elem_op_vec_t =
+                typename vector_type<DstData, elem_op_vec_len>::conversion_type;
 
             static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
                 // apply the src elementwise op and convert to DstData under the hood if needed
-                src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                                src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
+                src_element_op_(
+                    op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
+                    bit_cast<src_elem_op_vec_t>(
+                        src_vector_container.template AsType<src_elem_op_vec_t>()[idx]));
             });
 
             // copy data from src_vector_container into src_thread_scratch_
