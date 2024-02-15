@@ -38,7 +38,7 @@ The docker images have everything you need for running CK including:
 
 * `ROCm <https://www.amd.com/en/graphics/servers-solutions-rocm>`_
 * `CMake <https://cmake.org/getting-started/>`_
-* `Compiler <https://github.com/RadeonOpenCompute/llvm-project>`_
+* `Compiler <https://github.com/ROCm/llvm-project>`_
 * `Composable Kernel library <https://github.com/ROCm/composable_kernel>`_
 
 Running the docker container
@@ -97,5 +97,5 @@ Editing the docker image
 =======================
 
 If you want to customize the docker image, edit the
-`Dockerfile <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/Dockerfile>`_
+`Dockerfile <https://github.com/ROCm/composable_kernel/blob/develop/Dockerfile>`_
 from the GitHub repository to suit your needs.
