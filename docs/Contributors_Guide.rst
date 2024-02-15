@@ -17,7 +17,7 @@ Getting started
    `Composable Kernel User Guide <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/>`_.
    It provides insight into the core concepts, environment configuration, and steps to obtain or
    build the library. You can also find some of this information in the
-   `README file <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/README.md>`_
+   `README file <https://github.com/ROCm/composable_kernel/blob/develop/README.md>`_
    on the project's GitHub page.
 #. **Additional reading:** The blog post `AMD Composable Kernel library: efficient fused kernels for AI apps with just a few lines of code <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_ provides a deeper understanding of the CK library and showcases its performance capabilities.
    <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_
@@ -33,7 +33,7 @@ You can make an impact by reporting issues or proposing code enhancements throug
 Reporting issues
 ----------------
 
-Use `Github issues <https://github.com/ROCmSoftwarePlatform/composable_kernel/issues>`_
+Use `Github issues <https://github.com/ROCm/composable_kernel/issues>`_
 to track public bugs and enhancement requests.
 
 If you encounter an issue with the library, please check if the problem has already been
@@ -68,7 +68,7 @@ Creating Pull Requests
 ----------------------
 
 You can submit `Pull Requests (PR) on GitHub
-<https://github.com/ROCmSoftwarePlatform/composable_kernel/pulls>`_.
+<https://github.com/ROCm/composable_kernel/pulls>`_.
 
 All contributors are required to develop their changes on a separate branch and then create a
 pull request to merge their changes into the `develop` branch, which is the default
@@ -89,7 +89,7 @@ When submitting a Pull Request you should:
   the project's root directory. We leverage `pre-commit` to run `clang-format` automatically. We
   highly recommend contributors utilize this method to maintain consistent code formatting.
   Instructions on setting up `pre-commit` can be found in the project's
-  `README file <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/README.md>`_
+  `README file <https://github.com/ROCm/composable_kernel/blob/develop/README.md>`_
 
 * Link your PR to any related issues:
 
