@@ -189,7 +189,7 @@ struct vector_type<T, 1>
     }
 };
 
-int static err = 0;
+__device__ int static err = 0;
 template <typename T>
 struct vector_type<T, 2>
 {

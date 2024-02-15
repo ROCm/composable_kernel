@@ -63,7 +63,7 @@ inline bool is_lds_direct_load_supported()
     // Check if direct loads from global memory to LDS are supported.
     return ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx940" ||
            ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942" ||
-	   ck::get_device_name() == "gfx950";
+           ck::get_device_name() == "gfx950";
 }
 
 inline bool is_navi1_supported()
