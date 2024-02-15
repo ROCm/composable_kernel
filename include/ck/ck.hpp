@@ -72,7 +72,6 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
 #elif defined(__gfx11__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
-#endif
 #elif defined(__gfx12__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
