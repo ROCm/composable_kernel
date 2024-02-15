@@ -165,7 +165,7 @@ struct Subtract
 
 struct Bilinear
 {
-    Bilinear(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    Bilinear(float alpha = 1.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
@@ -182,6 +182,14 @@ struct Bilinear
     operator()<float, float, float>(float& y, const float& x0, const float& x1) const
     {
         y = alpha_ * x0 + beta_ * x1;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<int8_t, int8_t, int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        y = type_convert<int8_t>(alpha_ * type_convert<float>(x0) +
+                                 beta_ * type_convert<float>(x1));
     };
 
     template <>
@@ -221,7 +229,8 @@ struct Bilinear
     __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
         std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
     {
-        y = type_convert<std::int8_t>(x0 + ck::type_convert<std::int32_t>(x1));
+        y = type_convert<int8_t>(alpha_ * type_convert<float>(x0) +
+                                 beta_ * type_convert<float>(x1));
     };
 
     float alpha_;
