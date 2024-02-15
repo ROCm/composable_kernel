@@ -27,7 +27,7 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_wavelet_fp16)
 
 add_example_executable(example_gemm_xdl_skip_b_lds_fp16 gemm_xdl_skip_b_lds_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_skip_b_lds_fp16)
-if(GPU_TARGETS MATCHES "gfx1100" OR GPU_TARGETS MATCHES "gfx1101" OR GPU_TARGETS MATCHES "gfx1102")
+if(GPU_TARGETS MATCHES "gfx11")
     add_custom_target(example_gemm_wmma)
     add_example_executable(example_gemm_wmma_fp16 gemm_wmma_fp16.cpp)
     add_example_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
