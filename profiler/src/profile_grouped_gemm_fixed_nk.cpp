@@ -102,10 +102,6 @@ int profile_grouped_gemm_fixed_nk(int argc, char* argv[])
 #if defined(CK_ENABLE_BF16) && defined(CK_ENABLE_INT8)
     if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        if(kbatch != 1)
-        {
-            throw std::runtime_error("wrong! BF16&INT8 gemm_fixed_nk supports only kbatch = 1");
-        }
         ck::profiler::profile_grouped_gemm_fixed_nk_impl<BF16,
                                                          I8,
                                                          BF16,

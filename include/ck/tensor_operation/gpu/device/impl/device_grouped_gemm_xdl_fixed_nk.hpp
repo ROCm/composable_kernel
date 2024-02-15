@@ -50,7 +50,7 @@ __global__ void
                                          const CDEElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -594,16 +594,10 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         {
             bool has_main_k_block_loop = true;
 
-            index_t kbatch = arg.k_batch_;
-            if constexpr(std::is_same<ADataType, ck::bhalf_t>::value)
-            {
-                kbatch = 1;
-            }
-
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
                 const auto KPad =
-                    GridwiseGemm::CalculateKPadded(arg.gemm_desc_kernel_arg_[i].K_, kbatch);
+                    GridwiseGemm::CalculateKPadded(arg.gemm_desc_kernel_arg_[i].K_, arg.k_batch_);
 
                 if(GridwiseGemm::CalculateHasMainKBlockLoop(KPad) != has_main_k_block_loop)
                 {
@@ -647,7 +641,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                     arg.barrier_size_grp_,
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.grid_size_grp_,
-                    kbatch,
+                    arg.k_batch_,
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_);
@@ -656,6 +650,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             constexpr auto AtomicAdd = InMemoryDataOperationEnum::AtomicAdd;
             constexpr auto Set       = InMemoryDataOperationEnum::Set;
 
+            // For bf16 datatype only kbatch = 1 scenario is supported. This condition is enforced
+            // in IsSupportedArgument function
             if constexpr(std::is_same<ADataType, ck::bhalf_t>::value)
             {
                 if(has_main_k_block_loop)
@@ -671,7 +667,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             }
             else
             {
-                if(kbatch > 1)
+                if(arg.k_batch_ > 1)
                 {
                     if(has_main_k_block_loop)
                     {
@@ -740,6 +736,13 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
                 supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
             }
+        }
+
+        // For bf16 datatype only kbatch = 1 is supported since there is no AtomicAdd
+        // instruction that supports bf16 and we cannot use splitk because of that
+        if constexpr(std::is_same<ADataType, ck::bhalf_t>::value)
+        {
+            supported = supported & (arg.k_batch_ == 1);
         }
 
         return supported;
