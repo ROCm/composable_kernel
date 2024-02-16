@@ -306,7 +306,7 @@ class FmhaFwdTileSize:
     F_occupancy : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
     @property
     def name(self) -> str:
-        return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bn0}x{self.F_bk1}x{self.F_bk0blen}" +\
+        return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bn1}x{self.F_bk1}x{self.F_bk0blen}" +\
         f"_r{self.F_rm}x{self.F_rn}x{self.F_rk}_w{self.F_wm}x{self.F_wn}x{self.F_wk}" +\
             ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
 
