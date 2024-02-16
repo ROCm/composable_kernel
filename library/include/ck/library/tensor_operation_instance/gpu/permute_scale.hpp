@@ -17,17 +17,10 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#ifdef CK_ENABLE_FP16
 void add_device_permute_scale_1d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  1>>>&);
-
-void add_device_permute_scale_1d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
                                                   PassThrough,
                                                   element_wise::UnarySquare,
                                                   Scale,
@@ -41,25 +34,9 @@ void add_device_permute_scale_2d_f16_instances(
                                                   Scale,
                                                   2>>>&);
 
-void add_device_permute_scale_2d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  2>>>&);
-
 void add_device_permute_scale_3d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  3>>>&);
-
-void add_device_permute_scale_3d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
                                                   PassThrough,
                                                   element_wise::UnarySquare,
                                                   Scale,
@@ -73,25 +50,9 @@ void add_device_permute_scale_4d_f16_instances(
                                                   Scale,
                                                   4>>>&);
 
-void add_device_permute_scale_4d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  4>>>&);
-
 void add_device_permute_scale_5d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  5>>>&);
-
-void add_device_permute_scale_5d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
                                                   PassThrough,
                                                   element_wise::UnarySquare,
                                                   Scale,
@@ -105,6 +66,49 @@ void add_device_permute_scale_6d_f16_instances(
                                                   Scale,
                                                   6>>>&);
 
+#endif
+
+#ifdef CK_ENABLE_FP32
+void add_device_permute_scale_1d_f32_instances(
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+                                                  ck::Tuple<F32>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  1>>>&);
+
+void add_device_permute_scale_2d_f32_instances(
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+                                                  ck::Tuple<F32>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  2>>>&);
+
+void add_device_permute_scale_3d_f32_instances(
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+                                                  ck::Tuple<F32>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  3>>>&);
+
+void add_device_permute_scale_4d_f32_instances(
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+                                                  ck::Tuple<F32>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  4>>>&);
+
+void add_device_permute_scale_5d_f32_instances(
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+                                                  ck::Tuple<F32>,
+                                                  PassThrough,
+                                                  element_wise::UnarySquare,
+                                                  Scale,
+                                                  5>>>&);
+
 void add_device_permute_scale_6d_f32_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
                                                   ck::Tuple<F32>,
@@ -112,6 +116,7 @@ void add_device_permute_scale_6d_f32_instances(
                                                   element_wise::UnarySquare,
                                                   Scale,
                                                   6>>>&);
+#endif
 
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
@@ -139,81 +144,105 @@ struct DeviceOperationInstanceFactory<
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
         if constexpr(NumDim == 1)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
                 add_device_permute_scale_1d_f32_instances(op_ptrs);
             }
-            else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
-                              is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                         is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_1d_f16_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDim == 2)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
                 add_device_permute_scale_2d_f32_instances(op_ptrs);
             }
-            else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
-                              is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                         is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_2d_f16_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDim == 3)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
                 add_device_permute_scale_3d_f32_instances(op_ptrs);
             }
-            else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
-                              is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                         is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_3d_f16_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDim == 4)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
                 add_device_permute_scale_4d_f32_instances(op_ptrs);
             }
-            else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
-                              is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                         is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_4d_f16_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDim == 5)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
                 add_device_permute_scale_5d_f32_instances(op_ptrs);
             }
-            else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
-                              is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                         is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_5d_f16_instances(op_ptrs);
             }
+#endif
         }
         else if constexpr(NumDim == 6)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
                 add_device_permute_scale_6d_f32_instances(op_ptrs);
             }
-            else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
-                              is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
+#endif
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+                         is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_6d_f16_instances(op_ptrs);
             }
+#endif
         }
         return op_ptrs;
     }
