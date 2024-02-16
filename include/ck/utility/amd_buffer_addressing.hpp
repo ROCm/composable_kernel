@@ -563,6 +563,8 @@ namespace impl{
 // can't use "+v" since there could be potential extra move(read/write)
 // use "v" can help remove such duplicated moves
 // besides, fake this as "memory" operation to force later valu after this fence
+// TODO: may have scratch (because this is memory?)
+//       need to reduce extra move inside compiler
 template<index_t N>
 __device__ void insert_dummy_dep_per_dword(static_buffer_c<float, N>& b)
 {
