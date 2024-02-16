@@ -10,10 +10,18 @@ namespace ck {
 __device__ void block_sync_lds()
 {
 #if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
+#ifdef __gfx12__
+    asm volatile("\
+    s_wait_idle lgkmcnt(0) \n \
+    s_barrier_signal \n \
+    s_barrier_wait \
+    " ::);
+#else
     asm volatile("\
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#endif
 #else
     __syncthreads();
 #endif
@@ -21,11 +29,20 @@ __device__ void block_sync_lds()
 
 __device__ void block_sync_lds_direct_load()
 {
+#ifdef __gfx12__
+    asm volatile("\
+    s_wait_idle vmcnt(0) \n \
+    s_wait_idle lgkmcnt(0) \n \
+    s_barrier_signal \n \
+    s_barrier_wait \
+    " ::);
+#else
     asm volatile("\
     s_waitcnt vmcnt(0) \n \
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#endif
 }
 
 __device__ void s_nop()
