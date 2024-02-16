@@ -303,11 +303,9 @@ struct BlockFmhaPipelineQRKSVSAsync
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
-        // buffer_load_fence(k_dram_window.GetNumAccess(), q.GetThreadBuffer());
-        buffer_load_fence(k_dram_window.GetNumAccess());
-
-        auto q_tile = tile_elementwise_in(q_element_func, q);
-        __builtin_amdgcn_sched_barrier(0);
+        buffer_load_fence(k_dram_window.GetNumAccess(), q.GetThreadBuffer());
+        (void)q_element_func; // ??? rocm-6.x if use q element func will have scratch on hdim=64/32
+        auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
