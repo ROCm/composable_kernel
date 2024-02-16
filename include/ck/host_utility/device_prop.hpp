@@ -85,4 +85,9 @@ inline bool is_navi3_supported()
            ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103";
 }
 
+inline bool is_navi4_supported()
+{
+	return ck::get_device_name() == "gfx1200";
+}
+
 } // namespace ck

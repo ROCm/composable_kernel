@@ -58,6 +58,9 @@
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
 #define __gfx11__
 #endif
+#if defined(__gfx1200__)
+#define __gfx12__
+#endif
 
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
@@ -67,7 +70,7 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx12__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
@@ -80,7 +83,7 @@
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx12__)
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8_GFX11
@@ -152,7 +155,7 @@
 #define CK_USE_SR_F8_CONVERSION 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
-#define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
+#define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 0
 
 // experimental feature: multi index implemented as array
 #define CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
