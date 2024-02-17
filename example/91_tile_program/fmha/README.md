@@ -26,7 +26,7 @@ To speed up compile time, we instantiate the kernels into separate file. In this
 `example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/example_fmha_fwd -?` to list all supported args. Below is an example of the output (may subject to change)
 ```
 args:
-                    -v    weather do CPU validation or not (default:1)
+          -v    weather do CPU validation or not (default:1)
        -mode    kernel mode. 0:batch, 1:group (default:0)
           -b    batch size (default:2)
           -h    num of head, for q (default:8)
