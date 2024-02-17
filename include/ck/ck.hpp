@@ -155,7 +155,7 @@
 #define CK_USE_SR_F8_CONVERSION 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
-#define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 0
+#define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 
 // experimental feature: multi index implemented as array
 #define CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
