@@ -105,7 +105,7 @@ __device__ void set_tile(NullTensor&, Number<v>)
 template <typename DstrTensors>
 __device__ void clear_tile(DstrTensors& dstr_tensor)
 {
-    set_tile(dstr_tensor, Number<0>{});
+    set_tile(dstr_tensor, 0);
 }
 
 template <typename OutDataType, typename InDstrTensors>

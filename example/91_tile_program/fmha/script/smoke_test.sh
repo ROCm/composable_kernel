@@ -14,7 +14,7 @@ for prec in "fp16" "bf16" ; do
 # for mode in 1 0 ; do
 for perm in 0 1 ; do
 for vlayout in "r" "c" ; do
-for hdim in 128 64 32 256 ; do
+for hdim in 32 64 128 256 ; do
 for lse in 0 1 ; do
 for bias in 0 1 ; do
 
