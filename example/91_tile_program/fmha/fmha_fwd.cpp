@@ -162,7 +162,8 @@ bool run(const ArgParser& arg_parser)
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
 
-    StreamConfig stream_config{nullptr, true, kname ? 1 : 0, stream_warmup, stream_repeat};
+    StreamConfig stream_config{
+        nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
 
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
