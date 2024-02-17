@@ -305,7 +305,7 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         buffer_load_fence(k_dram_window.GetNumAccess(), q.GetThreadBuffer());
         (void)q_element_func; // ??? rocm-6.x if use q element func will have scratch on hdim=64/32
-        auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
+        // auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
@@ -330,9 +330,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     gemm_0(s_acc,
-                           get_slice_tile(q_tile,
-                                          Sequence<0, i_k0 * kK0>{},
-                                          Sequence<kM0, (i_k0 + 1) * kK0>{}),
+                           get_slice_tile(
+                               q, Sequence<0, i_k0 * kK0>{}, Sequence<kM0, (i_k0 + 1) * kK0>{}),
 #if K_LDS_LOAD_USE_OFFSET_TRANSFORM
                            k_lds_load[Number<LdsSeq.At(Number<i_k0>{})>{}]);
 
@@ -357,9 +356,8 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      Sequence<0, (k0_loops - 1) * kK0>{},
-                                      Sequence<kM0, k0_loops * kK0>{}),
+                       get_slice_tile(
+                           q, Sequence<0, (k0_loops - 1) * kK0>{}, Sequence<kM0, k0_loops * kK0>{}),
 #if K_LDS_LOAD_USE_OFFSET_TRANSFORM
                        k_lds_load[Number<LdsSeq.At(Number<k0_loops - 1>{})>{}]);
 

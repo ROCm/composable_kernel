@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/static_buffer_c_array.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
@@ -74,10 +75,37 @@ __device__ void set_tile(NullTensor&, const T&)
 {
 }
 
+// TODO: prefer to use per-dword value to set a tensor, in case compiler not doing well with
+// sub-dword tensor...
+template <typename DstrTensors, index_t v>
+__device__ void set_tile(DstrTensors& dstr_tensor, Number<v>)
+{
+    constexpr index_t tensor_bytes =
+        DstrTensors::GetThreadBufferSize() * sizeof(typename DstrTensors::DataType);
+    if constexpr(v == 0 && tensor_bytes % 4 == 0)
+    {
+        using dvec_t = static_buffer_c<index_t, tensor_bytes / 4>;
+        auto& tensor = reinterpret_cast<dvec_t&>(dstr_tensor.GetThreadBuffer());
+        for(auto i = 0; i < tensor.size(); i++)
+            tensor.get(i) = v;
+    }
+    else
+    {
+        tile_elementwise_inout(
+            [](auto& x) { x = type_convert<typename DstrTensors::DataType, index_t>(v); },
+            dstr_tensor);
+    }
+}
+
+template <index_t v>
+__device__ void set_tile(NullTensor&, Number<v>)
+{
+}
+
 template <typename DstrTensors>
 __device__ void clear_tile(DstrTensors& dstr_tensor)
 {
-    set_tile(dstr_tensor, 0);
+    set_tile(dstr_tensor, Number<0>{});
 }
 
 template <typename OutDataType, typename InDstrTensors>
