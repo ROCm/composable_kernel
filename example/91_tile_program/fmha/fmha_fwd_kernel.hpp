@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <type_traits>
 #include <string>
+#include <type_traits>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor/tensor_view.hpp"
