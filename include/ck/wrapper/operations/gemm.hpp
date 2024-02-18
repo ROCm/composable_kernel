@@ -48,8 +48,9 @@ __device__ constexpr auto GetBlockDescriptor()
 
 /**
  * \brief Perform blockwise gemm xdl on tensors stored in lds. Result will be
- * stored in Vgpr register. A data layout must be (MPerBlock, KPerBlock) and B
- * data layout must be (NPerBlock, KPerBlock).
+ * stored in Vgpr register. A data layout must be (MPerBlock, KPerBlock) or
+ * (K0PerBlock, MPerBlock, K1) and B data layout must be (NPerBlock, KPerBlock)
+ * or (K0PerBlock, NPerBlock, K1).
  *
  * \note C output Vgpr register layout (8D):
  * - MXdlPerWave - The number of MFMA instructions run by single wave in M
@@ -71,9 +72,9 @@ __device__ constexpr auto GetBlockDescriptor()
  * \tparam BlockSize Tensor to pad.
  * \tparam GemmTraits Traits of gemm xdl operation.
  * \param a_local_tile_tensor A tensor in LDS memory for blockwise gemm
- * (MPerBlock, KPerBlock) layout.
+ * (MPerBlock, KPerBlock) or (K0PerBlock, MPerBlock, K1) layout.
  * \param b_local_tile_tensor B tensor in LDS memory for blockwise gemm
- * (NPerBlock, KPerBlock) layout.
+ * (NPerBlock, KPerBlock) or (K0PerBlock, NPerBlock, K1) layout.
  * \param c_reg_tensor C tensor VGPR memory for blockwise gemm.
  */
 template <typename DataType,
@@ -86,6 +87,8 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
                                    const BTensorType& b_local_tile_tensor,
                                    CTensorType& c_reg_tensor)
 {
+    constexpr auto I3 = Number<3>{};
+
     static_assert(ATensorType::TensorBufferAddressSpace == MemoryTypeEnum::Lds);
     static_assert(BTensorType::TensorBufferAddressSpace == MemoryTypeEnum::Lds);
     static_assert(CTensorType::TensorBufferAddressSpace == MemoryTypeEnum::Vgpr);
@@ -99,10 +102,18 @@ __device__ void blockwise_gemm_xdl(const ATensorType& a_local_tile_tensor,
     using ATileLayout = remove_cvref_t<decltype(layout(a_local_tile_tensor))>;
     using BTileLayout = remove_cvref_t<decltype(layout(b_local_tile_tensor))>;
 
+    static_assert(typename ATileLayout::LayoutShape{}.Size() ==
+                  typename BTileLayout::LayoutShape{}.Size());
+    constexpr bool is_3d_desc = typename ATileLayout::LayoutShape{}.Size() == I3;
+
     using ABlockDesc_K0_M_K1_Type =
-        decltype(detail::GetBlockDescriptor<GemmTraits::K1, ATileLayout>());
+        conditional_t<is_3d_desc,
+                      typename ATileLayout::LayoutUnrolledDescriptorType,
+                      decltype(detail::GetBlockDescriptor<GemmTraits::K1, ATileLayout>())>;
     using BBlockDesc_K0_N_K1_Type =
-        decltype(detail::GetBlockDescriptor<GemmTraits::K1, BTileLayout>());
+        conditional_t<is_3d_desc,
+                      typename BTileLayout::LayoutUnrolledDescriptorType,
+                      decltype(detail::GetBlockDescriptor<GemmTraits::K1, BTileLayout>())>;
 
     BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                         DataType,
@@ -168,14 +179,22 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
     constexpr auto I6 = Number<6>{};
     constexpr auto I7 = Number<7>{};
 
+    static_assert(typename ATileLayout::LayoutShape{}.Size() ==
+                  typename BTileLayout::LayoutShape{}.Size());
+
     constexpr bool is_integer =
         is_same_v<DataType, int8_t> || is_same_v<DataType, int16_t> || is_same_v<DataType, int32_t>;
     using GemmAccDataType = std::conditional_t<is_integer, int32_t, float>;
 
+    constexpr bool is_3d_desc = typename ATileLayout::LayoutShape{}.Size() == I3;
     using ABlockDesc_K0_M_K1_Type =
-        decltype(detail::GetBlockDescriptor<GemmTraits::K1, ATileLayout>());
+        conditional_t<is_3d_desc,
+                      typename ATileLayout::LayoutUnrolledDescriptorType,
+                      decltype(detail::GetBlockDescriptor<GemmTraits::K1, ATileLayout>())>;
     using BBlockDesc_K0_N_K1_Type =
-        decltype(detail::GetBlockDescriptor<GemmTraits::K1, BTileLayout>());
+        conditional_t<is_3d_desc,
+                      typename BTileLayout::LayoutUnrolledDescriptorType,
+                      decltype(detail::GetBlockDescriptor<GemmTraits::K1, BTileLayout>())>;
 
     using BlockwiseGemmXdlops =
         BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -233,19 +252,45 @@ make_blockwise_gemm_xdl_c_local_partition(CTensorType& c_local_tile_tensor)
 
     const auto partition_desc = BlockwiseGemmXdlops::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(
         layout(c_local_tile_tensor).GetUnrolledDescriptor());
+
+    const auto lower_upper_dims =
+        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<8>{});
+
+    auto sliced_desc = transform_tensor_descriptor(
+        partition_desc,
+        make_tuple(
+            make_slice_transform(partition_shape.At(Number<0>{}),
+                                 m_thread_data_on_grid_idx[I0],
+                                 partition_shape.At(Number<0>{}) + m_thread_data_on_grid_idx[I0]),
+            make_slice_transform(partition_shape.At(Number<1>{}),
+                                 n_thread_data_on_grid_idx[I0],
+                                 partition_shape.At(Number<1>{}) + n_thread_data_on_grid_idx[I0]),
+            make_slice_transform(partition_shape.At(Number<2>{}),
+                                 m_thread_data_on_grid_idx[I1],
+                                 partition_shape.At(Number<2>{}) + m_thread_data_on_grid_idx[I1]),
+            make_slice_transform(partition_shape.At(Number<3>{}),
+                                 n_thread_data_on_grid_idx[I1],
+                                 partition_shape.At(Number<3>{}) + n_thread_data_on_grid_idx[I1]),
+            make_slice_transform(partition_shape.At(Number<4>{}),
+                                 m_thread_data_on_grid_idx[I2],
+                                 partition_shape.At(Number<4>{}) + m_thread_data_on_grid_idx[I2]),
+            make_slice_transform(partition_shape.At(Number<5>{}),
+                                 m_thread_data_on_grid_idx[I3],
+                                 partition_shape.At(Number<5>{}) + m_thread_data_on_grid_idx[I3]),
+            make_slice_transform(partition_shape.At(Number<6>{}),
+                                 m_thread_data_on_grid_idx[I4],
+                                 partition_shape.At(Number<6>{}) + m_thread_data_on_grid_idx[I4]),
+            make_slice_transform(partition_shape.At(Number<7>{}),
+                                 n_thread_data_on_grid_idx[I2],
+                                 partition_shape.At(Number<7>{}) + n_thread_data_on_grid_idx[I2])),
+        lower_upper_dims,
+        lower_upper_dims);
+
     const auto partition_layout =
-        Layout<remove_reference_t<decltype(partition_shape)>, decltype(partition_desc)>(
-            partition_shape, partition_desc);
+        Layout<remove_reference_t<decltype(partition_shape)>, decltype(sliced_desc)>(
+            partition_shape, sliced_desc);
     auto partition_tensor = make_tensor<CTensorType::TensorBufferAddressSpace>(
         c_local_tile_tensor.GetPointer(), partition_layout);
-    partition_tensor.SetMultiIdxOffset(make_multi_index(m_thread_data_on_grid_idx[I0],
-                                                        n_thread_data_on_grid_idx[I0],
-                                                        m_thread_data_on_grid_idx[I1],
-                                                        n_thread_data_on_grid_idx[I1],
-                                                        m_thread_data_on_grid_idx[I2],
-                                                        m_thread_data_on_grid_idx[I3],
-                                                        m_thread_data_on_grid_idx[I4],
-                                                        n_thread_data_on_grid_idx[I2]));
     return partition_tensor;
 }
 
@@ -292,14 +337,22 @@ __host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
     constexpr auto I6 = Number<6>{};
     constexpr auto I7 = Number<7>{};
 
+    static_assert(typename ATileLayout::LayoutShape{}.Size() ==
+                  typename BTileLayout::LayoutShape{}.Size());
+
     constexpr bool is_integer =
         is_same_v<DataType, int8_t> || is_same_v<DataType, int16_t> || is_same_v<DataType, int32_t>;
     using GemmAccDataType = std::conditional_t<is_integer, int32_t, float>;
 
+    constexpr bool is_3d_desc = typename ATileLayout::LayoutShape{}.Size() == I3;
     using ABlockDesc_K0_M_K1_Type =
-        decltype(detail::GetBlockDescriptor<GemmTraits::K1, ATileLayout>());
+        conditional_t<is_3d_desc,
+                      typename ATileLayout::LayoutUnrolledDescriptorType,
+                      decltype(detail::GetBlockDescriptor<GemmTraits::K1, ATileLayout>())>;
     using BBlockDesc_K0_N_K1_Type =
-        decltype(detail::GetBlockDescriptor<GemmTraits::K1, BTileLayout>());
+        conditional_t<is_3d_desc,
+                      typename BTileLayout::LayoutUnrolledDescriptorType,
+                      decltype(detail::GetBlockDescriptor<GemmTraits::K1, BTileLayout>())>;
 
     using BlockwiseGemmXdlops =
         BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -326,9 +379,8 @@ __host__ __device__ constexpr auto make_blockwise_gemm_xdl_c_vgpr()
     const auto vgpr_layout = Layout<remove_reference_t<decltype(vgpr_shape)>, decltype(vgpr_desc)>(
         vgpr_shape, vgpr_desc);
     // Get vector type for Vgpr
-    using BlockwiseGemmCThreadBufferType =
-        remove_reference_t<decltype(BlockwiseGemmXdlops{}.GetCThreadBuffer())>;
-    using VgprVectorType = typename BlockwiseGemmCThreadBufferType::V;
+    constexpr index_t ScalarPerVector = BlockwiseGemmXdlops::xdlops_gemm.GetRegSizePerXdlops();
+    using VgprVectorType = typename vector_type<GemmAccDataType, ScalarPerVector>::type;
     return ck::wrapper::make_register_tensor<ck::wrapper::MemoryTypeEnum::Vgpr, VgprVectorType>(
         vgpr_layout);
 }

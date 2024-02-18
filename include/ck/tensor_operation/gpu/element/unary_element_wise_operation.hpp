@@ -21,50 +21,11 @@ struct PassThroughPack2
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
-    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
-    {
-        // fake conversion
-        uint16_t t = ck::bit_cast<uint32_t>(x);
-        y          = ck::bit_cast<ck::f8x2_t>(t);
-    }
-
     __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
     {
         auto t = type_convert<float2_t>(x);
         y      = type_convert<half2_t>(t);
     }
-
-    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::half2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::f8x2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::float2_t& y, const ck::float2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::int8x2_t& y, const ck::int8x2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::bhalf2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::double2_t& y, const ck::double2_t& x) const
-    {
-        y = x;
-    }
-
-    constexpr const static bool is_pack2_invocable = true;
 };
 
 struct PassThrough
