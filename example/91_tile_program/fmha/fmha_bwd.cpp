@@ -263,9 +263,9 @@ bool run(const ArgParser& arg_parser)
     DeviceMem v_buf(v_host.GetElementSpaceSizeInBytes());
     DeviceMem bias_buf(bias_host.GetElementSpaceSizeInBytes());
     DeviceMem o_buf(o_host.GetElementSpaceSizeInBytes());
-    DeviceMem lse_buf(sizeof(LSEDataType) * lse_host.GetElementSpaceSize());
-    DeviceMem d_buf(sizeof(DDataType) * d_host.GetElementSpaceSize());
-    // DeviceMem z_buf(sizeof(ZDataType) * z_host.GetElementSpaceSize());
+    DeviceMem lse_buf(lse_host.GetElementSpaceSizeInBytes());
+    DeviceMem d_buf(d_host.GetElementSpaceSizeInBytes());
+    // DeviceMem z_buf(z_host.GetElementSpaceSizeInBytes());
     DeviceMem dq_buf(sizeof(QGradDataType) * dq_host.GetElementSpaceSize());
     DeviceMem dk_buf(sizeof(KGradDataType) * dk_host.GetElementSpaceSize());
     DeviceMem dv_buf(sizeof(VGradDataType) * dv_host.GetElementSpaceSize());
@@ -565,8 +565,8 @@ bool run(const ArgParser& arg_parser)
             ds_lp_host_ref,
             k_t_host_ref,
             dq_host_ref,
-            [](const GemmDataType& x) { return x; },
-            [](const KDataType& x) { return x; },
+            ck::identity{},
+            ck::identity{},
             [&scale](const AccDataType& x) { return scale * x; }); // dq_g_m_k = ds_g_m_n@k_g_k_n
 
         // dK = scale * dS^T@Q^T
@@ -576,8 +576,8 @@ bool run(const ArgParser& arg_parser)
             ds_t_lp_host_ref,
             q_t_host_ref,
             dk_host_ref,
-            [](const GemmDataType& x) { return x; },
-            [](const QDataType& x) { return x; },
+            ck::identity{},
+            ck::identity{},
             [&scale](const AccDataType& x) { return scale * x; }); // dk_g_n_k = ds_g_n_m@q_g_k_m
 
         Tensor<QGradDataType> dq_host_result({nhead, real_seqlen_q, hdim_q}); // dq_g_m_k

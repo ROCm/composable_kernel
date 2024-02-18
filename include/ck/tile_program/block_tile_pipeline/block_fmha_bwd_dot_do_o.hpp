@@ -85,7 +85,7 @@ struct BlockFmhaBwdOGradDotO
         // auto d = make_static_distributed_tensor<DDataType>(
         //     Policy::template MakePreDDramTileDistribution<Problem>());
 
-        tile_elementwise_inout([](auto& c) { c = 0; }, d); // Initialize D
+        clear_tile(d); // Initialize D
 
         constexpr auto o_spans = decltype(o)::GetDistributedSpans();
         sweep_tile_span(o_spans[Number<0>{}], [&](auto idx0) {
