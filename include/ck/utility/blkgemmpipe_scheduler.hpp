@@ -17,8 +17,21 @@ enum struct BlockGemmPipelineScheduler
 
 enum struct TailNumber
 {
-    Even,
+    // Single / Double buffer pipeline
     Odd,
+    Even,
+
+    // Long prefetch pipeline, up to 8
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
+
+    // Number of loop is multiple of number of buffer
+    Full,
 };
 template <index_t BlockSize,
           index_t MPerBlock,

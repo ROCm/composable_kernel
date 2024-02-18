@@ -952,7 +952,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 1,
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
-                                                true>(
+                                                true,
+                                                BlockwiseGemmPipe::PrefetchStages>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -982,7 +983,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 1,
                                                 1,
                                                 BThreadTransferSrcResetCoordinateAfterRun,
-                                                true>(
+                                                true,
+                                                BlockwiseGemmPipe::PrefetchStages>(
                 b_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_element_op,
