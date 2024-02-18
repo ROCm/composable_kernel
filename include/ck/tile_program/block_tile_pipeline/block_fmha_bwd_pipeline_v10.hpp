@@ -104,8 +104,10 @@ struct BlockFmhaBwdPipelineV10
                const QGradDramBlockWindowTmp& dq_dram_block_window_tmp,
                const BiasGradDramBlockWindowTmp& dbias_dram_block_window_tmp,
                FmhaMask mask,
-               float scale,
                float raw_scale,
+#if CK_FMHA_FWD_FAST_EXP2
+               float scale,
+#endif
                void* smem_ptr) const
     {
         static_assert(
@@ -342,7 +344,7 @@ struct BlockFmhaBwdPipelineV10
 
             // STAGE 2, Scale, Add bias, Mask, Softmax
 #if !CK_FMHA_FWD_FAST_EXP2
-            tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, st_acc);
+            tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, st_acc);
 #endif
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)

@@ -76,8 +76,10 @@ struct FmhaBwdKernel
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
         ck::index_t nhead_ratio_qk;
-        float scale;
         float raw_scale;
+#if CK_FMHA_FWD_FAST_EXP2
+        float scale;
+#endif
 
         ck::index_t stride_q;
         ck::index_t stride_k;
@@ -200,12 +202,10 @@ struct FmhaBwdKernel
                      hdim_q,
                      hdim_v,
                      nhead_ratio_qk,
+                     scale,
 #if CK_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale * ck::math::log2e_v<>),
-#else
-                     scale,
 #endif
-                     scale,
                      stride_q,
                      stride_k,
                      stride_v,
@@ -300,12 +300,10 @@ struct FmhaBwdKernel
                      hdim_q,
                      hdim_v,
                      nhead_ratio_qk,
+                     scale,
 #if CK_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale * ck::math::log2e_v<>),
-#else
-                     scale,
 #endif
-                     scale,
                      stride_q,
                      stride_k,
                      stride_v,
@@ -833,8 +831,10 @@ struct FmhaBwdKernel
                                                          dq_dram_window,
                                                          dbias_dram_window,
                                                          mask,
-                                                         kargs.scale,
                                                          kargs.raw_scale,
+#if CK_FMHA_FWD_FAST_EXP2
+                                                         kargs.scale,
+#endif
                                                          smem_ptr);
 
         auto dk_dram = [&]() {

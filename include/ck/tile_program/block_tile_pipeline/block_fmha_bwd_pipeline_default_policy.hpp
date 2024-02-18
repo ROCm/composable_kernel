@@ -619,14 +619,14 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
 
-        constexpr index_t N1 = WG::WarpGemmAttribute::Impl::kCNLane; // 32
-        constexpr index_t N0 = NWarp;                                // 4
+        constexpr index_t N1 = WG::WarpGemmAttribute::Impl::kCNLane;
+        constexpr index_t N0 = NWarp;
 
-        constexpr index_t M4 = WG::WarpGemmAttribute::Impl::kCM1PerLane * 2;        // 8
-        constexpr index_t M3 = WG::WarpGemmAttribute::Impl::kCMLane;                // 2
-        constexpr index_t M2 = WG::WarpGemmAttribute::Impl::kCM0PerLane / 2;        // 2
-        constexpr index_t M1 = MWarp;                                               // 1
-        constexpr index_t M0 = kMPerBlock / (M1 * WG::WarpGemmAttribute::Impl::kM); // 2/4
+        constexpr index_t M4 = WG::WarpGemmAttribute::Impl::kCM1PerLane * 2;
+        constexpr index_t M3 = WG::WarpGemmAttribute::Impl::kCMLane;
+        constexpr index_t M2 = WG::WarpGemmAttribute::Impl::kCM0PerLane / 2;
+        constexpr index_t M1 = MWarp;
+        constexpr index_t M0 = kMPerBlock / (M1 * WG::WarpGemmAttribute::Impl::kM);
 
         return make_static_tile_distribution(
             StaticTileDistributionEncoding<Sequence<N0, N1>,
