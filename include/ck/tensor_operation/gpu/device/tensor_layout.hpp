@@ -308,12 +308,6 @@ struct GNDHWK : public BaseTensorLayout
     static constexpr const char* name = "GNDHWK";
 };
 
-// for output bias
-struct GK : public BaseTensorLayout
-{
-    static constexpr const char* name = "GK";
-};
-
 // output tensor
 // packed NWGK/NHWGK/NDHWGK
 struct NWGK : public BaseTensorLayout

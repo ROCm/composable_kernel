@@ -51,7 +51,7 @@ struct maxPoolFwdArgParser
 
 void print_help_max_pool3d_fwd()
 {
-    std::cout << "arg1: data type (0: fp16; 1: fp32)\n"
+    std::cout << "arg1: data type (0: fp16; 1: fp32; 5: bf16)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
@@ -109,8 +109,15 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16   = ck::half_t;
-    using F32   = float;
+#ifdef CK_ENABLE_FP16
+    using F16 = ck::half_t;
+#endif
+#ifdef CK_ENABLE_BF16
+    using BF16 = ck::bhalf_t;
+#endif
+#ifdef CK_ENABLE_FP32
+    using F32 = float;
+#endif
     using I32   = int32_t;
     using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
@@ -120,7 +127,10 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 #endif
 
-    if(data_type == ck::DataTypeEnum::Half)
+    if(false)
+        ;
+#ifdef CK_ENABLE_FP16
+    else if(data_type == ck::DataTypeEnum::Half)
     {
         if(return_index)
             ck::profiler::
@@ -149,6 +159,51 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
                     pad1,
                     pad2);
     }
+#endif
+#ifdef CK_ENABLE_BF16
+    else if(data_type == ck::DataTypeEnum::BFloat16)
+    {
+        if(return_index)
+            ck::profiler::profile_pool3d_fwd_impl<BF16,
+                                                  BF16,
+                                                  BF16,
+                                                  I32,
+                                                  NDHWC,
+                                                  NDHWC,
+                                                  ReduceOpId,
+                                                  false,
+                                                  true>(do_verification,
+                                                        init_method,
+                                                        do_log,
+                                                        time_kernel,
+                                                        in_length,
+                                                        wsize,
+                                                        wstride,
+                                                        wdilation,
+                                                        pad1,
+                                                        pad2);
+        else
+            ck::profiler::profile_pool3d_fwd_impl<BF16,
+                                                  BF16,
+                                                  BF16,
+                                                  I32,
+                                                  NDHWC,
+                                                  NDHWC,
+                                                  ReduceOpId,
+                                                  false,
+                                                  false>(do_verification,
+                                                         init_method,
+                                                         do_log,
+                                                         time_kernel,
+                                                         in_length,
+                                                         wsize,
+                                                         wstride,
+                                                         wdilation,
+                                                         pad1,
+                                                         pad2);
+    }
+#endif
+#ifdef CK_ENABLE_FP32
     else if(data_type == ck::DataTypeEnum::Float)
     {
         if(return_index)
@@ -178,6 +233,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
                     pad1,
                     pad2);
     }
+#endif
     else
     {
         throw std::runtime_error("not implemented yet");

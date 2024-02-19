@@ -53,7 +53,7 @@ __global__ void
         kernel_batched_gemm_xdlops_v2r3(const typename DeviceOp::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / karg.Batch);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -185,7 +185,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
-        GemmSpecialization::MNPadding,
+        GemmSpecialization::MNKPadding,
         MPerBlock,
         NPerBlock,
         K0PerBlock,
@@ -315,11 +315,6 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             return false;
         }
 
-        if(problem.K % K1 != 0)
-        {
-            return false;
-        }
-
         return GridwiseGemm::CheckValidity(problem);
     }
 
@@ -416,7 +411,12 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock
+            << K0PerBlock << ", "
+            << K1 << ", "
+            << MPerXDL << ", "
+            << NPerXDL << ", "
+            << MXdlPerWave << ", "
+            << NXdlPerWave << ", "
             << ">"
             << " NumGemmKPrefetchStage: "
             << NumGemmKPrefetchStage << ", "

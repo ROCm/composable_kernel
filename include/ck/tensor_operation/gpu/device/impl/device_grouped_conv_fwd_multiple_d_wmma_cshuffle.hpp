@@ -15,10 +15,11 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_wmma_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
@@ -26,55 +27,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-
-namespace {
-
-template <index_t NumDTensor>
-struct ComputePtrOffsetOfStridedBatch
-{
-    ComputePtrOffsetOfStridedBatch() = default;
-
-    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                   index_t BatchStrideB,
-                                   Array<ck::index_t, NumDTensor> BatchStrideDs,
-                                   index_t BatchStrideE)
-        : BatchStrideA_(BatchStrideA),
-          BatchStrideB_(BatchStrideB),
-          BatchStrideDs_(BatchStrideDs),
-          BatchStrideE_(BatchStrideE)
-    {
-    }
-
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
-    {
-        Array<long_index_t, NumDTensor> ds_offset;
-        static_for<0, NumDTensor, 1>{}(
-            [&](auto i) { ds_offset(i) = g_idx * static_cast<long_index_t>(BatchStrideDs_[i]); });
-        return ds_offset;
-    }
-
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideE_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    Array<ck::index_t, NumDTensor> BatchStrideDs_;
-    index_t BatchStrideE_;
-};
-
-} // namespace
 
 //
 // @brief      Device Convolution operation.
@@ -140,18 +92,18 @@ template <index_t NDimSpatial,
           LoopScheduler LoopSched         = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
-    : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                           ALayout,
-                                           BLayout,
-                                           DsLayout,
-                                           ELayout,
-                                           ADataType,
-                                           BDataType,
-                                           DsDataType,
-                                           EDataType,
-                                           AElementwiseOperation,
-                                           BElementwiseOperation,
-                                           CDEElementwiseOperation>
+    : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                             ALayout,
+                                             BLayout,
+                                             DsLayout,
+                                             ELayout,
+                                             ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             EDataType,
+                                             AElementwiseOperation,
+                                             BElementwiseOperation,
+                                             CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleD_Wmma_CShuffle;
 
@@ -476,7 +428,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         typename GridwiseOp::DefaultBlock2CTileMap block_2_etile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -519,7 +471,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
 
-                const auto kernel = kernel_grouped_conv_fwd_multiple_d_wmma_cshuffle<
+                const auto kernel = kernel_grouped_conv_multiple_d_wmma_cshuffle<
                     GridwiseOp,
                     ADataType,
                     BDataType,
@@ -533,7 +485,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                     typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
@@ -579,8 +531,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102")
+        if(ck::is_navi3_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
@@ -599,7 +550,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             // check if it's 1x1, stride=1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X          = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t ConvStride = arg.conv_filter_strides_[i];
                 const index_t LeftPad    = arg.input_left_pads_[i];
                 const index_t RightPad   = arg.input_right_pads_[i];
@@ -616,7 +567,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             // check if it's 1x1 conv
             for(index_t i = 0; i < NDimSpatial; ++i)
             {
-                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 2];
+                const index_t X        = arg.b_g_k_c_xs_lengths_[i + 3];
                 const index_t LeftPad  = arg.input_left_pads_[i];
                 const index_t RightPad = arg.input_right_pads_[i];
 
@@ -679,8 +630,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                          is_same_v<DLayout, ctc::G_NDHW_K> || is_same_v<DLayout, ctc::GNWK> ||
                          is_same_v<DLayout, ctc::GNHWK> || is_same_v<DLayout, ctc::GNDHWK> ||
                          is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
-                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::GK> ||
-                         is_same_v<DLayout, ctc::G_K>)
+                         is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::G_K>)
             {
                 const index_t K = arg.ds_g_n_k_wos_lengths_[i][2];
 

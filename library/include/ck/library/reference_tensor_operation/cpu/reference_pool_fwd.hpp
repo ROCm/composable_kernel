@@ -256,10 +256,12 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
                     for(ck::index_t y = 0; y < arg.window_spatial_lengths_[0]; ++y)
                     {
-                        ck::index_t hi = ho * arg.window_strides_[0] + y - arg.in_left_pads_[0];
+                        ck::index_t hi = ho * arg.window_strides_[0] +
+                                         y * arg.window_dilations_[0] - arg.in_left_pads_[0];
                         for(ck::index_t x = 0; x < arg.window_spatial_lengths_[1]; ++x)
                         {
-                            ck::index_t wi = wo * arg.window_strides_[1] + x - arg.in_left_pads_[1];
+                            ck::index_t wi = wo * arg.window_strides_[1] +
+                                             x * arg.window_dilations_[1] - arg.in_left_pads_[1];
                             if(hi >= 0 &&
                                hi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[2]) &&
                                wi >= 0 &&

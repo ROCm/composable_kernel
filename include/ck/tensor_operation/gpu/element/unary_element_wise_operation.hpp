@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,18 @@ namespace element_wise {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
+struct PassThroughPack2
+{
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
+    {
+        auto t = type_convert<float2_t>(x);
+        y      = type_convert<half2_t>(t);
+    }
+};
+
 struct PassThrough
 {
     template <typename Y, typename X>
@@ -28,6 +40,18 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<float, double>(float& y, const double& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<double, float>(double& y, const float& x) const
+    {
+        y = type_convert<double>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
     {
         y = x;
@@ -37,6 +61,12 @@ struct PassThrough
     __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
         y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(x);
     }
 
     template <>
@@ -58,9 +88,21 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<float, bhalf_t>(float& y, const bhalf_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<bhalf_t, half_t>(bhalf_t& y, const half_t& x) const
     {
         y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, half_t>(float& y, const half_t& x) const
+    {
+        y = type_convert<float>(x);
     }
 
     template <>
@@ -70,7 +112,25 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<half_t, int8_t>(half_t& y, const int8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, int8_t>(bhalf_t& y, const int8_t& x) const
+    {
+        y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, int32_t>(int8_t& y, const int32_t& x) const
+    {
+        y = type_convert<int8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
     {
         y = type_convert<int8_t>(x);
     }
@@ -80,6 +140,11 @@ struct PassThrough
     __host__ __device__ void operator()<int4_t, int4_t>(int4_t& y, const int4_t& x) const
     {
         y = x;
+    }
+    template <>
+    __host__ __device__ void operator()<int4_t, int>(int4_t& y, const int& x) const
+    {
+        y = type_convert<int4_t>(x);
     }
 #endif
 
@@ -111,6 +176,36 @@ struct PassThrough
     __host__ __device__ void operator()<f8_t, half_t>(f8_t& y, const half_t& x) const
     {
         y = type_convert<f8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bf8_t, bf8_t>(bf8_t& y, const bf8_t& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, bf8_t>(float& y, const bf8_t& x) const
+    {
+        y = type_convert<float>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bf8_t, float>(bf8_t& y, const float& x) const
+    {
+        y = type_convert<bf8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<half_t, bf8_t>(half_t& y, const bf8_t& x) const
+    {
+        y = type_convert<half_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<bf8_t, half_t>(bf8_t& y, const half_t& x) const
+    {
+        y = ck::type_convert<bf8_t>(x);
     }
 };
 
@@ -147,7 +242,8 @@ struct ConvertF8SR
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(is_same<Y, f8_t>::value, "Data type is not supported by this operation!");
+        static_assert(is_same<Y, f8_t>::value || is_same<Y, bf8_t>::value,
+                      "Data type is not supported by this operation!");
 
         // check X datatype
         static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
@@ -157,12 +253,44 @@ struct ConvertF8SR
     }
 };
 
+struct ConvertF8RNE
+{
+    // convert to fp8 using rounding to nearest even
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        // check Y datatype
+        static_assert(is_same<Y, f8_t>::value || is_same<Y, bf8_t>::value,
+                      "Data type is not supported by this operation!");
+
+        // check X datatype
+        static_assert(is_same<X, float>::value || is_same<X, half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = f8_convert_rne<Y>(x);
+    }
+};
+
 struct Scale
 {
     __host__ __device__ Scale(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
+    {
+        y = ck::type_convert<half_t>(scale_) * x;
+    };
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        const float x_tmp = ck::type_convert<float>(x);
+        const float y_tmp = scale_ * x_tmp;
+        y                 = ck::type_convert<bhalf_t>(y_tmp);
+    };
 
     template <>
     __host__ __device__ void operator()<float, float>(float& y, const float& x) const
@@ -217,8 +345,8 @@ struct UnarySquare
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
-        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, int32_t> ||
-                          is_same_v<T, int8_t>
+        static_assert(is_same_v<T, float> || is_same_v<T, half_t> || is_same_v<T, double> ||
+                          is_same_v<T, int32_t> || is_same_v<T, int8_t>
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
                           || is_same_v<T, int4_t>
 #endif
@@ -292,27 +420,29 @@ struct FastGelu
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = exp(-u);
-        const float cdf = 0.5f + 0.5f * (2.f / (1.f + emu) - 1.f);
-
-        y = x * cdf;
+        // const float u   = -2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = exp(u);
+        y               = x / (1.f + emu);
     }
 #endif
     // device code, use lower precision "__expf" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
-        const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
-        const float emu = __expf(-u);
+        // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
+        const float c1  = -2.0 * 0.035677f;
+        const float c2  = -2.0 * 0.797885f;
+        const float u   = x * (c1 * x * x + c2);
+        const float emu = __expf(u);
 
 #if !CK_WORKAROUND_SWDEV_383542
-        const float cdf = 0.5f + 0.5f * (2.f * __frcp_rn(1.f + emu) - 1.f);
+        y = x * __frcp_rn(1.f + emu);
 #else
-        const float cdf = 0.5f + 0.5f * (2.f * __ocml_native_recip_f32(1.f + emu) - 1.f);
+        y = x * __ocml_native_recip_f32(1.f + emu);
 #endif
-
-        y = x * cdf;
     }
 
     template <>
@@ -383,10 +513,24 @@ struct Sigmoid
     __host__ __device__ void operator()(T& y, const T& x) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, ck::half_t>::value,
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
                       "Data type is not supported by this operation!");
+        constexpr T one = type_convert<T>(1);
+        y               = one / (one + ck::math::exp(-x));
+    };
+};
 
-        y = 1 / (ck::type_convert<T>(1) + exp(-x));
+struct Silu
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same_v<T, float> || is_same_v<T, double> || is_same_v<T, ck::half_t> ||
+                          is_same_v<T, int8_t> || is_same_v<T, int32_t>,
+                      "Data type is not supported by this operation!");
+        constexpr T one = type_convert<T>(1);
+        y               = x * (one / (one + ck::math::exp(-x)));
     };
 };
 
@@ -396,7 +540,8 @@ struct TanH
     __host__ __device__ void operator()(T& y, const T& x) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, ck::half_t>::value,
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
                       "Data type is not supported by this operation!");
 
         y = ck::math::tanh(x);
@@ -407,17 +552,116 @@ struct Swish
 {
     Swish(float beta = 1.0f) : beta_(beta) {}
 
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        static_assert(is_same<X, float>::value || is_same<X, double>::value ||
+                          is_same<X, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        static_assert(is_same<Y, float>::value || is_same<Y, double>::value ||
+                          is_same<Y, ck::half_t>::value,
+                      "Data type is not supported by this operation!");
+
+        float bx = -beta_ * type_convert<float>(x);
+        y        = type_convert<Y>(x / (1.f + ck::math::exp(bx)));
+    };
+
+    const float beta_;
+};
+
+struct SoftRelu
+{
+    SoftRelu(float alpha = 1.f) : alpha_(alpha){};
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, ck::half_t>::value,
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
                       "Data type is not supported by this operation!");
+        T casted_alpha  = type_convert<T>(alpha_);
+        constexpr T one = type_convert<T>(1);
+        y               = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
+    }
+    const float alpha_;
+};
 
-        y = x / (ck::type_convert<T>(1) + ck::math::exp(-beta_ * x));
-    };
+struct Power
+{
+    Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
+        : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
-    float beta_ = 1.0f;
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        T casted_alpha     = type_convert<T>(alpha_);
+        T casted_beta      = type_convert<T>(beta_);
+        T casted_gamma     = type_convert<T>(gamma_);
+        T shifted_scaled_x = casted_alpha + casted_beta * x;
+        y                  = ck::math::pow(shifted_scaled_x, casted_gamma);
+    }
+    const float alpha_;
+    const float beta_;
+    const float gamma_;
+};
+
+struct ClippedRelu
+{
+    ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        T casted_alpha = type_convert<T>(alpha_);
+        T casted_beta  = type_convert<T>(beta_);
+        y              = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
+    }
+    const float alpha_;
+    const float beta_;
+};
+
+struct LeakyRelu
+{
+    LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        T casted_alpha = type_convert<T>(alpha_);
+        y              = x >= 0 ? x : x * casted_alpha;
+    }
+    const float alpha_;
+};
+
+struct Elu
+{
+    Elu(float alpha = 1.f) : alpha_(alpha){};
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        T casted_alpha = type_convert<T>(alpha_);
+        y              = x > 0 ? x : casted_alpha * ck::math::expm1(x);
+    }
+    const float alpha_;
 };
 
 } // namespace element_wise

@@ -9,6 +9,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type.hpp"
+#include "ck/utility/type_convert.hpp"
 
 namespace ck {
 namespace math {
@@ -93,15 +94,98 @@ static inline __host__ float sqrt(float x) { return std::sqrt(x); };
 
 static inline __host__ double sqrt(double x) { return std::sqrt(x); };
 
-static inline __host__ half_t tanh(half_t x)
+template <typename T>
+inline __host__ T tanh(T x)
 {
-    return static_cast<half_t>(std::tanh(static_cast<float>(x)));
+    return ck::type_convert<T>(std::tanhf(ck::type_convert<float>(x)));
 };
 
-static inline __host__ float tanh(float x) { return std::tanh(x); };
+template <>
+inline __host__ float tanh<float>(float x)
+{
+    return std::tanhf(x);
+};
 
-static inline __host__ double tanh(double x) { return std::tanh(x); };
+template <>
+inline __host__ double tanh<double>(double x)
+{
+    return std::tanh(x);
+};
+
+template <typename T>
+inline __host__ T exp(T x)
+{
+    return ck::type_convert<T>(std::expf(ck::type_convert<float>(x)));
+}
+
+template <>
+inline __host__ float exp<float>(float x)
+{
+    return std::expf(x);
+}
+
+template <>
+inline __host__ double exp<double>(double x)
+{
+    return std::exp(x);
+}
+
+template <typename T>
+inline __host__ T log(T x)
+{
+    return ck::type_convert<T>(std::logf(ck::type_convert<float>(x)));
+}
+
+template <>
+inline __host__ float log<float>(float x)
+{
+    return std::logf(x);
+}
+
+template <>
+inline __host__ double log<double>(double x)
+{
+    return std::log(x);
+}
+
+template <typename T>
+inline __host__ T pow(T x, T gamma)
+{
+    return ck::type_convert<T>(
+        std::powf(ck::type_convert<float>(x), ck::type_convert<float>(gamma)));
+}
+
+template <>
+inline __host__ float pow<float>(float x, float gamma)
+{
+    return std::powf(x, gamma);
+}
+
+template <>
+inline __host__ double pow<double>(double x, double gamma)
+{
+    return std::pow(x, gamma);
+}
+
+template <typename T>
+inline __host__ T expm1(T x)
+{
+    return ck::type_convert<T>(std::expm1f(ck::type_convert<float>(x)));
+}
+
+template <>
+inline __host__ float expm1<float>(float x)
+{
+    return std::expm1f(x);
+}
+
+template <>
+inline __host__ double expm1<double>(double x)
+{
+    return std::expm1(x);
+}
 #endif
+
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
 static inline __device__ float abs(float x) { return ::abs(x); };
@@ -182,14 +266,107 @@ static inline __device__ float sqrt(float x) { return __builtin_amdgcn_sqrtf(x);
 
 static inline __device__ double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
 
-static inline __device__ half_t tanh(half_t x)
+template <typename T>
+inline __device__ T tanh(T x)
 {
-    return static_cast<half_t>(::tanhf(static_cast<float>(x)));
+    return ck::type_convert<T>(::tanhf(ck::type_convert<float>(x)));
 };
 
-static inline __device__ float tanh(float x) { return ::tanhf(x); };
+template <>
+inline __device__ float tanh<float>(float x)
+{
+    return ::tanhf(x);
+};
 
-static inline __device__ double tanh(double x) { return ::tanh(x); };
+template <>
+inline __device__ double tanh<double>(double x)
+{
+    return ::tanh(x);
+};
+
+template <typename T>
+inline __device__ T exp(T x)
+{
+    return ck::type_convert<T>(__expf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ half_t exp<half_t>(half_t x)
+{
+    return hexp(x);
+};
+
+template <>
+inline __device__ float exp<float>(float x)
+{
+    return __expf(x);
+};
+
+template <>
+inline __device__ double exp<double>(double x)
+{
+    return exp(x);
+};
+
+template <typename T>
+inline __device__ T log(T x)
+{
+    return ck::type_convert<T>(__logf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ half_t log<half_t>(half_t x)
+{
+    return hlog(x);
+};
+
+template <>
+inline __device__ float log<float>(float x)
+{
+    return __logf(x);
+};
+
+template <>
+inline __device__ double log<double>(double x)
+{
+    return log(x);
+};
+
+template <typename T>
+inline __device__ T pow(T x, T gamma)
+{
+    return ck::type_convert<T>(powf(ck::type_convert<float>(x), ck::type_convert<float>(gamma)));
+};
+
+template <>
+inline __device__ float pow<float>(float x, float gamma)
+{
+    return powf(x, gamma);
+};
+
+template <>
+inline __device__ double pow<double>(double x, double gamma)
+{
+    return pow(x, gamma);
+};
+
+template <typename T>
+inline __device__ T expm1(T x)
+{
+    return ck::type_convert<T>(expm1f(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float expm1<float>(float x)
+{
+    return expm1f(x);
+};
+
+template <>
+inline __device__ double expm1<double>(double x)
+{
+    return expm1(x);
+};
 
 } // namespace math
 } // namespace ck

@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/device/device_contraction_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_contraction_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -53,7 +54,7 @@ __global__ void
             const Block2ETileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -145,7 +146,8 @@ template <index_t NumDimM,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          typename ComputeDataType = ADataType,
+          LoopScheduler LoopSched  = make_default_loop_scheduler()>
 struct DeviceContractionMultipleD_Xdl_CShuffle
     : public DeviceContractionMultipleD<NumDimM,
                                         NumDimN,
@@ -156,7 +158,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                         EDataType,
                                         AElementwiseOperation,
                                         BElementwiseOperation,
-                                        CDEElementwiseOperation>
+                                        CDEElementwiseOperation,
+                                        ComputeDataType>
 {
     using DeviceOp = DeviceContractionMultipleD_Xdl_CShuffle;
 
@@ -181,7 +184,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             return generate_tuple([&](auto i) { return vec[i]; }, num);
         };
 
-        const auto a_ms_ns_lengths = to_tuple(a_ms_ks_lengths_vec, Number<NumDimM + NumDimK>{});
+        const auto a_ms_ks_lengths = to_tuple(a_ms_ks_lengths_vec, Number<NumDimM + NumDimK>{});
         const auto a_ms_ks_strides = to_tuple(a_ms_ks_strides_vec, Number<NumDimM + NumDimK>{});
 
         // dimension Ids for M0, M1, ...
@@ -192,14 +195,14 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimK, 1>::type{};
 
         // lengths for M0, M1, ...
-        const auto mLengths = get_container_subset(a_ms_ns_lengths, mDimIds);
+        const auto mLengths = get_container_subset(a_ms_ks_lengths, mDimIds);
 
         // lengths for K0, K1, ...
-        const auto kLengths = get_container_subset(a_ms_ns_lengths, kDimIds);
+        const auto kLengths = get_container_subset(a_ms_ks_lengths, kDimIds);
 
         // naive tensor A[M0, M1, M2, ..., K0, K1, K2...]
         const auto a_grid_desc_ms_ks =
-            make_naive_tensor_descriptor(a_ms_ns_lengths, a_ms_ks_strides);
+            make_naive_tensor_descriptor(a_ms_ks_lengths, a_ms_ks_strides);
 
         // transformed tensor A[MRaw = M0 * M1 * M2 * ... , KRaw = K0 * K1 * K2 * ...]
         const auto a_grid_desc_mraw_kraw = transform_tensor_descriptor(
@@ -313,6 +316,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
+        BDataType,
+        ComputeDataType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -379,7 +384,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                  const void* p_b_grid,
                  std::array<const void*, NumDTensor> p_ds_grid,
                  void* p_e_grid,
-                 const std::vector<index_t>& a_ms_ns_lengths,
+                 const std::vector<index_t>& a_ms_ks_lengths,
                  const std::vector<index_t>& a_ms_ks_strides,
                  const std::vector<index_t>& b_ns_ks_lengths,
                  const std::vector<index_t>& b_ns_ks_strides,
@@ -394,7 +399,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
               p_b_grid_{static_cast<const BDataType*>(p_b_grid)},
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e_grid)},
-              a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K(a_ms_ns_lengths, a_ms_ks_strides)},
+              a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K(a_ms_ks_lengths, a_ms_ks_strides)},
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(b_ns_ks_lengths, b_ns_ks_strides)},
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(e_ms_ns_lengths, e_ms_ns_strides)},
@@ -407,13 +412,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              cde_element_op_{cde_element_op},
-              a_mz_stride_{},
-              a_kz_stride_{},
-              b_nz_stride_{},
-              b_kz_stride_{},
-              ds_nz_stride_{},
-              e_nz_stride_{}
+              cde_element_op_{cde_element_op}
         {
             // populate pointer, batch stride, desc for Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -444,18 +443,26 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             }
 
             // for sanity check of vector memory access
-            a_mz_stride_ = a_ms_ks_strides[NumDimM - 1];
-            a_kz_stride_ = a_ms_ks_strides[NumDimM + NumDimK - 1];
+            a_mz_consecutive_ = a_ms_ks_strides[NumDimM - 1] == 1;
+            a_kz_consecutive_ = a_ms_ks_strides[NumDimM + NumDimK - 1] == 1;
+            a_max_read_elems_ =
+                CalculateMaxRead<NumDimM, NumDimK>(a_ms_ks_lengths, a_ms_ks_strides);
 
-            b_nz_stride_ = b_ns_ks_strides[NumDimN - 1];
-            b_kz_stride_ = b_ns_ks_strides[NumDimN + NumDimK - 1];
+            b_nz_consecutive_ = b_ns_ks_strides[NumDimN - 1] == 1;
+            b_kz_consecutive_ = b_ns_ks_strides[NumDimN + NumDimK - 1] == 1;
+            b_max_read_elems_ =
+                CalculateMaxRead<NumDimN, NumDimK>(b_ns_ks_lengths, b_ns_ks_strides);
 
             for(index_t i = 0; i < NumDTensor; ++i)
             {
-                ds_nz_stride_[i] = ds_ms_ns_strides[i][NumDimM + NumDimN - 1];
+                ds_nz_consecutive_[i] = ds_ms_ns_strides[i][NumDimM + NumDimN - 1] == 1;
+                ds_max_read_elems_[i] =
+                    CalculateMaxRead<NumDimM, NumDimN>(ds_ms_ns_lengths[i], ds_ms_ns_strides[i]);
             }
 
-            e_nz_stride_ = e_ms_ns_strides[NumDimM + NumDimN - 1];
+            e_nz_consecutive_ = e_ms_ns_strides[NumDimM + NumDimN - 1] == 1;
+            e_max_write_elems_ =
+                CalculateMaxRead<NumDimM, NumDimN>(e_ms_ns_lengths, e_ms_ns_strides);
         }
 
         void Print() const
@@ -495,15 +502,19 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
 
-        // Strides for the last M/N/K dimensions of A/B/Ds/E
-        //   for sanity check of vector load/store
-        index_t a_mz_stride_;
-        index_t a_kz_stride_;
-        index_t b_nz_stride_;
-        index_t b_kz_stride_;
-        std::array<index_t, NumDTensor> ds_nz_stride_;
-        index_t e_mz_stride_;
-        index_t e_nz_stride_;
+        // Describe whether the last part of a given dimension of A/B/D/E is consecutive
+        // in the memory or not.
+        bool a_mz_consecutive_;
+        bool a_kz_consecutive_;
+        bool b_nz_consecutive_;
+        bool b_kz_consecutive_;
+        std::array<bool, NumDTensor> ds_nz_consecutive_;
+        bool e_nz_consecutive_;
+
+        index_t a_max_read_elems_;
+        index_t b_max_read_elems_;
+        std::array<index_t, NumDTensor> ds_max_read_elems_;
+        index_t e_max_write_elems_;
     };
 
     // Invoker
@@ -591,7 +602,9 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             return false;
         }
 
-        if(ck::get_device_name() != "gfx90a" && std::is_same<ADataType, double>::value)
+        if(ck::get_device_name() != "gfx90a" && ck::get_device_name() != "gfx940" &&
+           ck::get_device_name() != "gfx941" && ck::get_device_name() != "gfx942" &&
+           std::is_same<ADataType, double>::value)
         {
             return false;
         }
@@ -610,65 +623,47 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                           (BBlockTransferSrcVectorDim == 1 || BBlockTransferSrcVectorDim == 2),
                       "wrong!");
 
-        // vector memory access of A: could be on M or AK1 dimension
-        if constexpr(ABlockTransferSrcVectorDim == 1)
-        {
-            if(!(arg.a_mz_stride_ == 1 &&
-                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I1) % ABlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            if(!(arg.a_kz_stride_ == 1 &&
-                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-
-        // vector memory access of B: could be on N or BK1 dimension
-        if constexpr(BBlockTransferSrcVectorDim == 1)
-        {
-            if(!(arg.b_nz_stride_ == 1 &&
-                 arg.b_grid_desc_bk0_n_bk1_.GetLength(I1) % BBlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-        else
-        {
-            if(!(arg.b_kz_stride_ == 1 &&
-                 arg.b_grid_desc_bk0_n_bk1_.GetLength(I2) % BBlockTransferSrcScalarPerVector == 0))
-            {
-                return false;
-            }
-        }
-
-        // vector memory access of Ds: always on NPerBlock dimension
-        bool valid_d_access = true;
-
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            if(!(arg.ds_nz_stride_[i] == 1 &&
-                 arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
-                         CDEBlockTransferScalarPerVector_NPerBlock ==
-                     0))
-            {
-                valid_d_access = false;
-            }
-        });
-
-        if(valid_d_access == false)
+        const bool valid_a_vector_size =
+            arg.a_max_read_elems_ % ABlockTransferSrcScalarPerVector == 0;
+        const bool valid_a_access_dim_m = ABlockTransferSrcVectorDim == 1 && arg.a_mz_consecutive_;
+        const bool valid_a_access_dim_k = ABlockTransferSrcVectorDim == 2 && arg.a_kz_consecutive_;
+        const bool valid_a_access_dim   = valid_a_access_dim_m || valid_a_access_dim_k;
+        if(!(valid_a_vector_size && valid_a_access_dim))
         {
             return false;
         }
 
-        // vector memory access of E: always on NPerBlock dimension
-        if(!(arg.e_nz_stride_ == 1 &&
-             arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
-                     CDEBlockTransferScalarPerVector_NPerBlock ==
-                 0))
+        const bool valid_b_vector_size =
+            arg.b_max_read_elems_ % BBlockTransferSrcScalarPerVector == 0;
+        const bool valid_b_access_dim_n = BBlockTransferSrcVectorDim == 1 && arg.b_nz_consecutive_;
+        const bool valid_b_access_dim_k = BBlockTransferSrcVectorDim == 2 && arg.b_kz_consecutive_;
+        const bool valid_b_access_dim   = valid_b_access_dim_n || valid_b_access_dim_k;
+        if(!(valid_b_vector_size && valid_b_access_dim))
+        {
+            return false;
+        }
+
+        bool valid_ds_access = true;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            const bool valid_d_vector_size =
+                arg.ds_max_read_elems_[i] % CDEBlockTransferScalarPerVector_NPerBlock == 0;
+            // Vector read of Ds is always on N dimension.
+            const bool valid_d_access_dim = arg.ds_nz_consecutive_[i];
+            if(!(valid_d_vector_size && valid_d_access_dim))
+            {
+                valid_ds_access = false;
+            }
+        });
+        if(!valid_ds_access)
+        {
+            return false;
+        }
+
+        const bool valid_e_vector_size =
+            arg.e_max_write_elems_ % CDEBlockTransferScalarPerVector_NPerBlock == 0;
+        // Vector write of E is always on N dimension.
+        const bool valid_e_access_dim = arg.e_nz_consecutive_;
+        if(!(valid_e_vector_size && valid_e_access_dim))
         {
             return false;
         }
@@ -686,7 +681,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_e,
-                             const std::vector<index_t>& a_ms_ns_lengths,
+                             const std::vector<index_t>& a_ms_ks_lengths,
                              const std::vector<index_t>& a_ms_ks_strides,
                              const std::vector<index_t>& b_ns_ks_lengths,
                              const std::vector<index_t>& b_ns_ks_strides,
@@ -702,7 +697,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                         p_b,
                         p_ds,
                         p_e,
-                        a_ms_ns_lengths,
+                        a_ms_ks_lengths,
                         a_ms_ks_strides,
                         b_ns_ks_lengths,
                         b_ns_ks_strides,
@@ -723,7 +718,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                         const void* p_b,
                         std::array<const void*, NumDTensor> p_ds,
                         void* p_e,
-                        const std::vector<index_t>& a_ms_ns_lengths,
+                        const std::vector<index_t>& a_ms_ks_lengths,
                         const std::vector<index_t>& a_ms_ks_strides,
                         const std::vector<index_t>& b_ns_ks_lengths,
                         const std::vector<index_t>& b_ns_ks_strides,
@@ -739,7 +734,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
                                           p_b,
                                           p_ds,
                                           p_e,
-                                          a_ms_ns_lengths,
+                                          a_ms_ks_lengths,
                                           a_ms_ks_strides,
                                           b_ns_ks_lengths,
                                           b_ns_ks_strides,

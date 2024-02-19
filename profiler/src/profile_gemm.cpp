@@ -23,6 +23,7 @@ enum struct GemmDataType
     F16_F16_F16,    // 1
     BF16_BF16_BF16, // 2
     INT8_INT8_INT8, // 3
+    F8_F8_F8,       // 4
 };
 
 #define OP_NAME "gemm"
@@ -31,7 +32,7 @@ enum struct GemmDataType
 static void print_helper_msg()
 {
     std::cout << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-              << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8)\n"
+              << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp8)\n"
               << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
               << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
               << "                     2: A[k, m] * B[k, n] = C[m, n];\n"
@@ -41,12 +42,15 @@ static void print_helper_msg()
               << "arg6: print tensor value (0: no; 1: yes)\n"
               << "arg7: time kernel (0: no, 1: yes)\n"
               << "arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n"
+              << "optional:\n"
+              << "arg14: number of warm-up cycles (default 1)\n"
+              << "arg15: number of iterations (default 10)\n"
               << std::endl;
 }
 
 int profile_gemm(int argc, char* argv[])
 {
-    if(argc != 14)
+    if(argc != 14 && argc != 16)
     {
         print_helper_msg();
         exit(1);
@@ -67,6 +71,13 @@ int profile_gemm(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
+    int n_warmup = 1;
+    int n_iter   = 10;
+    if(argc == 16)
+    {
+        n_warmup = std::stoi(argv[14]);
+        n_iter   = std::stoi(argv[15]);
+    }
     using F32 = float;
     using F16 = ck::half_t;
 #ifdef CK_ENABLE_BF16
@@ -75,6 +86,9 @@ int profile_gemm(int argc, char* argv[])
 #ifdef CK_ENABLE_INT8
     using INT8  = int8_t;
     using INT32 = int32_t;
+#endif
+#ifdef CK_ENABLE_FP8
+    using F8 = ck::f8_t;
 #endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
@@ -116,13 +130,21 @@ int profile_gemm(int argc, char* argv[])
                                                        K,
                                                        (StrideA < 0) ? DefaultStrideA : StrideA,
                                                        (StrideB < 0) ? DefaultStrideB : StrideB,
-                                                       (StrideC < 0) ? DefaultStrideC : StrideC);
+                                                       (StrideC < 0) ? DefaultStrideC : StrideC,
+                                                       n_warmup,
+                                                       n_iter);
 
         return pass ? 0 : 1;
     };
 
-    if(false)
-        ;
+    if(data_type != GemmDataType::F32_F32_F32 && data_type != GemmDataType::F16_F16_F16 &&
+       data_type != GemmDataType::BF16_BF16_BF16 && data_type != GemmDataType::INT8_INT8_INT8 &&
+       data_type != GemmDataType::F8_F8_F8)
+    {
+        // dummy clause before the else clauses for different data types
+        std::cout << "Gemm: this data_type is not implemented" << std::endl;
+        return 1;
+    }
 #ifdef CK_ENABLE_FP32
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -195,9 +217,27 @@ int profile_gemm(int argc, char* argv[])
         return profile(Col{}, Col{}, Row{}, INT8{}, INT8{}, INT32{}, INT8{});
     }
 #endif
+#ifdef CK_ENABLE_FP8
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(Row{}, Row{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(Row{}, Col{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(Col{}, Row{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+    else if(data_type == GemmDataType::F8_F8_F8 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(Col{}, Col{}, Row{}, F8{}, F8{}, F32{}, F8{});
+    }
+#endif
     else
     {
-        std::cout << "this data_type & layout is not implemented" << std::endl;
+        std::cout << "Gemm: this data_type & layout is not implemented" << std::endl;
 
         return 1;
     }

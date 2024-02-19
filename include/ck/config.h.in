@@ -43,6 +43,9 @@
 #ifndef CK_ENABLE_FP8
 #define CK_ENABLE_FP8 "ON"
 #endif
+#ifndef CK_ENABLE_BF8
+#define CK_ENABLE_BF8 "ON"
+#endif
 #ifndef CK_ENABLE_FP16
 #define CK_ENABLE_FP16 "ON"
 #endif
@@ -64,6 +67,10 @@
 
 #ifndef CK_ENABLE_FP8
 #cmakedefine CK_ENABLE_FP8 @CK_ENABLE_FP8@
+#endif
+
+#ifndef CK_ENABLE_BF8
+#cmakedefine CK_ENABLE_BF8 @CK_ENABLE_BF8@
 #endif
 
 #ifndef CK_ENABLE_FP16
