@@ -109,9 +109,9 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
 {
     constexpr int seed = 42;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    float max_fp8      = 240.0f;
+    x                  = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
 #if defined(__gfx94__)
-    float max_fp8 = 240.0f;
-    x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
     union
     {
         float fval;
@@ -207,9 +207,9 @@ __host__ __device__ constexpr Y f8_convert_rne(X x);
 template <>
 inline __host__ __device__ f8_t f8_convert_rne<f8_t, float>(float x)
 {
-#if defined(__gfx94__)
     float max_fp8 = 240.0f;
     x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
+#if defined(__gfx94__)
     union
     {
         float fval;
