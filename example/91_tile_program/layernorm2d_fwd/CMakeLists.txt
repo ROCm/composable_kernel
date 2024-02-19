@@ -1,0 +1,1 @@
+add_example_executable(example_layernorm2d_fwd layernorm2d_fwd.cpp)
