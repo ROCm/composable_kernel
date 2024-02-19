@@ -49,7 +49,7 @@ else()
 endif()
 
 find_package(composable_kernel COMPONENTS device_other_operations device_gemm_operations device_conv_operations device_contraction_operations device_reduction_operations)
-find_package(hip REQUIRED PATHS /opt/rocm)
+find_package(hip REQUIRED PATHS /opt/rocm $ENV{HIP_PATH} PATH_SUFFIXES llvm)
 message(STATUS "Build with HIP ${hip_VERSION}")
 
 # add all example subdir

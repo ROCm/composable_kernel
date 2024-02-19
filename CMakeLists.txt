@@ -144,8 +144,8 @@ else()
     message("Building CK for the following targets: ${AMDGPU_TARGETS}")
 endif()
 
-option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
+option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+option(USE_OPT_NAVI3X "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -165,23 +165,22 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-enable_language(CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 
-option(CK_BUILD_JIT_LIB, "Only build the CK JIT Helper Library" OFF)
+option(CK_BUILD_JIT_LIB "Only build the CK JIT Helper Library" OFF)
 if (NOT CK_BUILD_JIT_LIB)
-	find_package(hip)
-	# No assumption that HIP kernels are launched with uniform block size for backward compatibility
-	# SWDEV-413293 and https://reviews.llvm.org/D155213
-	math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-	message("hip_version_flat=${hip_VERSION_FLAT}")
+    find_package(hip)
+    # No assumption that HIP kernels are launched with uniform block size for backward compatibility
+    # SWDEV-413293 and https://reviews.llvm.org/D155213
+    math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+    message("hip_version_flat=${hip_VERSION_FLAT}")
     if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
-	   message("Adding the fno-offload-uniform-block compiler flag")
-	   add_compile_options(-fno-offload-uniform-block)
-	endif()
+       message("Adding the fno-offload-uniform-block compiler flag")
+       add_compile_options(-fno-offload-uniform-block)
+    endif()
 
     #
     # Seperate linking jobs from compiling
@@ -199,7 +198,7 @@ if (NOT CK_BUILD_JIT_LIB)
     endif()
     # Similar for compiling
     set(CK_PARALLEL_COMPILE_JOBS "" CACHE STRING
-        "Define the maximum number of concurrent compile jobs (Ninja only).")
+      "Define the maximum number of concurrent compile jobs (Ninja only).")
     if(CMAKE_GENERATOR MATCHES "Ninja")
       if(CK_PARALLEL_COMPILE_JOBS)
         set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_job_pool=${CK_PARALLEL_COMPILE_JOBS})
@@ -208,6 +207,7 @@ if (NOT CK_BUILD_JIT_LIB)
     elseif(CK_PARALLEL_COMPILE_JOBS)
       message(WARNING "Job pooling is only available with Ninja generators.")
     endif()
+
     ## OpenMP
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         # workaround issue hipcc in rocm3.5 cannot find openmp
@@ -255,7 +255,7 @@ if (NOT CK_BUILD_JIT_LIB)
         add_compile_definitions(__HIP_PLATFORM_AMD__=1)
     else()
         add_compile_definitions(__HIP_PLATFORM_HCC__=1)
-    endif()        
+    endif()
 endif()
 
 ## tidy
@@ -367,7 +367,6 @@ enable_clang_tidy(
     EXTRA_ARGS
         -DCK_USE_CLANG_TIDY
 )
-
 
 include(CppCheck)
 enable_cppcheck(

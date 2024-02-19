@@ -157,7 +157,7 @@ template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
 {
     constexpr int seed = 42;
-    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
 #if defined(__gfx94__)
     union
     {
@@ -192,7 +192,7 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
     constexpr int seed               = 42;
-    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<size_t>(&x), x);
     return utils::
         cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
             x, rng);
