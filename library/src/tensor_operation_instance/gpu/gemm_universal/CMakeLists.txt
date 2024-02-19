@@ -3,6 +3,7 @@ set(GEMM_UNIVERSAL_INSTANCES)
 list(APPEND GEMM_UNIVERSAL_INSTANCES 
         device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instance.cpp
+        device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_default_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_kpadding_instance.cpp
@@ -12,6 +13,7 @@ list(APPEND GEMM_UNIVERSAL_INSTANCES
         device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_default_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_kpadding_instance.cpp
+        device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_mnpadding_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_mnkpadding_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_default_instance.cpp
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_kpadding_instance.cpp

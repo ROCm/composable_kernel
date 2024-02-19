@@ -121,7 +121,9 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t PrefetchStages = 3;
+    static constexpr index_t PrefetchStages  = 3;
+    static constexpr index_t PrefillStages   = 2;
+    static constexpr index_t GlobalBufferNum = 1;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {

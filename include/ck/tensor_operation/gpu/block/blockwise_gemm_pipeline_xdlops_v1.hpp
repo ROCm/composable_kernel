@@ -119,7 +119,9 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t PrefetchStages = 1;
+    static constexpr index_t PrefetchStages  = 1;
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = 1;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -399,10 +401,12 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     using Base::a_block_desc_m0_m1_m2_k;
     using Base::b_block_desc_n0_n1_n2_k;
 
-    static constexpr index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
-    static constexpr index_t KPerInnerLoop  = math::max(KPerThread / NumMacClusters, KPack);
-    static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
-    static constexpr index_t PrefetchStages = 1;
+    static constexpr index_t NumMacClusters  = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
+    static constexpr index_t KPerInnerLoop   = math::max(KPerThread / NumMacClusters, KPack);
+    static constexpr index_t KRepeat         = KPerThread / KPerInnerLoop;
+    static constexpr index_t PrefetchStages  = 1;
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = 1;
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;

@@ -126,6 +126,9 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Intrawave,
             ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
             : 2;
 
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = PrefetchStages;
+
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
@@ -593,6 +596,9 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
         FullMemBandPrefetchStages >= 2
             ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
             : 2;
+
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = PrefetchStages;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
