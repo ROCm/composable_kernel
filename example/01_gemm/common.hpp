@@ -56,7 +56,7 @@ struct ProblemSizeSplitK final
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    ck::index_t KBatch = 2;
+    ck::index_t KBatch = 1;
 };
 
 struct ExecutionConfig final
