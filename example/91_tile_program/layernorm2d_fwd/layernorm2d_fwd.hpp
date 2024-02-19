@@ -18,13 +18,14 @@
 #include "ck/utility/functional2.hpp"
 
 template <typename XDataType,
-          typename WeightDataType,
-          typename BiasDataType,
+          typename WeightDataType, // redundant if ElementwiseAffine == false
+          typename BiasDataType,   // redundant if ElementwiseAffine == false
           typename ComputeDataType,
           typename YDataType,
           typename MeanDataType,   // redundant if SaveMeanInvStd == false
           typename InvStdDataType, // redundant if SaveMeanInvStd == false
           bool SaveMeanInvStd,
+          bool ElementwiseAffine,
           ck::index_t kBlockSize,
           ck::index_t kMPerBlock,
           ck::index_t kNPerBlock>
@@ -60,15 +61,16 @@ struct Layernorm2dFwd
         return ret;
     }
 
-    __device__ void TwoPassLayernorm2d(const XDataType* p_x,
-                                       const WeightDataType* p_weight,
-                                       const BiasDataType* p_bias,
-                                       YDataType* p_y,
-                                       MeanDataType* /*p_mean*/,
-                                       InvStdDataType* /*p_invStd*/,
-                                       const ComputeDataType epsilon,
-                                       ck::index_t M,
-                                       ck::index_t N) const
+    template <typename ck::enable_if<ElementwiseAffine == true, bool>::type = false>
+    __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
+                                          const WeightDataType* p_weight,
+                                          const BiasDataType* p_bias,
+                                          YDataType* p_y,
+                                          MeanDataType* /*p_mean*/,
+                                          InvStdDataType* /*p_invStd*/,
+                                          const ComputeDataType epsilon,
+                                          ck::index_t M,
+                                          ck::index_t N) const
     {
         using namespace ck;
         using namespace ck::tile_program;
@@ -209,6 +211,6 @@ struct Layernorm2dFwd
                                ck::index_t M,
                                ck::index_t N) const
     {
-        TwoPassLayernorm2d(p_x, p_weight, p_bias, p_y, p_mean, p_invStd, epsilon, M, N);
+        TwoPassLayernorm2dFwd(p_x, p_weight, p_bias, p_y, p_mean, p_invStd, epsilon, M, N);
     }
 };
