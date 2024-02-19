@@ -1,0 +1,514 @@
+#pragma once
+#include "ck/host/utils.hpp"
+#include "ck/host/tuples.hpp"
+#include "ck/host/seq.hpp"
+namespace ck {
+namespace host {
+template <typename X, typename... Ys>
+constexpr auto container_concat(const X& x, const Ys&... ys)
+{
+    return container_concat(x, container_concat(ys...));
+}
+
+template <typename T, index_t NX, index_t NY>
+constexpr auto container_concat(const Array<T, NX>& ax, const Array<T, NY>& ay)
+{
+    return unpack2(
+        [&](auto&&... zs) { return make_array(std::forward<decltype(zs)>(zs)...); }, ax, ay);
+}
+
+template <typename... X, typename... Y>
+constexpr auto container_concat(const Tuple<X...>& tx, const Tuple<Y...>& ty)
+{
+    return unpack2(
+        [&](auto&&... zs) { return make_tuple(std::forward<decltype(zs)>(zs)...); }, tx, ty);
+}
+
+template <typename Container>
+constexpr auto container_concat(const Container& x)
+{
+    return x;
+}
+template <typename... Ts, typename T>
+constexpr auto container_push_front(const Tuple<Ts...>& a, const T& x)
+{
+    return container_concat(make_tuple(x), a);
+}
+
+template <typename... Xs, typename Reduce, index_t I, typename YOld, typename ROld>
+constexpr auto container_reverse_exclusive_scan_impl(
+    const Tuple<Xs...>& x, Reduce reduce, Number<I> i, YOld y_old, ROld r_old)
+{
+    auto r_new = reduce(x[i], r_old);
+
+    auto y_new = container_push_front(y_old, r_new);
+
+    if constexpr(i.value > 1)
+    {
+        return container_reverse_exclusive_scan_impl(x, reduce, i - Number<1>{}, y_new, r_new);
+    }
+    else
+    {
+        return y_new;
+    }
+}
+
+template <typename... Xs, typename Reduce, typename Init>
+constexpr auto container_reverse_exclusive_scan(const Tuple<Xs...>& x, Reduce reduce, Init init)
+{
+    constexpr index_t NSize = sizeof...(Xs);
+
+    return container_reverse_exclusive_scan_impl(
+        x, reduce, Number<NSize - 1>{}, make_tuple(init), init);
+}
+
+template <typename LowLengths>
+struct Merge_v1_carry_check
+{
+    static constexpr index_t NDimLow = LowLengths::Size();
+
+    using LowerIndex = MultiIndex<NDimLow>;
+    using UpperIndex = MultiIndex<1>;
+
+    using LowLengthsScan =
+        decltype(container_reverse_exclusive_scan(LowLengths{}, multiplies{}, Number<1>{}));
+
+    using UpLengths =
+        decltype(make_tuple(container_reduce(LowLengths{}, multiplies{}, Number<1>{})));
+
+    LowLengths low_lengths_;
+    LowLengthsScan low_lengths_scan_;
+    UpLengths up_lengths_;
+
+    constexpr Merge_v1_carry_check() = default;
+
+    constexpr Merge_v1_carry_check(const LowLengths& low_lengths)
+        : low_lengths_{low_lengths},
+          low_lengths_scan_{
+              container_reverse_exclusive_scan(low_lengths, multiplies{}, Number<1>{})},
+          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies{}, Number<1>{}))}
+    {
+        static_assert(LowerIndex::Size() == NDimLow, "wrong!");
+    }
+
+    static constexpr index_t GetNumOfLowerDimension() { return NDimLow; }
+
+    static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    constexpr void CalculateLowerIndex(LowIdx& idx_low, const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        index_t tmp = idx_up[Number<0>{}];
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_low(i) = tmp / this->low_lengths_scan_[i];
+            tmp -= idx_low[i] * this->low_lengths_scan_[i];
+        });
+
+        idx_low(Number<NDimLow - 1>{}) = tmp;
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    void UpdateLowerIndex_1a(LowIdxDiff& idx_diff_low,
+                             const UpIdxDiff& idx_diff_up,
+                             LowIdx& idx_low,
+                             const UpIdx& /* idx_up_new */,
+                             Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == NDimLow && UpIdxDiff::Size() == 1 &&
+                          LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+        LowerIndex idx_diff_low_const;
+        LowerIndex idx_low_length_minus_idx_diff_low_const;
+        LowerIndex idx_low_length_plus_idx_diff_low_const;
+
+#if !CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE
+        index_t tmp = idx_diff_up[Number<0>{}];
+
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_diff_low_const(i) = tmp / low_lengths_scan_[i];
+            tmp -= idx_diff_low_const[i] * low_lengths_scan_[i];
+        });
+
+        idx_diff_low_const(Number<NDimLow - 1>{}) = tmp;
+
+        static_for<0, NDimLow, 1>{}([&](auto i) {
+            idx_low_length_minus_idx_diff_low_const(i) = low_lengths_[i] - idx_diff_low_const[i];
+
+            idx_low_length_plus_idx_diff_low_const(i) = low_lengths_[i] + idx_diff_low_const[i];
+        });
+#else
+        index_t tmp = idx_diff_up[Number<0>{}];
+
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_diff_low_const(i) = __builtin_amdgcn_readfirstlane(tmp / low_lengths_scan_[i]);
+            tmp -= idx_diff_low_const[i] * low_lengths_scan_[i];
+        });
+
+        idx_diff_low_const(Number<NDimLow - 1>{}) = __builtin_amdgcn_readfirstlane(tmp);
+
+        static_for<0, NDimLow, 1>{}([&](auto i) {
+            idx_low_length_minus_idx_diff_low_const(i) =
+                __builtin_amdgcn_readfirstlane(low_lengths_[i] - idx_diff_low_const[i]);
+
+            idx_low_length_plus_idx_diff_low_const(i) =
+                __builtin_amdgcn_readfirstlane(low_lengths_[i] + idx_diff_low_const[i]);
+        });
+#endif
+
+        if constexpr(Hack == 1)
+        {
+            index_t carry = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                index_t idx_low_tmp = idx_low[i] + carry;
+
+                bool do_carry = idx_low_tmp >= idx_low_length_minus_idx_diff_low_const[i];
+
+                idx_diff_low(i) =
+                    do_carry ? -idx_low_length_minus_idx_diff_low_const[i] : idx_diff_low_const[i];
+
+                idx_diff_low(i) += carry;
+
+                carry = do_carry ? 1 : 0;
+            });
+
+            idx_diff_low(Number<0>{}) = idx_diff_low_const[Number<0>{}] + carry;
+
+            idx_low += idx_diff_low;
+        }
+        else if constexpr(Hack == 2)
+        {
+            index_t borrow = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                index_t idx_low_tmp = idx_low[i] - borrow;
+
+                bool do_borrow = idx_low_tmp < -idx_diff_low_const[i];
+
+                idx_diff_low(i) =
+                    do_borrow ? idx_low_length_plus_idx_diff_low_const[i] : idx_diff_low_const[i];
+
+                idx_diff_low(i) -= borrow;
+
+                borrow = do_borrow ? 1 : 0;
+            });
+
+            idx_diff_low(Number<0>{}) = idx_diff_low_const[Number<0>{}] - borrow;
+
+            idx_low += idx_diff_low;
+        }
+        else
+        {
+            index_t carry = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                index_t idx_low_tmp = idx_low[i] + carry;
+
+                bool do_carry  = idx_low_tmp >= idx_low_length_minus_idx_diff_low_const[i];
+                bool do_borrow = idx_low_tmp < -idx_diff_low_const[i];
+
+                idx_diff_low(i) =
+                    do_carry ? -idx_low_length_minus_idx_diff_low_const[i] : idx_diff_low_const[i];
+                idx_diff_low(i) =
+                    do_borrow ? idx_low_length_plus_idx_diff_low_const[i] : idx_diff_low[i];
+
+                idx_diff_low(i) += carry;
+
+                carry = do_carry ? 1 : 0;
+                carry = do_borrow ? -1 : carry;
+            });
+
+            idx_diff_low(Number<0>{}) = idx_diff_low_const[Number<0>{}] + carry;
+
+            idx_low += idx_diff_low;
+        }
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    void UpdateLowerIndex_1b(LowIdxDiff& idx_diff_low,
+                             const UpIdxDiff& idx_diff_up,
+                             LowIdx& idx_low,
+                             const UpIdx& /* idx_up_new */,
+                             Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == NDimLow && UpIdxDiff::Size() == 1 &&
+                          LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+        LowerIndex idx_diff_low_const;
+        LowerIndex idx_low_length_minus_idx_diff_low_const;
+        LowerIndex idx_low_length_plus_idx_diff_low_const;
+
+#if !CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE
+        index_t tmp = idx_diff_up[Number<0>{}];
+
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_diff_low_const(i) = tmp / low_lengths_scan_[i];
+            tmp -= idx_diff_low_const[i] * low_lengths_scan_[i];
+        });
+
+        idx_diff_low_const(Number<NDimLow - 1>{}) = tmp;
+
+        static_for<0, NDimLow, 1>{}([&](auto i) {
+            idx_low_length_minus_idx_diff_low_const(i) = low_lengths_[i] - idx_diff_low_const[i];
+
+            idx_low_length_plus_idx_diff_low_const(i) = low_lengths_[i] + idx_diff_low_const[i];
+        });
+#else
+        index_t tmp = idx_diff_up[Number<0>{}];
+
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_diff_low_const(i) = __builtin_amdgcn_readfirstlane(tmp / low_lengths_scan_[i]);
+            tmp -= idx_diff_low_const[i] * low_lengths_scan_[i];
+        });
+
+        idx_diff_low_const(Number<NDimLow - 1>{}) = __builtin_amdgcn_readfirstlane(tmp);
+
+        static_for<0, NDimLow, 1>{}([&](auto i) {
+            idx_low_length_minus_idx_diff_low_const(i) =
+                __builtin_amdgcn_readfirstlane(low_lengths_[i] - idx_diff_low_const[i]);
+
+            idx_low_length_plus_idx_diff_low_const(i) = low_lengths_[i] + idx_diff_low_const[i];
+        });
+#endif
+
+        if constexpr(Hack == 1)
+        {
+            index_t carry = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                index_t idx_low_tmp = idx_low[i] + carry;
+
+                bool do_carry = idx_low_tmp >= idx_low_length_minus_idx_diff_low_const[i];
+
+                idx_diff_low(i) =
+                    do_carry ? -idx_low_length_minus_idx_diff_low_const[i] : idx_diff_low_const[i];
+
+                idx_diff_low(i) += carry;
+
+                carry = do_carry ? 1 : 0;
+            });
+
+            idx_diff_low(Number<0>{}) = idx_diff_low_const[Number<0>{}] + carry;
+
+            idx_low += idx_diff_low;
+        }
+        else if constexpr(Hack == 2)
+        {
+            index_t borrow = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                index_t negative_idx_low_tmp = borrow - idx_low[i];
+
+                bool do_borrow = negative_idx_low_tmp > idx_diff_low_const[i];
+
+                idx_diff_low(i) =
+                    do_borrow ? idx_low_length_plus_idx_diff_low_const[i] : idx_diff_low_const[i];
+
+                idx_diff_low(i) -= borrow;
+
+                borrow = do_borrow ? 1 : 0;
+            });
+
+            idx_diff_low(Number<0>{}) = idx_diff_low_const[Number<0>{}] - borrow;
+
+            idx_low += idx_diff_low;
+        }
+        else
+        {
+            index_t carry = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                index_t idx_low_tmp = idx_low[i] + carry;
+
+                bool do_carry  = idx_low_tmp >= idx_low_length_minus_idx_diff_low_const[i];
+                bool do_borrow = idx_low_tmp < -idx_diff_low_const[i];
+
+                idx_diff_low(i) =
+                    do_carry ? -idx_low_length_minus_idx_diff_low_const[i] : idx_diff_low_const[i];
+                idx_diff_low(i) =
+                    do_borrow ? idx_low_length_plus_idx_diff_low_const[i] : idx_diff_low[i];
+
+                idx_diff_low(i) += carry;
+
+                carry = do_carry ? 1 : 0;
+                carry = do_borrow ? -1 : carry;
+            });
+
+            idx_diff_low(Number<0>{}) = idx_diff_low_const[Number<0>{}] + carry;
+
+            idx_low += idx_diff_low;
+        }
+    }
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    void UpdateLowerIndex_2(LowIdxDiff& idx_diff_low,
+                            const UpIdxDiff& idx_diff_up,
+                            LowIdx& idx_low,
+                            const UpIdx& /* idx_up_new */,
+                            Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == NDimLow && UpIdxDiff::Size() == 1 &&
+                          LowIdx::Size() == NDimLow && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+        LowerIndex idx_diff_low_const;
+
+#if !CK_HACK_MERGE_CALCULATE_IDX_DIFF_LOW_CONST_USE_AMD_GCN_READ_FIRST_LANE
+        index_t tmp = idx_diff_up[Number<0>{}];
+
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_diff_low_const(i) = tmp / low_lengths_scan_[i];
+            tmp -= idx_diff_low_const[i] * low_lengths_scan_[i];
+        });
+
+        idx_diff_low_const(Number<NDimLow - 1>{}) = tmp;
+#else
+        index_t tmp = idx_diff_up[Number<0>{}];
+
+        static_for<0, NDimLow - 1, 1>{}([&](auto i) {
+            idx_diff_low_const(i) = __builtin_amdgcn_readfirstlane(tmp / low_lengths_scan_[i]);
+            tmp -= idx_diff_low_const[i] * low_lengths_scan_[i];
+        });
+
+        idx_diff_low_const(Number<NDimLow - 1>{}) = __builtin_amdgcn_readfirstlane(tmp);
+#endif
+
+        if constexpr(Hack == 1)
+        {
+            bool do_carry = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                idx_diff_low(i) = idx_diff_low_const[i] + do_carry;
+
+                index_t idx_low_tmp = idx_low[i] + idx_diff_low[i];
+
+                do_carry = idx_low_tmp >= low_lengths_[i];
+
+#if 0
+		if(do_carry)
+		                {
+				                    idx_diff_low(i) -= low_lengths_[i];
+						                    }
+#elif 1
+                idx_diff_low(i) = do_carry ? idx_diff_low[i] - low_lengths_[i] : idx_diff_low[i];
+#elif 1
+                index_t idx_diff_low_tmp = idx_diff_low[i] - low_lengths_[i];
+                idx_diff_low(i)          = do_carry ? idx_diff_low_tmp : idx_diff_low[i];
+#endif
+
+                idx_low(i) += idx_diff_low[i];
+            });
+
+            constexpr auto I0 = Number<0>{};
+
+            idx_diff_low(I0) = idx_diff_low_const[I0] + do_carry;
+
+            idx_low(I0) += idx_diff_low[I0];
+        }
+        else if constexpr(Hack == 2)
+        {
+            bool do_borrow = 0;
+
+            static_for<NDimLow - 1, 0, -1>{}([&](auto i) {
+                idx_diff_low(i) = idx_diff_low_const[i] - do_borrow;
+
+                index_t idx_low_tmp = idx_low[i] + idx_diff_low[i];
+
+                do_borrow = idx_low_tmp < 0;
+
+#if 0
+														     if(do_borrow)
+														                     {
+																                         idx_diff_low(i) += low_lengths_[i];
+																			                 }
+#elif 1
+                idx_diff_low(i) = do_borrow ? idx_diff_low[i] + low_lengths_[i] : idx_diff_low[i];
+#elif 1
+                index_t idx_diff_low_tmp = idx_diff_low[i] + low_lengths_[i];
+                idx_diff_low(i)          = do_borrow ? idx_diff_low_tmp : idx_diff_low[i];
+#endif
+
+                idx_low(i) += idx_diff_low[i];
+            });
+
+            constexpr auto I0 = Number<0>{};
+
+            idx_diff_low(I0) = idx_diff_low_const[I0] - do_borrow;
+
+            idx_low(I0) += idx_diff_low[I0];
+        }
+        else
+        {
+        }
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                          const UpIdxDiff& idx_diff_up,
+                          LowIdx& idx_low,
+                          const UpIdx& idx_up_new,
+                          Number<Hack>) const
+    {
+#if 1
+        UpdateLowerIndex_1a(idx_diff_low, idx_diff_up, idx_low, idx_up_new, Number<Hack>{});
+#elif 0
+        UpdateLowerIndex_1b(idx_diff_low, idx_diff_up, idx_low, idx_up_new, Number<Hack>{});
+#else
+        UpdateLowerIndex_2(idx_diff_low, idx_diff_up, idx_low, idx_up_new, Number<Hack>{});
+#endif
+    }
+
+    static constexpr bool IsLinearTransform() { return false; }
+
+    static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex() { return true; }
+
+    static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<LowLengths>::value &&
+               is_known_at_compile_time<LowLengthsScan>::value &&
+               is_known_at_compile_time<UpLengths>::value;
+    }
+
+    template <typename UpIdx>
+    static constexpr bool IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+};
+
+template <typename LowLengths>
+constexpr auto make_merge_transform(const LowLengths& low_lengths)
+{
+    //#if CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
+    //		    return make_merge_transform_v2_magic_division(low_lengths);
+    //#else
+    return make_merge_transform_v1_carry_check(low_lengths);
+    //#endif
+}
+
+template <typename LowLengths>
+constexpr auto make_merge_transform_v1_carry_check(const LowLengths& low_lengths)
+{
+    return Merge_v1_carry_check<LowLengths>{low_lengths};
+}
+} // namespace host
+} // namespace ck

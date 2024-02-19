@@ -1,17 +1,25 @@
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
+#include "ck/host/conv/conv_op.hpp"
+#include "ck/host/conv/dev_conv.hpp"
 #include "ck/host/headers.hpp"
 #include "ck/host/stringutils.hpp"
+#include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
+#include "ck/host/tuples.hpp"
+#include "ck/host/seq.hpp"
+#include "ck/host/tensor_desc.hpp"
+#include "ck/host/transform.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <numeric>
 #include <random>
 #include <test.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 
-using half = _Float16;
+using half = _Float64;
 // using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
@@ -123,16 +131,159 @@ auto report(const Solution& solution, bool pass)
 {
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
+// FIXME: should i use MIOpen's Arg ptr? seems like a good option, try it out first
+const std::string conv_compile_check = R"__ck__(
+#include <${include}>
 
-const std::string gemm_compile_check = R"__ck__(
+${template};
+extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
+    using G = ${template};
+}
+
+)__ck__";
+
+TEST_CASE(test_problem_kernel)
+{
+    ck::host::conv::Problem_Conv prob;
+    prob.G  = 64;
+    prob.N  = 64;
+    prob.C  = 64;
+    prob.K  = 64;
+    prob.Y  = 64;
+    prob.X  = 64;
+    prob.Hi = 64;
+    prob.Wi = 64;
+    prob.Ho = 64;
+    prob.Wo = 64;
+    check_all<half> check;
+    auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
+    auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
+    auto c               = to_gpu(generate_buffer<half>(64 * 64, 2));
+    std::string prologue = "";
+    std::string epilogue = "";
+
+    // length+stride arrays
+    std::array<std::size_t, 5> in_lengths{prob.G, prob.N, prob.C, prob.Hi, prob.Wi};
+    std::array<std::size_t, 5> out_lengths{prob.G, prob.N, prob.K, prob.Ho, prob.Wo};
+    std::array<std::size_t, 5> wei_lengths{prob.G, prob.K, prob.C, prob.Y, prob.X};
+    std::array<std::size_t, 5> d_lengths = {};
+
+    std::array<std::size_t, 5> in_strides{
+        prob.C, prob.Hi * prob.Wi * prob.G * prob.C, 1, prob.Wi * prob.G * prob.C, prob.G * prob.C};
+    std::array<std::size_t, 5> out_strides{
+        prob.K, prob.Ho * prob.Wo * prob.G * prob.K, 1, prob.Wo * prob.G * prob.K, prob.G * prob.K};
+    std::array<std::size_t, 5> wei_strides{
+        prob.K * prob.Y * prob.X * prob.C, prob.Y * prob.X * prob.C, 1, prob.X * prob.C, prob.C};
+    std::array<std::size_t, 5> d_strides = {};
+
+    // auto argument_ptr    = ck_args.MakeArgPtr(sh_conv_ptr, data_ctx.tensors); //FIXME: arg ptr
+    // call -> use this? how is it passed in?
+
+    for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
+    {
+        auto src = ck::host::InterpolateString(
+            conv_compile_check,
+            {{"include", prob.GetIncludeHeader()},
+             {"template", solution.ToTemplateString()}, // my template returns an object -> fine,
+                                                        // just make sure it gets the right object
+             {"m", std::to_string(prob.G)},
+             {"n", std::to_string(prob.N)},
+             {"k", std::to_string(prob.C)}}); // FIXME: pass in the right dims
+        auto srcs = get_headers_for_test();
+        srcs.push_back({"main.cpp", src});
+        rtc::compile_options options;
+        options.kernel_name = "f";
+        auto k              = rtc::compile_kernel(srcs, options);
+        // TODO: add creation of grid desc/ptrs for run fcn here
+        auto NDimSpatial      = prob.NumDim;
+        const std::size_t tmp = prob.DsDataType.size();
+        std::cout << tmp << std::endl;
+        static constexpr auto NumDTensor = 0;
+        static constexpr auto I1         = ck::host::Number<1>{};
+        // input tensor desc
+        // weight tensor desc
+        const std::size_t K_in = wei_lengths[1];
+        const std::size_t C    = wei_lengths[2];
+
+        const std::size_t YX = ck::host::accumulate_n<std::size_t>(
+            wei_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
+
+        const std::size_t KStride_in = wei_strides[1];
+        const std::size_t XStride    = wei_strides[2 + NDimSpatial];
+        const auto CStride           = I1;
+
+        const auto wei_k_yx_c_desc = ck::host::make_naive_tensor_descriptor(
+            ck::host::make_tuple(K_in, YX, C), ck::host::make_tuple(KStride_in, XStride, CStride));
+
+        const auto wei_gemmn_gemmk_desc = ck::host::transform_tensor_descriptor(
+            wei_k_yx_c_desc,
+            ck::host::make_tuple(ck::host::make_pass_through_transform(K_in),
+                                 ck::host::make_merge_transform(ck::host::make_tuple(YX, C))),
+            ck::host::make_tuple(ck::host::Sequence<0>{}, ck::host::Sequence<1, 2>{}),
+            ck::host::make_tuple(ck::host::Sequence<0>{}, ck::host::Sequence<1>{}));
+
+        // output tensor desc
+        const std::size_t N     = out_lengths[1];
+        const std::size_t K_out = out_lengths[2];
+
+        const auto KStride_out     = I1;
+        const std::size_t WoStride = out_strides[NDimSpatial + 2];
+
+        const std::size_t NHoWo =
+            N * ck::host::accumulate_n<std::size_t>( // FIXME: can i use CK methods??
+                    out_lengths.begin() + 3,
+                    NDimSpatial,
+                    1,
+                    std::multiplies<>());
+
+        const auto out_gemmm_gemmn_desc = ck::host::make_naive_tensor_descriptor(
+            ck::host::make_tuple(NHoWo, K_out), ck::host::make_tuple(WoStride, KStride_out));
+        // d desc
+        // auto NumDTensor = prob.DsDataType
+        ck::host::generate_tuple(
+            [&](auto i) {
+                // using DLayout = ck::host::remove_cvref_t<ck::host::tuple_element_t<i.value,
+                // DsLayout>>;
+
+                // using DLayout = ck::host::ToLayout(prob.DsTrans[0]);
+
+                const auto d_desc = ck::host::make_naive_tensor_descriptor(
+                    ck::host::make_tuple(NHoWo, K_out),
+                    d_strides[i]); // FIXME: get the right stride for Ds
+            },
+            ck::host::Number<NumDTensor>{});
+
+        // pointers
+        /**using AGridPointer = ck::host::remove_cvref_t<
+            decltype(GetAGridPointer < isMultiA || isMultiB, GridwiseGemm, ADataType > ())>;
+        using BGridPointer = ck::host::remove_cvref_t<
+            decltype(GetBGridPointer < isMultiA || isMultiB, GridwiseGemm, BDataType > ())>;//FIXME:
+        how to sub in all these values: not present yet -> put in template?**/
+
+        auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        auto m_per_block = solution.GetTemplateParameter<std::size_t>("MPerBlock");
+        auto n_per_block = solution.GetTemplateParameter<std::size_t>("NPerBlock");
+        auto grid_size   = ck::host::integer_divide_ceil(prob.G, m_per_block) *
+                         ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME:
+        k.launch(nullptr, grid_size * block_size, block_size)(
+            a.data(),
+            b.data(),
+            c.data() /**, out_gemmm_gemmn_desc**/); // FIXME: my launch will bw different: will need
+                                                    // to pass in grid ptrs for run fcns
+        CHECK(report(solution, check(rtc::from_gpu(c))));
+    }
+}
+/**const std::string gemm_compile_check = R"__ck__(
 #include <${include}>
 
 extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
     using G = ${template};
-    constexpr auto desc = ${template}::make_descriptor(ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${k})),
-                                             ck::make_naive_tensor_descriptor(ck::make_tuple(${n}, ${k}), ck::make_tuple(1, ${n})),
-                                             ck::make_tuple(),
-                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m}, ${n})));
+    constexpr auto desc =
+${template}::make_descriptor(ck::ck::host::make_naive_tensor_descriptor_packed(ck::make_tuple(${m},
+${k})), ck::ck::host::make_naive_tensor_descriptor(ck::make_tuple(${n},
+${k}), ck::make_tuple(1, ${n})), ck::make_tuple(),
+                                             ck::ck::host::make_naive_tensor_descriptor_packed(ck::make_tuple(${m},
+${n})));
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
 
@@ -158,8 +309,10 @@ TEST_CASE(test_problem_kernel)
     auto a = to_gpu(generate_buffer<half>(1024 * 1024, 0));
     auto b = to_gpu(generate_buffer<half>(1024 * 1024, 1));
     auto c = to_gpu(generate_buffer<half>(1024 * 1024, 2));
+    std::string prologue = "";
+    std::string epilogue = "";
 
-    for(auto solution : prob.GetSolutions("gfx90a"))
+    for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         auto src  = ck::host::InterpolateString(gemm_compile_check,
                                                {{"include", prob.GetIncludeHeader()},
@@ -180,6 +333,6 @@ TEST_CASE(test_problem_kernel)
         k.launch(nullptr, grid_size * block_size, block_size)(a.data(), b.data(), c.data());
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
-}
+}**/
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

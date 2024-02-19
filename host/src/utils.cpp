@@ -17,5 +17,12 @@ const std::unordered_set<std::string>& get_xdlop_archs()
     return supported_archs;
 }
 
+/**template <typename T, typename ForwardIterator, typename Size, typename BinaryOperation>
+auto accumulate_n(ForwardIterator first, Size count, T init, BinaryOperation op)
+    -> decltype(std::accumulate(first, std::next(first, count), init, op))
+{
+    return std::accumulate(first, std::next(first, count), init, op);
+}**/
+
 } // namespace host
 } // namespace ck

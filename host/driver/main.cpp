@@ -7,8 +7,6 @@
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/conv/conv_op.hpp"
-#include "../parse/include/op.hpp"
-#include "../parse/include/op_conv.hpp"
 #include "ck/host/stringutils.hpp"
 #include "ck/host/types.hpp"
 #include <iomanip>
