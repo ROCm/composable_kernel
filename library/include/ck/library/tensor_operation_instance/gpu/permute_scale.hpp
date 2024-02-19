@@ -152,7 +152,7 @@ struct DeviceOperationInstanceFactory<
             }
 #endif
 #ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_1d_f16_instances(op_ptrs);
@@ -169,7 +169,7 @@ struct DeviceOperationInstanceFactory<
             }
 #endif
 #ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_2d_f16_instances(op_ptrs);
@@ -186,7 +186,7 @@ struct DeviceOperationInstanceFactory<
             }
 #endif
 #ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_3d_f16_instances(op_ptrs);
@@ -203,7 +203,7 @@ struct DeviceOperationInstanceFactory<
             }
 #endif
 #ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_4d_f16_instances(op_ptrs);
@@ -220,7 +220,7 @@ struct DeviceOperationInstanceFactory<
             }
 #endif
 #ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_5d_f16_instances(op_ptrs);
@@ -237,7 +237,7 @@ struct DeviceOperationInstanceFactory<
             }
 #endif
 #ifdef CK_ENABLE_FP16
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
+            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_6d_f16_instances(op_ptrs);

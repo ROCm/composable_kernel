@@ -15,14 +15,34 @@ class TestPermute : public ::testing::Test
     using ADataType = std::tuple_element_t<0, Tuple>;
     using BDataType = std::tuple_element_t<1, Tuple>;
 
+    constexpr bool skip_case()
+    {
+#ifndef CK_ENABLE_FP16
+        if constexpr(ck::is_same_v<ADataType, F16> || ck::is_same_v<BDataType, F16>)
+        {
+            return true;
+        }
+#endif
+#ifndef CK_ENABLE_FP32
+        if constexpr(ck::is_same_v<ADataType, F32> || ck::is_same_v<BDataType, F32>)
+        {
+            return true;
+        }
+#endif
+        return false;
+    }
+
     template <ck::index_t NDims>
     void Run(std::vector<ck::index_t> lengths,
              std::vector<ck::index_t> input_strides,
              std::vector<ck::index_t> output_strides)
     {
-        bool success = ck::profiler::profile_permute_scale_impl<ADataType, BDataType, NDims>(
-            true, 2, false, false, lengths, input_strides, output_strides);
-        EXPECT_TRUE(success);
+        if(!skip_case())
+        {
+            bool success = ck::profiler::profile_permute_scale_impl<ADataType, BDataType, NDims>(
+                true, 2, false, false, lengths, input_strides, output_strides);
+            EXPECT_TRUE(success);
+        }
     }
 };
 
