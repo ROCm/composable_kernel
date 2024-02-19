@@ -98,6 +98,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_nk_mn_instances(
                                                          PassThrough>>>& instances);
 
 // bf16_inputA i8_inputB
+#if defined(CK_ENABLE_BF16) && defined(CK_ENABLE_INT8)
 void add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
                                                          Row,
@@ -123,6 +124,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_nk_mn_instances(
                                                          PassThrough,
                                                          PassThrough,
                                                          PassThrough>>>& instances);
+#endif
 
 template <typename ALayout,
           typename BLayout,
@@ -207,7 +209,8 @@ struct DeviceOperationInstanceFactory<
             }
         }
 
-        // bf16_i8_input
+// bf16_i8_input
+#if defined(CK_ENABLE_BF16) && defined(CK_ENABLE_INT8)
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
                      is_same_v<EDataType, bhalf_t>)
         {
@@ -222,6 +225,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_nk_mn_instances(op_ptrs);
             }
         }
+#endif
 
         return op_ptrs;
     }

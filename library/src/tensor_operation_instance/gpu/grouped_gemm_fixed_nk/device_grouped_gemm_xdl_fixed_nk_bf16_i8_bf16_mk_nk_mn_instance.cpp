@@ -25,12 +25,9 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using DsDataType = ck::Tuple<>;
-
-using DsLayout = ck::Tuple<>;
-
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-
+using DsDataType                     = ck::Tuple<>;
+using DsLayout                       = ck::Tuple<>;
+using PassThrough                    = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 using device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_nk_mn_irregular_tile_instances = std::tuple<
