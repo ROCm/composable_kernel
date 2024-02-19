@@ -136,15 +136,18 @@ struct Layernorm2dFwd
         WarpMergeWelford<ComputeDataType, true>{}(
             mean_compute_block_tensor, var_compute_block_tensor, thread_welford.cur_count_);
 
-        // TODO - reverse read x to reuse L2
-        iN = 0;
-        move_tile_window(x_block_window, {0, -N});
-
         const auto y_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_y, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
 
         auto y_block_window = make_tile_window(
             y_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
+
+        // reverse read x to reuse cache
+        ck::index_t window_tail = N - kNPerBlock;
+        move_tile_window(x_block_window, {0, -kNPerBlock});
+        move_tile_window(weight_block_window, {0, window_tail});
+        move_tile_window(bias_block_window, {0, window_tail});
+        move_tile_window(y_block_window, {0, window_tail});
 
         // Normalization
         do
@@ -181,14 +184,14 @@ struct Layernorm2dFwd
 
             store_tile(y_block_window, y_block_tensor);
 
-            move_tile_window(x_block_window, {0, kNPerBlock});
-            move_tile_window(weight_block_window, {0, kNPerBlock});
-            move_tile_window(bias_block_window, {0, kNPerBlock});
-            move_tile_window(y_block_window, {0, kNPerBlock});
+            move_tile_window(x_block_window, {0, -kNPerBlock});
+            move_tile_window(weight_block_window, {0, -kNPerBlock});
+            move_tile_window(bias_block_window, {0, -kNPerBlock});
+            move_tile_window(y_block_window, {0, -kNPerBlock});
 
-            iN += kNPerBlock;
+            iN -= kNPerBlock;
 
-        } while(iN < N);
+        } while(iN > 0);
 
         if constexpr(SaveMeanInvStd)
         {
