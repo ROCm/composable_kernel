@@ -38,6 +38,7 @@ Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
  ./bin/ckProfiler  conv2d_fwd        1          1            1           1       1     1    0       5  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1
 ```
 Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
+
 ```bash
 in_n_c_hi_wi: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
 wei_k_c_y_x: dim 4, lengths {256, 192, 3, 3}, strides {1728, 1, 576, 192}
