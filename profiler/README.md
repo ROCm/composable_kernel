@@ -177,6 +177,7 @@ GB/s: 127.947
 ```
 
 Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+
 ```bash
 input: dim 5, lengths {32, 512, 1024, 28, 28}, strides {411041792, 802816, 1, 28672, 1024}
 weight: dim 5, lengths {32, 512, 1024, 3, 3}, strides {4718592, 9216, 1, 3072, 1024}
