@@ -119,20 +119,20 @@ struct FmhaFwdKernel
 
     struct FmhaFwdDropoutKargs
     {
-        void init_dropout(float p_drop, std::tuple<uint64_t, uint64_t>& seeds)
+        void init_dropout(float p_drop, std::tuple<uint64_t, uint64_t>& drop_seeds)
         {
             float p_undrop = 1.0 - p_drop;
             p_undrop_in_uint8_t =
                 uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
             rp_undrop = 1.0 / p_undrop;
 
-            seed   = std::get<0>(seeds);
-            offset = std::get<1>(seeds);
+            drop_seed   = std::get<0>(drop_seeds);
+            drop_offset = std::get<1>(drop_seeds);
         }
         float rp_undrop                  = 1;
         DropDataType p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t seed                    = 1;
-        uint64_t offset                  = 0;
+        uint64_t drop_seed               = 1;
+        uint64_t drop_offset             = 0;
         void* drop_ptr                   = nullptr;
         ck::index_t stride_drop          = 0;
         ck::index_t nhead_stride_drop    = 0;
@@ -212,7 +212,7 @@ struct FmhaFwdKernel
               float descale_qk,
               float descale_sv,
               float p_drop,
-              std::tuple<uint64_t, uint64_t>& seeds)
+              std::tuple<uint64_t, uint64_t>& drop_seeds)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -272,7 +272,7 @@ struct FmhaFwdKernel
 
         if constexpr(kHasDropout)
         {
-            kargs.init_dropout(p_drop, seeds);
+            kargs.init_dropout(p_drop, drop_seeds);
             kargs.drop_ptr          = drop_ptr;
             kargs.stride_drop       = stride_drop;
             kargs.nhead_stride_drop = nhead_stride_drop;
@@ -324,7 +324,7 @@ struct FmhaFwdKernel
               float descale_qk,
               float descale_sv,
               float p_drop,
-              std::tuple<uint64_t, uint64_t>& seeds)
+              std::tuple<uint64_t, uint64_t>& drop_seeds)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -381,7 +381,7 @@ struct FmhaFwdKernel
 
         if constexpr(kHasDropout)
         {
-            kargs.init_dropout(p_drop, seeds);
+            kargs.init_dropout(p_drop, drop_seeds);
             kargs.drop_ptr          = drop_ptr;
             kargs.stride_drop       = stride_drop;
             kargs.nhead_stride_drop = nhead_stride_drop;
@@ -439,21 +439,21 @@ struct FmhaFwdKernel
 
         float rp_undrop                  = 1;
         DropDataType p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t seed                    = 0;
-        uint64_t offset                  = 0;
+        uint64_t drop_seed               = 0;
+        uint64_t drop_offset             = 0;
         index_t raw_mn_padded            = 0;
 
         if constexpr(kHasDropout)
         {
             rp_undrop           = kargs.rp_undrop;
             p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
-            seed                = kargs.seed;
-            offset              = kargs.offset;
+            drop_seed           = kargs.drop_seed;
+            drop_offset         = kargs.drop_offset;
             raw_mn_padded       = kargs.raw_mn_padded;
         }
         const index_t i_total_id = __builtin_amdgcn_readfirstlane(
             raw_mn_padded * i_nhead + raw_mn_padded * gridDim.y * i_batch);
-        ck::philox ph(seed, 0, offset);
+        ck::philox ph(drop_seed, 0, drop_offset);
 
         if constexpr(kIsGroupMode)
         {

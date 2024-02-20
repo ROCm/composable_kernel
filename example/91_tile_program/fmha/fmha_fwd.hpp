@@ -124,7 +124,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      ck::index_t mask_y,
                                      ck::index_t mask_x,
                                      float p_drop,
-                                     std::tuple<uint64_t, uint64_t>& seeds)
+                                     std::tuple<uint64_t, uint64_t>& drop_seeds)
 {
     constexpr bool is_v_rowmajor =
         ck::is_same_v<typename FmhaKernel::VLayout, ck::tensor_layout::gemm::RowMajor>;
@@ -203,7 +203,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          descale_qk,
                                          descale_sv,
                                          p_drop,
-                                         seeds);
+                                         drop_seeds);
         }
         else
         { // create batch mode kernel arguments
@@ -245,7 +245,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          descale_qk,
                                          descale_sv,
                                          p_drop,
-                                         seeds);
+                                         drop_seeds);
         }
     }();
 
@@ -282,7 +282,7 @@ struct fmha_fwd_args
     ck::index_t mask_y;
     ck::index_t mask_x;
     float p_drop;
-    std::tuple<uint64_t, uint64_t> seeds;
+    std::tuple<uint64_t, uint64_t> drop_seeds;
 };
 
 template <typename FmhaKernel>
@@ -314,7 +314,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.mask_y,
                                                        args.mask_x,
                                                        args.p_drop,
-                                                       args.seeds);
+                                                       args.drop_seeds);
 }
 
 // this is internal API, will be generated across different files to speedup compile
