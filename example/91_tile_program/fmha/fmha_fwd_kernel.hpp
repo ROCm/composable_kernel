@@ -121,21 +121,22 @@ struct FmhaFwdKernel
     {
         void init_dropout(float p_drop, std::tuple<uint64_t, uint64_t>& seeds)
         {
-            float p_dropout      = 1.0 - p_drop;
-            p_dropout_in_uint8_t = uint8_t(std::floor(p_dropout * 255.0));
-            rp_dropout           = 1.0 / p_dropout;
+            float p_undrop = 1.0 - p_drop;
+            p_undrop_in_uint8_t =
+                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+            rp_undrop = 1.0 / p_undrop;
 
             seed   = std::get<0>(seeds);
             offset = std::get<1>(seeds);
         }
-        float rp_dropout                  = 1;
-        DropDataType p_dropout_in_uint8_t = 255;
-        uint64_t seed                     = 1;
-        uint64_t offset                   = 0;
-        void* drop_ptr                    = nullptr;
-        ck::index_t stride_drop           = 0;
-        ck::index_t nhead_stride_drop     = 0;
-        ck::index_t raw_mn_padded         = 0;
+        float rp_undrop                  = 1;
+        DropDataType p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        uint64_t seed                    = 1;
+        uint64_t offset                  = 0;
+        void* drop_ptr                   = nullptr;
+        ck::index_t stride_drop          = 0;
+        ck::index_t nhead_stride_drop    = 0;
+        ck::index_t raw_mn_padded        = 0;
     };
     struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
     {
@@ -436,19 +437,19 @@ struct FmhaFwdKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
-        float rp_dropout                  = 1;
-        DropDataType p_dropout_in_uint8_t = 255;
-        uint64_t seed                     = 0;
-        uint64_t offset                   = 0;
-        index_t raw_mn_padded             = 0;
+        float rp_undrop                  = 1;
+        DropDataType p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        uint64_t seed                    = 0;
+        uint64_t offset                  = 0;
+        index_t raw_mn_padded            = 0;
 
         if constexpr(kHasDropout)
         {
-            rp_dropout           = kargs.rp_dropout;
-            p_dropout_in_uint8_t = kargs.p_dropout_in_uint8_t;
-            seed                 = kargs.seed;
-            offset               = kargs.offset;
-            raw_mn_padded        = kargs.raw_mn_padded;
+            rp_undrop           = kargs.rp_undrop;
+            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
+            seed                = kargs.seed;
+            offset              = kargs.offset;
+            raw_mn_padded       = kargs.raw_mn_padded;
         }
         const index_t i_total_id = __builtin_amdgcn_readfirstlane(
             raw_mn_padded * i_nhead + raw_mn_padded * gridDim.y * i_batch);
@@ -754,8 +755,8 @@ struct FmhaFwdKernel
                                       kargs.descale_sv,
                                       smem_ptr,
                                       i_total_id,
-                                      rp_dropout,
-                                      p_dropout_in_uint8_t,
+                                      rp_undrop,
+                                      p_undrop_in_uint8_t,
                                       ph);
             }
             else
@@ -770,8 +771,8 @@ struct FmhaFwdKernel
                                       kargs.scale,
                                       smem_ptr,
                                       i_total_id,
-                                      rp_dropout,
-                                      p_dropout_in_uint8_t,
+                                      rp_undrop,
+                                      p_undrop_in_uint8_t,
                                       ph);
             }
         }();

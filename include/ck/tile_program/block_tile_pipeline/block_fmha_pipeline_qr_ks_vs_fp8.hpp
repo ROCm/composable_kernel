@@ -91,7 +91,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                void* smem_ptr,
                int global_idx,
                float p_dropout_rescale,
-               DropDataType p_dropout_in_uint8_t,
+               DropDataType p_undrop_in_uint8_t,
                ck::philox& ph) const
     {
         static_assert(
@@ -468,7 +468,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                                 TileDistributedIndex<i_n0, idx1.impl_.At(1), idx1.impl_.At(2)>{};
                             constexpr auto p_idx = make_tuple(idx0, second_);
                             constexpr auto d_idx = make_tuple(idx0, idx1);
-                            p_compute(p_idx)     = dropout[d_idx] <= p_dropout_in_uint8_t
+                            p_compute(p_idx)     = dropout[d_idx] <= p_undrop_in_uint8_t
                                                        ? p_compute[p_idx] * p_dropout_rescale
                                                        : float(0);
                         });

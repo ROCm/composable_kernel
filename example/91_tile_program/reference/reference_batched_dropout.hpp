@@ -11,7 +11,7 @@
 template <typename DataType, typename DropDataType>
 void reference_batched_dropout(Tensor<DataType>& a_b_m_n,
                                const Tensor<DropDataType>& b_b_m_n,
-                               const DropDataType& p_dropout_in_uint8_t,
+                               const DropDataType& p_undrop_in_uint8_t,
                                const float scale)
 {
     const int N = a_b_m_n.mDesc.GetLengths()[2];
@@ -19,7 +19,7 @@ void reference_batched_dropout(Tensor<DataType>& a_b_m_n,
         for(int n = 0; n < N; ++n)
         {
             float tmp            = ck::type_convert<float>(a_b_m_n(batch, m, n)) * scale;
-            a_b_m_n(batch, m, n) = b_b_m_n(batch, m, n) <= p_dropout_in_uint8_t
+            a_b_m_n(batch, m, n) = b_b_m_n(batch, m, n) <= p_undrop_in_uint8_t
                                             ? ck::type_convert<DataType>(tmp)
                                             : float(0);
         }

@@ -74,7 +74,7 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed")
-        .insert("p_drop", "0", "0~1 probability of dropout")
+        .insert("p_drop", "0.1", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number maker")
         .insert("drop_offset", "0", "offset for random number maker");
 
@@ -151,7 +151,7 @@ bool run(const ArgParser& arg_parser)
     bool lse             = arg_parser.get_bool("lse");
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset = arg_parser.get_uint32("drop_offset");
+    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
@@ -377,9 +377,10 @@ bool run(const ArgParser& arg_parser)
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
     drop_buf.FromDevice(drop_host.data());
-    float p_dropout                   = 1.0 - p_drop;
-    DropDataType p_dropout_in_uint8_t = DropDataType(std::floor(p_dropout * 255.0));
-    float rp_dropout                  = 1.0 / p_dropout;
+    float p_undrop = 1.0 - p_drop;
+    DropDataType p_undrop_in_uint8_t =
+        DropDataType(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+    float rp_undrop = 1.0 / p_undrop;
 
     bool pass = true;
     for(ck::index_t wb = 0; wb < batch; ++wb)
@@ -488,8 +489,7 @@ bool run(const ArgParser& arg_parser)
             drop_host_result.ForEach([&](auto& self, auto idx) {
                 self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2] + key_offset);
             });
-            reference_batched_dropout(
-                p_host_ref, drop_host_result, p_dropout_in_uint8_t, rp_dropout);
+            reference_batched_dropout(p_host_ref, drop_host_result, p_undrop_in_uint8_t, rp_undrop);
         }
 
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
