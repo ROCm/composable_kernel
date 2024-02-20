@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,7 @@
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -18,16 +19,16 @@ namespace host {
 /**
  * \brief Reference implementation for image to column.
  *
- * Tensor descriptor has [G, N, C, Di, Hi, Wi] data layout.
- * G must be equal to 1. Memory layout is [G, N, Di, Hi, Wi, C].
+ * Input tensor descriptor has [G, N, C, Di, Hi, Wi] data layout.
+ * Output tensor descriptor has [G * N * Do * Ho * Wo, Z * Y * X * C] data layout.
  *
  * \tparam NDimSpatial Number of spatial dimensions.
- * \tparam InputLayout Input Layout.
+ * \tparam ImageLayout Image Layout.
  * \tparam InDataType Input Data Type.
  * \tparam OutDataType Output Data Type.
  */
 template <ck::index_t NDimSpatial,
-          typename InputLayout,
+          typename ImageLayout,
           typename InDataType,
           typename OutDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
@@ -93,18 +94,19 @@ struct ReferenceImageToColumn : public device::BaseOperator
         float Run(const Argument& arg)
         {
             if(!(arg.input_.GetNumOfDimension() == NDimSpatial + 3 &&
-                 arg.output_.GetNumOfDimension() == 2))
+                 arg.output_.GetNumOfDimension() == 3))
             {
                 throw std::runtime_error("wrong! inconsistent dimension");
             }
 
+            const index_t G = arg.input_.GetLengths()[0];
             const index_t N = arg.input_.GetLengths()[1];
             const index_t C = arg.input_.GetLengths()[2];
 
             if constexpr(NDimSpatial == 1)
             {
                 const index_t Wo = arg.output_spatial_lengths_[0];
-                auto func        = [&](auto n, auto wo) {
+                auto func        = [&](auto g, auto n, auto wo) {
                     index_t row    = n * Wo + wo;
                     index_t column = 0;
 
@@ -119,15 +121,15 @@ struct ReferenceImageToColumn : public device::BaseOperator
                             if(wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
                             {
-                                InDataType v_in          = arg.input_(0, n, c, wi);
-                                arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
+                                InDataType v_in             = arg.input_(g, n, c, wi);
+                                arg.output_(g, row, column) = ck::type_convert<OutDataType>(v_in);
                             }
                             column++;
                         }
                     }
                 };
 
-                make_ParallelTensorFunctor(func, N, Wo)(std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(func, G, N, Wo)(std::thread::hardware_concurrency());
 
                 return 0;
             }
@@ -136,7 +138,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 const index_t Ho = arg.output_spatial_lengths_[0];
                 const index_t Wo = arg.output_spatial_lengths_[1];
 
-                auto func = [&](auto n, auto ho, auto wo) {
+                auto func = [&](auto g, auto n, auto ho, auto wo) {
                     index_t row    = n * Ho * Wo + ho * Wo + wo;
                     index_t column = 0;
 
@@ -160,8 +162,9 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                    wi >= 0 &&
                                    ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[4])
                                 {
-                                    InDataType v_in          = arg.input_(0, n, c, hi, wi);
-                                    arg.output_(row, column) = ck::type_convert<OutDataType>(v_in);
+                                    InDataType v_in = arg.input_(g, n, c, hi, wi);
+                                    arg.output_(g, row, column) =
+                                        ck::type_convert<OutDataType>(v_in);
                                 }
                                 column++;
                             }
@@ -169,7 +172,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                     }
                 };
 
-                make_ParallelTensorFunctor(func, N, Ho, Wo)(std::thread::hardware_concurrency());
+                make_ParallelTensorFunctor(func, G, N, Ho, Wo)(std::thread::hardware_concurrency());
 
                 return 0;
             }
@@ -179,7 +182,7 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 const index_t Ho = arg.output_spatial_lengths_[1];
                 const index_t Wo = arg.output_spatial_lengths_[2];
 
-                auto func = [&](auto n, auto d_o, auto ho, auto wo) {
+                auto func = [&](auto g, auto n, auto d_o, auto ho, auto wo) {
                     index_t row    = n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
                     index_t column = 0;
 
@@ -211,8 +214,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
                                        ck::type_convert<std::size_t>(wi) <
                                            arg.input_.GetLengths()[5])
                                     {
-                                        InDataType v_in = arg.input_(0, n, c, di, hi, wi);
-                                        arg.output_(row, column) =
+                                        InDataType v_in = arg.input_(g, n, c, di, hi, wi);
+                                        arg.output_(g, row, column) =
                                             ck::type_convert<OutDataType>(v_in);
                                     }
                                     column++;
@@ -222,11 +225,13 @@ struct ReferenceImageToColumn : public device::BaseOperator
                     }
                 };
 
-                make_ParallelTensorFunctor(func, N, Do, Ho, Wo)(
+                make_ParallelTensorFunctor(func, G, N, Do, Ho, Wo)(
                     std::thread::hardware_concurrency());
 
                 return 0;
             }
+            throw std::runtime_error("Img2Col: number of dimensions should be between 1 and 3.");
+            return 1;
         }
 
         float Run(const device::BaseArgument* p_arg,
@@ -240,8 +245,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
     {
         using namespace tensor_layout::convolution;
 
-        if constexpr(!(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
-                       std::is_same_v<InputLayout, GNDHWC>))
+        if constexpr(!(std::is_same_v<ImageLayout, GNWC> || std::is_same_v<ImageLayout, GNHWC> ||
+                       std::is_same_v<ImageLayout, GNDHWC>))
         {
             return false;
         }
@@ -265,8 +270,9 @@ struct ReferenceImageToColumn : public device::BaseOperator
             C * ck::accumulate_n<index_t>(
                     arg.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
-        if(!(arg.output_.GetLengths()[0] == static_cast<std::size_t>(NDoHoWo) &&
-             arg.output_.GetLengths()[1] == static_cast<std::size_t>(CZYX)))
+        if(!(arg.output_.GetLengths()[0] == static_cast<std::size_t>(G) &&
+             arg.output_.GetLengths()[1] == static_cast<std::size_t>(NDoHoWo) &&
+             arg.output_.GetLengths()[2] == static_cast<std::size_t>(CZYX)))
         {
             return false;
         }

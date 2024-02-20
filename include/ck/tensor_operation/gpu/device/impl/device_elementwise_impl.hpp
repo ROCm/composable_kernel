@@ -296,6 +296,28 @@ struct DeviceElementwiseImpl
     {
         return std::make_unique<Invoker>();
     };
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceElementwiseImpl<" ;
+        str << "NumDim_" << NumDim << ","; 
+	str << "MPerThread_" << MPerThread << ","; 
+
+        str << "InScalarPerVector"; 
+        static_for<0, InScalarPerVectorSeq::Size(), 1>{}([&](auto i) { str << "_" << InScalarPerVectorSeq::At(i).value; });
+        str << ","; 
+        str << "OutScalarPerVector"; 
+        static_for<0, OutScalarPerVectorSeq::Size(), 1>{}([&](auto i) { str << "_" << OutScalarPerVectorSeq::At(i).value; });
+
+        str << ">";
+        // clang-format on
+
+        return str.str();
+    }
+
 }; // namespace device
 
 } // namespace device

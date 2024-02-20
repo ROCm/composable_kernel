@@ -7,6 +7,7 @@
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v4_direct_load.hpp"
 
 namespace ck {
 
@@ -14,6 +15,8 @@ enum struct PipelineVersion
 {
     v1,
     v2,
+    // v3 is only used in the Stream-K implementation.
+    v4,
 };
 
 template <PipelineVersion PipelineVer,
@@ -35,6 +38,10 @@ constexpr auto GridwiseGemmPipeline_Selector()
     else if constexpr(PipelineVer == PipelineVersion::v2)
     {
         return GridwiseGemmPipeline_v2{};
+    }
+    else if constexpr(PipelineVer == PipelineVersion::v4)
+    {
+        return GridwiseGemmPipeline_v4<NumPrefetch>{};
     }
     else
     {

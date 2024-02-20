@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <cstdlib>
 
@@ -17,15 +20,15 @@ using BDataType = F16;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
-    ck::tensor_operation::device::DeviceElementwise2dImpl<ck::Tuple<ADataType>,
-                                                          ck::Tuple<BDataType>,
-                                                          PassThrough,
-                                                          3, // NumDim_M
-                                                          1, // NumDim_N
-                                                          8,
-                                                          8,
-                                                          ck::Sequence<8>,
-                                                          ck::Sequence<8>>;
+    ck::tensor_operation::device::DeviceElementwise2dImpl<ck::Tuple<ADataType>, // InDataTypeTuple
+                                                          ck::Tuple<BDataType>, // OutDataTypeTuple
+                                                          PassThrough,          // Elementwise op
+                                                          3,                    // NumDim_M
+                                                          1,                    // NumDim_N
+                                                          1,                    // MPerThread
+                                                          1,                    // NPerThread
+                                                          ck::Sequence<1>,  // InScalarPerVectorSeq
+                                                          ck::Sequence<1>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>
 void host_elementwise4D(HostTensorB& B_nhwc,
@@ -53,12 +56,6 @@ int main()
     const int H = 32;
     const int W = 1024;
 
-    /**const int N = 120;
-    const int H = 32;
-    const int W = 64;
-
-    const int C = 128;**/
-
     std::vector<std::size_t> nchw = {N, C, H, W};
     std::vector<std::size_t> nhwc = {N, H, W, C};
 
@@ -71,7 +68,6 @@ int main()
     DeviceMem b_device_buf(sizeof(BDataType) * b.mDesc.GetElementSpaceSize());
 
     a_device_buf.ToDevice(a.mData.data());
-    // LogRangeAsType<float>(std::cout << "Tensor a  : ", a.mData, ",") << std::endl;
 
     std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
@@ -115,13 +111,10 @@ int main()
     if(do_verification)
     {
         b_device_buf.FromDevice(b.mData.data());
-        // LogRangeAsType<float>(std::cout << "Tensor b  : ", b.mData, ",") << std::endl;
 
         Tensor<BDataType> host_b(nhwc);
         host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
             host_b, a, nchw, PassThrough{});
-
-        // LogRangeAsType<float>(std::cout << "Host b  : ", host_b.mData, ",") << std::endl;
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }

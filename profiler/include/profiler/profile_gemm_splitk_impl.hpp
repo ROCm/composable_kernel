@@ -30,7 +30,8 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          typename ComputeType = CDataType>
 bool profile_gemm_splitk_impl(int do_verification,
                               int init_method,
                               bool do_log,
@@ -41,7 +42,9 @@ bool profile_gemm_splitk_impl(int do_verification,
                               int StrideA,
                               int StrideB,
                               int StrideC,
-                              int KBatch)
+                              int KBatch,
+                              int n_warmup,
+                              int n_iter)
 {
     bool pass = true;
 
@@ -103,7 +106,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                                                                     CDataType,
                                                                     AElementOp,
                                                                     BElementOp,
-                                                                    CElementOp>;
+                                                                    CElementOp,
+                                                                    ComputeType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -120,7 +124,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CElementOp>;
+                                                                                CElementOp,
+                                                                                ComputeType>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -140,8 +145,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1,  2,  4,  8,  12, 16,  20,  24,  32,  36,  40, 60,
-                                        64, 72, 80, 88, 96, 128, 144, 160, 176, 192, 256};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
 
         if(KBatch > 0)
         {
@@ -175,7 +179,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
                 if(do_verification)
                 {
@@ -198,8 +203,8 @@ bool profile_gemm_splitk_impl(int do_verification,
 
                 std::string op_name = op_ptr->GetTypeString();
 
-                float ave_time =
-                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
 

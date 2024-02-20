@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -77,6 +77,15 @@ struct Add
 
     template <>
     __host__ __device__ constexpr void
+    operator()<bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float x2_tmp = ck::type_convert<float>(x1);
+        const float y_tmp  = x0 + x2_tmp;
+        y                  = ck::type_convert<bhalf_t>(y_tmp);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
     {
         y = x0 + x1;
@@ -85,10 +94,13 @@ struct Add
 
 struct ScaleAdd
 {
-    __host__ __device__ ScaleAdd(float scale) : scale_(scale) {}
+    __host__ __device__ ScaleAdd(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X0, typename X1>
-    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const
+    {
+        y = ck::type_convert<Y>(scale_ * ck::type_convert<float>(x0) + ck::type_convert<float>(x1));
+    }
 
     template <>
     __host__ __device__ void
@@ -153,7 +165,7 @@ struct Subtract
 
 struct Bilinear
 {
-    Bilinear(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    Bilinear(float alpha = 1.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y&, const X0&, const X1&) const;
@@ -174,6 +186,14 @@ struct Bilinear
 
     template <>
     __host__ __device__ constexpr void
+    operator()<int8_t, int8_t, int8_t>(int8_t& y, const int8_t& x0, const int8_t& x1) const
+    {
+        y = type_convert<int8_t>(alpha_ * type_convert<float>(x0) +
+                                 beta_ * type_convert<float>(x1));
+    };
+
+    template <>
+    __host__ __device__ constexpr void
     operator()<half_t, half_t, half_t>(half_t& y, const half_t& x0, const half_t& x1) const
     {
         y = type_convert<half_t>(alpha_) * x0 + type_convert<half_t>(beta_) * x1;
@@ -187,10 +207,30 @@ struct Bilinear
     };
 
     template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
+    {
+        const float x0_tmp = type_convert<float>(x0);
+        const float x1_tmp = type_convert<float>(x1);
+        const float y_tmp  = alpha_ * x0_tmp + beta_ * x1_tmp;
+        y                  = type_convert<bhalf_t>(y_tmp);
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x1);
+        const float y_tmp  = alpha_ * x0 + beta_ * x1_tmp;
+        y                  = y_tmp;
+    };
+
+    template <>
     __host__ __device__ constexpr void operator()<std::int8_t, std::int32_t, std::int8_t>(
         std::int8_t& y, const std::int32_t& x0, const std::int8_t& x1) const
     {
-        y = type_convert<std::int8_t>(x0 + ck::type_convert<std::int32_t>(x1));
+        y = type_convert<int8_t>(alpha_ * type_convert<float>(x0) +
+                                 beta_ * type_convert<float>(x1));
     };
 
     float alpha_;
@@ -240,6 +280,14 @@ struct AddRelu
     {
         const float a = x0 + type_convert<float>(x1);
         y             = a > 0.0f ? a : 0.0f;
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
+    {
+        const float a = x0 + type_convert<float>(x1);
+        y             = a > type_convert<bhalf_t>(0.0f) ? a : type_convert<bhalf_t>(0.0f);
     };
 
     template <>
@@ -331,6 +379,70 @@ struct AddFastGelu
                                                                                          x0_f);
 
         e = type_convert<half_t>(x1_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& e, const float& c, const bhalf_t& d) const
+    {
+        const float x0_f = c + type_convert<float>(d);
+
+        float x1_f = 0;
+
+        FastGelu{}.template operator()<float, float>(x1_f, x0_f);
+
+        e = type_convert<bhalf_t>(x1_f);
+    }
+};
+
+// E = Silu(C + D)
+struct AddSilu
+{
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float, float, float>(float& e, const float& c, const float& d) const
+    {
+        const float x = c + d;
+
+        Silu{}.template operator()<float>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, half_t, half_t>(half_t& e, const half_t& c, const half_t& d) const
+    {
+        const half_t x = c + d;
+
+        Silu{}.template operator()<half_t>(e, x);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t, float, half_t>(half_t& e, const float& c, const half_t& d) const
+    {
+        const float x0_f = c + d;
+
+        float x1_f = 0;
+
+        Silu{}.template operator()<float>(x1_f, x0_f);
+
+        e = type_convert<half_t>(x1_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, float, bhalf_t>(bhalf_t& e, const float& c, const bhalf_t& d) const
+    {
+        const float x0_f = c + type_convert<float>(d);
+
+        float x1_f = 0;
+
+        Silu{}.template operator()<float>(x1_f, x0_f);
+
+        e = type_convert<bhalf_t>(x1_f);
     }
 };
 

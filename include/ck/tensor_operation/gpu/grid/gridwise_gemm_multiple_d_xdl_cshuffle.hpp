@@ -31,7 +31,7 @@ namespace ck {
 //   D0, D1, ... and E have the same layout
 template <typename ADataType,
           typename BDataType,
-          typename ComputeDataType_,
+          typename AComputeDataType_,
           typename AccDataType,
           typename CShuffleDataType,
           typename DsDataType,
@@ -72,7 +72,8 @@ template <typename ADataType,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
-          PipelineVersion PipelineVer = PipelineVersion::v1>
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          typename BComputeDataType   = AComputeDataType_>
 struct GridwiseGemmMultipleD_xdl_cshuffle
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -100,10 +101,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         decltype(GridwiseGemmPipeline_Selector<PipelineVer, NumGemmKPrefetchStage, LoopSched>())>;
 
 #if CK_WORKAROUND_DENORM_FIX
-    using ComputeDataType =
-        conditional_t<is_same_v<ComputeDataType_, ck::half_t>, ck::bhalf_t, ComputeDataType_>;
+    using AComputeDataType =
+        conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
 #else
-    using ComputeDataType = ComputeDataType_;
+    using AComputeDataType = AComputeDataType_;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -172,8 +173,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned + b_block_space_size_aligned) *
-                             sizeof(ComputeDataType),
+        return math::max(a_block_space_size_aligned * sizeof(AComputeDataType) +
+                             b_block_space_size_aligned * sizeof(BComputeDataType),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -502,7 +503,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 ADataType,
-                                                ComputeDataType,
+                                                AComputeDataType,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -533,7 +534,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 BDataType,
-                                                ComputeDataType,
+                                                BComputeDataType,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -561,13 +562,15 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         //     c_mtx[MPerBlock, NPerBlock] is distributed among threads, and saved in
         //       register
         // sanity check
-        constexpr index_t KPack =
-            math::max(math::lcm(AK1, BK1),
-                      MfmaSelector<ComputeDataType, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+        constexpr index_t KPack = math::max(
+            math::lcm(AK1, BK1),
+            MfmaSelector<AComputeDataType, MPerXdl, NPerXdl, BComputeDataType>::selected_mfma
+                .k_per_blk);
 
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
-            ComputeDataType,
+            AComputeDataType,
+            BComputeDataType,
             AccDataType,
             decltype(a_block_desc_ak0_m_ak1),
             decltype(b_block_desc_bk0_n_bk1),
@@ -585,10 +588,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<AComputeDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeDataType*>(p_shared) + a_block_space_size_aligned,
+            static_cast<BComputeDataType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
