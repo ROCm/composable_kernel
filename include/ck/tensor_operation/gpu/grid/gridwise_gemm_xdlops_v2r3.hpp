@@ -39,7 +39,7 @@ __global__ void
                                 const CGridDesc_M_N c_grid_desc_m_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -70,7 +70,7 @@ __global__ void
         kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const auto a_grid_desc_k0_m_k1 =
@@ -175,7 +175,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return math::integer_divide_ceil(N, NPerBlock) * NPerBlock;
     }
 
-    __host__ static auto CalculateK0(index_t K) { return math::integer_divide_floor(K, K1Value); }
+    __host__ static auto CalculateK0(index_t K) { return math::integer_divide_ceil(K, K1Value); }
 
     // Argument
     struct Problem
@@ -369,9 +369,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                       "Invalid tuning param!");
 
         // check gridwise gemm pipeline
-        const index_t K0      = problem.K / K1Value;
-        const auto num_k_loop = K0 / K0PerBlock;
-
+        const auto num_k_loop = math::integer_divide_ceil(problem.K0, K0PerBlock);
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
             return false;
@@ -426,6 +424,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
 
         using BlockwiseGemm =
             BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                                FloatABAdjusted,
                                                                 FloatABAdjusted,
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_k0_m_k1),
@@ -570,6 +569,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         // sanity check
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
+            FloatABAdjusted,
             FloatABAdjusted,
             FloatAcc,
             decltype(a_block_desc_k0_m_k1),
@@ -945,7 +945,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
             }
         }();
 
-        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding)
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
         {
             return transform_tensor_descriptor(c_grid_desc_m_n,
                                                make_tuple(make_right_pad_transform(M, MPad - M),
@@ -995,6 +996,17 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
             }
         }
 
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        {
+            if(!(problem.K0 % K0PerBlock == 0))
+            {
+                return false;
+            }
+        }
+
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
             if(problem.K % ABlockTransferSrcScalarPerVector != 0)
@@ -1026,8 +1038,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
         }
 
         // check gridwise gemm pipeline
-        const index_t K0      = problem.K / K1;
-        const auto num_k_loop = K0 / K0PerBlock;
+        const auto num_k_loop = math::integer_divide_ceil(problem.K0, K0PerBlock);
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {

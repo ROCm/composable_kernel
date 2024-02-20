@@ -25,6 +25,7 @@ enum struct GemmDataType
     INT8_INT8_INT8, // 3
     F8_F16_F16,     // 4
     F16_F8_F16,     // 5
+    F16_F16_F16_F8, // 6
 };
 
 #define OP_NAME "gemm_splitk"
@@ -32,10 +33,11 @@ enum struct GemmDataType
 
 int profile_gemm_splitk(int argc, char* argv[])
 {
-    if(argc != 15)
+    if(argc != 15 && argc != 17)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8)\n");
+        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16, "
+               "comp f8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
@@ -46,6 +48,9 @@ int profile_gemm_splitk(int argc, char* argv[])
         printf("arg7: time kernel (0=no, 1=yes)\n");
         printf("arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n");
         printf("arg14: split k into  mulitiple batch\n");
+        printf("optional:\n");
+        printf("arg15: number of warm-up cycles (default 1)\n");
+        printf("arg16: number of iterations (default 10)\n");
         exit(1);
     }
 
@@ -65,6 +70,14 @@ int profile_gemm_splitk(int argc, char* argv[])
     const int StrideC = std::stoi(argv[13]);
     const int KBatch  = std::stoi(argv[14]);
 
+    int n_warmup = 1;
+    int n_iter   = 10;
+    if(argc == 17)
+    {
+        n_warmup = std::stoi(argv[15]);
+        n_iter   = std::stoi(argv[16]);
+    }
+
     using F32 = float;
     using F16 = ck::half_t;
 #if defined CK_ENABLE_FP8
@@ -80,7 +93,8 @@ int profile_gemm_splitk(int argc, char* argv[])
                        auto c_type,
                        auto a_layout,
                        auto b_layout,
-                       auto c_layout) {
+                       auto c_layout,
+                       auto compute_type) {
         using ADataType   = decltype(a_type);
         using BDataType   = decltype(b_type);
         using AccDataType = decltype(acc_type);
@@ -89,6 +103,8 @@ int profile_gemm_splitk(int argc, char* argv[])
         using ALayout = decltype(a_layout);
         using BLayout = decltype(b_layout);
         using CLayout = decltype(c_layout);
+
+        using ComputeType = decltype(compute_type);
 
         const int DefaultStrideA = ck::is_same_v<ALayout, Row> ? K : M;
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
@@ -100,7 +116,8 @@ int profile_gemm_splitk(int argc, char* argv[])
                                                            CDataType,
                                                            ALayout,
                                                            BLayout,
-                                                           CLayout>(
+                                                           CLayout,
+                                                           ComputeType>(
             do_verification,
             init_method,
             do_log,
@@ -111,75 +128,93 @@ int profile_gemm_splitk(int argc, char* argv[])
             (StrideA < 0) ? DefaultStrideA : StrideA,
             (StrideB < 0) ? DefaultStrideB : StrideB,
             (StrideC < 0) ? DefaultStrideC : StrideC,
-            KBatch);
+            KBatch,
+            n_warmup,
+            n_iter);
 
         return pass ? 0 : 1;
     };
 
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F32{}, F32{}, F32{}, F32{}, Row{}, Row{}, Row{});
+        return profile(F32{}, F32{}, F32{}, F32{}, Row{}, Row{}, Row{}, F32{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F32{}, F32{}, F32{}, F32{}, Row{}, Col{}, Row{});
+        return profile(F32{}, F32{}, F32{}, F32{}, Row{}, Col{}, Row{}, F32{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return profile(F32{}, F32{}, F32{}, F32{}, Col{}, Row{}, Row{});
+        return profile(F32{}, F32{}, F32{}, F32{}, Col{}, Row{}, Row{}, F32{});
     }
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return profile(F32{}, F32{}, F32{}, F32{}, Col{}, Col{}, Row{});
+        return profile(F32{}, F32{}, F32{}, F32{}, Col{}, Col{}, Row{}, F32{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Row{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Row{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{});
+        return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
     }
 #if defined CK_ENABLE_FP8
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Col{}, Row{}, Row{});
+        return profile(F8{}, F16{}, F32{}, F16{}, Col{}, Row{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return profile(F8{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{});
+        return profile(F8{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Row{}, Row{});
+        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Row{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Col{}, Row{});
+        return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Col{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::KM_KN_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Col{}, Row{}, Row{});
+        return profile(F16{}, F8{}, F32{}, F16{}, Col{}, Row{}, Row{}, F16{});
     }
     else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::KM_NK_MN)
     {
-        return profile(F16{}, F8{}, F32{}, F16{}, Col{}, Col{}, Row{});
+        return profile(F16{}, F8{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16_F8 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{}, F8{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16_F8 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{}, F8{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16_F8 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Row{}, Row{}, F8{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16_F8 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F8{});
     }
 #endif
     else

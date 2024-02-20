@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_bwd_weight.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -21,34 +22,9 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-namespace {
-
-struct ComputePtrOffsetOfStridedBatch
-{
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetCPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideC_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    index_t BatchStrideC_;
-};
-
-} // namespace
-
 template <typename GridwiseGemm,
-          typename FloatAB,
+          typename FloatA,
+          typename FloatB,
           typename FloatC,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -64,8 +40,8 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_batched_gemm_xdlops_bwd_weight(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
+            const FloatA* __restrict__ p_a_grid,
+            const FloatB* __restrict__ p_b_grid,
             FloatC* __restrict__ p_c_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
@@ -79,7 +55,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -91,7 +67,7 @@ __global__ void
     const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
         static_cast<long_index_t>(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
 
-    __shared__ FloatAB p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB)];
+    __shared__ FloatA p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatA)];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid + a_batch_offset,
                                                   p_b_grid + b_batch_offset,
@@ -163,7 +139,9 @@ template <ck::index_t NDimSpatial,
           index_t CShuffleMXdlPerWavePerShuffle,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-          index_t CBlockTransferScalarPerVector_NWaveNPerXdl>
+          index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
+          typename ComputeTypeA = InDataType,
+          typename ComputeTypeB = ComputeTypeA>
 struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
     : public DeviceGroupedConvBwdWeight<NDimSpatial,
                                         InLayout,
@@ -174,7 +152,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                         OutDataType,
                                         InElementwiseOperation,
                                         WeiElementwiseOperation,
-                                        OutElementwiseOperation>
+                                        OutElementwiseOperation,
+                                        ComputeTypeA,
+                                        ComputeTypeB>
 {
     using DeviceOp = DeviceGroupedConvBwdWeight_Xdl_CShuffle;
 
@@ -1045,7 +1025,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         AccDataType,
         CDataType,
         InMemoryDataOperationEnum::AtomicAdd,
@@ -1090,7 +1071,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         CBlockTransferScalarPerVector_NWaveNPerXdl,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         true,
-        true>;
+        true,
+        1,
+        PipelineVersion::v1,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
@@ -1212,13 +1197,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
 
         index_t M01_;
         index_t N01_;
 
-        InElementwiseOperation a_element_op_;
-        OutElementwiseOperation b_element_op_;
+        OutElementwiseOperation a_element_op_;
+        InElementwiseOperation b_element_op_;
         WeiElementwiseOperation c_element_op_;
 
         // for checking IsSupportedArgument()
@@ -1281,7 +1266,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
                 const auto kernel = kernel_batched_gemm_xdlops_bwd_weight<
                     GridwiseGemm,
-                    ADataType, // TODO: distiguish A/B datatype
+                    ADataType,
+                    BDataType,
                     CDataType,
                     OutElementwiseOperation,
                     InElementwiseOperation,
@@ -1290,7 +1276,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch,
+                    ComputePtrOffsetOfStridedBatch<>,
                     has_main_loop>;
 
                 return launch_and_time_kernel(stream_config,
@@ -1337,6 +1323,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
         if constexpr(NDimSpatial == 1)
         {
             if constexpr(!is_GNWK_GKXC_GNWC)

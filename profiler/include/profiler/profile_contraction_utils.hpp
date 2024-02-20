@@ -23,8 +23,18 @@ enum struct ContractionMatrixLayout
 
 enum struct ContractionDataType
 {
-    F32_F32_F32_F32, // 0
-    F64_F64_F64_F64, // 1
+    F32_F32_F32_F32,     // 0
+    F64_F64_F64_F64,     // 1
+    F16_F16_F16_F16,     // 2
+    BF16_BF16_BF16_BF16, // 3
+};
+
+enum struct ContractionComputeDataType
+{
+    F32 = 0,
+    F64,
+    F16,
+    BF16,
 };
 
 inline void collect_index_params(char* argv[],

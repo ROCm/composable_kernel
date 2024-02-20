@@ -10,18 +10,18 @@ namespace device {
 namespace instance {
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 void add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              NHWGC,
-                                                              GKYXC,
-                                                              Empty_Tuple,
-                                                              NHWGK,
-                                                              F16,
-                                                              F16,
-                                                              Empty_Tuple,
-                                                              F16,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                NHWGC,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                NHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Empty_Tuple,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_wmma_f16_instances<2,

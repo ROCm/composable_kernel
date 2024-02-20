@@ -240,11 +240,13 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvBw
         if constexpr(NumDimSpatial == 1 && is_same_v<InLayout, NWC> && is_same_v<WeiLayout, KXC> &&
                      is_same_v<OutLayout, NWK>)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 add_device_conv1d_bwd_data_xdl_nwc_kxc_nwk_f32_instances(op_ptrs);
             }
+#endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                          is_same_v<OutDataType, half_t>)
@@ -267,17 +269,23 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvBw
             }
 #endif
         }
-        else if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWC> &&
-                          is_same_v<WeiLayout, KYXC> && is_same_v<OutLayout, NHWK>)
+        if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWC> &&
+                     is_same_v<WeiLayout, KYXC> && is_same_v<OutLayout, NHWK>)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f32_instances(op_ptrs);
-#ifdef DL_KERNELS
-                add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f32_instances(op_ptrs);
-#endif
             }
+#endif
+#if defined(DL_KERNELS) && defined(CK_ENABLE_FP32)
+            if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
+                         is_same_v<OutDataType, float>)
+            {
+                add_device_conv2d_bwd_data_dl_nhwc_kyxc_nhwk_f32_instances(op_ptrs);
+            }
+#endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                          is_same_v<OutDataType, half_t>)
@@ -306,14 +314,16 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceConvBw
             }
 #endif
         }
-        else if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWC> &&
-                          is_same_v<WeiLayout, KZYXC> && is_same_v<OutLayout, NDHWK>)
+        if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWC> &&
+                     is_same_v<WeiLayout, KZYXC> && is_same_v<OutLayout, NDHWK>)
         {
+#ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
                 add_device_conv3d_bwd_data_xdl_ndhwc_kzyxc_ndhwk_f32_instances(op_ptrs);
             }
+#endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
                          is_same_v<OutDataType, half_t>)

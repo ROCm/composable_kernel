@@ -95,7 +95,7 @@ struct GeneratorTensor_2<int8_t>
     }
 };
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct GeneratorTensor_2<ck::f8_t>
 {
@@ -107,6 +107,22 @@ struct GeneratorTensor_2<ck::f8_t>
     {
         float tmp = (std::rand() % (max_value - min_value)) + min_value;
         return ck::type_convert<ck::f8_t>(tmp);
+    }
+};
+#endif
+
+#if defined CK_ENABLE_BF8
+template <>
+struct GeneratorTensor_2<ck::bf8_t>
+{
+    int min_value = 0;
+    int max_value = 1;
+
+    template <typename... Is>
+    ck::bf8_t operator()(Is...)
+    {
+        float tmp = (std::rand() % (max_value - min_value)) + min_value;
+        return ck::type_convert<ck::bf8_t>(tmp);
     }
 };
 #endif
@@ -143,7 +159,7 @@ struct GeneratorTensor_3<ck::bhalf_t>
     }
 };
 
-#if defined CK_ENABLE_FP8 || defined CK_ENABLE_BF8
+#if defined CK_ENABLE_FP8
 template <>
 struct GeneratorTensor_3<ck::f8_t>
 {
@@ -162,13 +178,33 @@ struct GeneratorTensor_3<ck::f8_t>
 };
 #endif
 
+#if defined CK_ENABLE_BF8
+template <>
+struct GeneratorTensor_3<ck::bf8_t>
+{
+    float min_value = 0;
+    float max_value = 1;
+
+    template <typename... Is>
+    ck::bf8_t operator()(Is...)
+    {
+        float tmp = float(std::rand()) / float(RAND_MAX);
+
+        float fp32_tmp = min_value + tmp * (max_value - min_value);
+
+        return ck::type_convert<ck::bf8_t>(fp32_tmp);
+    }
+};
+#endif
+
 template <typename T>
 struct GeneratorTensor_4
 {
-    std::default_random_engine generator;
+    std::mt19937 generator;
     std::normal_distribution<float> distribution;
 
-    GeneratorTensor_4(float mean, float stddev) : generator(1), distribution(mean, stddev){};
+    GeneratorTensor_4(float mean, float stddev, unsigned int seed = 1)
+        : generator(seed), distribution(mean, stddev){};
 
     template <typename... Is>
     T operator()(Is...)

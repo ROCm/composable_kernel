@@ -22,7 +22,7 @@ static inline void dumpBufferToFile(const char* fileName, T* data, size_t dataNu
     std::ofstream outFile(fileName, std::ios::binary);
     if(outFile)
     {
-        outFile.write(reinterpret_cast<char*>(data), dataNumItems * sizeof(T));
+        outFile.write(reinterpret_cast<const char*>(data), dataNumItems * sizeof(T));
         outFile.close();
         std::cout << "Write output to file " << fileName << std::endl;
     }
