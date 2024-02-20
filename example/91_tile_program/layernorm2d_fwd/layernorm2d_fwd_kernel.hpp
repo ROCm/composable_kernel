@@ -18,21 +18,27 @@
 #include "ck/utility/functional2.hpp"
 
 // TODO: Extract some type to wrapper class
-template <typename XDataType,
-          typename GammaDataType, // redundant if ElementwiseAffineGamma == false
-          typename BetaDataType,  // redundant if ElementwiseAffineBeta == false
-          typename ComputeDataType,
-          typename YDataType,
-          typename MeanDataType,   // redundant if SaveMeanInvStd == false
-          typename InvStdDataType, // redundant if SaveMeanInvStd == false
-          bool ElementwiseAffineGamma,
-          bool ElementwiseAffineBeta,
-          bool SaveMeanInvStd,
-          ck::index_t kBlockSize,
-          ck::index_t kMPerBlock,
-          ck::index_t kNPerBlock>
+template <typename Layernorm2dFwdPipeline_>
 struct Layernorm2dFwd
 {
+    using Layernorm2dFwdPipeline = ck::remove_cvref_t<Layernorm2dFwdPipeline_>;
+
+    using XDataType       = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::XDataType>;
+    using GammaDataType   = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::GammaDataType>;
+    using BetaDataType    = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::BetaDataType>;
+    using ComputeDataType = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::ComputeDataType>;
+    using YDataType       = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::YDataType>;
+    using MeanDataType    = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::MeanDataType>;
+    using InvStdDataType  = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::InvStdDataType>;
+
+    static constexpr bool HasGamma       = Layernorm2dFwdPipeline::Traits::HasGamma;
+    static constexpr bool HasBeta        = Layernorm2dFwdPipeline::Traits::HasBeta;
+    static constexpr bool SaveMeanInvStd = Layernorm2dFwdPipeline::Traits::SaveMeanInvStd;
+
+    static constexpr ck::index_t kBlockSize = Layernorm2dFwdPipeline::kBlockSize;
+    static constexpr ck::index_t kMPerBlock = Layernorm2dFwdPipeline::BlockLayernorm2dFwdShape::kM;
+    static constexpr ck::index_t kNPerBlock = Layernorm2dFwdPipeline::BlockLayernorm2dFwdShape::kN;
+
     __device__ static constexpr auto MakeXBlockTileDistribution()
     {
         using namespace ck;
@@ -63,8 +69,8 @@ struct Layernorm2dFwd
         return ret;
     }
 
-    template <typename ck::enable_if<ElementwiseAffineGamma == true, bool>::type = false,
-              typename ck::enable_if<ElementwiseAffineBeta == true, bool>::type  = false>
+    template <typename ck::enable_if<HasGamma == true, bool>::type = false,
+              typename ck::enable_if<HasBeta == true, bool>::type  = false>
     __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
                                           const GammaDataType* p_gamma,
                                           const BetaDataType* p_beta,

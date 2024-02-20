@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "ck/tile_program/block_tile_pipeline/block_layernorm2d_fwd_pipeline_problem.hpp"
+#include "ck/tile_program/tile/tile_layernorm2d_fwd_shape.hpp"
+#include "ck/tile_program/tile/tile_layernorm2d_fwd_traits.hpp"
 #include "layernorm2d_fwd_kernel.hpp"
 
 template <typename XYDataType,

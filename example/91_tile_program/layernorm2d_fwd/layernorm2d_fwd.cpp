@@ -28,7 +28,26 @@ int main(int argc, char* argv[])
     using InvStdDataType  = TypeConfig::InvStdDataType;
     using ComputeDataType = TypeConfig::ComputeDataType;
 
-    const bool SaveMeanInvStd = false;
+    constexpr ck::index_t kMPerBlock = 128;
+    constexpr ck::index_t kNPerBlock = 128;
+    constexpr ck::index_t kBlockSize = 256;
+
+    constexpr bool SaveMeanInvStd = false;
+
+    using Shape  = ck::tile_program::TileLayernorm2dShape<kMPerBlock, kNPerBlock>;
+    using Traits = ck::tile_program::TileLayernorm2dFwdTraits<true, true, SaveMeanInvStd>;
+
+    using PipelineProblem =
+        ck::tile_program::block::BlockLayernorm2dFwdPipelineProblem<XDataType,
+                                                                    GammaDataType,
+                                                                    BetaDataType,
+                                                                    ComputeDataType,
+                                                                    YDataType,
+                                                                    MeanDataType,
+                                                                    InvStdDataType,
+                                                                    kBlockSize,
+                                                                    Shape,
+                                                                    Traits>;
 
     ck::index_t M = 3328;
     ck::index_t N = 4096;
@@ -78,27 +97,11 @@ int main(int argc, char* argv[])
     gamma_buf.ToDevice(gamma_host.data());
     beta_buf.ToDevice(beta_host.data());
 
-    constexpr ck::index_t kMPerBlock = 128;
-    constexpr ck::index_t kNPerBlock = 128;
-
-    constexpr ck::index_t kBlockSize = 256;
-    ck::index_t kGridSize            = (M / kMPerBlock);
+    ck::index_t kGridSize = (M / kMPerBlock);
 
     std::cout << "grid size " << kGridSize << std::endl;
 
-    const auto kernel = Layernorm2dFwd<XDataType,
-                                       GammaDataType,
-                                       BetaDataType,
-                                       ComputeDataType,
-                                       YDataType,
-                                       MeanDataType,
-                                       InvStdDataType,
-                                       true,
-                                       true,
-                                       SaveMeanInvStd,
-                                       kBlockSize,
-                                       kMPerBlock,
-                                       kNPerBlock>{};
+    const auto kernel = Layernorm2dFwd<PipelineProblem>{};
 
     float ave_time = launch_kernel(StreamConfig{nullptr, true},
                                    kernel,
