@@ -16,15 +16,15 @@
 #include "layernorm2d_fwd.hpp"
 
 template <typename XDataType,
-          typename WeightDataType,
-          typename BiasDataType,
+          typename GammaDataType,
+          typename BetaDataType,
           typename ComputeDataType,
           typename YDataType,
           typename MeanDataType,
           typename InvStdDataType>
 void reference_layernorm2d_fwd(const Tensor<XDataType>& x_m_n,
-                               const Tensor<WeightDataType>& weight_n,
-                               const Tensor<BiasDataType>& bias_n,
+                               const Tensor<GammaDataType>& gamma_n,
+                               const Tensor<BetaDataType>& beta_n,
                                Tensor<YDataType>& y_m_n,
                                Tensor<MeanDataType>& mean_m,
                                Tensor<InvStdDataType>& invStd_m,
@@ -57,11 +57,11 @@ void reference_layernorm2d_fwd(const Tensor<XDataType>& x_m_n,
 
         for(int n = 0; n < N; ++n)
         {
-            ComputeDataType x      = ck::type_convert<ComputeDataType>(x_m_n(m, n));
-            ComputeDataType weight = ck::type_convert<ComputeDataType>(weight_n(n));
-            ComputeDataType bias   = ck::type_convert<ComputeDataType>(bias_n(n));
-            auto y                 = (x - mean) * divisor;
-            y                      = y * weight + bias;
+            ComputeDataType x     = ck::type_convert<ComputeDataType>(x_m_n(m, n));
+            ComputeDataType gamma = ck::type_convert<ComputeDataType>(gamma_n(n));
+            ComputeDataType beta  = ck::type_convert<ComputeDataType>(beta_n(n));
+            auto y                = (x - mean) * divisor;
+            y                     = y * gamma + beta;
 
             y_m_n(m, n) = ck::type_convert<YDataType>(y);
         }
@@ -74,8 +74,8 @@ void reference_layernorm2d_fwd(const Tensor<XDataType>& x_m_n,
 int main(int argc, char* argv[])
 {
     using XDataType       = ck::half_t;
-    using WeightDataType  = ck::half_t;
-    using BiasDataType    = ck::half_t;
+    using GammaDataType   = ck::half_t;
+    using BetaDataType    = ck::half_t;
     using ComputeDataType = float;
     using YDataType       = ck::half_t;
     using MeanDataType    = ck::half_t;
@@ -95,11 +95,11 @@ int main(int argc, char* argv[])
     std::array<ck::index_t, 2> x_lengths{M, N};
     std::array<ck::index_t, 2> x_strides{N, 1};
 
-    std::array<ck::index_t, 1> weight_lengths{N};
-    std::array<ck::index_t, 1> weight_strides{1};
+    std::array<ck::index_t, 1> gamma_lengths{N};
+    std::array<ck::index_t, 1> gamma_strides{1};
 
-    std::array<ck::index_t, 1> bias_lengths{N};
-    std::array<ck::index_t, 1> bias_strides{1};
+    std::array<ck::index_t, 1> beta_lengths{N};
+    std::array<ck::index_t, 1> beta_strides{1};
 
     std::array<ck::index_t, 2> y_lengths{M, N};
     std::array<ck::index_t, 2> y_strides{N, 1};
@@ -112,8 +112,8 @@ int main(int argc, char* argv[])
 
     // host verify
     Tensor<XDataType> x_host(x_lengths, x_strides);
-    Tensor<WeightDataType> weight_host(weight_lengths, weight_strides);
-    Tensor<BiasDataType> bias_host(bias_lengths, bias_strides);
+    Tensor<GammaDataType> gamma_host(gamma_lengths, gamma_strides);
+    Tensor<BetaDataType> beta_host(beta_lengths, beta_strides);
 
     Tensor<YDataType> y_host_ref(y_lengths, y_strides);
     Tensor<YDataType> y_host_dev(y_lengths, y_strides);
@@ -125,29 +125,29 @@ int main(int argc, char* argv[])
     ComputeDataType epsilon = 1e-5;
 
     ck::utils::FillUniformDistributionIntegerValue<XDataType>{-5.f, 5.f}(x_host);
-    ck::utils::FillUniformDistributionIntegerValue<WeightDataType>{-5.f, 5.f}(weight_host);
-    ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-5.f, 5.f}(bias_host);
+    ck::utils::FillUniformDistributionIntegerValue<GammaDataType>{-5.f, 5.f}(gamma_host);
+    ck::utils::FillUniformDistributionIntegerValue<BetaDataType>{-5.f, 5.f}(beta_host);
 
     // reference
     reference_layernorm2d_fwd<XDataType,
-                              WeightDataType,
-                              BiasDataType,
+                              GammaDataType,
+                              BetaDataType,
                               ComputeDataType,
                               YDataType,
                               MeanDataType,
                               InvStdDataType>(
-        x_host, weight_host, bias_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
+        x_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
 
     DeviceMem x_buf(sizeof(XDataType) * x_host.GetElementSpaceSize());
-    DeviceMem weight_buf(sizeof(WeightDataType) * weight_host.GetElementSpaceSize());
-    DeviceMem bias_buf(sizeof(BiasDataType) * bias_host.GetElementSpaceSize());
+    DeviceMem gamma_buf(sizeof(GammaDataType) * gamma_host.GetElementSpaceSize());
+    DeviceMem beta_buf(sizeof(BetaDataType) * beta_host.GetElementSpaceSize());
     DeviceMem y_buf(sizeof(YDataType) * y_host_dev.GetElementSpaceSize());
     DeviceMem mean_buf(sizeof(MeanDataType) * mean_host_dev.GetElementSpaceSize());
     DeviceMem invStd_buf(sizeof(InvStdDataType) * invStd_host_dev.GetElementSpaceSize());
 
     x_buf.ToDevice(x_host.mData.data());
-    weight_buf.ToDevice(weight_host.mData.data());
-    bias_buf.ToDevice(bias_host.mData.data());
+    gamma_buf.ToDevice(gamma_host.mData.data());
+    beta_buf.ToDevice(beta_host.mData.data());
 
     constexpr ck::index_t kMPerBlock = 128;
     constexpr ck::index_t kNPerBlock = 128;
@@ -158,8 +158,8 @@ int main(int argc, char* argv[])
     std::cout << "grid size " << kGridSize << std::endl;
 
     const auto kernel = Layernorm2dFwd<XDataType,
-                                       WeightDataType,
-                                       BiasDataType,
+                                       GammaDataType,
+                                       BetaDataType,
                                        ComputeDataType,
                                        YDataType,
                                        MeanDataType,
@@ -176,8 +176,8 @@ int main(int argc, char* argv[])
                                    kBlockSize,
                                    0,
                                    static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                   static_cast<WeightDataType*>(weight_buf.GetDeviceBuffer()),
-                                   static_cast<BiasDataType*>(bias_buf.GetDeviceBuffer()),
+                                   static_cast<GammaDataType*>(gamma_buf.GetDeviceBuffer()),
+                                   static_cast<BetaDataType*>(beta_buf.GetDeviceBuffer()),
                                    static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
                                    static_cast<MeanDataType*>(mean_buf.GetDeviceBuffer()),
                                    static_cast<InvStdDataType*>(invStd_buf.GetDeviceBuffer()),
@@ -193,8 +193,8 @@ int main(int argc, char* argv[])
 
     y_buf.FromDevice(y_host_dev.mData.data());
 
-    std::size_t num_btype = sizeof(XDataType) * M * N + sizeof(WeightDataType) * N +
-                            sizeof(BiasDataType) * N + sizeof(YDataType) * M * N;
+    std::size_t num_btype = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
+                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 

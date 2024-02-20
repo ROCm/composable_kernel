@@ -18,8 +18,8 @@
 #include "ck/utility/functional2.hpp"
 
 template <typename XDataType,
-          typename WeightDataType, // redundant if ElementwiseAffine == false
-          typename BiasDataType,   // redundant if ElementwiseAffine == false
+          typename GammaDataType, // redundant if ElementwiseAffine == false
+          typename BetaDataType,  // redundant if ElementwiseAffine == false
           typename ComputeDataType,
           typename YDataType,
           typename MeanDataType,   // redundant if SaveMeanInvStd == false
@@ -63,8 +63,8 @@ struct Layernorm2dFwd
 
     template <typename ck::enable_if<ElementwiseAffine == true, bool>::type = false>
     __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
-                                          const WeightDataType* p_weight,
-                                          const BiasDataType* p_bias,
+                                          const GammaDataType* p_gamma,
+                                          const BetaDataType* p_beta,
                                           YDataType* p_y,
                                           MeanDataType* /*p_mean*/,
                                           InvStdDataType* /*p_invStd*/,
@@ -83,29 +83,18 @@ struct Layernorm2dFwd
         const auto x_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_x, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
 
-        const auto weight_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
-            p_weight, make_tuple(M, N), make_tuple(0, 1), Number<32>{}, Number<1>{});
+        const auto gamma_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_gamma, make_tuple(M, N), make_tuple(0, 1), Number<32>{}, Number<1>{});
 
-        const auto bias_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
-            p_bias, make_tuple(M, N), make_tuple(0, 1), Number<32>{}, Number<1>{});
+        const auto beta_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_beta, make_tuple(M, N), make_tuple(0, 1), Number<32>{}, Number<1>{});
 
         const auto iM = get_block_id() * kMPerBlock;
 
-        constexpr auto xDstr      = MakeXBlockTileDistribution();
-        constexpr auto weightDstr = MakeXBlockTileDistribution();
-        constexpr auto biasDstr   = MakeXBlockTileDistribution();
+        constexpr auto xDstr = MakeXBlockTileDistribution();
 
         auto x_block_window = make_tile_window(
             x_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, xDstr);
-
-        auto weight_block_window =
-            make_tile_window(weight_m_n,
-                             make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}),
-                             {iM, 0},
-                             weightDstr);
-
-        auto bias_block_window = make_tile_window(
-            bias_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, biasDstr);
 
         // TODO: padding - handle max_count if N % kNPerBlock != 0
         constexpr auto NPerThread = GetVariance2dNPerThread(xDstr);
@@ -144,19 +133,29 @@ struct Layernorm2dFwd
         auto y_block_window = make_tile_window(
             y_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
 
+        constexpr auto gammaDstr = MakeXBlockTileDistribution();
+        constexpr auto betaDstr  = MakeXBlockTileDistribution();
+
+        auto gamma_block_window = make_tile_window(
+            gamma_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, gammaDstr);
+
+        auto beta_block_window = make_tile_window(
+            beta_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, betaDstr);
+
         // reverse read x to reuse cache
         ck::index_t window_tail = N - kNPerBlock;
+
         move_tile_window(x_block_window, {0, -kNPerBlock});
-        move_tile_window(weight_block_window, {0, window_tail});
-        move_tile_window(bias_block_window, {0, window_tail});
+        move_tile_window(gamma_block_window, {0, window_tail});
+        move_tile_window(beta_block_window, {0, window_tail});
         move_tile_window(y_block_window, {0, window_tail});
 
         // Normalization
         do
         {
-            const auto x_block_tensor      = load_tile(x_block_window);
-            const auto weight_block_tensor = load_tile(weight_block_window);
-            const auto bias_block_tensor   = load_tile(bias_block_window);
+            const auto x_block_tensor     = load_tile(x_block_window);
+            const auto gamma_block_tensor = load_tile(gamma_block_window);
+            const auto beta_block_tensor  = load_tile(beta_block_window);
 
             constexpr auto x_spans = decltype(x_block_tensor)::GetDistributedSpans();
 
@@ -170,15 +169,15 @@ struct Layernorm2dFwd
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                     ComputeDataType x = type_convert<ComputeDataType>(x_block_tensor[i_j_idx]);
-                    ComputeDataType weight =
-                        type_convert<ComputeDataType>(weight_block_tensor[i_j_idx]);
-                    ComputeDataType bias =
-                        type_convert<ComputeDataType>(bias_block_tensor[i_j_idx]);
+                    ComputeDataType gamma =
+                        type_convert<ComputeDataType>(gamma_block_tensor[i_j_idx]);
+                    ComputeDataType beta =
+                        type_convert<ComputeDataType>(beta_block_tensor[i_j_idx]);
                     ComputeDataType mean = mean_compute_block_tensor[i_idx];
                     ComputeDataType var  = var_compute_block_tensor[i_idx];
                     ComputeDataType inv_std =
                         type_convert<ComputeDataType>(1.0f) / ck::math::sqrt(var + epsilon);
-                    ComputeDataType y = (x - mean) * inv_std * weight + bias;
+                    ComputeDataType y = (x - mean) * inv_std * gamma + beta;
 
                     y_block_tensor(i_j_idx) = type_convert<YDataType>(y);
                 });
@@ -187,8 +186,8 @@ struct Layernorm2dFwd
             store_tile(y_block_window, y_block_tensor);
 
             move_tile_window(x_block_window, {0, -kNPerBlock});
-            move_tile_window(weight_block_window, {0, -kNPerBlock});
-            move_tile_window(bias_block_window, {0, -kNPerBlock});
+            move_tile_window(gamma_block_window, {0, -kNPerBlock});
+            move_tile_window(beta_block_window, {0, -kNPerBlock});
             move_tile_window(y_block_window, {0, -kNPerBlock});
 
             iN -= kNPerBlock;
@@ -202,8 +201,8 @@ struct Layernorm2dFwd
     }
 
     __device__ void operator()(const XDataType* p_x,
-                               const WeightDataType* p_weight,
-                               const BiasDataType* p_bias,
+                               const GammaDataType* p_gamma,
+                               const BetaDataType* p_beta,
                                YDataType* p_y,
                                MeanDataType* p_mean,
                                InvStdDataType* p_invStd,
@@ -211,6 +210,6 @@ struct Layernorm2dFwd
                                ck::index_t M,
                                ck::index_t N) const
     {
-        TwoPassLayernorm2dFwd(p_x, p_weight, p_bias, p_y, p_mean, p_invStd, epsilon, M, N);
+        TwoPassLayernorm2dFwd(p_x, p_gamma, p_beta, p_y, p_mean, p_invStd, epsilon, M, N);
     }
 };
