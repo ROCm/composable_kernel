@@ -16,16 +16,17 @@
 #include "reference/reference_layernorm2d.hpp"
 #include "layernorm2d_fwd.hpp"
 
-
 int main(int argc, char* argv[])
 {
-    using XDataType       = ck::half_t;
-    using GammaDataType   = ck::half_t;
-    using BetaDataType    = ck::half_t;
-    using ComputeDataType = float;
-    using YDataType       = ck::half_t;
-    using MeanDataType    = ck::half_t;
-    using InvStdDataType  = ck::half_t;
+    using TypeConfig = Layernorm2dFwdTypeConfig<ck::half_t>;
+
+    using XDataType       = TypeConfig::XDataType;
+    using YDataType       = TypeConfig::YDataType;
+    using GammaDataType   = TypeConfig::GammaDataType;
+    using BetaDataType    = TypeConfig::BetaDataType;
+    using MeanDataType    = TypeConfig::MeanDataType;
+    using InvStdDataType  = TypeConfig::InvStdDataType;
+    using ComputeDataType = TypeConfig::ComputeDataType;
 
     const bool SaveMeanVariance = true;
 
