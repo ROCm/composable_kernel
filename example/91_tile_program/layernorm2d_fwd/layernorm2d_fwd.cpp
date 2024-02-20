@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
     using InvStdDataType  = TypeConfig::InvStdDataType;
     using ComputeDataType = TypeConfig::ComputeDataType;
 
-    const bool SaveMeanVariance = true;
+    const bool SaveMeanInvStd = false;
 
     ck::index_t M = 3328;
     ck::index_t N = 4096;
@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
                                        InvStdDataType,
                                        true,
                                        true,
-                                       SaveMeanVariance,
+                                       SaveMeanInvStd,
                                        kBlockSize,
                                        kMPerBlock,
                                        kNPerBlock>{};
@@ -115,14 +115,6 @@ int main(int argc, char* argv[])
                                    M,
                                    N);
 
-    if constexpr(SaveMeanVariance)
-    {
-        mean_buf.FromDevice(mean_host_dev.data());
-        invStd_buf.FromDevice(invStd_host_dev.data());
-    }
-
-    y_buf.FromDevice(y_host_dev.data());
-
     std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;
 
@@ -130,7 +122,18 @@ int main(int argc, char* argv[])
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
+    y_buf.FromDevice(y_host_dev.data());
+
     bool pass = ck::utils::check_err(y_host_dev, y_host_ref);
+
+    if constexpr(SaveMeanInvStd)
+    {
+        mean_buf.FromDevice(mean_host_dev.data());
+        invStd_buf.FromDevice(invStd_host_dev.data());
+
+        pass &= ck::utils::check_err(mean_host_dev, mean_host_ref);
+        pass &= ck::utils::check_err(invStd_host_dev, invStd_host_ref);
+    }
 
     return !pass;
 }
