@@ -235,6 +235,7 @@ GB/s: 2042.59
 Note: Column to image kernel adds to the output memory, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
 ## Profile Permute scale kernels
+
 ```bash
 # arg1: tensor operation ( permute_scale : Permute Scale )
 # arg2: data type (0: Input fp32, Output fp32
