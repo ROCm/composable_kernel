@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     Tensor<VarDataType> var_host_ref({M});
     Tensor<VarDataType> var_host_dev({M});
 
-    ck::utils::FillUniformDistributionIntegerValue<XDataType>{-5.f, 5.f}(x_host);
+    ck::utils::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
 
     // reference
     reference_variance<XDataType, ComputeDataType, MeanDataType, VarDataType>(

@@ -53,9 +53,9 @@ int main(int argc, char* argv[])
 
     ComputeDataType epsilon = 1e-5;
 
-    ck::utils::FillUniformDistributionIntegerValue<XDataType>{-5.f, 5.f}(x_host);
-    ck::utils::FillUniformDistributionIntegerValue<GammaDataType>{-5.f, 5.f}(gamma_host);
-    ck::utils::FillUniformDistributionIntegerValue<BetaDataType>{-5.f, 5.f}(beta_host);
+    ck::utils::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
+    ck::utils::FillUniformDistribution<GammaDataType>{-5.f, 5.f}(gamma_host);
+    ck::utils::FillUniformDistribution<BetaDataType>{-5.f, 5.f}(beta_host);
 
     // reference
     reference_layernorm2d_fwd<XDataType,
