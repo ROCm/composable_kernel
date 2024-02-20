@@ -74,9 +74,9 @@ int main(int argc, char* argv[])
     DeviceMem mean_buf(mean_host_dev.GetElementSpaceSizeInBytes());
     DeviceMem invStd_buf(invStd_host_dev.GetElementSpaceSizeInBytes());
 
-    x_buf.ToDevice(x_host.mData.data());
-    gamma_buf.ToDevice(gamma_host.mData.data());
-    beta_buf.ToDevice(beta_host.mData.data());
+    x_buf.ToDevice(x_host.data());
+    gamma_buf.ToDevice(gamma_host.data());
+    beta_buf.ToDevice(beta_host.data());
 
     constexpr ck::index_t kMPerBlock = 128;
     constexpr ck::index_t kNPerBlock = 128;
@@ -117,11 +117,11 @@ int main(int argc, char* argv[])
 
     if constexpr(SaveMeanVariance)
     {
-        mean_buf.FromDevice(mean_host_dev.mData.data());
-        invStd_buf.FromDevice(invStd_host_dev.mData.data());
+        mean_buf.FromDevice(mean_host_dev.data());
+        invStd_buf.FromDevice(invStd_host_dev.data());
     }
 
-    y_buf.FromDevice(y_host_dev.mData.data());
+    y_buf.FromDevice(y_host_dev.data());
 
     std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;

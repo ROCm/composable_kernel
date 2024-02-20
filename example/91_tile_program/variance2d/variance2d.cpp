@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     DeviceMem mean_buf(mean_host_ref.GetElementSpaceSizeInBytes());
     DeviceMem var_buf(var_host_ref.GetElementSpaceSizeInBytes());
 
-    x_buf.ToDevice(x_host.mData.data());
+    x_buf.ToDevice(x_host.data());
 
     constexpr ck::index_t kMPerBlock = 128;
     constexpr ck::index_t kNPerBlock = 128;
@@ -78,8 +78,8 @@ int main(int argc, char* argv[])
                                    M,
                                    N);
 
-    mean_buf.FromDevice(mean_host_dev.mData.data());
-    var_buf.FromDevice(var_host_dev.mData.data());
+    mean_buf.FromDevice(mean_host_dev.data());
+    var_buf.FromDevice(var_host_dev.data());
 
     std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(MeanDataType) * M;
 
