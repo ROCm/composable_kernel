@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -322,6 +322,19 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
     {
         return std::make_unique<Invoker>();
     };
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceElementwiseNormalizationImpl<";
+        str << NumDim << ", ";
+        str << MPerThread << ">";
+        // clang-format on
+
+        return str.str();
+    }
 }; // namespace device
 
 } // namespace device
