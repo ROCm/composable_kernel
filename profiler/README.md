@@ -192,6 +192,7 @@ GB/s: 69.2301
 Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
 ## Profile image to column/column to image kernels
+
 ```bash
 # arg1: tensor operation ( conv_tensor_rearrange : Conv Tensor Rearrange )
 # arg2: data type (0: Input fp32, Weight fp32, Output fp32
