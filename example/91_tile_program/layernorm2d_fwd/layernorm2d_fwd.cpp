@@ -67,12 +67,12 @@ int main(int argc, char* argv[])
                               InvStdDataType>(
         x_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
 
-    DeviceMem x_buf(sizeof(XDataType) * x_host.GetElementSpaceSize());
-    DeviceMem gamma_buf(sizeof(GammaDataType) * gamma_host.GetElementSpaceSize());
-    DeviceMem beta_buf(sizeof(BetaDataType) * beta_host.GetElementSpaceSize());
-    DeviceMem y_buf(sizeof(YDataType) * y_host_dev.GetElementSpaceSize());
-    DeviceMem mean_buf(sizeof(MeanDataType) * mean_host_dev.GetElementSpaceSize());
-    DeviceMem invStd_buf(sizeof(InvStdDataType) * invStd_host_dev.GetElementSpaceSize());
+    DeviceMem x_buf(x_host.GetElementSpaceSizeInBytes());
+    DeviceMem gamma_buf(gamma_host.GetElementSpaceSizeInBytes());
+    DeviceMem beta_buf(beta_host.GetElementSpaceSizeInBytes());
+    DeviceMem y_buf(y_host_dev.GetElementSpaceSizeInBytes());
+    DeviceMem mean_buf(mean_host_dev.GetElementSpaceSizeInBytes());
+    DeviceMem invStd_buf(invStd_host_dev.GetElementSpaceSizeInBytes());
 
     x_buf.ToDevice(x_host.mData.data());
     gamma_buf.ToDevice(gamma_host.mData.data());
@@ -123,10 +123,10 @@ int main(int argc, char* argv[])
 
     y_buf.FromDevice(y_host_dev.mData.data());
 
-    std::size_t num_btype = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
-                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;
+    std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
+                           sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 

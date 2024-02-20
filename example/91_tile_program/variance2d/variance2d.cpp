@@ -45,9 +45,9 @@ int main(int argc, char* argv[])
     reference_variance<XDataType, ComputeDataType, MeanDataType, VarDataType>(
         x_host, mean_host_ref, var_host_ref);
 
-    DeviceMem x_buf(sizeof(XDataType) * x_host.GetElementSpaceSize());
-    DeviceMem mean_buf(sizeof(MeanDataType) * mean_host_ref.GetElementSpaceSize());
-    DeviceMem var_buf(sizeof(VarDataType) * var_host_ref.GetElementSpaceSize());
+    DeviceMem x_buf(x_host.GetElementSpaceSizeInBytes());
+    DeviceMem mean_buf(mean_host_ref.GetElementSpaceSizeInBytes());
+    DeviceMem var_buf(var_host_ref.GetElementSpaceSizeInBytes());
 
     x_buf.ToDevice(x_host.mData.data());
 
@@ -81,9 +81,9 @@ int main(int argc, char* argv[])
     mean_buf.FromDevice(mean_host_dev.mData.data());
     var_buf.FromDevice(var_host_dev.mData.data());
 
-    std::size_t num_btype = sizeof(XDataType) * M * N + sizeof(MeanDataType) * M;
+    std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(MeanDataType) * M;
 
-    float gb_per_sec = num_btype / 1.E6 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
