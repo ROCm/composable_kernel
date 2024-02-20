@@ -132,6 +132,7 @@ Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
 ```
 
 Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+
 ```bash
 out: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
 wei: dim 5, lengths {32, 192, 192, 3, 3}, strides {331776, 1728, 1, 576, 192}
