@@ -92,17 +92,17 @@ struct BlockFmhaBwdPipelineV10
               typename BiasGradDramBlockWindowTmp>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
-               const QTDramBlockWindowTmp& qt_dram_block_window_tmp,
+               const QTDramBlockWindowTmp& /*qt_dram_block_window_tmp*/,
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
-               const KTDramBlockWindowTmp& kt_dram_block_window_tmp,
+               const KTDramBlockWindowTmp& /*kt_dram_block_window_tmp*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+               const BiasDramBlockWindowTmp& /*bias_dram_block_window_tmp*/,
                const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
-               const OGradTDramBlockWindowTmp& dot_dram_block_window_tmp,
+               const OGradTDramBlockWindowTmp& /*dot_dram_block_window_tmp*/,
                const LSEDramBlockWindowTmp& lse_dram_block_window_tmp,
                const DDramBlockWindowTmp& d_dram_block_window_tmp,
                const QGradDramBlockWindowTmp& dq_dram_block_window_tmp,
-               const BiasGradDramBlockWindowTmp& dbias_dram_block_window_tmp,
+               const BiasGradDramBlockWindowTmp& /*dbias_dram_block_window_tmp*/,
                FmhaMask mask,
                float raw_scale,
 #if CK_FMHA_FWD_FAST_EXP2
@@ -245,10 +245,6 @@ struct BlockFmhaBwdPipelineV10
 
         store_tile(k_lds_window, k_block_tile); // // persistent K in LDS
 
-        ignore = qt_dram_block_window_tmp;
-        ignore = kt_dram_block_window_tmp;
-        ignore = dot_dram_block_window_tmp;
-
         auto q_dram_block_window = make_tile_window(q_dram_block_window_tmp.GetBottomTensorView(),
                                                     q_dram_block_window_tmp.GetWindowLengths(),
                                                     {seqlen_q_start, 0});
@@ -281,9 +277,6 @@ struct BlockFmhaBwdPipelineV10
             d_dram_block_window.GetWindowLengths(),
             d_dram_block_window.GetWindowOrigin(),
             Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
-
-        ignore = bias_dram_block_window_tmp;
-        ignore = dbias_dram_block_window_tmp;
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
