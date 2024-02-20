@@ -252,6 +252,7 @@ Note: Column to image kernel adds to the output memory, this will cause output b
 ```
 
 Result (MI100, FP32)
+
 ```bash
 A: dim 3, lengths {64, 64, 64}, strides {4096, 64, 1}
 B: dim 3, lengths {64, 64, 64}, strides {1, 64, 4096}
