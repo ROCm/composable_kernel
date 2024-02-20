@@ -32,6 +32,7 @@ set(PROFILER_SOURCES
     profile_grouped_conv_bwd_data.cpp
     profile_conv_tensor_rearrange.cpp
     profile_transpose.cpp
+    profile_permute_scale.cpp
 )
 
 if(DL_KERNELS)
@@ -99,6 +100,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_d
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_permute_scale_instance)
 
 if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
