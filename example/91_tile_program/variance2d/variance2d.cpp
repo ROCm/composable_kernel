@@ -32,21 +32,12 @@ int main(int argc, char* argv[])
         N = std::stoi(argv[2]);
     }
 
-    std::array<ck::index_t, 2> x_lengths{M, N};
-    std::array<ck::index_t, 2> x_strides{N, 1};
-
-    std::array<ck::index_t, 1> mean_lengths{M};
-    std::array<ck::index_t, 1> mean_strides{1};
-
-    std::array<ck::index_t, 1> var_lengths{M};
-    std::array<ck::index_t, 1> var_strides{1};
-
     // host verify
-    Tensor<XDataType> x_host(x_lengths, x_strides);
-    Tensor<MeanDataType> mean_host_ref(mean_lengths, mean_strides);
-    Tensor<MeanDataType> mean_host_dev(mean_lengths, mean_strides);
-    Tensor<VarDataType> var_host_ref(var_lengths, var_strides);
-    Tensor<VarDataType> var_host_dev(var_lengths, var_strides);
+    Tensor<XDataType> x_host({M, N});
+    Tensor<MeanDataType> mean_host_ref({M});
+    Tensor<MeanDataType> mean_host_dev({M});
+    Tensor<VarDataType> var_host_ref({M});
+    Tensor<VarDataType> var_host_dev({M});
 
     ck::utils::FillUniformDistributionIntegerValue<XDataType>{-5.f, 5.f}(x_host);
 

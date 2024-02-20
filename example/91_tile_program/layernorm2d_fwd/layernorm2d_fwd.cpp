@@ -39,35 +39,17 @@ int main(int argc, char* argv[])
         N = std::stoi(argv[2]);
     }
 
-    std::array<ck::index_t, 2> x_lengths{M, N};
-    std::array<ck::index_t, 2> x_strides{N, 1};
-
-    std::array<ck::index_t, 1> gamma_lengths{N};
-    std::array<ck::index_t, 1> gamma_strides{1};
-
-    std::array<ck::index_t, 1> beta_lengths{N};
-    std::array<ck::index_t, 1> beta_strides{1};
-
-    std::array<ck::index_t, 2> y_lengths{M, N};
-    std::array<ck::index_t, 2> y_strides{N, 1};
-
-    std::array<ck::index_t, 1> mean_lengths{M};
-    std::array<ck::index_t, 1> mean_strides{1};
-
-    std::array<ck::index_t, 1> invStd_lengths{M};
-    std::array<ck::index_t, 1> invStd_strides{1};
-
     // host verify
-    Tensor<XDataType> x_host(x_lengths, x_strides);
-    Tensor<GammaDataType> gamma_host(gamma_lengths, gamma_strides);
-    Tensor<BetaDataType> beta_host(beta_lengths, beta_strides);
+    Tensor<XDataType> x_host({M, N});
+    Tensor<GammaDataType> gamma_host({N});
+    Tensor<BetaDataType> beta_host({N});
 
-    Tensor<YDataType> y_host_ref(y_lengths, y_strides);
-    Tensor<YDataType> y_host_dev(y_lengths, y_strides);
-    Tensor<MeanDataType> mean_host_ref(mean_lengths, mean_strides);
-    Tensor<MeanDataType> mean_host_dev(mean_lengths, mean_strides);
-    Tensor<InvStdDataType> invStd_host_ref(invStd_lengths, invStd_strides);
-    Tensor<InvStdDataType> invStd_host_dev(invStd_lengths, invStd_strides);
+    Tensor<YDataType> y_host_ref({M, N});
+    Tensor<YDataType> y_host_dev({M, N});
+    Tensor<MeanDataType> mean_host_ref({M});
+    Tensor<MeanDataType> mean_host_dev({M});
+    Tensor<InvStdDataType> invStd_host_ref({M});
+    Tensor<InvStdDataType> invStd_host_dev({M});
 
     ComputeDataType epsilon = 1e-5;
 
