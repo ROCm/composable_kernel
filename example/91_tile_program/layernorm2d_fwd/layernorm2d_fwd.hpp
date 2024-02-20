@@ -17,15 +17,17 @@
 #include "ck/tile_program/warp_tile/warp_welford.hpp"
 #include "ck/utility/functional2.hpp"
 
+// TODO: Extract some type to wrapper class
 template <typename XDataType,
-          typename GammaDataType, // redundant if ElementwiseAffine == false
-          typename BetaDataType,  // redundant if ElementwiseAffine == false
+          typename GammaDataType, // redundant if ElementwiseAffineGamma == false
+          typename BetaDataType,  // redundant if ElementwiseAffineBeta == false
           typename ComputeDataType,
           typename YDataType,
           typename MeanDataType,   // redundant if SaveMeanInvStd == false
           typename InvStdDataType, // redundant if SaveMeanInvStd == false
+          bool ElementwiseAffineGamma,
+          bool ElementwiseAffineBeta,
           bool SaveMeanInvStd,
-          bool ElementwiseAffine,
           ck::index_t kBlockSize,
           ck::index_t kMPerBlock,
           ck::index_t kNPerBlock>
@@ -61,7 +63,8 @@ struct Layernorm2dFwd
         return ret;
     }
 
-    template <typename ck::enable_if<ElementwiseAffine == true, bool>::type = false>
+    template <typename ck::enable_if<ElementwiseAffineGamma == true, bool>::type = false,
+              typename ck::enable_if<ElementwiseAffineBeta == true, bool>::type  = false>
     __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
                                           const GammaDataType* p_gamma,
                                           const BetaDataType* p_beta,
@@ -127,6 +130,7 @@ struct Layernorm2dFwd
         WarpMergeWelford<ComputeDataType, true>{}(
             mean_compute_block_tensor, var_compute_block_tensor, thread_welford.cur_count_);
 
+        // TODO: Extract normalize pipeline
         const auto y_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_y, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
 

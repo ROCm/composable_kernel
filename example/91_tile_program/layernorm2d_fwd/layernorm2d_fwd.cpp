@@ -164,8 +164,9 @@ int main(int argc, char* argv[])
                                        YDataType,
                                        MeanDataType,
                                        InvStdDataType,
-                                       SaveMeanVariance,
                                        true,
+                                       true,
+                                       SaveMeanVariance,
                                        kBlockSize,
                                        kMPerBlock,
                                        kNPerBlock>{};
