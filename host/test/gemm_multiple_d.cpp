@@ -176,6 +176,11 @@ TEST_CASE(test_problem_kernel)
         prob.K * prob.Y * prob.X * prob.C, prob.Y * prob.X * prob.C, 1, prob.X * prob.C, prob.C};
     std::array<std::size_t, 5> d_strides = {};
 
+    std::vector<std::size_t> conv_filter_strides   = {2, 2};
+    std::vector<std::size_t> conv_filter_dilations = {1, 1};
+    std::vector<std::size_t> input_left_pads       = {1, 1};
+    std::vector<std::size_t> input_right_pads      = {1, 1};
+
     // auto argument_ptr    = ck_args.MakeArgPtr(sh_conv_ptr, data_ctx.tensors); //FIXME: arg ptr
     // call -> use this? how is it passed in?
 
@@ -194,30 +199,114 @@ TEST_CASE(test_problem_kernel)
         rtc::compile_options options;
         options.kernel_name = "f";
         auto k              = rtc::compile_kernel(srcs, options);
-        // TODO: add creation of grid desc/ptrs for run fcn here
-        auto NDimSpatial      = prob.NumDim;
+        auto block_size     = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        auto m_per_block    = solution.GetTemplateParameter<std::size_t>("MPerBlock");
+        auto n_per_block    = solution.GetTemplateParameter<std::size_t>("NPerBlock");
+        auto k_per_block    = solution.GetTemplateParameter<std::size_t>("KPerBlock");
+        // auto gemm_spec       = solution.GetTemplateParameter("GemmSpecialization");
+        auto grid_size = ck::host::integer_divide_ceil(prob.G, m_per_block) *
+                         ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME:
+        // creation of grid desc for run fcn here
+        static constexpr auto GemmSpec = ck::host::GemmSpecialization::Default;
+        // ck::host::GemmSpecialization GemmSpec = gemm_spec;
+        static auto matrix_padder =
+            ck::host::GemmPadder<GemmSpec, std::size_t, std::size_t, std::size_t>{
+                m_per_block, n_per_block, k_per_block};
+        auto NDimSpatial = prob.NumDim;
+        // auto a_type  = solution.GetTemplateParameter<ck::host::DataType>("ADataType");
         const std::size_t tmp = prob.DsDataType.size();
         std::cout << tmp << std::endl;
         static constexpr auto NumDTensor = 0;
         static constexpr auto I1         = ck::host::Number<1>{};
         // input tensor desc
+        const std::size_t N_in = in_lengths[1];
+        const std::size_t C_in = in_lengths[2];
+
+        const std::size_t Hi = in_lengths[3];
+        const std::size_t Wi = in_lengths[4];
+
+        const std::size_t Ho = out_lengths[3];
+        const std::size_t Wo = out_lengths[4];
+
+        const std::size_t ConvStrideH = conv_filter_strides[0];
+        const std::size_t ConvStrideW = conv_filter_strides[1];
+        const std::size_t Y           = wei_lengths[3];
+        const std::size_t X           = wei_lengths[4];
+
+        const std::size_t ConvDilationH = conv_filter_dilations[0];
+        const std::size_t ConvDilationW = conv_filter_dilations[1];
+
+        const std::size_t InLeftPadH = input_left_pads[0];
+        const std::size_t InLeftPadW = input_left_pads[1];
+
+        const std::size_t InRightPadH = input_right_pads[0];
+        const std::size_t InRightPadW = input_right_pads[1];
+        const std::size_t NStride     = in_strides[1];
+        const std::size_t HiStride    = in_strides[3];
+        const std::size_t WiStride    = in_strides[4];
+        const auto CStride            = I1;
+
+        const auto in_n_hi_wi_c_desc = make_naive_tensor_descriptor(
+            ck::host::make_tuple(N_in, Hi, Wi, C_in),
+            ck::host::make_tuple(NStride, HiStride, WiStride, CStride));
+
+        const auto in_n_hip_wip_c_desc = ck::host::transform_tensor_descriptor(
+            in_n_hi_wi_c_desc,
+            ck::host::make_tuple(ck::host::make_pass_through_transform(N_in),
+                                 ck::host::make_pad_transform(Hi, InLeftPadH, InRightPadH),
+                                 ck::host::make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                                 ck::host::make_pass_through_transform(C_in)),
+            ck::host::make_tuple(ck::host::Sequence<0>{},
+                                 ck::host::Sequence<1>{},
+                                 ck::host::Sequence<2>{},
+                                 ck::host::Sequence<3>{}),
+            ck::host::make_tuple(ck::host::Sequence<0>{},
+                                 ck::host::Sequence<1>{},
+                                 ck::host::Sequence<2>{},
+                                 ck::host::Sequence<3>{}));
+
+        const auto in_n_y_ho_x_wo_c_desc = ck::host::transform_tensor_descriptor(
+            in_n_hip_wip_c_desc,
+            ck::host::make_tuple(
+                ck::host::make_pass_through_transform(N_in),
+                ck::host::make_embed_transform(ck::host::make_tuple(Y, Ho),
+                                               ck::host::make_tuple(ConvDilationH, ConvStrideH)),
+                ck::host::make_embed_transform(ck::host::make_tuple(X, Wo),
+                                               ck::host::make_tuple(ConvDilationW, ConvStrideW)),
+                ck::host::make_pass_through_transform(C_in)),
+            ck::host::make_tuple(ck::host::Sequence<0>{},
+                                 ck::host::Sequence<1>{},
+                                 ck::host::Sequence<2>{},
+                                 ck::host::Sequence<3>{}),
+            ck::host::make_tuple(ck::host::Sequence<0>{},
+                                 ck::host::Sequence<1, 2>{},
+                                 ck::host::Sequence<3, 4>{},
+                                 ck::host::Sequence<5>{}));
+
+        const auto in_gemmm_gemmk_desc = ck::host::transform_tensor_descriptor(
+            in_n_y_ho_x_wo_c_desc,
+            ck::host::make_tuple(ck::host::make_merge_transform(ck::host::make_tuple(N_in, Ho, Wo)),
+                                 ck::host::make_merge_transform(ck::host::make_tuple(Y, X, C_in))),
+            ck::host::make_tuple(ck::host::Sequence<0, 2, 4>{}, ck::host::Sequence<1, 3, 5>{}),
+            ck::host::make_tuple(ck::host::Sequence<0>{}, ck::host::Sequence<1>{}));
         // weight tensor desc
-        const std::size_t K_in = wei_lengths[1];
-        const std::size_t C    = wei_lengths[2];
+        const std::size_t K_wei = wei_lengths[1];
+        const std::size_t C     = wei_lengths[2];
 
         const std::size_t YX = ck::host::accumulate_n<std::size_t>(
             wei_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
 
-        const std::size_t KStride_in = wei_strides[1];
-        const std::size_t XStride    = wei_strides[2 + NDimSpatial];
-        const auto CStride           = I1;
+        const std::size_t KStride_wei = wei_strides[1];
+        const std::size_t XStride     = wei_strides[2 + NDimSpatial];
+        // const auto CStride           = I1; already declared
 
         const auto wei_k_yx_c_desc = ck::host::make_naive_tensor_descriptor(
-            ck::host::make_tuple(K_in, YX, C), ck::host::make_tuple(KStride_in, XStride, CStride));
+            ck::host::make_tuple(K_wei, YX, C),
+            ck::host::make_tuple(KStride_wei, XStride, CStride));
 
-        const auto wei_gemmn_gemmk_desc = ck::host::transform_tensor_descriptor(
+        auto wei_gemmn_gemmk_desc = ck::host::transform_tensor_descriptor(
             wei_k_yx_c_desc,
-            ck::host::make_tuple(ck::host::make_pass_through_transform(K_in),
+            ck::host::make_tuple(ck::host::make_pass_through_transform(K_wei),
                                  ck::host::make_merge_transform(ck::host::make_tuple(YX, C))),
             ck::host::make_tuple(ck::host::Sequence<0>{}, ck::host::Sequence<1, 2>{}),
             ck::host::make_tuple(ck::host::Sequence<0>{}, ck::host::Sequence<1>{}));
@@ -236,40 +325,31 @@ TEST_CASE(test_problem_kernel)
                     1,
                     std::multiplies<>());
 
-        const auto out_gemmm_gemmn_desc = ck::host::make_naive_tensor_descriptor(
+        auto out_gemmm_gemmn_desc = ck::host::make_naive_tensor_descriptor(
             ck::host::make_tuple(NHoWo, K_out), ck::host::make_tuple(WoStride, KStride_out));
         // d desc
         // auto NumDTensor = prob.DsDataType
-        ck::host::generate_tuple(
+        auto d_gemm_desc = ck::host::generate_tuple(
             [&](auto i) {
                 // using DLayout = ck::host::remove_cvref_t<ck::host::tuple_element_t<i.value,
                 // DsLayout>>;
 
                 // using DLayout = ck::host::ToLayout(prob.DsTrans[0]);
 
-                const auto d_desc = ck::host::make_naive_tensor_descriptor(
+                auto d_desc = ck::host::make_naive_tensor_descriptor(
                     ck::host::make_tuple(NHoWo, K_out),
                     d_strides[i]); // FIXME: get the right stride for Ds
             },
             ck::host::Number<NumDTensor>{});
 
-        // pointers
-        /**using AGridPointer = ck::host::remove_cvref_t<
-            decltype(GetAGridPointer < isMultiA || isMultiB, GridwiseGemm, ADataType > ())>;
-        using BGridPointer = ck::host::remove_cvref_t<
-            decltype(GetBGridPointer < isMultiA || isMultiB, GridwiseGemm, BDataType > ())>;//FIXME:
-        how to sub in all these values: not present yet -> put in template?**/
-
-        auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
-        auto m_per_block = solution.GetTemplateParameter<std::size_t>("MPerBlock");
-        auto n_per_block = solution.GetTemplateParameter<std::size_t>("NPerBlock");
-        auto grid_size   = ck::host::integer_divide_ceil(prob.G, m_per_block) *
-                         ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME:
         k.launch(nullptr, grid_size * block_size, block_size)(
             a.data(),
             b.data(),
-            c.data() /**, out_gemmm_gemmn_desc**/); // FIXME: my launch will bw different: will need
-                                                    // to pass in grid ptrs for run fcns
+            c.data(),
+            wei_gemmn_gemmk_desc,
+            d_gemm_desc,
+            out_gemmm_gemmn_desc); // FIXME: my launch will bw different: will need
+                                   // to pass in grid ptrs for run fcns
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }
@@ -279,10 +359,10 @@ TEST_CASE(test_problem_kernel)
 extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
     using G = ${template};
     constexpr auto desc =
-${template}::make_descriptor(ck::ck::host::make_naive_tensor_descriptor_packed(ck::make_tuple(${m},
-${k})), ck::ck::host::make_naive_tensor_descriptor(ck::make_tuple(${n},
-${k}), ck::make_tuple(1, ${n})), ck::make_tuple(),
-                                             ck::ck::host::make_naive_tensor_descriptor_packed(ck::make_tuple(${m},
+${template}::make_descriptor(ck::ck::host::make_naive_tensor_descriptor_packed(ck::ck::host::make_tuple(${m},
+${k})), ck::ck::host::make_naive_tensor_descriptor(ck::ck::host::make_tuple(${n},
+${k}), ck::ck::host::make_tuple(1, ${n})), ck::ck::host::make_tuple(),
+                                             ck::ck::host::make_naive_tensor_descriptor_packed(ck::ck::host::make_tuple(${m},
 ${n})));
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
@@ -292,7 +372,7 @@ ${n})));
         ${template}::Run(desc,
                a,
                b,
-               ck::make_tuple(),
+               ck::ck::host::make_tuple(),
                c);
     }
 }

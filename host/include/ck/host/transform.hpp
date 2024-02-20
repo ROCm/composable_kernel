@@ -62,6 +62,102 @@ constexpr auto container_reverse_exclusive_scan(const Tuple<Xs...>& x, Reduce re
         x, reduce, Number<NSize - 1>{}, make_tuple(init), init);
 }
 
+template <typename LowLength,
+          typename LeftPadLength,
+          typename RightPadLength,
+          bool SkipIsValidCheck = false>
+struct Pad
+{
+    using LowerIndex = MultiIndex<1>;
+    using UpperIndex = MultiIndex<1>;
+
+    using UpLengths = decltype(make_tuple(LowLength{} + LeftPadLength{} + RightPadLength{}));
+
+    UpLengths up_lengths_;
+    LeftPadLength left_pad_length_;
+    RightPadLength right_pad_length_;
+
+    constexpr Pad() = default;
+
+    constexpr Pad(const LowLength& low_length,
+                  const LeftPadLength& left_pad_length,
+                  const RightPadLength& right_pad_length)
+        : up_lengths_{make_tuple(low_length + left_pad_length + right_pad_length)},
+          left_pad_length_{left_pad_length},
+          right_pad_length_{right_pad_length}
+    {
+    }
+
+    static constexpr index_t GetNumOfLowerDimension() { return 1; }
+
+    static constexpr index_t GetNumOfUpperDimension() { return 1; }
+
+    constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    constexpr void CalculateLowerIndex(LowIdx& idx_low, const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == 1 && UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(Number<0>{}) = idx_up[Number<0>{}] - left_pad_length_;
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    static void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                 const UpIdxDiff& idx_diff_up,
+                                 LowIdx& idx_low,
+                                 const UpIdx&,
+                                 Number<Hack>)
+    {
+        static_assert(LowIdxDiff::Size() == 1 && UpIdxDiff::Size() == 1 && LowIdx::Size() == 1 &&
+                          UpIdx::Size() == 1,
+                      "wrong! inconsistent # of dimension");
+
+        constexpr auto I0 = Number<0>{};
+
+        idx_diff_low(I0) = idx_diff_up[I0];
+
+        idx_low += idx_diff_low;
+    }
+
+    static constexpr bool IsLinearTransform() { return true; }
+
+    static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return SkipIsValidCheck;
+    }
+
+    template <typename UpIdx>
+    constexpr bool IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& idx_up) const
+    {
+        return SkipIsValidCheck ||
+               ((idx_up[Number<0>{}] >= left_pad_length_) &&
+                (idx_up[Number<0>{}] < up_lengths_[Number<0>{}] - right_pad_length_));
+    }
+
+    static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpLengths>::value &&
+               is_known_at_compile_time<LeftPadLength>::value &&
+               is_known_at_compile_time<RightPadLength>::value;
+    }
+};
+
+template <typename LowLength, typename LeftPad, typename RightPad, bool SkipIsValidCheck = false>
+constexpr auto
+make_pad_transform(const LowLength& low_length,
+                   const LeftPad& left_pad,
+                   const RightPad& right_pad,
+                   integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
+{
+    return Pad<LowLength, LeftPad, RightPad, SkipIsValidCheck>{low_length, left_pad, right_pad};
+}
+
 template <typename LowLengths>
 struct Merge_v1_carry_check
 {

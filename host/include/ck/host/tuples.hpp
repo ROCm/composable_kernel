@@ -445,5 +445,8 @@ constexpr auto transform_tuples(F f, const X& x, const Y& y, const Z& z)
         f, x, y, z, typename arithmetic_sequence_gen<0, X::Size(), 1>::type{});
 }
 
+template <typename T>
+using is_tuple = decltype(std::declval<T&>().IsTuple());
+
 } // namespace host
 } // namespace ck

@@ -127,6 +127,43 @@ using Number = integral_constant<index_t, N>;
 template <long_index_t N>
 using LongNumber = integral_constant<long_index_t, N>;
 
+template <class Default, class AlwaysVoid, template <class...> class Op, class... Args>
+struct detector
+{
+    using value_t = std::false_type;
+    using type    = Default;
+};
+
+template <class Default, template <class...> class Op, class... Args>
+struct detector<Default, std::void_t<Op<Args...>>, Op, Args...>
+{
+    using value_t = std::true_type;
+    using type    = Op<Args...>;
+};
+
+struct nonesuch
+{
+    ~nonesuch()               = delete;
+    nonesuch(nonesuch const&) = delete;
+    void operator=(nonesuch const&) = delete;
+};
+
+template <template <class...> class Op, class... Args>
+using is_detected = typename detector<nonesuch, void, Op, Args...>::value_t;
+
+template <bool isTuple, typename Tensors>
+constexpr static auto GetNumABTensors()
+{
+    if constexpr(isTuple)
+    {
+        return Number<Tensors::Size()>{};
+    }
+    else
+    {
+        return Number<1>{};
+    }
+}
+
 template <bool predicate, class X, class Y>
 struct conditional;
 
@@ -141,6 +178,19 @@ struct conditional<false, X, Y>
 {
     using type = Y;
 };
+
+template <bool predicate, typename X, typename Y>
+constexpr auto conditional_expr(X&& x, Y&& y)
+{
+    if constexpr(predicate)
+    {
+        return std::forward<X>(x);
+    }
+    else
+    {
+        return std::forward<Y>(y);
+    }
+}
 
 template <typename T>
 struct plus

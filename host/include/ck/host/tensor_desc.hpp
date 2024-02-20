@@ -1,5 +1,6 @@
 #pragma once
 #include "ck/host/utils.hpp"
+#include "ck/host/types.hpp"
 #include "ck/host/tuples.hpp"
 #include "ck/host/seq.hpp"
 namespace ck {
@@ -479,6 +480,87 @@ constexpr auto make_pass_through_transform(const LowLength& low_length)
 {
     return Pass<LowLength>{low_length};
 }
+
+template <typename TensorDesc,
+          typename TileLengths, // Tuple<...>
+          typename DoPads>      // Sequence<bool, bool, ...>
+constexpr auto PadTensorDescriptor(const TensorDesc& desc, const TileLengths& tile_lengths, DoPads)
+{
+    constexpr index_t num_dim = DoPads::Size();
+
+    static_assert(num_dim == TileLengths::Size() && num_dim == TensorDesc::GetNumOfDimension(),
+                  "wrong! inconsistent # of dimensions");
+
+    // transforms
+    const auto transforms = generate_tuple(
+        [&](auto idim) {
+            const auto MRaw = desc.GetLength(idim);
+
+            const auto MPerTile = tile_lengths[idim];
+
+            const auto M = integer_divide_ceil(MRaw, MPerTile) * MPerTile;
+
+            const auto MPad = M - MRaw;
+
+            const bool DoPadM = DoPads::At(idim);
+
+            const auto MTransform = conditional_expr<DoPadM>(make_right_pad_transform(MRaw, MPad),
+                                                             make_pass_through_transform(MRaw));
+
+            return MTransform;
+        },
+        Number<num_dim>{});
+
+    // lower dimension Id
+    const auto lower_dimss =
+        generate_tuple([&](auto idim) { return Sequence<idim.value>{}; }, Number<num_dim>{});
+
+    // upper dimension Id
+    const auto upper_dimss = lower_dimss;
+    return transform_tensor_descriptor(desc, transforms, lower_dimss, upper_dimss);
+}
+
+template <GemmSpecialization GemmSpec,
+          typename MPerTileType,
+          typename NPerTileType,
+          typename KPerTileType>
+struct GemmPadder
+{
+    static constexpr bool PadM =
+        (GemmSpec == GemmSpecialization::MPadding || GemmSpec == GemmSpecialization::MNPadding ||
+         GemmSpec == GemmSpecialization::MKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+    static constexpr bool PadN =
+        (GemmSpec == GemmSpecialization::NPadding || GemmSpec == GemmSpecialization::MNPadding ||
+         GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+    static constexpr bool PadK =
+        (GemmSpec == GemmSpecialization::KPadding || GemmSpec == GemmSpecialization::MKPadding ||
+         GemmSpec == GemmSpecialization::NKPadding || GemmSpec == GemmSpecialization::MNKPadding);
+
+    template <typename ADesc_MRaw_KRaw>
+    constexpr auto PadADescriptor_M_K(const ADesc_MRaw_KRaw& a_desc_mraw_kraw) const
+    {
+        return PadTensorDescriptor(
+            a_desc_mraw_kraw, make_tuple(MPerTile_, KPerTile_), Sequence<PadM, PadK>{});
+    }
+
+    template <typename BDesc_NRaw_KRaw>
+    constexpr auto PadBDescriptor_N_K(const BDesc_NRaw_KRaw& b_desc_nraw_kraw) const
+    {
+        return PadTensorDescriptor(
+            b_desc_nraw_kraw, make_tuple(NPerTile_, KPerTile_), Sequence<PadN, PadK>{});
+    }
+
+    template <typename CDesc_MRaw_NRaw>
+    constexpr auto PadCDescriptor_M_N(const CDesc_MRaw_NRaw& c_desc_mraw_nraw) const
+    {
+        return PadTensorDescriptor(
+            c_desc_mraw_nraw, make_tuple(MPerTile_, NPerTile_), Sequence<PadM, PadN>{});
+    }
+
+    MPerTileType MPerTile_;
+    NPerTileType NPerTile_;
+    KPerTileType KPerTile_;
+};
 
 } // namespace host
 } // namespace ck

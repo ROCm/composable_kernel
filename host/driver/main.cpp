@@ -1,4 +1,3 @@
-
 #include <functional>
 #include <iostream>
 #include <string>
@@ -63,6 +62,8 @@ struct Emitters
             {
                 match.push_back(op.ToSolution().ToTemplateString());
                 std::cout << op.ToSolution().ToTemplateString() << std::endl;
+                // std::cout << op.ToSolution().GetTemplateParameter("GemmSpecialization") <<
+                // std::endl;
             }
         }
     }

@@ -238,8 +238,17 @@ using GridwiseGemm = GridwiseGemmMultipleABD_xdl_cshuffle<
         ${CDEBlockTransferScalarPerVector_NPerBlock},
         LoopSched = make_default_loop_scheduler(), //will need to replace function>;
 
-extern "C" __global__ void run_${name}(void *input, void *output)
+extern "C" __global__ void run_${name}(const ck::half_t* a, const ck::half_t* b, ck::half_t* c, void* a_grid_desc, void* b_grid_desc. void* d_grid_desc, void* e_grid_desc)
 {
+    static constexpr bool isMultiA = is_detected<is_tuple, ${ADataType}>::value;
+    static constexpr bool isMultiB = is_detected<is_tuple, ${BDataType}>::value;
+
+    static constexpr std::size_t NumATensor = GetNumABTensors<isMultiA, ${ADataType}>();
+    static constexpr std::size_t NumBTensor = GetNumABTensors<isMultiB, ${BDataType}>();
+
+    using AGridPointer = remove_cvref_t<decltype(GetAGridPointer < isMultiA || isMultiB, GridwiseGemm, ADataType > ())>;
+    using BGridPointer = remove_cvref_t<decltype(GetBGridPointer < isMultiA || isMultiB, GridwiseGemm, BDataType > ())>;
+
     const auto kernel = kernel_grouped_conv_fwd__multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     AGridPointer,
