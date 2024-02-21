@@ -32,16 +32,15 @@ int main(int argc, char* argv[])
 
     using Shape = ck::tile_program::TileLayernorm2dShape<kMPerBlock, kNPerBlock>;
 
-    using PipelineProblem =
-        ck::tile_program::block::BlockLayernorm2dFwdPipelineProblem<XDataType,
-                                                                    GammaDataType,
-                                                                    BetaDataType,
-                                                                    ComputeDataType,
-                                                                    YDataType,
-                                                                    MeanDataType,
-                                                                    InvStdDataType,
-                                                                    kBlockSize,
-                                                                    Shape>;
+    using PipelineProblem = ck::tile_program::block::BlockLayernorm2dFwdProblem<XDataType,
+                                                                                GammaDataType,
+                                                                                BetaDataType,
+                                                                                ComputeDataType,
+                                                                                YDataType,
+                                                                                MeanDataType,
+                                                                                InvStdDataType,
+                                                                                kBlockSize,
+                                                                                Shape>;
 
     ck::index_t M = 3328;
     ck::index_t N = 4096;

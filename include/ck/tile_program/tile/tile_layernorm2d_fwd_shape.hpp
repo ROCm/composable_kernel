@@ -8,12 +8,12 @@
 namespace ck {
 namespace tile_program {
 
-template <index_t kMPerBlock_, index_t kNPerBlock_>
+template <index_t kMPerTile_, index_t kNPerTile_>
 struct TileLayernorm2dShape
 {
     // TODO: Extract StaticTileDistributionEncoding into here
-    static constexpr index_t kM = kMPerBlock_;
-    static constexpr index_t kN = kNPerBlock_;
+    static constexpr index_t kM = kMPerTile_;
+    static constexpr index_t kN = kNPerTile_;
 };
 
 } // namespace tile_program

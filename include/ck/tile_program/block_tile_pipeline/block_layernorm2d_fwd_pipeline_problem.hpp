@@ -19,7 +19,7 @@ template <typename XDataType_,
           typename InvStdDataType_,
           index_t kBlockSize_,
           typename BlockLayernorm2dFwdShape_>
-struct BlockLayernorm2dFwdPipelineProblem
+struct BlockLayernorm2dFwdProblem
 {
     using XDataType                = remove_cvref_t<XDataType_>;
     using GammaDataType            = remove_cvref_t<GammaDataType_>;

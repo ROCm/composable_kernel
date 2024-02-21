@@ -18,27 +18,27 @@
 #include "ck/utility/functional2.hpp"
 
 // TODO: Extract some type to wrapper class
-template <typename Layernorm2dFwdPipeline_>
+template <typename Layernorm2dFwdProblem_>
 struct Layernorm2dFwd
 {
-    using Layernorm2dFwdPipeline = ck::remove_cvref_t<Layernorm2dFwdPipeline_>;
+    using Layernorm2dFwdProblem = ck::remove_cvref_t<Layernorm2dFwdProblem_>;
 
-    using XDataType       = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::XDataType>;
-    using GammaDataType   = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::GammaDataType>;
-    using BetaDataType    = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::BetaDataType>;
-    using ComputeDataType = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::ComputeDataType>;
-    using YDataType       = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::YDataType>;
-    using MeanDataType    = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::MeanDataType>;
-    using InvStdDataType  = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::InvStdDataType>;
+    using XDataType       = ck::remove_cvref_t<typename Layernorm2dFwdProblem::XDataType>;
+    using GammaDataType   = ck::remove_cvref_t<typename Layernorm2dFwdProblem::GammaDataType>;
+    using BetaDataType    = ck::remove_cvref_t<typename Layernorm2dFwdProblem::BetaDataType>;
+    using ComputeDataType = ck::remove_cvref_t<typename Layernorm2dFwdProblem::ComputeDataType>;
+    using YDataType       = ck::remove_cvref_t<typename Layernorm2dFwdProblem::YDataType>;
+    using MeanDataType    = ck::remove_cvref_t<typename Layernorm2dFwdProblem::MeanDataType>;
+    using InvStdDataType  = ck::remove_cvref_t<typename Layernorm2dFwdProblem::InvStdDataType>;
 
     static constexpr bool HasGamma   = !ck::is_same_v<GammaDataType, ck::null_type>;
     static constexpr bool HasBeta    = !ck::is_same_v<BetaDataType, ck::null_type>;
     static constexpr bool SaveMean   = !ck::is_same_v<MeanDataType, ck::null_type>;
     static constexpr bool SaveInvStd = !ck::is_same_v<InvStdDataType, ck::null_type>;
 
-    static constexpr ck::index_t kBlockSize = Layernorm2dFwdPipeline::kBlockSize;
-    static constexpr ck::index_t kMPerBlock = Layernorm2dFwdPipeline::BlockLayernorm2dFwdShape::kM;
-    static constexpr ck::index_t kNPerBlock = Layernorm2dFwdPipeline::BlockLayernorm2dFwdShape::kN;
+    static constexpr ck::index_t kBlockSize = Layernorm2dFwdProblem::kBlockSize;
+    static constexpr ck::index_t kMPerBlock = Layernorm2dFwdProblem::BlockLayernorm2dFwdShape::kM;
+    static constexpr ck::index_t kNPerBlock = Layernorm2dFwdProblem::BlockLayernorm2dFwdShape::kN;
 
     __device__ static constexpr auto MakeXBlockTileDistribution()
     {
