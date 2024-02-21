@@ -26,6 +26,21 @@ namespace utils {
 template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+        std::is_same_v<ranges::range_value_t<Range>, null_type>,
+    bool>::type
+check_err(const Range&,
+          const RefRange&,
+          const std::string& = "Error: Incorrect results!",
+          double             = 1e-5,
+          double             = 3e-6,
+          bool               = false)
+{
+    return true;
+}
+
+template <typename Range, typename RefRange>
+typename std::enable_if<
+    std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_floating_point_v<ranges::range_value_t<Range>> &&
         !std::is_same_v<ranges::range_value_t<Range>, half_t>,
     bool>::type

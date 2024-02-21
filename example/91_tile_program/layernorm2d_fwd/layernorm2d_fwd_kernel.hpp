@@ -31,9 +31,10 @@ struct Layernorm2dFwd
     using MeanDataType    = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::MeanDataType>;
     using InvStdDataType  = ck::remove_cvref_t<typename Layernorm2dFwdPipeline::InvStdDataType>;
 
-    static constexpr bool HasGamma       = Layernorm2dFwdPipeline::Traits::HasGamma;
-    static constexpr bool HasBeta        = Layernorm2dFwdPipeline::Traits::HasBeta;
-    static constexpr bool SaveMeanInvStd = Layernorm2dFwdPipeline::Traits::SaveMeanInvStd;
+    static constexpr bool HasGamma   = !ck::is_same_v<GammaDataType, ck::null_type>;
+    static constexpr bool HasBeta    = !ck::is_same_v<BetaDataType, ck::null_type>;
+    static constexpr bool SaveMean   = !ck::is_same_v<MeanDataType, ck::null_type>;
+    static constexpr bool SaveInvStd = !ck::is_same_v<InvStdDataType, ck::null_type>;
 
     static constexpr ck::index_t kBlockSize = Layernorm2dFwdPipeline::kBlockSize;
     static constexpr ck::index_t kMPerBlock = Layernorm2dFwdPipeline::BlockLayernorm2dFwdShape::kM;
@@ -204,7 +205,11 @@ struct Layernorm2dFwd
 
         } while(iN > 0);
 
-        if constexpr(SaveMeanInvStd)
+        if constexpr(SaveMean)
+        {
+            // TODO
+        }
+        if constexpr(SaveInvStd)
         {
             // TODO
         }

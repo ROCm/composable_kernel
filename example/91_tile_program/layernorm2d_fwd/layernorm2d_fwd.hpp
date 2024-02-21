@@ -5,34 +5,4 @@
 
 #include "ck/tile_program/block_tile_pipeline/block_layernorm2d_fwd_pipeline_problem.hpp"
 #include "ck/tile_program/tile/tile_layernorm2d_fwd_shape.hpp"
-#include "ck/tile_program/tile/tile_layernorm2d_fwd_traits.hpp"
 #include "layernorm2d_fwd_kernel.hpp"
-
-template <typename XYDataType,
-          typename GammaBetaDataType  = XYDataType,
-          typename MeanInvStdDataType = XYDataType>
-struct Layernorm2dFwdTypeConfig;
-
-template <>
-struct Layernorm2dFwdTypeConfig<ck::half_t>
-{
-    using XDataType       = ck::half_t;
-    using YDataType       = ck::half_t;
-    using GammaDataType   = ck::half_t;
-    using BetaDataType    = ck::half_t;
-    using MeanDataType    = ck::half_t;
-    using InvStdDataType  = ck::half_t;
-    using ComputeDataType = float;
-};
-
-template <>
-struct Layernorm2dFwdTypeConfig<ck::half_t, float, float>
-{
-    using XDataType       = ck::half_t;
-    using YDataType       = ck::half_t;
-    using GammaDataType   = float;
-    using BetaDataType    = float;
-    using MeanDataType    = float;
-    using InvStdDataType  = float;
-    using ComputeDataType = float;
-};

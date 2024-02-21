@@ -18,24 +18,19 @@
 
 int main(int argc, char* argv[])
 {
-    using TypeConfig = Layernorm2dFwdTypeConfig<ck::half_t>;
-
-    using XDataType       = TypeConfig::XDataType;
-    using YDataType       = TypeConfig::YDataType;
-    using GammaDataType   = TypeConfig::GammaDataType;
-    using BetaDataType    = TypeConfig::BetaDataType;
-    using MeanDataType    = TypeConfig::MeanDataType;
-    using InvStdDataType  = TypeConfig::InvStdDataType;
-    using ComputeDataType = TypeConfig::ComputeDataType;
+    using XDataType       = ck::half_t;
+    using YDataType       = ck::half_t;
+    using GammaDataType   = ck::half_t;
+    using BetaDataType    = ck::half_t;
+    using MeanDataType    = ck::null_type;
+    using InvStdDataType  = ck::null_type;
+    using ComputeDataType = float;
 
     constexpr ck::index_t kMPerBlock = 128;
     constexpr ck::index_t kNPerBlock = 128;
     constexpr ck::index_t kBlockSize = 256;
 
-    constexpr bool SaveMeanInvStd = false;
-
-    using Shape  = ck::tile_program::TileLayernorm2dShape<kMPerBlock, kNPerBlock>;
-    using Traits = ck::tile_program::TileLayernorm2dFwdTraits<true, true, SaveMeanInvStd>;
+    using Shape = ck::tile_program::TileLayernorm2dShape<kMPerBlock, kNPerBlock>;
 
     using PipelineProblem =
         ck::tile_program::block::BlockLayernorm2dFwdPipelineProblem<XDataType,
@@ -46,8 +41,7 @@ int main(int argc, char* argv[])
                                                                     MeanDataType,
                                                                     InvStdDataType,
                                                                     kBlockSize,
-                                                                    Shape,
-                                                                    Traits>;
+                                                                    Shape>;
 
     ck::index_t M = 3328;
     ck::index_t N = 4096;
@@ -129,12 +123,15 @@ int main(int argc, char* argv[])
 
     bool pass = ck::utils::check_err(y_host_dev, y_host_ref);
 
-    if constexpr(SaveMeanInvStd)
+    if constexpr(!ck::is_same_v<MeanDataType, ck::null_type>)
     {
         mean_buf.FromDevice(mean_host_dev.data());
-        invStd_buf.FromDevice(invStd_host_dev.data());
-
         pass &= ck::utils::check_err(mean_host_dev, mean_host_ref);
+    }
+
+    if constexpr(!ck::is_same_v<InvStdDataType, ck::null_type>)
+    {
+        invStd_buf.FromDevice(invStd_host_dev.data());
         pass &= ck::utils::check_err(invStd_host_dev, invStd_host_ref);
     }
 

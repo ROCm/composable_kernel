@@ -18,8 +18,7 @@ template <typename XDataType_,
           typename MeanDataType_,
           typename InvStdDataType_,
           index_t kBlockSize_,
-          typename BlockLayernorm2dFwdShape_,
-          typename Traits_>
+          typename BlockLayernorm2dFwdShape_>
 struct BlockLayernorm2dFwdPipelineProblem
 {
     using XDataType                = remove_cvref_t<XDataType_>;
@@ -30,7 +29,6 @@ struct BlockLayernorm2dFwdPipelineProblem
     using MeanDataType             = remove_cvref_t<MeanDataType_>;
     using InvStdDataType           = remove_cvref_t<InvStdDataType_>;
     using BlockLayernorm2dFwdShape = remove_cvref_t<BlockLayernorm2dFwdShape_>;
-    using Traits                   = remove_cvref_t<Traits_>;
 
     static constexpr index_t kBlockSize = kBlockSize_;
 };

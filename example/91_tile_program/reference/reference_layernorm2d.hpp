@@ -44,8 +44,11 @@ void reference_layernorm2d_fwd(const Tensor<XDataType>& x_m_n,
         variance = variance / count;
         divisor  = ck::type_convert<ComputeDataType>(1) / ck::math::sqrt(variance + epsilon);
 
-        mean_m(m)   = ck::type_convert<MeanDataType>(mean);
-        invStd_m(m) = ck::type_convert<InvStdDataType>(divisor);
+        if constexpr(!ck::is_same_v<MeanDataType, ck::null_type>)
+            mean_m(m) = ck::type_convert<MeanDataType>(mean);
+
+        if constexpr(!ck::is_same_v<InvStdDataType, ck::null_type>)
+            invStd_m(m) = ck::type_convert<InvStdDataType>(divisor);
 
         for(int n = 0; n < N; ++n)
         {
