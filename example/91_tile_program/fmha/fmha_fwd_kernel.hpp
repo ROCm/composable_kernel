@@ -8,6 +8,7 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor/tensor_view.hpp"
 #include "ck/tile_program/tile/tile_window.hpp"
+#include "ck/utility/philox_rand.hpp"
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] * K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -702,6 +703,7 @@ struct FmhaFwdKernel
             }
         }();
 
+        // about dropout
         auto drop_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto drop_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
@@ -732,6 +734,7 @@ struct FmhaFwdKernel
                 return make_null_tile_window(drop_dram_window_lengths);
             }
         }();
+        BlockFmhaDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t);
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
@@ -754,9 +757,7 @@ struct FmhaFwdKernel
                                       kargs.descale_qk,
                                       kargs.descale_sv,
                                       smem_ptr,
-                                      i_total_id,
-                                      rp_undrop,
-                                      p_undrop_in_uint8_t,
+                                      dropout,
                                       ph);
             }
             else
@@ -770,9 +771,7 @@ struct FmhaFwdKernel
                                       mask,
                                       kargs.scale,
                                       smem_ptr,
-                                      i_total_id,
-                                      rp_undrop,
-                                      p_undrop_in_uint8_t,
+                                      dropout,
                                       ph);
             }
         }();
