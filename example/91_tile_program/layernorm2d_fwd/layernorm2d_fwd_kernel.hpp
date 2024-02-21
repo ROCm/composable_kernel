@@ -70,8 +70,7 @@ struct Layernorm2dFwd
         return ret;
     }
 
-    template <typename ck::enable_if<HasGamma == true, bool>::type = false,
-              typename ck::enable_if<HasBeta == true, bool>::type  = false>
+    template <ck::enable_if_t<HasGamma, int> = 0, ck::enable_if_t<HasBeta, int> = 0>
     __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
                                           const GammaDataType* p_gamma,
                                           const BetaDataType* p_beta,
