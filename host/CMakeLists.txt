@@ -16,10 +16,10 @@ include(ROCMTest)
 list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
-	${CK_ROOT}/include/ck/*.hpp ${CK_ROOT}/parse/include/*.hpp)
+	${CK_ROOT}/include/ck/*.hpp ${CK_ROOT}/library/include/ck/library/utility/*.hpp ${CK_ROOT}/parse/include/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 message(STATUS "RELATIVE: ${CK_ROOT}/include")
-add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include ${CK_ROOT}/parse/include)
+add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 add_definitions(-std=c++17)
 

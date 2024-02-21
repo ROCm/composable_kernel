@@ -131,14 +131,10 @@ auto report(const Solution& solution, bool pass)
 {
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
-// FIXME: should i use MIOpen's Arg ptr? seems like a good option, try it out first
 const std::string conv_compile_check = R"__ck__(
 #include <${include}>
 
 ${template};
-extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
-    using G = ${template};
-}
 
 )__ck__";
 
@@ -159,9 +155,25 @@ TEST_CASE(test_problem_kernel)
     auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
     auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
     auto c               = to_gpu(generate_buffer<half>(64 * 64, 2));
-    std::string prologue = "";
-    std::string epilogue = "";
+    std::string prologue = R"(struct Prologue
+{
+    Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
+    template <typename E, typename C, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
+        ck::half_t& e, const float& c, const ck::half_t& d) const
+    {
+        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
+    };
+
+    float alpha_;
+    float beta_;
+};
+)";
+    std::string epilogue = "";
     // length+stride arrays
     std::array<std::size_t, 5> in_lengths{prob.G, prob.N, prob.C, prob.Hi, prob.Wi};
     std::array<std::size_t, 5> out_lengths{prob.G, prob.N, prob.K, prob.Ho, prob.Wo};
@@ -189,8 +201,7 @@ TEST_CASE(test_problem_kernel)
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include", prob.GetIncludeHeader()},
-             {"template", solution.ToTemplateString()}, // my template returns an object -> fine,
-                                                        // just make sure it gets the right object
+             {"template", solution.ToTemplateString()},
              {"m", std::to_string(prob.G)},
              {"n", std::to_string(prob.N)},
              {"k", std::to_string(prob.C)}}); // FIXME: pass in the right dims
@@ -359,10 +370,10 @@ TEST_CASE(test_problem_kernel)
 extern "C" __global__ void f(const ck::half_t* a, const ck::half_t* b, ck::half_t* c) {
     using G = ${template};
     constexpr auto desc =
-${template}::make_descriptor(ck::ck::host::make_naive_tensor_descriptor_packed(ck::ck::host::make_tuple(${m},
-${k})), ck::ck::host::make_naive_tensor_descriptor(ck::ck::host::make_tuple(${n},
-${k}), ck::ck::host::make_tuple(1, ${n})), ck::ck::host::make_tuple(),
-                                             ck::ck::host::make_naive_tensor_descriptor_packed(ck::ck::host::make_tuple(${m},
+${template}::make_descriptor(ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m},
+${k})), ck::make_naive_tensor_descriptor(ck::make_tuple(${n},
+${k}), ck::make_tuple(1, ${n})), ck::make_tuple(),
+                                             ck::make_naive_tensor_descriptor_packed(ck::make_tuple(${m},
 ${n})));
 
     static_assert(desc.IsValid(), "Invalid ck gemm.");
@@ -372,7 +383,7 @@ ${n})));
         ${template}::Run(desc,
                a,
                b,
-               ck::ck::host::make_tuple(),
+               ck::make_tuple(),
                c);
     }
 }

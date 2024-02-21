@@ -35,18 +35,28 @@ struct Emitters
     }
 
     template <class T>
-    void Select(ck::host::device_gemm_multiple_d::Problem& prob,
+    void Select(ck::host::conv::Problem_Conv& prob,
                 const std::string& name,
                 const std::string& prologue,
                 const std::string& epilogue)
     {
-        auto M = std::to_string(prob.M);
+        /**auto M = std::to_string(prob.M);
         auto N = std::to_string(prob.N);
         auto K = std::to_string(prob.K);
         std::cout << "M: " << M << std::endl;
         std::cout << "N: " << N << std::endl;
-        std::cout << "K: " << K << std::endl;
+        std::cout << "K: " << K << std::endl;**/
 
+        auto G  = std::to_string(prob.G);
+        auto N  = std::to_string(prob.N);
+        auto C  = std::to_string(prob.C);
+        auto K  = std::to_string(prob.K);
+        auto Y  = std::to_string(prob.Y);
+        auto X  = std::to_string(prob.X);
+        auto Hi = std::to_string(prob.Hi);
+        auto Wi = std::to_string(prob.Wi);
+        auto Ho = std::to_string(prob.Ho);
+        auto Wo = std::to_string(prob.Wo);
         // TODO: add argument check here
         // generate all instances
         auto ops = T::CreateOperations(prologue, epilogue);
@@ -74,9 +84,9 @@ int main(int argc, const char* argv[])
     std::string prog = argv[0];
     std::vector<std::string> args(argv + 1, argv + argc);
 
-    std::string prologue = R"(struct AlphaBetaAdd
+    std::string prologue = R"(struct Prologue
 {
-    AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
     template <typename E, typename C, typename D>
     __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
@@ -91,7 +101,7 @@ int main(int argc, const char* argv[])
     float alpha_;
     float beta_;
 };
-using Prologue = AlphaBetaAdd;)";
+)";
     std::string epilogue = "";
 
     Emitters e;
@@ -116,12 +126,18 @@ using Prologue = AlphaBetaAdd;)";
         return 0;
     }
 
-    ck::host::device_gemm_multiple_d::Problem prob;
-    prob.M = 1024;
-    prob.N = 1024;
-    prob.K = 1024;
-    e.Select<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
-        prob, "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
+    ck::host::conv::Problem_Conv prob;
+    prob.G  = 1024;
+    prob.N  = 1024;
+    prob.C  = 1024;
+    prob.K  = 1024;
+    prob.X  = 1024;
+    prob.Y  = 1024;
+    prob.Hi = 1024;
+    prob.Wi = 1024;
+    prob.Ho = 1024;
+    prob.Wo = 1024;
+    e.Select<ck::host::conv::Operation_Conv>(prob, "Device_Conv", prologue, epilogue);
 
     // for(auto name : args)
     //  std::cout << e.Emit(name) << std::endl;
