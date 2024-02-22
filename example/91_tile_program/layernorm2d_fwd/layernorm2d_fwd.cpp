@@ -91,10 +91,6 @@ int main(int argc, char* argv[])
     gamma_buf.ToDevice(gamma_host.data());
     beta_buf.ToDevice(beta_host.data());
 
-    ck::index_t kGridSize = (M / kMPerBlock);
-
-    std::cout << "grid size " << kGridSize << std::endl;
-
     auto kargs = Kernel::MakeKargs(x_buf.GetDeviceBuffer(),
                                    gamma_buf.GetDeviceBuffer(),
                                    beta_buf.GetDeviceBuffer(),
@@ -105,8 +101,8 @@ int main(int argc, char* argv[])
                                    M,
                                    N);
 
-    float ave_time =
-        launch_kernel(StreamConfig{nullptr, true}, Kernel{}, kGridSize, kBlockSize, 0, kargs);
+    float ave_time = launch_kernel(
+        StreamConfig{nullptr, true}, Kernel{}, Kernel::GridSize(M), Kernel::BlockSize(), 0, kargs);
 
     std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;

@@ -69,6 +69,10 @@ struct Layernorm2dFwd
         return Kargs{p_x, p_gamma, p_beta, p_y, p_mean, p_invStd, epsilon, M, N};
     }
 
+    __host__ static constexpr auto GridSize(ck::index_t M) { return M / kMPerBlock; }
+
+    __host__ static constexpr auto BlockSize() { return kBlockSize; }
+
     __device__ static constexpr auto MakeXBlockTileDistribution()
     {
         using namespace ck;
