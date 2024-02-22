@@ -29,13 +29,13 @@ template <typename HostTensorA,
 void reference_permute_scale(HostTensorB& b_tensor,
                              const HostTensorA& a_tensor,
                              AElementOp a_tensor_op,
-                             BElementOp b_tensor_op,
-                             ScaleElementOp scale_op)
+                             BElementOp ,//b_tensor_op,
+                             ScaleElementOp)// scale_op)
 {
     b_tensor.ForEach([&](auto& self, auto idx) {
         auto tmp_val = a_tensor(idx);
-        b_tensor_op(tmp_val, tmp_val);
-        scale_op(tmp_val, tmp_val);
+        // b_tensor_op(tmp_val, tmp_val);
+        // scale_op(tmp_val, tmp_val);
         a_tensor_op(self(idx), tmp_val);
     });
 }
@@ -141,6 +141,7 @@ bool profile_permute_scale_impl(int do_verification,
                 if(do_log)
                 {
                     LogRangeAsType<float>(std::cout << "a : ", a.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "host_b: ", host_b.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "b: ", b.mData, ",") << std::endl;
                 }
             }

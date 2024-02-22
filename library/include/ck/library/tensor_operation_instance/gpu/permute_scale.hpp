@@ -17,37 +17,37 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_permute_scale_1d_f16_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
-                                                  ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  1>>>&);
+// void add_device_permute_scale_1d_f16_instances(
+//     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
+//                                                   ck::Tuple<F16>,
+//                                                   PassThrough,
+//                                                   element_wise::UnarySquare,
+//                                                   Scale,
+//                                                   1>>>&);
 
-void add_device_permute_scale_1d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  1>>>&);
+// void add_device_permute_scale_1d_f32_instances(
+//     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+//                                                   ck::Tuple<F32>,
+//                                                   PassThrough,
+//                                                   element_wise::UnarySquare,
+//                                                   Scale,
+//                                                   1>>>&);
 
-void add_device_permute_scale_2d_f16_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
-                                                  ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  2>>>&);
+// void add_device_permute_scale_2d_f16_instances(
+//     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
+//                                                   ck::Tuple<F16>,
+//                                                   PassThrough,
+//                                                   element_wise::UnarySquare,
+//                                                   Scale,
+//                                                   2>>>&);
 
-void add_device_permute_scale_2d_f32_instances(
-    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
-                                                  ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
-                                                  2>>>&);
+// void add_device_permute_scale_2d_f32_instances(
+//     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
+//                                                   ck::Tuple<F32>,
+//                                                   PassThrough,
+//                                                   element_wise::UnarySquare,
+//                                                   Scale,
+//                                                   2>>>&);
 
 void add_device_permute_scale_3d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
@@ -142,12 +142,12 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
-                add_device_permute_scale_1d_f32_instances(op_ptrs);
+                // add_device_permute_scale_1d_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                               is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
-                add_device_permute_scale_1d_f16_instances(op_ptrs);
+                // add_device_permute_scale_1d_f16_instances(op_ptrs);
             }
         }
         else if constexpr(NumDim == 2)
@@ -155,12 +155,12 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
                          is_same_v<OutDataTypeTuple, ck::Tuple<F32>>)
             {
-                add_device_permute_scale_2d_f32_instances(op_ptrs);
+                // add_device_permute_scale_2d_f32_instances(op_ptrs);
             }
             else if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F16>> &&
                               is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
-                add_device_permute_scale_2d_f16_instances(op_ptrs);
+                // add_device_permute_scale_2d_f16_instances(op_ptrs);
             }
         }
         else if constexpr(NumDim == 3)
