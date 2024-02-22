@@ -70,16 +70,6 @@ int main(int argc, char* argv[])
     ck::utils::FillUniformDistribution<GammaDataType>{-5.f, 5.f}(gamma_host);
     ck::utils::FillUniformDistribution<BetaDataType>{-5.f, 5.f}(beta_host);
 
-    // reference
-    reference_layernorm2d_fwd<XDataType,
-                              GammaDataType,
-                              BetaDataType,
-                              ComputeDataType,
-                              YDataType,
-                              MeanDataType,
-                              InvStdDataType>(
-        x_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
-
     DeviceMem x_buf(x_host.GetElementSpaceSizeInBytes());
     DeviceMem gamma_buf(gamma_host.GetElementSpaceSizeInBytes());
     DeviceMem beta_buf(beta_host.GetElementSpaceSizeInBytes());
@@ -110,6 +100,16 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+
+    // reference
+    reference_layernorm2d_fwd<XDataType,
+                              GammaDataType,
+                              BetaDataType,
+                              ComputeDataType,
+                              YDataType,
+                              MeanDataType,
+                              InvStdDataType>(
+        x_host, gamma_host, beta_host, y_host_ref, mean_host_ref, invStd_host_ref, epsilon);
 
     y_buf.FromDevice(y_host_dev.data());
 
