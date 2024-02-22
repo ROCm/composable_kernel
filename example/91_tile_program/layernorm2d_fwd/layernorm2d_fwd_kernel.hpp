@@ -103,16 +103,16 @@ struct Layernorm2dFwd
         return ret;
     }
 
-    template <ck::enable_if_t<kHasGamma, int> = 0, ck::enable_if_t<kHasBeta, int> = 0>
-    __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
-                                          const GammaDataType* p_gamma,
-                                          const BetaDataType* p_beta,
-                                          YDataType* p_y,
-                                          MeanDataType* /*p_mean*/,
-                                          InvStdDataType* /*p_invStd*/,
-                                          const ComputeDataType epsilon,
-                                          ck::index_t M,
-                                          ck::index_t N) const
+    template <bool Cond = (kHasGamma && kHasBeta)>
+    __device__ ck::enable_if_t<Cond> TwoPassLayernorm2dFwd(const XDataType* p_x,
+                                                           const GammaDataType* p_gamma,
+                                                           const BetaDataType* p_beta,
+                                                           YDataType* p_y,
+                                                           MeanDataType* /*p_mean*/,
+                                                           InvStdDataType* /*p_invStd*/,
+                                                           const ComputeDataType epsilon,
+                                                           ck::index_t M,
+                                                           ck::index_t N) const
     {
         using namespace ck;
         using namespace ck::tile_program;
