@@ -41,10 +41,6 @@ int main(int argc, char* argv[])
 
     ck::utils::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
 
-    // reference
-    reference_variance<XDataType, ComputeDataType, MeanDataType, VarDataType>(
-        x_host, mean_host_ref, var_host_ref);
-
     DeviceMem x_buf(x_host.GetElementSpaceSizeInBytes());
     DeviceMem mean_buf(mean_host_ref.GetElementSpaceSizeInBytes());
     DeviceMem var_buf(var_host_ref.GetElementSpaceSizeInBytes());
@@ -86,6 +82,10 @@ int main(int argc, char* argv[])
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+
+    // reference
+    reference_variance<XDataType, ComputeDataType, MeanDataType, VarDataType>(
+        x_host, mean_host_ref, var_host_ref);
 
     bool pass = ck::utils::check_err(mean_host_dev, mean_host_ref) &&
                 ck::utils::check_err(var_host_dev, var_host_dev);
