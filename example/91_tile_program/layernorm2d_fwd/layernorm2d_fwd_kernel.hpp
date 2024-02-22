@@ -31,10 +31,10 @@ struct Layernorm2dFwd
     using MeanDataType    = ck::remove_cvref_t<typename Layernorm2dFwdProblem::MeanDataType>;
     using InvStdDataType  = ck::remove_cvref_t<typename Layernorm2dFwdProblem::InvStdDataType>;
 
-    static constexpr bool HasGamma   = !ck::is_same_v<GammaDataType, ck::null_type>;
-    static constexpr bool HasBeta    = !ck::is_same_v<BetaDataType, ck::null_type>;
-    static constexpr bool SaveMean   = !ck::is_same_v<MeanDataType, ck::null_type>;
-    static constexpr bool SaveInvStd = !ck::is_same_v<InvStdDataType, ck::null_type>;
+    static constexpr bool kHasGamma   = !ck::is_same_v<GammaDataType, ck::null_type>;
+    static constexpr bool kHasBeta    = !ck::is_same_v<BetaDataType, ck::null_type>;
+    static constexpr bool kSaveMean   = !ck::is_same_v<MeanDataType, ck::null_type>;
+    static constexpr bool kSaveInvStd = !ck::is_same_v<InvStdDataType, ck::null_type>;
 
     static constexpr ck::index_t kBlockSize = Layernorm2dFwdProblem::kBlockSize;
     static constexpr ck::index_t kMPerBlock = Layernorm2dFwdProblem::BlockLayernorm2dFwdShape::kM;
@@ -103,7 +103,7 @@ struct Layernorm2dFwd
         return ret;
     }
 
-    template <ck::enable_if_t<HasGamma, int> = 0, ck::enable_if_t<HasBeta, int> = 0>
+    template <ck::enable_if_t<kHasGamma, int> = 0, ck::enable_if_t<kHasBeta, int> = 0>
     __device__ void TwoPassLayernorm2dFwd(const XDataType* p_x,
                                           const GammaDataType* p_gamma,
                                           const BetaDataType* p_beta,
@@ -237,11 +237,11 @@ struct Layernorm2dFwd
 
         } while(iN > 0);
 
-        if constexpr(SaveMean)
+        if constexpr(kSaveMean)
         {
             // TODO
         }
-        if constexpr(SaveInvStd)
+        if constexpr(kSaveInvStd)
         {
             // TODO
         }
