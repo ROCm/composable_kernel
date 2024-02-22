@@ -666,7 +666,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         if constexpr(Problem::kHasDropout)
         {
             constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-            constexpr index_t kNPerStep  = 32;
+
+            constexpr auto gemm_0 = QXPolicy::template GetQKBlockGemm<Problem>();
+            constexpr auto config =
+                decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG = remove_cvref_t<decltype(config.template At<0>())>;
+
+            constexpr index_t kNPerStep = WG::kN;
             return kMPerBlock * kNPerStep * sizeof(typename Problem::DropDataType);
         }
         else
