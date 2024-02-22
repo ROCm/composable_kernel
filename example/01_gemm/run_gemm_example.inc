@@ -69,8 +69,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n);
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+        ck::utils::FillUniformDistribution<ADataType>{-0.1f, 0.1f}(a_m_k);
+        ck::utils::FillUniformDistribution<BDataType>{-0.1f, 0.1f}(b_k_n);
     }
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
