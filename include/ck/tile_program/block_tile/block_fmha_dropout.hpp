@@ -34,14 +34,19 @@ struct BlockFmhaDropout
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
     {
     }
-    template <typename Problem>
+
+    template <typename Problem, typename BlockGemm>
     __host__ __device__ static constexpr auto MakeDropLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kNPerStep  = 32;
-        constexpr index_t kN0_1      = 8;
-        constexpr index_t kN0_0      = kNPerStep / kN0_1;
+
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+
+        constexpr index_t kNPerStep = WG::kN;
+        constexpr index_t kN0_1     = 8;
+        constexpr index_t kN0_0     = kNPerStep / kN0_1;
         static_assert(kNPerBlock % kNPerStep == 0,
                       "kNPerStep must be evenly divided by kNPerBlock");
 
@@ -147,10 +152,12 @@ struct BlockFmhaDropout
             auto drop_lds = make_tensor_view<AddressSpaceEnum::Lds>(
                 reinterpret_cast<DropDataType*>(reinterpret_cast<char*>(smem_ptr) +
                                                 Policy::template GetSmemSizeKV<Problem>()),
-                MakeDropLdsBlockDescriptor<Problem>());
+                MakeDropLdsBlockDescriptor<Problem, decltype(gemm_0)>());
 
             auto drop_lds_window = make_tile_window(
-                drop_lds, MakeDropLdsBlockDescriptor<Problem>().GetLengths(), {0, 0});
+                drop_lds,
+                MakeDropLdsBlockDescriptor<Problem, decltype(gemm_0)>().GetLengths(),
+                {0, 0});
 
             // register distribute
             auto drop_distr_origin = make_static_distributed_tensor<DropDataType>(
