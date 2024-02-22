@@ -50,20 +50,20 @@ struct BlockFmhaDropout
         static_assert(kNPerBlock % kNPerStep == 0,
                       "kNPerStep must be evenly divided by kNPerBlock");
 
-        constexpr auto z_lds_block_desc_0 = make_naive_tensor_descriptor(
+        constexpr auto dop_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(Number<kN0_0>{}, Number<kMPerBlock>{}, Number<kN0_1>{}),
             make_tuple(Number<(kMPerBlock + 1) * kN0_1>{}, Number<kN0_1>{}, Number<1>{}),
             Number<kN0_1>{},
             Number<1>{});
 
-        constexpr auto z_lds_block_desc = transform_tensor_descriptor(
-            z_lds_block_desc_0,
+        constexpr auto drop_lds_block_desc = transform_tensor_descriptor(
+            dop_lds_block_desc_0,
             make_tuple(make_pass_through_transform(Number<kMPerBlock>{}),
                        make_merge_transform(make_tuple(Number<kN0_0>{}, Number<kN0_1>{}))),
             make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return z_lds_block_desc;
+        return drop_lds_block_desc;
     }
 
     template <typename Problem, typename BlockGemm>
@@ -87,8 +87,8 @@ struct BlockFmhaDropout
 
         static_assert(NPerBlock % kNPerStep == 0, "kNPerStep must be evenly divided by NPerBlock");
 
-        // Construct Z-Block-Tensor
-        constexpr auto z_block_dstr_encoding = StaticTileDistributionEncoding<
+        // Construct Drop-Block-Tensor
+        constexpr auto drop_block_dstr_encoding = StaticTileDistributionEncoding<
             Sequence<>,
             Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0_0, kN0_1>>,
             Tuple<Sequence<1>, Sequence<1, 2>>,
@@ -96,9 +96,9 @@ struct BlockFmhaDropout
             Sequence<1, 1, 2>,
             Sequence<1, 3, 1>>{};
 
-        constexpr auto z_block_dstr = make_static_tile_distribution(z_block_dstr_encoding);
+        constexpr auto drop_block_dstr = make_static_tile_distribution(drop_block_dstr_encoding);
 
-        return z_block_dstr;
+        return drop_block_dstr;
     }
 
     template <typename Problem, typename BlockGemm>
@@ -113,7 +113,7 @@ struct BlockFmhaDropout
         constexpr index_t MIterPerWarp = 1;
         constexpr index_t NIterPerWarp = 1; // only a part s_acc distribution
 
-        constexpr auto c_block_outer_part_dstr_encoding = StaticTileDistributionEncoding<
+        constexpr auto drop_block_outer_part_dstr_encoding = StaticTileDistributionEncoding<
             Sequence<>,
             Tuple<Sequence<MIterPerWarp, MWarp>, Sequence<NIterPerWarp, NWarp>>,
             Tuple<Sequence<1, 2>>,
@@ -121,10 +121,10 @@ struct BlockFmhaDropout
             Sequence<1, 2>,
             Sequence<0, 0>>{};
 
-        constexpr auto c_block_part_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_part_dstr_encoding, typename WG::CWarpDstrEncoding{});
+        constexpr auto drop_block_part_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            drop_block_outer_part_dstr_encoding, typename WG::CWarpDstrEncoding{});
 
-        return make_static_tile_distribution(c_block_part_dstr_encode);
+        return make_static_tile_distribution(drop_block_part_dstr_encode);
     }
 
     template <typename Problem, typename Policy, typename PComputeWindow, typename DropDramWindow>
