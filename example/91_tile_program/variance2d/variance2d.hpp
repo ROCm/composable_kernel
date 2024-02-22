@@ -87,11 +87,8 @@ struct Variance2d
         auto mean_compute_block_tensor = mean_var_compute_block_tensor_tuple.At(Number<0>{});
         auto var_compute_block_tensor  = mean_var_compute_block_tensor_tuple.At(Number<1>{});
 
-        // init Mean & Var tile
-        tile_elementwise_inout(
-            [&](auto& mean, auto& var) { var = mean = type_convert<ComputeDataType>(0); },
-            mean_compute_block_tensor,
-            var_compute_block_tensor);
+        clear_tile(mean_compute_block_tensor);
+        clear_tile(var_compute_block_tensor);
 
         index_t iN = 0;
         do
@@ -114,9 +111,7 @@ struct Variance2d
             if constexpr(is_same_v<MeanDataType, ComputeDataType>)
                 return mean_compute_block_tensor;
             else
-                return tile_elementwise_in(
-                    [](const auto& mean) { return type_convert<MeanDataType>(mean); },
-                    mean_compute_block_tensor);
+                return cast_tile<MeanDataType>(mean_compute_block_tensor);
         }();
 
         const auto mean_m = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
@@ -133,9 +128,7 @@ struct Variance2d
             if constexpr(is_same_v<VarDataType, ComputeDataType>)
                 return var_compute_block_tensor;
             else
-                return tile_elementwise_in(
-                    [](const auto& var) { return type_convert<VarDataType>(var); },
-                    var_compute_block_tensor);
+                return cast_tile<VarDataType>(var_compute_block_tensor);
         }();
 
         const auto var_m = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(

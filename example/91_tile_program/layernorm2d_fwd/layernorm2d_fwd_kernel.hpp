@@ -147,11 +147,8 @@ struct Layernorm2dFwd
         auto mean_compute_block_tensor = mean_var_compute_block_tensor_tuple.At(Number<0>{});
         auto var_compute_block_tensor  = mean_var_compute_block_tensor_tuple.At(Number<1>{});
 
-        // init Mean & Var tile
-        tile_elementwise_inout(
-            [&](auto& mean, auto& var) { var = mean = type_convert<ComputeDataType>(0); },
-            mean_compute_block_tensor,
-            var_compute_block_tensor);
+        clear_tile(mean_compute_block_tensor);
+        clear_tile(var_compute_block_tensor);
 
         index_t iN = 0;
         do
