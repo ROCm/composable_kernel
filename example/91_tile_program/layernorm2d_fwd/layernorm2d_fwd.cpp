@@ -42,6 +42,9 @@ int main(int argc, char* argv[])
                                                                                 kBlockSize,
                                                                                 Shape>;
 
+    using Kernel = Layernorm2dFwd<PipelineProblem>;
+
+    float epsilon = 1e-5;
     ck::index_t M = 3328;
     ck::index_t N = 4096;
 
@@ -62,8 +65,6 @@ int main(int argc, char* argv[])
     Tensor<MeanDataType> mean_host_dev({M});
     Tensor<InvStdDataType> invStd_host_ref({M});
     Tensor<InvStdDataType> invStd_host_dev({M});
-
-    ComputeDataType epsilon = 1e-5;
 
     ck::utils::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
     ck::utils::FillUniformDistribution<GammaDataType>{-5.f, 5.f}(gamma_host);
@@ -94,22 +95,18 @@ int main(int argc, char* argv[])
 
     std::cout << "grid size " << kGridSize << std::endl;
 
-    const auto kernel = Layernorm2dFwd<PipelineProblem>{};
-
-    float ave_time = launch_kernel(StreamConfig{nullptr, true},
-                                   kernel,
-                                   kGridSize,
-                                   kBlockSize,
-                                   0,
-                                   static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                   static_cast<GammaDataType*>(gamma_buf.GetDeviceBuffer()),
-                                   static_cast<BetaDataType*>(beta_buf.GetDeviceBuffer()),
-                                   static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-                                   static_cast<MeanDataType*>(mean_buf.GetDeviceBuffer()),
-                                   static_cast<InvStdDataType*>(invStd_buf.GetDeviceBuffer()),
+    auto kargs = Kernel::MakeKargs(x_buf.GetDeviceBuffer(),
+                                   gamma_buf.GetDeviceBuffer(),
+                                   beta_buf.GetDeviceBuffer(),
+                                   y_buf.GetDeviceBuffer(),
+                                   mean_buf.GetDeviceBuffer(),
+                                   invStd_buf.GetDeviceBuffer(),
                                    epsilon,
                                    M,
                                    N);
+
+    float ave_time =
+        launch_kernel(StreamConfig{nullptr, true}, Kernel{}, kGridSize, kBlockSize, 0, kargs);
 
     std::size_t num_byte = sizeof(XDataType) * M * N + sizeof(GammaDataType) * N +
                            sizeof(BetaDataType) * N + sizeof(YDataType) * M * N;

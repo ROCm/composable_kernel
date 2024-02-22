@@ -40,6 +40,35 @@ struct Layernorm2dFwd
     static constexpr ck::index_t kMPerBlock = Layernorm2dFwdProblem::BlockLayernorm2dFwdShape::kM;
     static constexpr ck::index_t kNPerBlock = Layernorm2dFwdProblem::BlockLayernorm2dFwdShape::kN;
 
+    struct Kargs
+    {
+        const void* p_x;
+        const void* p_gamma;
+        const void* p_beta;
+
+        void* p_y;
+        void* p_mean;
+        void* p_invStd;
+
+        float epsilon;
+
+        ck::index_t M;
+        ck::index_t N;
+    };
+
+    __host__ static constexpr Kargs MakeKargs(const void* p_x,
+                                              const void* p_gamma,
+                                              const void* p_beta,
+                                              void* p_y,
+                                              void* p_mean,
+                                              void* p_invStd,
+                                              float epsilon,
+                                              ck::index_t M,
+                                              ck::index_t N)
+    {
+        return Kargs{p_x, p_gamma, p_beta, p_y, p_mean, p_invStd, epsilon, M, N};
+    }
+
     __device__ static constexpr auto MakeXBlockTileDistribution()
     {
         using namespace ck;
@@ -214,16 +243,16 @@ struct Layernorm2dFwd
         }
     }
 
-    __device__ void operator()(const XDataType* p_x,
-                               const GammaDataType* p_gamma,
-                               const BetaDataType* p_beta,
-                               YDataType* p_y,
-                               MeanDataType* p_mean,
-                               InvStdDataType* p_invStd,
-                               const ComputeDataType epsilon,
-                               ck::index_t M,
-                               ck::index_t N) const
+    __device__ void operator()(Kargs kargs) const
     {
-        TwoPassLayernorm2dFwd(p_x, p_gamma, p_beta, p_y, p_mean, p_invStd, epsilon, M, N);
+        TwoPassLayernorm2dFwd(static_cast<const XDataType*>(kargs.p_x),
+                              static_cast<const GammaDataType*>(kargs.p_gamma),
+                              static_cast<const BetaDataType*>(kargs.p_beta),
+                              static_cast<YDataType*>(kargs.p_y),
+                              static_cast<MeanDataType*>(kargs.p_mean),
+                              static_cast<InvStdDataType*>(kargs.p_invStd),
+                              static_cast<const ComputeDataType>(kargs.epsilon),
+                              kargs.M,
+                              kargs.N);
     }
 };
