@@ -26,7 +26,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Odd>
+          TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
@@ -55,7 +55,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Odd>
+          TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
@@ -626,6 +626,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
                                 decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
                                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
+                                ABlockTransferSrcScalarPerVector,
+                                BBlockTransferSrcScalarPerVector,
                                 MPerBlock,
                                 NPerBlock,
                                 KPerBlock,
@@ -824,9 +826,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
-        if(num_k_loop < BlockwiseGemmPipe::PrefetchStages)
+        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1 &&
+                     BlkGemmPipelineVer != BlockGemmPipelineVersion::v2)
         {
-            return false;
+            if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
+            {
+                return false;
+            }
         }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
@@ -1315,7 +1321,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 1,
                                                 1,
                                                 AThreadTransferSrcResetCoordinateAfterRun,
-                                                true>(
+                                                true,
+                                                BlockwiseGemmPipe::GlobalBufferNum>(
                 a_grid_desc_ak0_m_ak1,
                 make_multi_index(0, m_block_data_idx_on_grid, 0),
                 a_element_op,
@@ -1345,7 +1352,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 1,
                                                 1,
                                                 BThreadTransferSrcResetCoordinateAfterRun,
-                                                true>(
+                                                true,
+                                                BlockwiseGemmPipe::GlobalBufferNum>(
                 b_grid_desc_bk0_n_bk1,
                 make_multi_index(0, n_block_data_idx_on_grid, 0),
                 b_element_op,

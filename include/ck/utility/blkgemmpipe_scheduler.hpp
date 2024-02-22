@@ -30,7 +30,10 @@ enum struct TailNumber
     Six,
     Seven,
 
-    // Number of loop is multiple of number of buffer
+    // Unroll stages > Prefetch stages, number of loop is multiple of unroll stages
+    Empty,
+    // Unroll stages <= Prefetch stages, number of loop is multiple of unroll stages add
+    // prefetchstages
     Full,
 };
 template <index_t BlockSize,

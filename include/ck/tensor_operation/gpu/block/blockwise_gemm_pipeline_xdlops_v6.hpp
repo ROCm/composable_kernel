@@ -7,8 +7,12 @@
 
 namespace ck {
 
+// Reg spill in RRR either with
+// 1. 3 GlobalBuffer, 6 HotloopUnroll
+// 2. 4 GlobalBuffer, 4 HotloopUnroll
+
 // Compute optimimal pipeline with highest resource request
-// GlobalPrefetchStages: 4
+// GlobalPrefetchStages: 5
 // LocalPreFillStages: 2
 // LocalPreFetchStages: 1
 // LocalSharedMemoryBuffer: 2
@@ -31,7 +35,7 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPacks>
-struct BlockwiseGemmXdlops_pipeline_v4
+struct BlockwiseGemmXdlops_pipeline_v6
 {
 };
 
@@ -54,7 +58,7 @@ template <index_t BlockSize,
           index_t KPack
           // ,bool TransposeC //disable transposec right now...
           >
-struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
+struct BlockwiseGemmXdlops_pipeline_v6<BlockGemmPipelineScheduler::Intrawave,
                                        BlockSize,
                                        FloatAB,
                                        FloatAcc,
@@ -110,6 +114,8 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                                    KPack>;
     using Base::I0;
     using Base::I1;
+    using Base::I2;
+    // using Base::I3;
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
@@ -132,10 +138,10 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t PrefetchStages  = 4;
+    static constexpr index_t PrefetchStages  = 5;
     static constexpr index_t PrefillStages   = 2;
-    static constexpr index_t GlobalBufferNum = 2;
-    static constexpr index_t HotloopUnroll   = 2;
+    static constexpr index_t GlobalBufferNum = 3;
+    static constexpr index_t HotloopUnroll   = 6;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -144,13 +150,31 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
-        if(num_loop % HotloopUnroll == 1)
+        const auto tailloop = num_loop % HotloopUnroll;
+
+        if(tailloop == 1)
         {
-            return TailNumber::Odd;
+            return TailNumber::One;
+        }
+        else if(tailloop == 2)
+        {
+            return TailNumber::Two;
+        }
+        else if(tailloop == 3)
+        {
+            return TailNumber::Three;
+        }
+        else if(tailloop == 4)
+        {
+            return TailNumber::Four;
+        }
+        else if(tailloop == 5)
+        {
+            return TailNumber::Five;
         }
         else
         {
-            return TailNumber::Even;
+            return TailNumber::Full;
         }
     }
 
@@ -224,6 +248,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
+        // __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
@@ -289,6 +314,13 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+        // Global prefetch 5
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I2);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I2);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
         // Initialize C
         c_thread_buf.Clear();
 
@@ -296,7 +328,6 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         if constexpr(HasMainLoop)
         {
             index_t i = 0;
-            // This hot loop has two legacy loopover, to implement the double local buffer strategy
             do
             {
                 auto LoopFunc = [&](auto lds_read_buf,
@@ -374,10 +405,83 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
                 LoopFunc(I1, I1, I0, I0, I0, I0);
                 LoopFunc(I0, I0, I1, I1, I1, I0);
+                LoopFunc(I1, I1, I0, I2, I0, I0);
+                LoopFunc(I0, I0, I1, I0, I1, I0);
+                LoopFunc(I1, I1, I0, I1, I0, I0);
+                LoopFunc(I0, I0, I1, I2, I1, I0);
 
                 i += HotloopUnroll;
-            } while(i < (num_loop - PrefetchStages));
+            } while(i < (num_loop - HotloopUnroll));
         }
+
+        // tail
+        auto LoopFunc = [&](auto lds_read_buf,
+                            auto lds_read_reg_buf,
+                            auto lds_write_buf,
+                            auto vmem_buf,
+                            auto mfma_reg_buf,
+                            auto schedule_group) {
+            block_sync_lds();
+
+            static_for<0, KRepeat, 1>{}([&](auto k) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                       a_block_buf.At(lds_read_buf),
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k, I0),
+                                       a_thread_bufs(lds_read_reg_buf));
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                           b_block_buf.At(lds_read_buf),
+                                           b_thread_desc_,
+                                           make_tuple(n0, I0, k, I0),
+                                           b_thread_bufs(lds_read_reg_buf));
+                    });
+                });
+            });
+
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(lds_write_buf), vmem_buf);
+            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf.At(lds_write_buf), vmem_buf);
+
+            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, vmem_buf);
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, vmem_buf);
+
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        vector_type<FloatAB, KPack> a_thread_vec;
+                        vector_type<FloatAB, KPack> b_thread_vec;
+
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            a_thread_vec.template AsType<FloatAB>()(ik) =
+                                a_thread_bufs[mfma_reg_buf][Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(m0, I0, k0, ik))>{}];
+                            b_thread_vec.template AsType<FloatAB>()(ik) =
+                                b_thread_bufs[mfma_reg_buf][Number<b_thread_desc_.CalculateOffset(
+                                    make_tuple(n0, I0, k0, ik))>{}];
+                        });
+
+                        using mfma_input_type =
+                            typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
+
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        xdlops_gemm.template Run(
+                            a_thread_vec.template AsType<mfma_input_type>(),
+                            b_thread_vec.template AsType<mfma_input_type>(),
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    });
+                });
+            });
+
+            HotLoopScheduler(schedule_group);
+        };
 
         auto ReadWriteCompFunc = [&](auto lds_read_buf,
                                      auto lds_read_reg_buf,
@@ -528,17 +632,43 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                 });
             });
         };
-        // tail
-        if constexpr(TailNum == TailNumber::Odd)
+
+        if constexpr(TailNum == TailNumber::One)
+        {
+            CompFunc(I0);
+        }
+        else if constexpr(TailNum == TailNumber::Two)
+        {
+            ReadCompFunc(I1, I1, I0, I1);
+            CompFunc(I1);
+        }
+        else if constexpr(TailNum == TailNumber::Three)
         {
             ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
             ReadCompFunc(I0, I0, I1, I1);
             CompFunc(I0);
         }
-        else if constexpr(TailNum == TailNumber::Even)
+        else if constexpr(TailNum == TailNumber::Four)
         {
             ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
             ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
+            ReadCompFunc(I1, I1, I0, I1);
+            CompFunc(I1);
+        }
+        else if constexpr(TailNum == TailNumber::Five)
+        {
+            ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
+            ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
+            ReadWriteCompFunc(I1, I1, I0, I2, I0, I1);
+            ReadCompFunc(I0, I0, I1, I1);
+            CompFunc(I0);
+        }
+        else if constexpr(TailNum == TailNumber::Full)
+        {
+            LoopFunc(I1, I1, I0, I0, I0, I1);
+            ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
+            ReadWriteCompFunc(I1, I1, I0, I2, I0, I1);
+            ReadWriteCompFunc(I0, I0, I1, I0, I1, I1);
             ReadCompFunc(I1, I1, I0, I1);
             CompFunc(I1);
         }

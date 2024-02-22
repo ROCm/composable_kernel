@@ -18,6 +18,8 @@ template <index_t BlockSize,
           typename BTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -56,21 +58,22 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
-    using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
-                                                                          MPerBlock,
-                                                                          NPerBlock,
-                                                                          KPerBlock,
-                                                                          A_K1,
-                                                                          B_K1,
-                                                                          A_K1,
-                                                                          B_K1,
-                                                                          KPack,
-                                                                          KPack,
-                                                                          MRepeat,
-                                                                          NRepeat,
-                                                                          MPerXDL,
-                                                                          NPerXDL,
-                                                                          xdlops_gemm.KPerXdlops>;
+    using HotLoopInstList =
+        ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
+                                                      MPerBlock,
+                                                      NPerBlock,
+                                                      KPerBlock,
+                                                      ABlockTransferSrcScalarPerVector,
+                                                      BBlockTransferSrcScalarPerVector,
+                                                      KPack,
+                                                      KPack,
+                                                      KPack,
+                                                      KPack,
+                                                      MRepeat,
+                                                      NRepeat,
+                                                      MPerXDL,
+                                                      NPerXDL,
+                                                      xdlops_gemm.KPerXdlops>;
 
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");

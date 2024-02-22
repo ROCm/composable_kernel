@@ -7,8 +7,12 @@
 
 namespace ck {
 
+// Reg spill in RRR either with
+// 1. 3 GlobalBuffer, 6 HotloopUnroll
+// 2. 4 GlobalBuffer, 4 HotloopUnroll
+
 // Compute optimimal pipeline with highest resource request
-// GlobalPrefetchStages: 4
+// GlobalPrefetchStages: 5
 // LocalPreFillStages: 2
 // LocalPreFetchStages: 1
 // LocalSharedMemoryBuffer: 2
@@ -31,7 +35,7 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPacks>
-struct BlockwiseGemmXdlops_pipeline_v4
+struct BlockwiseGemmXdlops_pipeline_v7
 {
 };
 
@@ -54,7 +58,7 @@ template <index_t BlockSize,
           index_t KPack
           // ,bool TransposeC //disable transposec right now...
           >
-struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
+struct BlockwiseGemmXdlops_pipeline_v7<BlockGemmPipelineScheduler::Intrawave,
                                        BlockSize,
                                        FloatAB,
                                        FloatAcc,
@@ -110,6 +114,8 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                                    KPack>;
     using Base::I0;
     using Base::I1;
+    using Base::I2;
+    using Base::I3;
     using Base::KRepeat;
     using Base::xdlops_gemm;
     using typename Base::HotLoopInstList;
@@ -132,10 +138,10 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t PrefetchStages  = 4;
+    static constexpr index_t PrefetchStages  = 6;
     static constexpr index_t PrefillStages   = 2;
-    static constexpr index_t GlobalBufferNum = 2;
-    static constexpr index_t HotloopUnroll   = 2;
+    static constexpr index_t GlobalBufferNum = 4;
+    static constexpr index_t HotloopUnroll   = 4;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -144,13 +150,25 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
-        if(num_loop % HotloopUnroll == 1)
+        const auto hotloops =
+            (num_loop - PrefetchStages + HotloopUnroll - 1) / HotloopUnroll * HotloopUnroll;
+        const auto tailloop = num_loop - hotloops;
+
+        if(tailloop == 3)
         {
-            return TailNumber::Odd;
+            return TailNumber::Three;
+        }
+        else if(tailloop == 4)
+        {
+            return TailNumber::Four;
+        }
+        else if(tailloop == 5)
+        {
+            return TailNumber::Five;
         }
         else
         {
-            return TailNumber::Even;
+            return TailNumber::Full;
         }
     }
 
@@ -224,6 +242,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
+        // __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
@@ -289,6 +308,20 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
+        // Global prefetch 5
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I2);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I2);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Global prefetch 6
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I3);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I3);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
         // Initialize C
         c_thread_buf.Clear();
 
@@ -296,7 +329,6 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         if constexpr(HasMainLoop)
         {
             index_t i = 0;
-            // This hot loop has two legacy loopover, to implement the double local buffer strategy
             do
             {
                 auto LoopFunc = [&](auto lds_read_buf,
@@ -374,11 +406,14 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
                 LoopFunc(I1, I1, I0, I0, I0, I0);
                 LoopFunc(I0, I0, I1, I1, I1, I0);
+                LoopFunc(I1, I1, I0, I2, I0, I0);
+                LoopFunc(I0, I0, I1, I3, I1, I0);
 
                 i += HotloopUnroll;
             } while(i < (num_loop - PrefetchStages));
         }
 
+        // tail
         auto ReadWriteCompFunc = [&](auto lds_read_buf,
                                      auto lds_read_reg_buf,
                                      auto lds_write_buf,
@@ -528,17 +563,34 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                 });
             });
         };
-        // tail
-        if constexpr(TailNum == TailNumber::Odd)
+
+        if constexpr(TailNum == TailNumber::Three)
         {
             ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
             ReadCompFunc(I0, I0, I1, I1);
             CompFunc(I0);
         }
-        else if constexpr(TailNum == TailNumber::Even)
+        else if constexpr(TailNum == TailNumber::Four)
         {
             ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
             ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
+            ReadCompFunc(I1, I1, I0, I1);
+            CompFunc(I1);
+        }
+        else if constexpr(TailNum == TailNumber::Five)
+        {
+            ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
+            ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
+            ReadWriteCompFunc(I1, I1, I0, I2, I0, I1);
+            ReadCompFunc(I0, I0, I1, I1);
+            CompFunc(I0);
+        }
+        else if constexpr(TailNum == TailNumber::Full)
+        {
+            ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
+            ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
+            ReadWriteCompFunc(I1, I1, I0, I2, I0, I1);
+            ReadWriteCompFunc(I0, I0, I1, I3, I1, I1);
             ReadCompFunc(I1, I1, I0, I1);
             CompFunc(I1);
         }

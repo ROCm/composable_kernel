@@ -7,6 +7,10 @@
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v2.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v3.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v4.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v5.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v5r1.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v6.hpp"
+#include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v7.hpp"
 
 namespace ck {
 
@@ -16,6 +20,10 @@ enum struct BlockGemmPipelineVersion
     v2,
     v3,
     v4,
+    v5,
+    v5r1,
+    v6,
+    v7,
 };
 
 template <BlockGemmPipelineVersion BlkGemmPipelineVer,
@@ -27,6 +35,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename BTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -47,6 +57,8 @@ constexpr auto BlockGemmPipeline_Selector()
                                                BTileDesc,
                                                AMmaTileDesc,
                                                BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
                                                MPerBlock,
                                                NPerBlock,
                                                KPerBlock,
@@ -66,6 +78,8 @@ constexpr auto BlockGemmPipeline_Selector()
                                                BTileDesc,
                                                AMmaTileDesc,
                                                BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
                                                MPerBlock,
                                                NPerBlock,
                                                KPerBlock,
@@ -85,6 +99,8 @@ constexpr auto BlockGemmPipeline_Selector()
                                                BTileDesc,
                                                AMmaTileDesc,
                                                BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
                                                MPerBlock,
                                                NPerBlock,
                                                KPerBlock,
@@ -104,6 +120,92 @@ constexpr auto BlockGemmPipeline_Selector()
                                                BTileDesc,
                                                AMmaTileDesc,
                                                BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               MPerXDL,
+                                               NPerXDL,
+                                               MRepeat,
+                                               NRepeat,
+                                               KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v5)
+    {
+        return BlockwiseGemmXdlops_pipeline_v5<BlkGemmPipeSche,
+                                               BlockSize,
+                                               FloatAB,
+                                               FloatAcc,
+                                               ATileDesc,
+                                               BTileDesc,
+                                               AMmaTileDesc,
+                                               BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               MPerXDL,
+                                               NPerXDL,
+                                               MRepeat,
+                                               NRepeat,
+                                               KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v5r1)
+    {
+        return BlockwiseGemmXdlops_pipeline_v5r1<BlkGemmPipeSche,
+                                                 BlockSize,
+                                                 FloatAB,
+                                                 FloatAcc,
+                                                 ATileDesc,
+                                                 BTileDesc,
+                                                 AMmaTileDesc,
+                                                 BMmaTileDesc,
+                                                 ABlockTransferSrcScalarPerVector,
+                                                 BBlockTransferSrcScalarPerVector,
+                                                 MPerBlock,
+                                                 NPerBlock,
+                                                 KPerBlock,
+                                                 MPerXDL,
+                                                 NPerXDL,
+                                                 MRepeat,
+                                                 NRepeat,
+                                                 KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v6)
+    {
+        return BlockwiseGemmXdlops_pipeline_v6<BlkGemmPipeSche,
+                                               BlockSize,
+                                               FloatAB,
+                                               FloatAcc,
+                                               ATileDesc,
+                                               BTileDesc,
+                                               AMmaTileDesc,
+                                               BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               MPerXDL,
+                                               NPerXDL,
+                                               MRepeat,
+                                               NRepeat,
+                                               KPack>{};
+    }
+    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v7)
+    {
+        return BlockwiseGemmXdlops_pipeline_v7<BlkGemmPipeSche,
+                                               BlockSize,
+                                               FloatAB,
+                                               FloatAcc,
+                                               ATileDesc,
+                                               BTileDesc,
+                                               AMmaTileDesc,
+                                               BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
                                                MPerBlock,
                                                NPerBlock,
                                                KPerBlock,
