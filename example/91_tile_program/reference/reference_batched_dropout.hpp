@@ -11,7 +11,7 @@
 template <typename DataType, typename DropDataType>
 void reference_batched_dropout(Tensor<DataType>& a_b_m_n,
                                const Tensor<DropDataType>& b_b_m_n,
-                               const DropDataType& p_undrop_in_uint8_t,
+                               const uint8_t& p_undrop_in_uint8_t,
                                const float scale)
 {
     const int N = a_b_m_n.mDesc.GetLengths()[2];

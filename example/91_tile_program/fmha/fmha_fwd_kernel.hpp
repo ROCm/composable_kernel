@@ -130,14 +130,14 @@ struct FmhaFwdKernel
             drop_seed   = std::get<0>(drop_seeds);
             drop_offset = std::get<1>(drop_seeds);
         }
-        float rp_undrop                  = 1;
-        DropDataType p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed               = 1;
-        uint64_t drop_offset             = 0;
-        void* drop_ptr                   = nullptr;
-        ck::index_t stride_drop          = 0;
-        ck::index_t nhead_stride_drop    = 0;
-        ck::index_t raw_mn_padded        = 0;
+        float rp_undrop               = 1;
+        uint8_t p_undrop_in_uint8_t   = std::numeric_limits<uint8_t>::max();
+        uint64_t drop_seed            = 1;
+        uint64_t drop_offset          = 0;
+        void* drop_ptr                = nullptr;
+        ck::index_t stride_drop       = 0;
+        ck::index_t nhead_stride_drop = 0;
+        ck::index_t raw_mn_padded     = 0;
     };
     struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
     {
@@ -438,11 +438,11 @@ struct FmhaFwdKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
-        float rp_undrop                  = 1;
-        DropDataType p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed               = 0;
-        uint64_t drop_offset             = 0;
-        index_t raw_mn_padded            = 0;
+        float rp_undrop             = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        uint64_t drop_seed          = 0;
+        uint64_t drop_offset        = 0;
+        index_t raw_mn_padded       = 0;
 
         if constexpr(kHasDropout)
         {

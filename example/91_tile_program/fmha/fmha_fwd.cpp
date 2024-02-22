@@ -378,7 +378,7 @@ bool run(const ArgParser& arg_parser)
     lse_buf.FromDevice(lse_host.data());
     drop_buf.FromDevice(drop_host.data());
     float p_undrop = 1.0 - p_drop;
-    DropDataType p_undrop_in_uint8_t =
+    uint8_t p_undrop_in_uint8_t =
         DropDataType(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
     float rp_undrop = 1.0 / p_undrop;
 
