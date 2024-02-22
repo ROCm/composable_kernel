@@ -88,7 +88,7 @@ struct Layernorm2dFwd
                                            Sequence<0, 0, 2, 4>>{});
     }
 
-    template <class Dstr>
+    template <typename Dstr>
     __device__ static constexpr auto GetVariance2dNPerThread(Dstr)
     {
         constexpr auto nDstrSpan = Dstr::GetDistributedSpans().template At<1>();
@@ -138,9 +138,11 @@ struct Layernorm2dFwd
         auto x_block_window = make_tile_window(
             x_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, xDstr);
 
+        index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(N / kNPerBlock);
+
         // TODO: padding - handle max_count if N % kNPerBlock != 0
         constexpr auto NPerThread = GetVariance2dNPerThread(xDstr);
-        ThreadWelford<ComputeDataType, XDataType> thread_welford{NPerThread * N / kNPerBlock};
+        ThreadWelford<ComputeDataType, XDataType> thread_welford{NPerThread * num_n_tile_iteration};
 
         auto mean_var_compute_block_tensor_tuple =
             decltype(thread_welford(load_tile(x_block_window))){};
@@ -150,17 +152,13 @@ struct Layernorm2dFwd
         clear_tile(mean_compute_block_tensor);
         clear_tile(var_compute_block_tensor);
 
-        index_t iN = 0;
-        do
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             const auto x_block_tensor = load_tile(x_block_window);
 
             thread_welford(mean_compute_block_tensor, var_compute_block_tensor, x_block_tensor);
             move_tile_window(x_block_window, {0, kNPerBlock});
-
-            iN += kNPerBlock;
-
-        } while(iN < N);
+        }
 
         // TODO: support cross warp Welford
         WarpMergeWelford<ComputeDataType, true>{}(
@@ -174,7 +172,7 @@ struct Layernorm2dFwd
             y_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
 
         constexpr auto gammaDstr = MakeXBlockTileDistribution();
-        constexpr auto betaDstr  = MakeXBlockTileDistribution();
+        constexpr auto betaDstr  = gammaDstr;
 
         auto gamma_block_window = make_tile_window(
             gamma_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, gammaDstr);
@@ -191,7 +189,7 @@ struct Layernorm2dFwd
         move_tile_window(y_block_window, {0, window_tail});
 
         // Normalization
-        do
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
         {
             const auto x_block_tensor     = load_tile(x_block_window);
             const auto gamma_block_tensor = load_tile(gamma_block_window);
@@ -229,10 +227,7 @@ struct Layernorm2dFwd
             move_tile_window(gamma_block_window, {0, -kNPerBlock});
             move_tile_window(beta_block_window, {0, -kNPerBlock});
             move_tile_window(y_block_window, {0, -kNPerBlock});
-
-            iN -= kNPerBlock;
-
-        } while(iN > 0);
+        }
 
         if constexpr(kSaveMean)
         {
