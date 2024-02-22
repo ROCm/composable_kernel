@@ -23,9 +23,7 @@ struct ThreadWelford
     template <typename T>
     __device__ inline void Update(T& mean, T& var, T x)
     {
-        using ck::math::isnan;
-
-        if(isnan(x))
+        if(math::isnan(x))
         {
             mean = x;
             var  = x;
@@ -51,8 +49,6 @@ struct ThreadWelford
                                VarDistributedTensor_& var_tensor,
                                const XDistributedTensor_& x_tensor)
     {
-        using ck::math::isnan;
-
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
 
@@ -82,24 +78,16 @@ struct ThreadWelford
 
         constexpr auto reduce_dims = Sequence<1>{};
 
-        constexpr auto mean_dstr = make_static_tile_distribution(
+        constexpr auto mean_var_dstr = make_static_tile_distribution(
             ck::tile_program::detail::make_reduce_tile_distribution_encoding(
                 XDistributedTensor_::GetTileDistribution().GetStaticTileDistributionEncoding(),
                 reduce_dims));
 
-        constexpr auto var_dstr = make_static_tile_distribution(
-            ck::tile_program::detail::make_reduce_tile_distribution_encoding(
-                XDistributedTensor_::GetTileDistribution().GetStaticTileDistributionEncoding(),
-                reduce_dims));
+        auto mean_tensor = make_static_distributed_tensor<ComputeDataType>(mean_var_dstr);
+        auto var_tensor  = make_static_distributed_tensor<ComputeDataType>(mean_var_dstr);
 
-        auto mean_tensor = make_static_distributed_tensor<ComputeDataType>(mean_dstr);
-        auto var_tensor  = make_static_distributed_tensor<ComputeDataType>(var_dstr);
-
-        // init mean & var tensor
-        tile_elementwise_inout([&](auto& mean) { mean = type_convert<ComputeDataType>(0); },
-                               mean_tensor);
-        tile_elementwise_inout([&](auto& var) { var = type_convert<ComputeDataType>(0); },
-                               var_tensor);
+        clear_tile(mean_tensor);
+        clear_tile(var_tensor);
 
         (*this)(mean_tensor, var_tensor, x_tensor);
 
