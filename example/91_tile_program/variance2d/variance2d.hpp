@@ -42,7 +42,7 @@ struct Variance2d
                                            Sequence<0, 0, 2, 4>>{});
     }
 
-    template <class Dstr>
+    template <typename Dstr>
     __device__ static constexpr auto GetNPerThread(Dstr)
     {
         constexpr auto nDstrSpan = Dstr::GetDistributedSpans().template At<1>();
@@ -55,6 +55,15 @@ struct Variance2d
             [&](auto idx) { ret *= Lengths::template At(idx); });
 
         return ret;
+    }
+
+    template <typename TileWindowWithStaticLengths, typename StaticDistributedTensor>
+    __device__ static void StoreReduceTile1D(TileWindowWithStaticLengths& tile_window,
+                                             const StaticDistributedTensor& dstr_tensor)
+    {
+        // TODO: Parse 32 from distribution
+        if(ck::get_lane_id() % 32 == 0)
+            store_tile(tile_window, dstr_tensor);
     }
 
     __device__ void operator()(const XDataType* p_x,
@@ -112,9 +121,7 @@ struct Variance2d
 
         auto mean_block_window = make_tile_window(mean_m, make_tuple(Number<kMPerBlock>{}), {iM});
 
-        // TODO: Parse 32 from distribution
-        if(get_lane_id() % 32 == 0)
-            store_tile(mean_block_window, cast_tile<MeanDataType>(mean_compute_block_tensor));
+        StoreReduceTile1D(mean_block_window, cast_tile<MeanDataType>(mean_compute_block_tensor));
 
         // variance
         const auto var_m = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
@@ -122,8 +129,6 @@ struct Variance2d
 
         auto var_block_window = make_tile_window(var_m, make_tuple(Number<kMPerBlock>{}), {iM});
 
-        // TODO: Parse 32 from distribution
-        if(get_lane_id() % 32 == 0)
-            store_tile(var_block_window, cast_tile<VarDataType>(var_compute_block_tensor));
+        StoreReduceTile1D(var_block_window, cast_tile<VarDataType>(var_compute_block_tensor));
     }
 };
