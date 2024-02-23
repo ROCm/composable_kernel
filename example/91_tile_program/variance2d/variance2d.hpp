@@ -43,7 +43,7 @@ struct Variance2d
     }
 
     template <class Dstr>
-    __device__ static constexpr auto GetVariance2dNPerThread(Dstr)
+    __device__ static constexpr auto GetNPerThread(Dstr)
     {
         constexpr auto nDstrSpan = Dstr::GetDistributedSpans().template At<1>();
 
@@ -79,7 +79,7 @@ struct Variance2d
             x_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, xDstr);
 
         // TODO: padding - handle max_count if N % kNPerBlock != 0
-        constexpr auto NPerThread = GetVariance2dNPerThread(xDstr);
+        constexpr auto NPerThread = GetNPerThread(xDstr);
         ThreadWelford<ComputeDataType, XDataType> thread_welford{NPerThread * N / kNPerBlock};
 
         auto mean_var_compute_block_tensor_tuple =

@@ -89,7 +89,7 @@ struct Layernorm2dFwd
     }
 
     template <typename Dstr>
-    __device__ static constexpr auto GetVariance2dNPerThread(Dstr)
+    __device__ static constexpr auto GetNPerThread(Dstr)
     {
         constexpr auto nDstrSpan = Dstr::GetDistributedSpans().template At<1>();
 
@@ -141,7 +141,7 @@ struct Layernorm2dFwd
         index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(N / kNPerBlock);
 
         // TODO: padding - handle max_count if N % kNPerBlock != 0
-        constexpr auto NPerThread = GetVariance2dNPerThread(xDstr);
+        constexpr auto NPerThread = GetNPerThread(xDstr);
         ThreadWelford<ComputeDataType, XDataType> thread_welford{NPerThread * num_n_tile_iteration};
 
         auto mean_var_compute_block_tensor_tuple =
