@@ -302,7 +302,6 @@ bool run(const ArgParser& arg_parser)
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
-    drop_buf.SetZero();
 
     // clang-format off
     auto layout_str = [&](bool permute){
