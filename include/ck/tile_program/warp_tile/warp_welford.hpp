@@ -23,10 +23,14 @@ struct WarpMergeWelford
     Merge(T& mean_a, T& var_a, int& count_a, T mean_b, T var_b, int count_b)
     {
         int count            = count_a + count_b;
-        T count_b_over_count = count == 0 ? type_convert<T>(0) : type_convert<T>(count_b) / count;
-        T delta              = mean_b - mean_a;
+        T count_             = type_convert<T>(count);
+        T count_a_           = type_convert<T>(count_a);
+        T count_b_           = type_convert<T>(count_b);
+        T count_b_over_count = count == 0 ? type_convert<T>(0) : count_b_ / count_;
+
+        T delta = mean_b - mean_a;
         mean_a += delta * count_b_over_count;
-        var_a += var_b + delta * delta * count_a * count_b_over_count;
+        var_a += var_b + delta * delta * count_a_ * count_b_over_count;
         count_a = count;
     }
 
