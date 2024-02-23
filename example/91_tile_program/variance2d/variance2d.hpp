@@ -27,6 +27,26 @@ template <typename XDataType,
           ck::index_t kNPerBlock>
 struct Variance2d
 {
+    struct Kargs
+    {
+        const void* p_x;
+        void* p_mean;
+        void* p_var;
+
+        ck::index_t M;
+        ck::index_t N;
+    };
+
+    __host__ static constexpr Kargs
+    MakeKargs(const void* p_x, void* p_mean, void* p_var, ck::index_t M, ck::index_t N)
+    {
+        return Kargs{p_x, p_mean, p_var, M, N};
+    }
+
+    __host__ static constexpr auto GridSize(ck::index_t M) { return M / kMPerBlock; }
+
+    __host__ static constexpr auto BlockSize() { return kBlockSize; }
+
     __device__ static constexpr auto MakeXBlockTileDistribution()
     {
         using namespace ck;
@@ -66,16 +86,18 @@ struct Variance2d
             store_tile(tile_window, dstr_tensor);
     }
 
-    __device__ void operator()(const XDataType* p_x,
-                               MeanDataType* p_mean,
-                               VarDataType* p_var,
-                               ck::index_t M,
-                               ck::index_t N) const
+    __device__ void operator()(Kargs kargs) const
     {
         using namespace ck;
         using namespace ck::tile_program;
         using namespace ck::tile_program::thread;
         using namespace ck::tile_program::warp;
+
+        const XDataType* p_x = static_cast<const XDataType*>(kargs.p_x);
+        MeanDataType* p_mean = static_cast<MeanDataType*>(kargs.p_mean);
+        VarDataType* p_var   = static_cast<VarDataType*>(kargs.p_var);
+        ck::index_t M        = kargs.M;
+        ck::index_t N        = kargs.N;
 
         const auto x_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_x, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});

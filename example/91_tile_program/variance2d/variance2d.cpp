@@ -23,6 +23,18 @@ int main(int argc, char* argv[])
     using MeanDataType    = ck::half_t;
     using VarDataType     = ck::half_t;
 
+    constexpr ck::index_t kMPerBlock = 128;
+    constexpr ck::index_t kNPerBlock = 128;
+    constexpr ck::index_t kBlockSize = 256;
+
+    using Kernel = Variance2d<XDataType,
+                              ComputeDataType,
+                              MeanDataType,
+                              VarDataType,
+                              kBlockSize,
+                              kMPerBlock,
+                              kNPerBlock>;
+
     ck::index_t M = 3328;
     ck::index_t N = 4096;
 
@@ -47,32 +59,11 @@ int main(int argc, char* argv[])
 
     x_buf.ToDevice(x_host.data());
 
-    constexpr ck::index_t kMPerBlock = 128;
-    constexpr ck::index_t kNPerBlock = 128;
+    auto kargs = Kernel::MakeKargs(
+        x_buf.GetDeviceBuffer(), mean_buf.GetDeviceBuffer(), var_buf.GetDeviceBuffer(), M, N);
 
-    constexpr ck::index_t kBlockSize = 256;
-    ck::index_t kGridSize            = (M / kMPerBlock);
-
-    std::cout << "grid size " << kGridSize << std::endl;
-
-    const auto kernel = Variance2d<XDataType,
-                                   ComputeDataType,
-                                   MeanDataType,
-                                   VarDataType,
-                                   kBlockSize,
-                                   kMPerBlock,
-                                   kNPerBlock>{};
-
-    float ave_time = launch_kernel(StreamConfig{nullptr, true},
-                                   kernel,
-                                   kGridSize,
-                                   kBlockSize,
-                                   0,
-                                   static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                   static_cast<MeanDataType*>(mean_buf.GetDeviceBuffer()),
-                                   static_cast<VarDataType*>(var_buf.GetDeviceBuffer()),
-                                   M,
-                                   N);
+    float ave_time = launch_kernel(
+        StreamConfig{nullptr, true}, Kernel{}, Kernel::GridSize(M), Kernel::BlockSize(), 0, kargs);
 
     mean_buf.FromDevice(mean_host_dev.data());
     var_buf.FromDevice(var_host_dev.data());
