@@ -425,7 +425,7 @@ struct BlockFmhaPipelineQRKSVS
             });
 
             dropout.Run<Problem, Policy>(
-                smem_ptr, i_total_loops, num_total_loop, p_compute, drop_dram_window, ph);
+                smem_ptr, i_total_loops * kN0, p_compute, drop_dram_window, ph);
 
             block_sync_lds();
             if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)

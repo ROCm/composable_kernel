@@ -494,7 +494,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             });
 
             dropout.Run<Problem, Policy>(
-                smem_ptr, i_total_loops, num_total_loop, p_compute, drop_dram_window, ph);
+                smem_ptr, i_total_loops * kN0, p_compute, drop_dram_window, ph);
 
             const auto p = cast_tile<PDataType>(p_compute);
 

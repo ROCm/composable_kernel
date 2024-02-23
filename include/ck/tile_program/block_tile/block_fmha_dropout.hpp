@@ -28,10 +28,12 @@ struct BlockFmhaDropout
 {
     __host__ __device__ BlockFmhaDropout(const long_index_t& global_idx_,
                                          float& p_dropout_rescale_,
-                                         uint8_t& p_undrop_in_uint8_t_)
+                                         uint8_t& p_undrop_in_uint8_t_,
+                                         index_t& total_n_len_)
         : global_idx(global_idx_),
           p_dropout_rescale(p_dropout_rescale_),
-          p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
+          p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
+          total_n_len(total_n_len_)
     {
     }
 
@@ -129,8 +131,7 @@ struct BlockFmhaDropout
 
     template <typename Problem, typename Policy, typename PComputeWindow, typename DropDramWindow>
     __host__ __device__ void Run(void* smem_ptr,
-                                 index_t& i_total_loops,
-                                 const index_t& num_total_loop,
+                                 const index_t start_n0_idx,
                                  PComputeWindow& p_compute,
                                  DropDramWindow& drop_dram_window,
                                  ck::philox& ph) const
@@ -170,9 +171,6 @@ struct BlockFmhaDropout
                                  MakeDropSramPartTileDistribution<Problem, decltype(gemm_0)>());
 
             constexpr index_t kNPerStep = WG::kN;
-            const index_t start_n0_idx  = i_total_loops * kN0;
-            const index_t total_n_len   = kN0 * num_total_loop;
-
             static_for<0, kN0 / kNPerStep, 1>{}([&](auto i_n0) {
                 auto warp_id  = get_warp_id();
                 auto lane_idx = get_lane_id();
@@ -222,6 +220,7 @@ struct BlockFmhaDropout
     long_index_t global_idx;
     float p_dropout_rescale;
     uint8_t p_undrop_in_uint8_t;
+    index_t total_n_len;
 };
 
 } // namespace block

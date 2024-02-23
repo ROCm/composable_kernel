@@ -422,6 +422,7 @@ struct FmhaFwdKernel
         long_index_t batch_offset_o    = 0;
 
         long_index_t nhead_stride_drop = 0;
+        index_t max_seqlen_k           = 0;
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -454,6 +455,7 @@ struct FmhaFwdKernel
             {
                 batch_offset_drop = query_start * kargs.stride_drop;
                 nhead_stride_drop = kargs.nhead_stride_drop;
+                max_seqlen_k      = kargs.stride_drop;
             }
 
             batch_offset_o = query_start * kargs.stride_o;
@@ -496,6 +498,7 @@ struct FmhaFwdKernel
             {
                 batch_offset_drop = static_cast<long_index_t>(i_batch) * kargs.batch_stride_drop;
                 nhead_stride_drop = kargs.nhead_stride_drop;
+                max_seqlen_k      = kargs.stride_drop;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
@@ -715,7 +718,7 @@ struct FmhaFwdKernel
             drop_offset         = kargs.drop_offset;
         }
         ck::philox ph(drop_seed, 0, drop_offset);
-        BlockFmhaDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t);
+        BlockFmhaDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
