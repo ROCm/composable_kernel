@@ -104,7 +104,7 @@ struct Variance2d
         {
             const auto x_block_tensor = load_tile(x_block_window);
 
-            thread_welford(mean_compute_block_tensor, var_compute_block_tensor, x_block_tensor);
+            thread_welford(x_block_tensor, mean_compute_block_tensor, var_compute_block_tensor);
             move_tile_window(x_block_window, {0, kNPerBlock});
 
             iN += kNPerBlock;

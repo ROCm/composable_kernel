@@ -13,7 +13,7 @@ namespace ck {
 namespace tile_program {
 namespace warp {
 
-template <typename ComputeDataType_, bool broadcastLane = true, bool GetActualVariance = true>
+template <typename ComputeDataType_, bool BroadcastLane = true, bool GetActualVariance = true>
 struct WarpMergeWelford
 {
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
@@ -101,7 +101,7 @@ struct WarpMergeWelford
             // cross-lane broadcast for replication
             // only broadcast on R dimension correspond to lane
             // (lane id maps to this R dimension)
-            if constexpr(broadcastLane)
+            if constexpr(BroadcastLane)
             {
                 static_for<0, NDimR, 1>{}([&](auto idim_r) {
                     // FIXME: nasty to use does_p_own_r_

@@ -42,12 +42,12 @@ struct ThreadWelford
     // calculation of max_count_
     __device__ constexpr ThreadWelford(int max_count) : cur_count_(0), max_count_(max_count) {}
 
-    template <typename MeanDistributedTensor_,
-              typename VarDistributedTensor_,
-              typename XDistributedTensor_>
-    __device__ void operator()(MeanDistributedTensor_& mean_tensor,
-                               VarDistributedTensor_& var_tensor,
-                               const XDistributedTensor_& x_tensor)
+    template <typename XDistributedTensor_,
+              typename MeanDistributedTensor_,
+              typename VarDistributedTensor_>
+    __device__ void operator()(const XDistributedTensor_& x_tensor,
+                               MeanDistributedTensor_& mean_tensor,
+                               VarDistributedTensor_& var_tensor)
     {
         constexpr auto I0 = Number<0>{};
         constexpr auto I1 = Number<1>{};
@@ -89,7 +89,7 @@ struct ThreadWelford
         clear_tile(mean_tensor);
         clear_tile(var_tensor);
 
-        (*this)(mean_tensor, var_tensor, x_tensor);
+        (*this)(x_tensor, mean_tensor, var_tensor);
 
         return ck::make_tuple(mean_tensor, var_tensor);
     }
