@@ -137,7 +137,6 @@ struct FmhaFwdKernel
         void* drop_ptr                = nullptr;
         ck::index_t stride_drop       = 0;
         ck::index_t nhead_stride_drop = 0;
-        ck::index_t raw_mn_padded     = 0;
     };
     struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
     {
@@ -278,14 +277,6 @@ struct FmhaFwdKernel
             kargs.stride_drop       = stride_drop;
             kargs.nhead_stride_drop = nhead_stride_drop;
             kargs.batch_stride_drop = batch_stride_drop;
-
-            ck::index_t raw_m_padded =
-                ck::math::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) *
-                FmhaPipeline::kM0;
-            ck::index_t raw_n_padded =
-                ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0) *
-                FmhaPipeline::kN0;
-            kargs.raw_mn_padded = raw_m_padded * raw_n_padded;
         }
 
         return kargs;
@@ -386,14 +377,6 @@ struct FmhaFwdKernel
             kargs.drop_ptr          = drop_ptr;
             kargs.stride_drop       = stride_drop;
             kargs.nhead_stride_drop = nhead_stride_drop;
-
-            ck::index_t raw_m_padded =
-                ck::math::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) *
-                FmhaPipeline::kM0;
-            ck::index_t raw_n_padded =
-                ck::math::integer_divide_ceil(kargs.seqlen_k, FmhaPipeline::kN0) *
-                FmhaPipeline::kN0;
-            kargs.raw_mn_padded = raw_m_padded * raw_n_padded;
         }
 
         return kargs;
@@ -438,24 +421,7 @@ struct FmhaFwdKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
-        float rp_undrop             = 1;
-        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed          = 0;
-        uint64_t drop_offset        = 0;
-        index_t raw_mn_padded       = 0;
-
-        if constexpr(kHasDropout)
-        {
-            rp_undrop           = kargs.rp_undrop;
-            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
-            drop_seed           = kargs.drop_seed;
-            drop_offset         = kargs.drop_offset;
-            raw_mn_padded       = kargs.raw_mn_padded;
-        }
-        const index_t i_total_id = __builtin_amdgcn_readfirstlane(
-            raw_mn_padded * i_nhead + raw_mn_padded * gridDim.y * i_batch);
-        ck::philox ph(drop_seed, 0, drop_offset);
-
+        long_index_t nhead_stride_drop = 0;
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -486,7 +452,8 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasDropout)
             {
-                batch_offset_drop = query_start * kargs.stride_drop + key_start;
+                batch_offset_drop = query_start * kargs.stride_drop;
+                nhead_stride_drop = kargs.nhead_stride_drop;
             }
 
             batch_offset_o = query_start * kargs.stride_o;
@@ -528,6 +495,7 @@ struct FmhaFwdKernel
             if constexpr(kHasDropout)
             {
                 batch_offset_drop = static_cast<long_index_t>(i_batch) * kargs.batch_stride_drop;
+                nhead_stride_drop = kargs.nhead_stride_drop;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
@@ -704,15 +672,15 @@ struct FmhaFwdKernel
         }();
 
         // about dropout
+        long_index_t i_total_id =
+            static_cast<long_index_t>(i_nhead) * nhead_stride_drop + batch_offset_drop;
         auto drop_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto drop_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
             if constexpr(kHasDropout)
             {
                 DropDataType* drop_ptr =
-                    reinterpret_cast<DropDataType*>(kargs.drop_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_drop +
-                    batch_offset_drop;
+                    reinterpret_cast<DropDataType*>(kargs.drop_ptr) + i_total_id;
 
                 const auto drop_dram = [&]() {
                     const auto drop_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
@@ -734,6 +702,19 @@ struct FmhaFwdKernel
                 return make_null_tile_window(drop_dram_window_lengths);
             }
         }();
+        float rp_undrop             = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        uint64_t drop_seed          = 0;
+        uint64_t drop_offset        = 0;
+
+        if constexpr(kHasDropout)
+        {
+            rp_undrop           = kargs.rp_undrop;
+            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
+            drop_seed           = kargs.drop_seed;
+            drop_offset         = kargs.drop_offset;
+        }
+        ck::philox ph(drop_seed, 0, drop_offset);
         BlockFmhaDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t);
 
         FmhaMask mask = [&]() {

@@ -26,7 +26,7 @@ namespace block {
 
 struct BlockFmhaDropout
 {
-    __host__ __device__ BlockFmhaDropout(const index_t& global_idx_,
+    __host__ __device__ BlockFmhaDropout(const long_index_t& global_idx_,
                                          float& p_dropout_rescale_,
                                          uint8_t& p_undrop_in_uint8_t_)
         : global_idx(global_idx_),
@@ -219,7 +219,7 @@ struct BlockFmhaDropout
     }
 
     private:
-    index_t global_idx;
+    long_index_t global_idx;
     float p_dropout_rescale;
     uint8_t p_undrop_in_uint8_t;
 };

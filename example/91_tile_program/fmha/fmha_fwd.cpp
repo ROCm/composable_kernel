@@ -193,6 +193,7 @@ bool run(const ArgParser& arg_parser)
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
+    auto max_seqlen_k = std::numeric_limits<int32_t>::min();
     {
         for(ck::index_t wb = 0; wb < batch; ++wb)
         {
@@ -202,6 +203,11 @@ bool run(const ArgParser& arg_parser)
             if(max_seqlen_q < real_seqlen_q)
             {
                 max_seqlen_q = real_seqlen_q;
+            }
+
+            if(max_seqlen_k < real_seqlen_k)
+            {
+                max_seqlen_k = real_seqlen_k;
             }
 
             using namespace ck::literals;
@@ -254,7 +260,7 @@ bool run(const ArgParser& arg_parser)
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
     Tensor<DropDataType> drop_host(
-        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, shape_seqlen_k)
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck::index_t, 4>{1, 1, 1, 1});
 
     if(init_method == 0)
@@ -342,6 +348,7 @@ bool run(const ArgParser& arg_parser)
                                    hdim_q,
                                    hdim_v,
                                    max_seqlen_q,
+                                   max_seqlen_k,
                                    scale,
                                    descale_q * descale_k,
                                    descale_v,
@@ -487,7 +494,7 @@ bool run(const ArgParser& arg_parser)
         {
             Tensor<DropDataType> drop_host_result({nhead, real_seqlen_q, real_seqlen_k});
             drop_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2] + key_offset);
+                self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
             reference_batched_dropout(p_host_ref, drop_host_result, p_undrop_in_uint8_t, rp_undrop);
         }
