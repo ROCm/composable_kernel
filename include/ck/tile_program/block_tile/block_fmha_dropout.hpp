@@ -150,8 +150,8 @@ struct BlockFmhaDropout
 
             // dropout tile in LDS
             auto drop_lds = make_tensor_view<AddressSpaceEnum::Lds>(
-                reinterpret_cast<DropDataType*>(reinterpret_cast<char*>(smem_ptr) +
-                                                Policy::template GetSmemSizeKV<Problem>()),
+                reinterpret_cast<uint8_t*>(reinterpret_cast<char*>(smem_ptr) +
+                                           Policy::template GetSmemSizeKV<Problem>()),
                 MakeDropLdsBlockDescriptor<Problem, decltype(gemm_0)>());
 
             auto drop_lds_window = make_tile_window(
@@ -160,7 +160,7 @@ struct BlockFmhaDropout
                 {0, 0});
 
             // register distribute
-            auto drop_distr_origin = make_static_distributed_tensor<DropDataType>(
+            auto drop_distr_origin = make_static_distributed_tensor<uint8_t>(
                 MakeDropSramTileDistribution<Problem, decltype(gemm_0)>());
 
             auto drop_lds_read_window =
@@ -188,9 +188,8 @@ struct BlockFmhaDropout
                 int i_random_idx = 0;
                 sweep_tile_span(drop_origin_spans[Number<0>{}], [&](auto idx0) {
                     sweep_tile_span(drop_origin_spans[Number<1>{}], [&](auto idx1) {
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                        drop_distr_origin(i_j_idx) =
-                            type_convert<DropDataType>(tmp[i_random_idx++]);
+                        constexpr auto i_j_idx     = make_tuple(idx0, idx1);
+                        drop_distr_origin(i_j_idx) = type_convert<uint8_t>(tmp[i_random_idx++]);
                     });
                 });
                 // save to LDS
@@ -211,7 +210,8 @@ struct BlockFmhaDropout
                     });
                 });
                 // save to Global
-                store_tile(drop_dram_window, dropout);
+                const auto dropout_store = cast_tile<DropDataType>(dropout);
+                store_tile(drop_dram_window, dropout_store);
                 __builtin_amdgcn_sched_barrier(0);
                 move_tile_window(drop_dram_window, {0, WG::kN});
             });
