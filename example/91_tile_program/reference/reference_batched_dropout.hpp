@@ -8,9 +8,9 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include <fstream>
 
-template <typename DataType, typename DropDataType>
+template <typename DataType, typename RandValOutputDataType>
 void reference_batched_dropout(Tensor<DataType>& a_b_m_n,
-                               const Tensor<DropDataType>& b_b_m_n,
+                               const Tensor<RandValOutputDataType>& b_b_m_n,
                                const uint8_t& p_undrop_in_uint8_t,
                                const float scale)
 {

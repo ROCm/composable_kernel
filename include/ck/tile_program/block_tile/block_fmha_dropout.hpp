@@ -135,7 +135,7 @@ struct BlockFmhaDropout
                                  DropDramWindow& drop_dram_window,
                                  ck::philox& ph) const
     {
-        using DropDataType                = remove_cvref_t<typename Problem::DropDataType>;
+        using RandValOutputDataType       = remove_cvref_t<typename Problem::RandValOutputDataType>;
         using BlockFmhaShape              = remove_cvref_t<typename Problem::BlockFmhaShape>;
         static constexpr index_t kN0      = BlockFmhaShape::kN0;
         static constexpr bool kHasDropout = Problem::kHasDropout;
@@ -210,7 +210,7 @@ struct BlockFmhaDropout
                     });
                 });
                 // save to Global
-                const auto dropout_store = cast_tile<DropDataType>(dropout);
+                const auto dropout_store = cast_tile<RandValOutputDataType>(dropout);
                 store_tile(drop_dram_window, dropout_store);
                 __builtin_amdgcn_sched_barrier(0);
                 move_tile_window(drop_dram_window, {0, WG::kN});

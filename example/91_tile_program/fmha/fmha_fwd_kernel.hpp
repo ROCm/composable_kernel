@@ -29,7 +29,7 @@ struct FmhaFwdKernel
     using KDataType              = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType              = ck::remove_cvref_t<typename FmhaPipeline::VDataType>;
     using BiasDataType           = ck::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
-    using DropDataType           = ck::remove_cvref_t<typename FmhaPipeline::DropDataType>;
+    using RandValOutputDataType  = ck::remove_cvref_t<typename FmhaPipeline::RandValOutputDataType>;
     using LSEDataType            = ck::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
     using ODataType              = ck::remove_cvref_t<typename FmhaPipeline::ODataType>;
     static constexpr bool kIsFp8 = FmhaPipeline::kIsFp8;
@@ -134,7 +134,7 @@ struct FmhaFwdKernel
         uint8_t p_undrop_in_uint8_t   = std::numeric_limits<uint8_t>::max();
         uint64_t drop_seed            = 1;
         uint64_t drop_offset          = 0;
-        void* drop_ptr                = nullptr;
+        void* rand_val_ptr            = nullptr;
         ck::index_t stride_drop       = 0;
         ck::index_t nhead_stride_drop = 0;
     };
@@ -178,7 +178,7 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
-              void* drop_ptr,
+              void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
               ck::index_t seqlen_q,
@@ -273,7 +273,7 @@ struct FmhaFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, drop_seeds);
-            kargs.drop_ptr          = drop_ptr;
+            kargs.rand_val_ptr      = rand_val_ptr;
             kargs.stride_drop       = stride_drop;
             kargs.nhead_stride_drop = nhead_stride_drop;
             kargs.batch_stride_drop = batch_stride_drop;
@@ -288,7 +288,7 @@ struct FmhaFwdKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
-              void* drop_ptr,
+              void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
               const void* seqstart_q_ptr,
@@ -374,7 +374,7 @@ struct FmhaFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, drop_seeds);
-            kargs.drop_ptr          = drop_ptr;
+            kargs.rand_val_ptr      = rand_val_ptr;
             kargs.stride_drop       = stride_drop;
             kargs.nhead_stride_drop = nhead_stride_drop;
         }
@@ -679,12 +679,12 @@ struct FmhaFwdKernel
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
             if constexpr(kHasDropout)
             {
-                DropDataType* drop_ptr =
-                    reinterpret_cast<DropDataType*>(kargs.drop_ptr) + i_total_id;
+                RandValOutputDataType* rand_val_ptr =
+                    reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) + i_total_id;
 
                 const auto drop_dram = [&]() {
                     const auto drop_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
-                        drop_ptr,
+                        rand_val_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),
                         make_tuple(kargs.stride_drop, 1),
                         Number<32>{},

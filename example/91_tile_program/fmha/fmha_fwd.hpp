@@ -28,65 +28,65 @@ struct FmhaFwdTypeConfig;
 template <>
 struct FmhaFwdTypeConfig<ck::half_t>
 {
-    using QDataType           = ck::half_t;
-    using KDataType           = ck::half_t;
-    using VDataType           = ck::half_t;
-    using BiasDataType        = ck::half_t;
-    using DropDataType        = uint8_t;
-    using LSEDataType         = float;      // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;      // data type for first gemm accumulation
-    using SMPLComputeDataType = float;      // data type for reduction, softmax
-    using PDataType           = ck::half_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;      // data type for second gemm accumulation
-    using ODataType           = ck::half_t;
+    using QDataType             = ck::half_t;
+    using KDataType             = ck::half_t;
+    using VDataType             = ck::half_t;
+    using BiasDataType          = ck::half_t;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float;      // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float;      // data type for first gemm accumulation
+    using SMPLComputeDataType   = float;      // data type for reduction, softmax
+    using PDataType             = ck::half_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;      // data type for second gemm accumulation
+    using ODataType             = ck::half_t;
 };
 
 template <>
 struct FmhaFwdTypeConfig<ck::bhalf_t>
 {
-    using QDataType           = ck::bhalf_t;
-    using KDataType           = ck::bhalf_t;
-    using VDataType           = ck::bhalf_t;
-    using BiasDataType        = ck::bhalf_t;
-    using DropDataType        = uint8_t;
-    using LSEDataType         = float;       // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;       // data type for first gemm accumulation
-    using SMPLComputeDataType = float;       // data type for reduction, softmax
-    using PDataType           = ck::bhalf_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;       // data type for second gemm accumulation
-    using ODataType           = ck::bhalf_t;
+    using QDataType             = ck::bhalf_t;
+    using KDataType             = ck::bhalf_t;
+    using VDataType             = ck::bhalf_t;
+    using BiasDataType          = ck::bhalf_t;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck::bhalf_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;       // data type for second gemm accumulation
+    using ODataType             = ck::bhalf_t;
 };
 
 template <>
 struct FmhaFwdTypeConfig<ck::f8_t>
 {
-    using QDataType           = ck::f8_t;
-    using KDataType           = ck::f8_t;
-    using VDataType           = ck::f8_t;
-    using BiasDataType        = float; // TODO: fix me
-    using DropDataType        = uint8_t;
-    using LSEDataType         = float;    // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;    // data type for first gemm accumulation
-    using SMPLComputeDataType = float;    // data type for reduction, softmax
-    using PDataType           = ck::f8_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;    // data type for second gemm accumulation
-    using ODataType           = ck::f8_t;
+    using QDataType             = ck::f8_t;
+    using KDataType             = ck::f8_t;
+    using VDataType             = ck::f8_t;
+    using BiasDataType          = float; // TODO: fix me
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float;    // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float;    // data type for first gemm accumulation
+    using SMPLComputeDataType   = float;    // data type for reduction, softmax
+    using PDataType             = ck::f8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;    // data type for second gemm accumulation
+    using ODataType             = ck::f8_t;
 };
 
 template <>
 struct FmhaFwdTypeConfig<ck::bf8_t>
 {
-    using QDataType           = ck::bf8_t;
-    using KDataType           = ck::bf8_t;
-    using VDataType           = ck::bf8_t;
-    using BiasDataType        = ck::bf8_t;
-    using DropDataType        = uint8_t;
-    using LSEDataType         = float;     // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;     // data type for first gemm accumulation
-    using SMPLComputeDataType = float;     // data type for reduction, softmax
-    using PDataType           = ck::bf8_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;     // data type for second gemm accumulation
-    using ODataType           = ck::bf8_t;
+    using QDataType             = ck::bf8_t;
+    using KDataType             = ck::bf8_t;
+    using VDataType             = ck::bf8_t;
+    using BiasDataType          = ck::bf8_t;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float;     // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float;     // data type for first gemm accumulation
+    using SMPLComputeDataType   = float;     // data type for reduction, softmax
+    using PDataType             = ck::bf8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;     // data type for second gemm accumulation
+    using ODataType             = ck::bf8_t;
 };
 
 struct FmhaMasks
@@ -102,7 +102,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      const void* k_ptr,
                                      const void* v_ptr,
                                      const void* bias_ptr,
-                                     void* drop_ptr,
+                                     void* rand_val_ptr,
                                      void* lse_ptr,
                                      void* o_ptr,
                                      const void* seqstart_q_ptr,
@@ -178,7 +178,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          k_ptr,
                                          v_ptr,
                                          bias_ptr,
-                                         drop_ptr,
+                                         rand_val_ptr,
                                          lse_ptr,
                                          o_ptr,
                                          seqstart_q_ptr,
@@ -214,7 +214,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          k_ptr,
                                          v_ptr,
                                          bias_ptr,
-                                         drop_ptr,
+                                         rand_val_ptr,
                                          lse_ptr,
                                          o_ptr,
                                          seqlen_q,
@@ -263,7 +263,7 @@ struct fmha_fwd_args
     const void* k_ptr;
     const void* v_ptr;
     const void* bias_ptr;
-    void* drop_ptr;
+    void* rand_val_ptr;
     void* lse_ptr;
     void* o_ptr;
     const void* seqstart_q_ptr;
@@ -296,7 +296,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.k_ptr,
                                                        args.v_ptr,
                                                        args.bias_ptr,
-                                                       args.drop_ptr,
+                                                       args.rand_val_ptr,
                                                        args.lse_ptr,
                                                        args.o_ptr,
                                                        args.seqstart_q_ptr,

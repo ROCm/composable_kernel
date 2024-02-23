@@ -673,7 +673,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             using WG = remove_cvref_t<decltype(config.template At<0>())>;
 
             constexpr index_t kNPerStep = WG::kN;
-            return kMPerBlock * kNPerStep * sizeof(typename Problem::DropDataType);
+            return kMPerBlock * kNPerStep * sizeof(typename Problem::RandValOutputDataType);
         }
         else
         {

@@ -29,18 +29,18 @@ namespace block {
 template <typename Problem, typename Policy = BlockFmhaPipelineQRKSVSDefaultPolicy>
 struct BlockFmhaPipelineQRKSVS
 {
-    using QDataType           = remove_cvref_t<typename Problem::QDataType>;
-    using KDataType           = remove_cvref_t<typename Problem::KDataType>;
-    using VDataType           = remove_cvref_t<typename Problem::VDataType>;
-    using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
-    using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
-    using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
-    using DropDataType        = remove_cvref_t<typename Problem::DropDataType>;
-    using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
-    using PDataType           = remove_cvref_t<typename Problem::PDataType>;
-    using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
-    using ODataType           = remove_cvref_t<typename Problem::ODataType>;
-    using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
+    using QDataType             = remove_cvref_t<typename Problem::QDataType>;
+    using KDataType             = remove_cvref_t<typename Problem::KDataType>;
+    using VDataType             = remove_cvref_t<typename Problem::VDataType>;
+    using SaccDataType          = remove_cvref_t<typename Problem::SaccDataType>;
+    using SMPLComputeDataType   = remove_cvref_t<typename Problem::SMPLComputeDataType>;
+    using BiasDataType          = remove_cvref_t<typename Problem::BiasDataType>;
+    using RandValOutputDataType = remove_cvref_t<typename Problem::RandValOutputDataType>;
+    using LSEDataType           = remove_cvref_t<typename Problem::LSEDataType>;
+    using PDataType             = remove_cvref_t<typename Problem::PDataType>;
+    using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
+    using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;

@@ -177,17 +177,17 @@ bool run(const ArgParser& arg_parser)
 
     using TypeConfig = FmhaFwdTypeConfig<DataType>;
 
-    using QDataType           = typename TypeConfig::QDataType;
-    using KDataType           = typename TypeConfig::KDataType;
-    using VDataType           = typename TypeConfig::VDataType;
-    using BiasDataType        = typename TypeConfig::BiasDataType;
-    using DropDataType        = typename TypeConfig::DropDataType;
-    using LSEDataType         = typename TypeConfig::LSEDataType;
-    using SaccDataType        = typename TypeConfig::SaccDataType;
-    using SMPLComputeDataType = typename TypeConfig::SMPLComputeDataType;
-    using PDataType           = typename TypeConfig::PDataType;
-    using OaccDataType        = typename TypeConfig::OaccDataType;
-    using ODataType           = typename TypeConfig::ODataType;
+    using QDataType             = typename TypeConfig::QDataType;
+    using KDataType             = typename TypeConfig::KDataType;
+    using VDataType             = typename TypeConfig::VDataType;
+    using BiasDataType          = typename TypeConfig::BiasDataType;
+    using RandValOutputDataType = typename TypeConfig::RandValOutputDataType;
+    using LSEDataType           = typename TypeConfig::LSEDataType;
+    using SaccDataType          = typename TypeConfig::SaccDataType;
+    using SMPLComputeDataType   = typename TypeConfig::SMPLComputeDataType;
+    using PDataType             = typename TypeConfig::PDataType;
+    using OaccDataType          = typename TypeConfig::OaccDataType;
+    using ODataType             = typename TypeConfig::ODataType;
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
@@ -259,7 +259,7 @@ bool run(const ArgParser& arg_parser)
 
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
-    Tensor<DropDataType> drop_host(
+    Tensor<RandValOutputDataType> drop_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck::index_t, 4>{1, 1, 1, 1});
 
@@ -386,7 +386,7 @@ bool run(const ArgParser& arg_parser)
     drop_buf.FromDevice(drop_host.data());
     float p_undrop = 1.0 - p_drop;
     uint8_t p_undrop_in_uint8_t =
-        DropDataType(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+        RandValOutputDataType(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
     float rp_undrop = 1.0 / p_undrop;
 
     bool pass = true;
@@ -492,7 +492,7 @@ bool run(const ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            Tensor<DropDataType> drop_host_result({nhead, real_seqlen_q, real_seqlen_k});
+            Tensor<RandValOutputDataType> drop_host_result({nhead, real_seqlen_q, real_seqlen_k});
             drop_host_result.ForEach([&](auto& self, auto idx) {
                 self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });

@@ -83,7 +83,7 @@ using fmha_pipeline_problem_{F_idx} = ck::tile_program::block::BlockFmhaPipeline
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SaccDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SMPLComputeDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::BiasDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::DropDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::RandValOutputDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
