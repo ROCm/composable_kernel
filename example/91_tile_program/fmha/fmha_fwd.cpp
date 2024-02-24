@@ -32,7 +32,7 @@
 #include "reference/reference_batched_gemm.hpp"
 #include "reference/reference_batched_masking.hpp"
 #include "reference/reference_batched_softmax.hpp"
-#include "reference/reference_batched_dropout.hpp"
+#include "reference/reference_dropout.hpp"
 #include "utils.hpp"
 
 auto create_args(int argc, char* argv[])
@@ -496,8 +496,7 @@ bool run(const ArgParser& arg_parser)
             randval_host_result.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
-            reference_batched_dropout(
-                p_host_ref, randval_host_result, p_undrop_in_uint8_t, rp_undrop);
+            reference_dropout(p_host_ref, randval_host_result, p_undrop_in_uint8_t, rp_undrop);
         }
 
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
