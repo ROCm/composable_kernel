@@ -30,12 +30,13 @@ template <index_t BlockSize,
  */
 struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
 {
-    static constexpr auto I0    = Number<0>{};
-    static constexpr auto I1    = Number<1>{};
-    static constexpr auto I2    = Number<2>{};
-    static constexpr auto I3    = Number<3>{};
-    static constexpr auto I4    = Number<4>{};
-    static constexpr auto WmmaK = Number<16>{};
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    // static constexpr auto WmmaK = Number<16>{};
+    static constexpr auto WmmaK = Number<8>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -141,6 +142,9 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
         static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 &&
                           NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
+
+        static_assert(WmmaK % A_K1 == 0, "");
+        static_assert(WmmaK % B_K1 == 0, "");
     }
 
     // Thread level, register decriptor. Vector-write
@@ -153,6 +157,10 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
         constexpr auto MSubGroup          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
         constexpr auto NThreadPerSubGroup = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
         constexpr auto MAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+
+	static_assert(MSubGroup == 1, "");
+	static_assert(NThreadPerSubGroup == 1, "");
+	static_assert(MAccVgprs == 8, "");
 
         return make_naive_tensor_descriptor_packed(
             //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave
@@ -224,6 +232,7 @@ struct BlockwiseGemmWMMA_k0mk1_k0nk1_m0m1m2n0n1n2m3_CShuffle
         // basic intrinsic to determine loopover direction
         if constexpr(MRepeat < NRepeat)
         {
+	    static_assert(0, "");
             static_for<0, KPerBlock / WmmaK, 1>{}(
                 [&](auto k) { // k=0,1,2 instead of k=0,kpack*1, ...
                     static_for<0, MRepeat, 1>{}([&](auto m0) {

@@ -49,7 +49,7 @@ __global__ void
             const CElementwiseOperation c_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -479,6 +479,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_wmma
             constexpr auto NWave              = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp.GetLength(I4);
             constexpr auto NThreadPerSubGroup = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp.GetLength(I5);
             constexpr auto MAccVgprs          = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp.GetLength(I6);
+
+	    static_assert(MSubGroup == 2, "");
+	    static_assert(NThreadPerSubGroup == 16, "");
+	    static_assert(MAccVgprs == 8, "");
 
             // LDS descriptor, shuffle and write out in MRepeat x NRepeat times
             constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
