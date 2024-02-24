@@ -30,7 +30,8 @@ template <typename ADataType,
           typename CDataType,
           typename ALayout,
           typename BLayout,
-          typename CLayout>
+          typename CLayout,
+          typename ComputeType = CDataType>
 bool profile_gemm_splitk_impl(int do_verification,
                               int init_method,
                               bool do_log,
@@ -41,7 +42,9 @@ bool profile_gemm_splitk_impl(int do_verification,
                               int StrideA,
                               int StrideB,
                               int StrideC,
-                              int KBatch)
+                              int KBatch,
+                              int n_warmup,
+                              int n_iter)
 {
     bool pass = true;
 
@@ -94,7 +97,6 @@ bool profile_gemm_splitk_impl(int do_verification,
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
-    c_device_buf.SetZero();
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmSplitK<ALayout,
                                                                     BLayout,
@@ -104,7 +106,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                                                                     CDataType,
                                                                     AElementOp,
                                                                     BElementOp,
-                                                                    CElementOp>;
+                                                                    CElementOp,
+                                                                    ComputeType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -121,7 +124,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CElementOp>;
+                                                                                CElementOp,
+                                                                                ComputeType>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -136,77 +140,118 @@ bool profile_gemm_splitk_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    float best_kbatch     = 0;
 
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
-                                        static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
-                                        static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
-                                        M,
-                                        N,
-                                        K,
-                                        StrideA,
-                                        StrideB,
-                                        StrideC,
-                                        a_element_op,
-                                        b_element_op,
-                                        c_element_op,
-                                        KBatch);
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
 
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(KBatch > 0)
         {
-            // re-init C to zero before profiling next kernel
-            c_device_buf.SetZero();
+            kbatch_list = {KBatch};
+        }
 
-            std::string op_name = op_ptr->GetTypeString();
+        for(std::size_t i = 0; i < kbatch_list.size(); i++)
+        {
+            auto kbatch_curr = kbatch_list[i];
 
-            float ave_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            auto argument_ptr =
+                op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
+                                            static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),
+                                            static_cast<CDataType*>(c_device_buf.GetDeviceBuffer()),
+                                            M,
+                                            N,
+                                            K,
+                                            StrideA,
+                                            StrideB,
+                                            StrideC,
+                                            a_element_op,
+                                            b_element_op,
+                                            c_element_op,
+                                            kbatch_curr);
 
-            std::size_t flop = std::size_t(2) * M * N * K;
+            auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            std::size_t num_btype =
-                sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
-
-            float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-            float gb_per_sec = num_btype / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
-
-            if(tflops > best_tflops)
+            if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_ave_time   = ave_time;
-                best_gb_per_sec = gb_per_sec;
-            }
 
-            if(do_verification)
-            {
-                c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                // re-init C to zero before profiling next kernel
+                c_device_buf.SetZero();
 
-                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
-                if(do_log)
+                if(do_verification)
                 {
-                    LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
-                        << std::endl;
-                    LogRangeAsType<float>(std::cout << "c_device: ", c_m_n_device_result.mData, ",")
-                        << std::endl;
+                    c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+
+                    if(do_log)
+                    {
+                        LogRangeAsType<float>(std::cout << "a : ", a_m_k.mData, ",") << std::endl;
+                        LogRangeAsType<float>(std::cout << "b: ", b_k_n.mData, ",") << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "c_host  : ", c_m_n_host_result.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "c_device: ", c_m_n_device_result.mData, ",")
+                            << std::endl;
+                    }
+                }
+
+                std::string op_name = op_ptr->GetTypeString();
+
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
+
+                std::size_t flop = std::size_t(2) * M * N * K;
+
+                std::size_t num_btype = sizeof(ADataType) * M * K + sizeof(BDataType) * K * N +
+                                        sizeof(CDataType) * M * N;
+
+                float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
+
+                float gb_per_sec = num_btype / 1.E6 / ave_time;
+
+                std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
+                          << kbatch_curr << std::endl;
+
+#if defined CK_ENABLE_FP8
+                // set softer tolerances for fp8
+                if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                             is_same_v<CDataType, f8_t>)
+                {
+                    std::string msg = "Error: Incorrect results!";
+                    double rtol     = 1e-1;
+                    double atol     = 1e-1;
+                    pass            = pass & ck::utils::check_err(
+                                      c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
+                }
+                else
+                {
+#endif
+                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+#if defined CK_ENABLE_FP8
+                }
+#endif
+
+                if(tflops > best_tflops)
+                {
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_ave_time   = ave_time;
+                    best_gb_per_sec = gb_per_sec;
+                    best_kbatch     = kbatch_curr;
                 }
             }
-        }
-        else
-        {
-            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            else
+            {
+                std::cout << op_ptr->GetTypeString() << " does not support this problem"
+                          << std::endl;
+            }
         }
     }
 
@@ -246,7 +291,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << KBatch
+              << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
               << " GB/s, " << best_op_name << std::endl;
 

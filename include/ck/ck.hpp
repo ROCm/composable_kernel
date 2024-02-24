@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/config.h"
+
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -27,15 +29,45 @@
 #define CK_WAVELET_MIN_BLOCK_PER_CU 2
 #endif
 
+// kernel attribute: amdgpu_waves_per_eu()
+#ifdef CK_USE_WAVES_PER_EU
+// for 1-wave kernels, control arguments of amdgpu_waves_per_eu() attribute
+#ifndef CK_MIN_WAVES_PER_EU
+#define CK_MIN_WAVES_PER_EU 0
+#endif
+
+#ifndef CK_MAX_WAVES_PER_EU
+#define CK_MAX_WAVES_PER_EU 0
+#endif
+
+#else
+#define CK_USE_WAVES_PER_EU 0
+#endif
+
+// define general macros for various architectures
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#define __gfx94__
+#endif
+#if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
+#define __gfx101__
+#endif
+#if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
+    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__)
+#define __gfx103__
+#endif
+#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
+#define __gfx11__
+#endif
+
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx940__) // for GPU code
+    defined(__gfx90a__) || defined(__gfx94__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#elif defined(__gfx1030__) // for GPU code
+#elif defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
+#elif defined(__gfx11__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
@@ -43,32 +75,36 @@
 #ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
 #elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx1030__) || \
-    defined(__gfx940__) // for GPU code
+#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx103__) || \
+    defined(__gfx94__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
+#elif defined(__gfx11__)
+#define CK_USE_AMD_V_FMAC_F32
+#define CK_USE_AMD_V_DOT2_F32_F16
+#define CK_USE_AMD_V_DOT4_I32_I8_GFX11
 #endif
 
 // MFMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_MFMA
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) // for GPU code
+#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) // for GPU code
 #define CK_USE_AMD_MFMA
 #endif
 
-#if(defined(__gfx90a__) || defined(__gfx940__))
+#if(defined(__gfx90a__) || defined(__gfx94__))
 #define CK_USE_AMD_MFMA_BF16_1K_OP
 #endif
 
-#if defined(__gfx940__)
+#if defined(__gfx94__)
 #define CK_USE_AMD_MFMA_GFX940
 #endif
 
 // WMMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_WMMA
-#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
+#elif defined(__gfx11__) // for GPU code
 #define CK_USE_AMD_WMMA
 #endif
 
@@ -85,13 +121,13 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) // for GPU code
+#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
-#if(defined(__gfx90a__) || defined(__gfx940__)) // for GPU code
+#if(defined(__gfx90a__) || defined(__gfx94__)) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
 #else
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
@@ -100,8 +136,21 @@
 // inline asm
 #define CK_USE_AMD_INLINE_ASM 1
 
-// inner product (DLOP)
-#define CK_USE_AMD_INNER_PRODUCT_INLINE_ASM 1
+// inner product (V_MAC/V_FMAC)
+#define CK_USE_AMD_V_MAC_INLINE_ASM 1
+
+// V_DOT inline instructions, less efficient since they require adding
+// `s_nop`s to avoid hazard
+#define CK_USE_AMD_V_DOT_INLINE_ASM 0
+
+// inner product using V_DOT with DPP8 modifiers
+#define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
+
+// LDS direct loads using inline assembly
+#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+
+// set stochastic rounding as default for f8 conversions
+#define CK_USE_SR_F8_CONVERSION 1
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
@@ -145,6 +194,10 @@
 #define CK_EXPERIMENTAL_INTER_WAVE_INSTANCES 1
 // experimental feature: add instances using pipeline v2
 #define CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES 1
+// experimental feature: optimize pipeline v2 by IGLP strategy (value=ID of strategy)
+#ifndef CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
+#define CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT 0
+#endif
 
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
@@ -170,13 +223,14 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
+
 // flag to enable (1) or disable (0) the debugging output in some kernels
 #define DEBUG_LOG 0
 
 // denorm test fix, required to work around dissue
 #ifndef CK_WORKAROUND_DENORM_FIX
 #define CK_WORKAROUND_DENORM_FIX 0
-#elif
+#else
 // enable only on MI200
 #define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
 #endif // CK_WORKAROUND_DENORM_FIX

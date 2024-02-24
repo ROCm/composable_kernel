@@ -204,9 +204,9 @@ int main(int argc, char* argv[])
 
     if(!gemm.IsSupportedArgument(argument))
     {
-        throw std::runtime_error(
-            "wrong! device_gemm with the specified compilation parameters does "
-            "not support this GEMM problem");
+        std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
+
+        return 0;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

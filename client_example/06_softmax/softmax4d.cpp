@@ -53,11 +53,34 @@ int main(int argc, char* argv[])
     SimpleDeviceMem in(sizeof(InDataType) * num_elements);
     SimpleDeviceMem out(sizeof(OutDataType) * num_elements);
 
-    using DeviceOp = ck::tensor_operation::device::
-        DeviceSoftmax<InDataType, AccDataType, OutDataType, PassThrough, PassThrough, Rank>;
+    using DeviceOp = ck::tensor_operation::device::DeviceSoftmax<InDataType,
+                                                                 AccDataType,
+                                                                 OutDataType,
+                                                                 PassThrough,
+                                                                 PassThrough,
+                                                                 Rank,
+                                                                 NumReduceDim>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
+
+    auto& generic_op_ptr = op_ptrs[0];
+
+    auto generic_argument_ptr = generic_op_ptr->MakeArgumentPointer(in_lengths,
+                                                                    in_strides,
+                                                                    reduce_dims,
+                                                                    alpha,
+                                                                    beta,
+                                                                    in.GetDeviceBuffer(),
+                                                                    out.GetDeviceBuffer(),
+                                                                    PassThrough{},
+                                                                    PassThrough{});
+
+    if(!generic_op_ptr->IsSupportedArgument(generic_argument_ptr.get()))
+    {
+        throw std::runtime_error(
+            "The generic kernel instance should be able to support any input shapes");
+    };
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
@@ -73,11 +96,6 @@ int main(int argc, char* argv[])
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr = op_ptrs[i];
-
-        if(op_ptr->GetRank() != Rank || op_ptr->GetNumReduceDim() != NumReduceDim)
-        {
-            continue;
-        }
 
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in_lengths,
                                                         in_strides,
@@ -122,6 +140,7 @@ int main(int argc, char* argv[])
               << best_op_name << std::endl;
 
     // run the best intance
+    if(found)
     {
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()

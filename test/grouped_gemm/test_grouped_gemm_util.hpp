@@ -63,7 +63,9 @@ class TestGroupedGemm : public testing::TestWithParam<int>
              const std::vector<int>& StrideAs,
              const std::vector<int>& StrideBs,
              const std::vector<int>& StrideCs,
-             int kbatch = 1)
+             int kbatch   = 1,
+             int n_warmup = 1,
+             int n_iter   = 10)
     {
         bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
                                                             BDataType,
@@ -71,8 +73,19 @@ class TestGroupedGemm : public testing::TestWithParam<int>
                                                             float,
                                                             ALayout,
                                                             BLayout,
-                                                            ELayout>(
-            verify_, init_method_, log_, bench_, Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch);
+                                                            ELayout>(verify_,
+                                                                     init_method_,
+                                                                     log_,
+                                                                     bench_,
+                                                                     Ms,
+                                                                     Ns,
+                                                                     Ks,
+                                                                     StrideAs,
+                                                                     StrideBs,
+                                                                     StrideCs,
+                                                                     kbatch,
+                                                                     n_warmup,
+                                                                     n_iter);
         EXPECT_TRUE(pass);
     }
 };
@@ -147,14 +160,14 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             32,
             4,
             2,
-            S<1, 4, 32, 1>,
+            S<1, 4, 16, 1>,
             ABlockTransferThreadClusterArrageOrder,
             ABlockTransferSrcAccessOrder,
             ABlockTransferSrcVectorDim::value,
             ABlockTransferSrcScalarPerVector,
             ABlockTransferDstScalarPerVector_K1::value,
             ABlockLdsAddExtraM::value,
-            S<1, 4, 32, 1>,
+            S<1, 4, 16, 1>,
             BBlockTransferThreadClusterArrageOrder,
             BBlockTransferSrcAccessOrder,
             BBlockTransferSrcVectorDim::value,

@@ -20,7 +20,9 @@ template <typename ADataType,
           typename AccDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CElementwiseOperation>
+          typename CElementwiseOperation,
+          typename ComputeTypeA = ADataType,
+          typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
     // Argument
@@ -61,12 +63,11 @@ struct ReferenceGemm : public device::BaseOperator
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
                 AccDataType v_acc = 0;
+                ComputeTypeA v_a  = 0;
+                ComputeTypeB v_b  = 0;
 
                 for(int k = 0; k < K; ++k)
                 {
-                    ADataType v_a;
-                    BDataType v_b;
-
                     // use PassThrough instead of ConvertBF16RTN for reference calculation
                     if constexpr(is_same_v<AElementwiseOperation,
                                            ck::tensor_operation::element_wise::ConvertBF16RTN>)
@@ -92,11 +93,11 @@ struct ReferenceGemm : public device::BaseOperator
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                AccDataType v_c;
+                CDataType v_c = 0;
 
                 arg.c_element_op_(v_c, v_acc);
 
-                arg.c_m_n_(m, n) = ck::type_convert<CDataType>(v_c);
+                arg.c_m_n_(m, n) = v_c;
             };
 
             make_ParallelTensorFunctor(

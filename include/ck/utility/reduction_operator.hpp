@@ -6,6 +6,7 @@
 #include "ck/ck.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type.hpp"
+#include "ck/utility/type_convert.hpp"
 
 namespace ck {
 
@@ -115,7 +116,15 @@ struct Max
     template <typename T>
     __host__ __device__ static constexpr T GetIdentityValue()
     {
-        return NumericLimits<T>::Lowest();
+        if constexpr(is_same_v<T, bhalf_t>)
+        {
+            float val = NumericLimits<float>::Lowest();
+            return type_convert<bhalf_t>(val);
+        }
+        else
+        {
+            return NumericLimits<T>::Lowest();
+        }
     };
 
     __host__ __device__ static constexpr bool
@@ -137,6 +146,15 @@ struct Max
             a = b;
     }
 
+    __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+            a = b;
+    }
+
     template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
@@ -151,6 +169,18 @@ struct Max
             changed = true;
         }
     }
+
+    __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
 };
 
 struct Min
@@ -158,6 +188,15 @@ struct Min
     template <typename T>
     __host__ __device__ static constexpr T GetIdentityValue()
     {
+        if constexpr(is_same_v<T, bhalf_t>)
+        {
+            float val = NumericLimits<float>::Max();
+            return type_convert<bhalf_t>(val);
+        }
+        else
+        {
+            return NumericLimits<T>::Max();
+        }
         return NumericLimits<T>::Max();
     };
 
@@ -180,6 +219,15 @@ struct Min
             a = b;
     }
 
+    __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+            a = b;
+    }
+
     template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
@@ -189,6 +237,18 @@ struct Min
                       "The data type is not supported by the Min accumulator!");
 
         if(a > b)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
         {
             a       = b;
             changed = true;

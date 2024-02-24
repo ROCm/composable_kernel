@@ -92,27 +92,76 @@ int profile_softmax(int argc, char* argv[])
     {
         if(data_type == SoftmaxDataType::F16_F16)
         {
-            ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 3>(do_verification,
-                                                                                 init_method,
-                                                                                 do_log,
-                                                                                 time_kernel,
-                                                                                 length,
-                                                                                 stride,
-                                                                                 reduce,
-                                                                                 double(alpha),
-                                                                                 double(beta));
+            if(reduce.size() == 1)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 3, 1>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else if(reduce.size() == 2)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 3, 2>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else if(reduce.size() == 3)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 3, 3>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else
+                throw std::runtime_error("invalid number of dimensions to reduce");
         }
         else if(data_type == SoftmaxDataType::F32_F32)
         {
-            ck::profiler::profile_softmax_impl<float, float, float, 3>(do_verification,
-                                                                       init_method,
-                                                                       do_log,
-                                                                       time_kernel,
-                                                                       length,
-                                                                       stride,
-                                                                       reduce,
-                                                                       double(alpha),
-                                                                       double(beta));
+            if(reduce.size() == 1)
+                ck::profiler::profile_softmax_impl<float, float, float, 3, 1>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else if(reduce.size() == 2)
+                ck::profiler::profile_softmax_impl<float, float, float, 3, 2>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else if(reduce.size() == 3)
+                ck::profiler::profile_softmax_impl<float, float, float, 3, 3>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else
+                throw std::runtime_error("invalid number of dimensions to reduce");
         }
         else
         {
@@ -124,27 +173,97 @@ int profile_softmax(int argc, char* argv[])
     {
         if(data_type == SoftmaxDataType::F16_F16)
         {
-            ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4>(do_verification,
-                                                                                 init_method,
-                                                                                 do_log,
-                                                                                 time_kernel,
-                                                                                 length,
-                                                                                 stride,
-                                                                                 reduce,
-                                                                                 double(alpha),
-                                                                                 double(beta));
+            if(reduce.size() == 1)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4, 1>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else if(reduce.size() == 2)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4, 2>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else if(reduce.size() == 3)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4, 3>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else if(reduce.size() == 4)
+                ck::profiler::profile_softmax_impl<ck::half_t, float, ck::half_t, 4, 4>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    length,
+                    stride,
+                    reduce,
+                    double(alpha),
+                    double(beta));
+            else
+                throw std::runtime_error("invalid number of dimensions to reduce");
         }
         else if(data_type == SoftmaxDataType::F32_F32)
         {
-            ck::profiler::profile_softmax_impl<float, float, float, 4>(do_verification,
-                                                                       init_method,
-                                                                       do_log,
-                                                                       time_kernel,
-                                                                       length,
-                                                                       stride,
-                                                                       reduce,
-                                                                       double(alpha),
-                                                                       double(beta));
+            if(reduce.size() == 1)
+                ck::profiler::profile_softmax_impl<float, float, float, 4, 1>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else if(reduce.size() == 2)
+                ck::profiler::profile_softmax_impl<float, float, float, 4, 2>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else if(reduce.size() == 3)
+                ck::profiler::profile_softmax_impl<float, float, float, 4, 3>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else if(reduce.size() == 4)
+                ck::profiler::profile_softmax_impl<float, float, float, 4, 4>(do_verification,
+                                                                              init_method,
+                                                                              do_log,
+                                                                              time_kernel,
+                                                                              length,
+                                                                              stride,
+                                                                              reduce,
+                                                                              double(alpha),
+                                                                              double(beta));
+            else
+                throw std::runtime_error("invalid number of dimensions to reduce");
         }
         else
         {

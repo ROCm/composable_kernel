@@ -104,13 +104,13 @@ struct ThreadwiseTensorSliceTransfer_v6r1
 
             // apply pointwise operation
             static_for<0, ScalarPerVector, 1>{}([&](auto i) {
-                SrcData v;
+                DstData v;
 
                 // apply element-wise operation
                 element_op_(v, src_vector_container.template AsType<SrcData>()[i]);
 
                 // apply type convert
-                dst_vector_container.template AsType<DstData>()(i) = type_convert<DstData>(v);
+                dst_vector_container.template AsType<DstData>()(i) = v;
             });
 
             const bool is_dst_valid =

@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef CK_ENABLE_FP16
 void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
@@ -58,7 +58,8 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_f16_f16_f16_f16_g
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
-
+#endif
+#ifdef CK_ENABLE_BF16
 void add_device_batched_gemm_masking_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf16_gmk_gnk_gno_gmo_instances(
     std::vector<std::unique_ptr<
         DeviceBatchedGemmSoftmaxGemmPermute<2,
@@ -100,6 +101,7 @@ void add_device_batched_gemm_softmax_gemm_permute_xdl_cshuffle_bf16_bf16_bf16_bf
                                                             PassThrough,
                                                             MaskingSpecialization::MaskDisabled>>>&
         instances);
+#endif
 
 template <typename ADataType,
           typename B0DataType,
@@ -146,7 +148,7 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
+#ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<B0DataType, half_t> &&
                      is_same_v<B1DataType, half_t> && is_same_v<CDataType, half_t>)
         {
@@ -161,6 +163,8 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
+#endif
+#ifdef CK_ENABLE_BF16
         else if constexpr(is_same_v<ADataType, BF16> && is_same_v<B0DataType, BF16> &&
                           is_same_v<B1DataType, BF16> && is_same_v<CDataType, BF16>)
         {
@@ -175,6 +179,7 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
+#endif
         return op_ptrs;
     }
 };

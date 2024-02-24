@@ -24,6 +24,7 @@
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/tuple_helper.hpp"
 #include "ck/utility/type.hpp"
+#include "ck/utility/type_convert.hpp"
 #include "ck/utility/magic_division.hpp"
 #include "ck/utility/c_style_pointer_cast.hpp"
 #include "ck/utility/is_known_at_compile_time.hpp"

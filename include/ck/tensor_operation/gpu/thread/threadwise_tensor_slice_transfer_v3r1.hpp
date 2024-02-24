@@ -9,6 +9,7 @@
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor/static_tensor.hpp"
+#include "ck/utility/is_detected.hpp"
 
 namespace ck {
 
@@ -129,6 +130,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
+        static_assert(SliceLengths::At(SrcVectorDim) % SrcScalarPerVector == 0,
+                      "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
+
         constexpr auto src_dim_access_order = SrcDimAccessOrder{};
 
         constexpr auto ordered_src_access_lengths =
@@ -208,10 +212,44 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             auto src_vector_container = src_vector_type{
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
+            using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
+            using dst_vector_t    = typename dst_vector_type::type;
+            dst_vector_type op_r_v;
+
+            constexpr auto get_elem_op_vec_len = []() {
+                if constexpr(is_detected<is_pack8_invocable_t, decltype(src_element_op_)>::value)
+                {
+                    if constexpr(decltype(src_element_op_)::is_pack8_invocable)
+                        return math::min(8, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack4_invocable_t, decltype(src_element_op_)>::value)
+                {
+                    if constexpr(decltype(src_element_op_)::is_pack4_invocable)
+                        return math::min(4, SrcScalarPerVector);
+                }
+                if constexpr(is_detected<is_pack2_invocable_t, decltype(src_element_op_)>::value)
+                {
+                    if constexpr(decltype(src_element_op_)::is_pack2_invocable)
+                        return math::min(2, SrcScalarPerVector);
+                }
+                return 1;
+            };
+
+            constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
+
+            using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
+            using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+
+            static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
+                // apply the src elementwise op and convert to DstData under the hood if needed
+                src_element_op_(op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
+                                src_vector_container.template AsType<src_elem_op_vec_t>()[idx]);
+            });
+
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
-                .template SetAsType<src_vector_t>(
-                    src_data_idx_seq, src_vector_container.template AsType<src_vector_t>()[I0]);
+                .template SetAsType<dst_vector_t>(src_data_idx_seq,
+                                                  op_r_v.template AsType<dst_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -264,19 +302,15 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     {
 #if !CK_EXPERIMENTAL_USE_IN_REGISTER_SUB_DWORD_TRANSPOSE
         static_ford<SliceLengths>{}([&](auto idx) {
-            // convert from SrcData to DstData here
-            dst_thread_scratch_(idx) =
-                type_convert<DstData>(src_thread_scratch_tuple_[thread_scratch_id][idx]);
+            dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
         });
 #else
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
         // TODO make this logic more generic for more sub-dword datatype
         if constexpr(SrcVectorDim != DstVectorDim &&
-                     ((is_same<half_t, remove_cvref_t<SrcData>>::value &&
-                       is_same<half_t, remove_cvref_t<DstData>>::value &&
+                     ((is_same<half_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0) ||
-                      (is_same<int8_t, remove_cvref_t<SrcData>>::value &&
-                       is_same<int8_t, remove_cvref_t<DstData>>::value &&
+                      (is_same<int8_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
             // each transpose does
@@ -310,7 +344,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 constexpr auto data_idx_seq = generate_sequence_v2(
                     [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
 
-                using src_vector_t = vector_type_maker_t<SrcData, SrcScalarPerVector>;
+                using src_vector_t = vector_type_maker_t<DstData, SrcScalarPerVector>;
                 using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
 
                 // get DstScalarPerVector # of read-only references to src vectors from
@@ -333,17 +367,16 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                     Number<num_dst_vector>{});
 
                 // do data transpose
-                transpose_vectors<SrcData, DstScalarPerVector, SrcScalarPerVector>{}(
+                transpose_vectors<DstData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
             });
         }
-
-        static_ford<SliceLengths>{}([&](auto idx) {
-            // apply the src elementwise op and convert to DstData under the hood if needed
-            DstData dst_v;
-            src_element_op_(dst_v, src_thread_scratch_tuple_[thread_scratch_id][idx]);
-            dst_thread_scratch_(idx) = dst_v;
-        });
+        else
+        {
+            static_ford<SliceLengths>{}([&](auto idx) {
+                dst_thread_scratch_(idx) = src_thread_scratch_tuple_[thread_scratch_id][idx];
+            });
+        }
 #endif
     }
 
@@ -758,11 +791,12 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
-    using SrcThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                                             SrcData,
-                                                             SrcScalarPerVector,
-                                                             decltype(src_thread_scratch_desc_),
-                                                             true>;
+    using SrcThreadScratch =
+        StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
+                                        DstData, // apply data_convert with SrcThreadScratch
+                                        SrcScalarPerVector,
+                                        decltype(src_thread_scratch_desc_),
+                                        true>;
 
     using DstThreadScratch = StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                                              DstData,

@@ -1393,9 +1393,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
     static bool IsSupportedArgument(const Argument& arg)
     {
         // check device
-        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
-             ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-             ck::get_device_name() == "gfx1102"))
+        if(!(ck::get_device_name() == "gfx906" || ck::is_navi2_supported() ||
+             ck::is_navi3_supported()))
         {
             return false;
         }

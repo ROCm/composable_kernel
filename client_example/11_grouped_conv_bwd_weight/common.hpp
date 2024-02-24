@@ -32,63 +32,49 @@ struct SimpleDeviceMem
 };
 
 template <ck::index_t NumDimSpatial>
-std::size_t GetFlops(ck::index_t G,
-                     ck::index_t N,
-                     ck::index_t K,
-                     ck::index_t C,
-                     const std::array<ck::index_t, NumDimSpatial>& output_spatial_lengths,
-                     const std::array<ck::index_t, NumDimSpatial>& filter_spatial_lengths)
+std::size_t GetFlops(const std::array<ck::index_t, NumDimSpatial>& output_lengths,
+                     const std::array<ck::index_t, NumDimSpatial>& filter_lengths)
 {
+    constexpr ck::index_t spatial_offset = 3;
+    const auto C                         = filter_lengths[2];
     // 2 * G * N * K * C * <output spatial lengths product> * <filter spatial lengths product>
-    return static_cast<std::size_t>(2) * G * N * K * C *
-           std::accumulate(std::begin(output_spatial_lengths),
-                           std::end(output_spatial_lengths),
+    return static_cast<std::size_t>(2) * C *
+           std::accumulate(std::begin(output_lengths),
+                           std::end(output_lengths),
                            static_cast<std::size_t>(1),
                            std::multiplies<>()) *
-           std::accumulate(std::begin(filter_spatial_lengths),
-                           std::end(filter_spatial_lengths),
+           std::accumulate(std::begin(filter_lengths) + spatial_offset,
+                           std::end(filter_lengths),
                            static_cast<std::size_t>(1),
                            std::multiplies<>());
 }
 
 template <typename InDataType, ck::index_t NumDimSpatial>
-std::size_t GetInputByte(ck::index_t G,
-                         ck::index_t N,
-                         ck::index_t C,
-                         const std::array<ck::index_t, NumDimSpatial>& input_spatial_lengths)
+std::size_t GetInputByte(const std::array<ck::index_t, NumDimSpatial>& input_lengths)
 {
     // sizeof(InDataType) * (G * N * C * <input spatial lengths product>) +
-    return sizeof(InDataType) * (G * N * C *
-                                 std::accumulate(std::begin(input_spatial_lengths),
-                                                 std::end(input_spatial_lengths),
+    return sizeof(InDataType) * (std::accumulate(std::begin(input_lengths),
+                                                 std::end(input_lengths),
                                                  static_cast<std::size_t>(1),
                                                  std::multiplies<>()));
 }
 
 template <typename WeiDataType, ck::index_t NumDimSpatial>
-std::size_t GetWeightByte(ck::index_t G,
-                          ck::index_t K,
-                          ck::index_t C,
-                          const std::array<ck::index_t, NumDimSpatial>& filter_spatial_lengths)
+std::size_t GetWeightByte(const std::array<ck::index_t, NumDimSpatial>& filter_lengths)
 {
     // sizeof(WeiDataType) * (G * K * C * <filter spatial lengths product>) +
-    return sizeof(WeiDataType) * (G * K * C *
-                                  std::accumulate(std::begin(filter_spatial_lengths),
-                                                  std::end(filter_spatial_lengths),
+    return sizeof(WeiDataType) * (std::accumulate(std::begin(filter_lengths),
+                                                  std::end(filter_lengths),
                                                   static_cast<std::size_t>(1),
                                                   std::multiplies<>()));
 }
 
 template <typename OutDataType, ck::index_t NumDimSpatial>
-std::size_t GetOutputByte(ck::index_t G,
-                          ck::index_t N,
-                          ck::index_t K,
-                          const std::array<ck::index_t, NumDimSpatial>& output_spatial_lengths)
+std::size_t GetOutputByte(const std::array<ck::index_t, NumDimSpatial>& output_lengths)
 {
     // sizeof(OutDataType) * (G * N * K * <output spatial lengths product>);
-    return sizeof(OutDataType) * (G * N * K *
-                                  std::accumulate(std::begin(output_spatial_lengths),
-                                                  std::end(output_spatial_lengths),
+    return sizeof(OutDataType) * (std::accumulate(std::begin(output_lengths),
+                                                  std::end(output_lengths),
                                                   static_cast<std::size_t>(1),
                                                   std::multiplies<std::size_t>()));
 }
@@ -99,15 +85,16 @@ template <ck::index_t NumDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          typename AComputeType = InDataType,
+          typename BComputeType = AComputeType>
 bool run_grouped_conv_bwd_weight(
-    ck::index_t G,
-    ck::index_t N,
-    ck::index_t K,
-    ck::index_t C,
-    const std::array<ck::index_t, NumDimSpatial>& input_spatial_lengths,
-    const std::array<ck::index_t, NumDimSpatial>& filter_spatial_lengths,
-    const std::array<ck::index_t, NumDimSpatial>& output_spatial_lengths,
+    const std::array<ck::index_t, NumDimSpatial + 3>& input_lengths,
+    const std::array<ck::index_t, NumDimSpatial + 3>& input_strides,
+    const std::array<ck::index_t, NumDimSpatial + 3>& filter_lengths,
+    const std::array<ck::index_t, NumDimSpatial + 3>& weights_strides,
+    const std::array<ck::index_t, NumDimSpatial + 3>& output_lengths,
+    const std::array<ck::index_t, NumDimSpatial + 3>& output_strides,
     const std::array<ck::index_t, NumDimSpatial>& conv_filter_strides,
     const std::array<ck::index_t, NumDimSpatial>& conv_filter_dilations,
     const std::array<ck::index_t, NumDimSpatial>& input_left_pads,
@@ -115,9 +102,9 @@ bool run_grouped_conv_bwd_weight(
 {
 
     ck::index_t split_k = 2;
-    SimpleDeviceMem in(GetInputByte<InDataType, NumDimSpatial>(G, N, C, input_spatial_lengths));
-    SimpleDeviceMem wei(GetWeightByte<WeiDataType, NumDimSpatial>(G, K, C, filter_spatial_lengths));
-    SimpleDeviceMem out(GetOutputByte<OutDataType, NumDimSpatial>(G, N, K, output_spatial_lengths));
+    SimpleDeviceMem in(GetInputByte<InDataType, NumDimSpatial + 3>(input_lengths));
+    SimpleDeviceMem wei(GetWeightByte<WeiDataType, NumDimSpatial + 3>(filter_lengths));
+    SimpleDeviceMem out(GetOutputByte<OutDataType, NumDimSpatial + 3>(output_lengths));
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdWeight<NumDimSpatial,
                                                                               InLayout,
@@ -128,7 +115,9 @@ bool run_grouped_conv_bwd_weight(
                                                                               OutDataType,
                                                                               PassThrough,
                                                                               PassThrough,
-                                                                              PassThrough>;
+                                                                              PassThrough,
+                                                                              AComputeType,
+                                                                              BComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -141,6 +130,10 @@ bool run_grouped_conv_bwd_weight(
     float best_gb_per_sec = 0;
     float best_tflops     = 0;
 
+    std::array<ck::index_t, NumDimSpatial + 3> a_g_n_c_wis_lengths{};
+    std::array<ck::index_t, NumDimSpatial + 3> a_g_n_c_wis_strides{};
+    std::array<ck::index_t, NumDimSpatial + 3> b_g_k_c_xs_lengths{};
+
     // profile device operation instances
     std::cout << "Run all instances and do timing" << std::endl;
 
@@ -150,13 +143,12 @@ bool run_grouped_conv_bwd_weight(
         auto argument_ptr   = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
-                                                        G,
-                                                        N,
-                                                        K,
-                                                        C,
-                                                        input_spatial_lengths,
-                                                        filter_spatial_lengths,
-                                                        output_spatial_lengths,
+                                                        input_lengths,
+                                                        input_strides,
+                                                        filter_lengths,
+                                                        weights_strides,
+                                                        output_lengths,
+                                                        output_strides,
                                                         conv_filter_strides,
                                                         conv_filter_dilations,
                                                         input_left_pads,
@@ -172,12 +164,10 @@ bool run_grouped_conv_bwd_weight(
         {
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            std::size_t flop =
-                GetFlops<NumDimSpatial>(G, N, K, C, output_spatial_lengths, filter_spatial_lengths);
-            std::size_t num_bytes =
-                GetInputByte<InDataType, NumDimSpatial>(G, N, C, input_spatial_lengths) +
-                GetWeightByte<WeiDataType, NumDimSpatial>(G, K, C, filter_spatial_lengths) +
-                GetOutputByte<OutDataType, NumDimSpatial>(G, N, K, output_spatial_lengths);
+            std::size_t flop      = GetFlops<NumDimSpatial + 3>(output_lengths, filter_lengths);
+            std::size_t num_bytes = GetInputByte<InDataType, NumDimSpatial + 3>(input_lengths) +
+                                    GetWeightByte<WeiDataType, NumDimSpatial + 3>(filter_lengths) +
+                                    GetOutputByte<OutDataType, NumDimSpatial + 3>(output_lengths);
 
             float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
             float gb_per_sec = num_bytes / 1.E6 / avg_time;
@@ -217,13 +207,12 @@ bool run_grouped_conv_bwd_weight(
         auto argument_ptr = op_ptr->MakeArgumentPointer(in.GetDeviceBuffer(),
                                                         wei.GetDeviceBuffer(),
                                                         out.GetDeviceBuffer(),
-                                                        G,
-                                                        N,
-                                                        K,
-                                                        C,
-                                                        input_spatial_lengths,
-                                                        filter_spatial_lengths,
-                                                        output_spatial_lengths,
+                                                        input_lengths,
+                                                        input_strides,
+                                                        filter_lengths,
+                                                        weights_strides,
+                                                        output_lengths,
+                                                        output_strides,
                                                         conv_filter_strides,
                                                         conv_filter_dilations,
                                                         input_left_pads,

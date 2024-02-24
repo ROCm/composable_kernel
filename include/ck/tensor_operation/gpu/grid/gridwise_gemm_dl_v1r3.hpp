@@ -274,7 +274,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
         const auto c_m0_n0_block_cluster_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
-        // HACK: this force index data into SGPR
+        // HACK: this forces index data into SGPR
         const index_t im0 = __builtin_amdgcn_readfirstlane(c_m0_n0_block_cluster_idx[I0]);
         const index_t in0 = __builtin_amdgcn_readfirstlane(c_m0_n0_block_cluster_idx[I1]);
 
@@ -472,7 +472,7 @@ struct GridwiseGemmDl_km_kn_mn_v1r3
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_k0_n0_n1_k1,
                                                     b_block_slice_copy_step);
 
-                // LDS doubel buffer: load next data from device mem
+                // LDS double buffer: load next data from device mem
                 a_blockwise_copy.RunRead(a_grid_desc_k0_m0_m1_k1, a_global_buf);
                 b_blockwise_copy.RunRead(b_grid_desc_k0_n0_n1_k1, b_global_buf);
 
@@ -992,7 +992,7 @@ struct GridwiseGemmDl_bkm_bkn_mn_v1r3
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_b_k0_n0_n1_k1,
                                                     b_block_slice_copy_step);
 
-                // LDS doubel buffer: load next data from device mem
+                // LDS double buffer: load next data from device mem
                 a_blockwise_copy.RunRead(a_grid_desc_b_k0_m0_m1_k1, a_global_buf);
                 b_blockwise_copy.RunRead(b_grid_desc_b_k0_n0_n1_k1, b_global_buf);
 

@@ -22,6 +22,16 @@ static constexpr ck::index_t C             = 192;
 static constexpr ck::index_t X             = 3;
 static constexpr ck::index_t Wi            = 28;
 static constexpr ck::index_t Wo            = 28;
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_lengths{G, N, C, Wi};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> filter_lengths{G, K, C, X};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_lengths{G, N, K, Wo};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> input_strides{N * Wi * C, Wi* C, 1, C};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> weights_strides{K * X * C, X* C, 1, C};
+static constexpr std::array<ck::index_t, NumDimSpatial + 3> output_strides{N * Wo * K, Wo* K, 1, K};
+static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_strides{1};
+static constexpr std::array<ck::index_t, NumDimSpatial> conv_filter_dilations{1};
+static constexpr std::array<ck::index_t, NumDimSpatial> input_left_pads{1};
+static constexpr std::array<ck::index_t, NumDimSpatial> input_right_pads{1};
 
 int main()
 {
@@ -31,7 +41,16 @@ int main()
                                        OutDataType,
                                        InLayout,
                                        WeiLayout,
-                                       OutLayout>(G, N, K, C, {Wi}, {X}, {Wo}, {1}, {1}, {1}, {1})
+                                       OutLayout>(input_lengths,
+                                                  input_strides,
+                                                  filter_lengths,
+                                                  weights_strides,
+                                                  output_lengths,
+                                                  output_strides,
+                                                  conv_filter_strides,
+                                                  conv_filter_dilations,
+                                                  input_left_pads,
+                                                  input_right_pads)
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }

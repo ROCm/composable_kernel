@@ -70,10 +70,8 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const Block2CTileMap block_2_ctile_map)
 {
-// TODO: Enable for gfx90a after complier fix
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||              \
-    defined(__gfx940__) || defined(__gfx1030__) || defined(__gfx1100__) || defined(__gfx1101__) || \
-    defined(__gfx1102__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
+    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__))
 
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -649,11 +647,8 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        // TODO: Enable for gfx90a after complier fix
-        if(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx908" ||
-           ck::get_device_name() == "gfx1030" || ck::get_device_name() == "gfx940" ||
-           ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102")
+        if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
+           ck::is_navi2_supported() || ck::is_navi3_supported())
         {
             bool pass = true;
             pass      = pass && arg.K_ % K1 == 0;

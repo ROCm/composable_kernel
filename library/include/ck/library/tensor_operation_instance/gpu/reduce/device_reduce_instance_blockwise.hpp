@@ -89,13 +89,13 @@ void add_device_reduce_instance_blockwise(
 {
     static_for<0, std::tuple_size<reduce_configuration_1_instances_blockwise>::value, 1>{}(
         [&](auto i) {
-            using cfg1 = remove_cvref_t<decltype(
-                std::get<i.value>(reduce_configuration_1_instances_blockwise{}))>;
+            using cfg1 = remove_cvref_t<decltype(std::get<i.value>(
+                reduce_configuration_1_instances_blockwise{}))>;
 
             static_for<0, std::tuple_size<reduce_configuration_2_instances_blockwise>::value, 1>{}(
                 [&](auto j) {
-                    using cfg2 = remove_cvref_t<decltype(
-                        std::get<j.value>(reduce_configuration_2_instances_blockwise{}))>;
+                    using cfg2 = remove_cvref_t<decltype(std::get<j.value>(
+                        reduce_configuration_2_instances_blockwise{}))>;
 
                     using ReduceOpInstance =
                         DeviceReduceMultiBlock<InDataType,

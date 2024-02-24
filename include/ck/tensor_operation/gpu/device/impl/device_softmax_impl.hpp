@@ -38,16 +38,9 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
                                                 OutDataType,
                                                 InElementwiseOp,
                                                 AccElementwiseOp,
-                                                Rank>
+                                                Rank,
+                                                NumReduceDim>
 {
-    static constexpr index_t kRank            = Rank;
-    static constexpr index_t kNumReduceDim    = NumReduceDim;
-    static constexpr index_t kNumInvariantDim = Rank - NumReduceDim;
-
-    virtual index_t GetRank() const override { return kRank; }
-
-    virtual index_t GetNumReduceDim() const override { return kNumReduceDim; }
-
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
 
     static constexpr index_t NumSrcDim = Rank;
@@ -287,13 +280,13 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
     {
         if constexpr(InSrcVectorDim == 0)
         {
-            if constexpr(kNumInvariantDim == 0)
+            if constexpr(NumInvariantDim == 0)
             {
                 return false;
             }
             else
             {
-                if(arg.inStrides_[kNumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
+                if(arg.inStrides_[NumInvariantDim - 1] != 1 && InSrcVectorSize != 1)
                 {
                     return false;
                 }
@@ -316,7 +309,7 @@ struct DeviceSoftmaxImpl : public DeviceSoftmax<InDataType,
         }
 
         // To improve
-        if(kNumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
+        if(NumInvariantDim > 0 && arg.invariant_lowest_length_ % OutDstVectorSize != 0)
         {
             return false;
         }

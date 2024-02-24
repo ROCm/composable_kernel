@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,8 +20,12 @@ using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using I32  = int32_t;
+using F8   = ck::f8_t;
+using BF8  = ck::bf8_t;
 
 using Empty_Tuple = ck::Tuple<>;
+
+using BF16_Tuple = ck::Tuple<BF16>;
 
 using F16_Tuple     = ck::Tuple<F16>;
 using F16_F16_Tuple = ck::Tuple<F16, F16>;
@@ -30,6 +34,9 @@ using F64_Tuple     = ck::Tuple<F64>;
 using F32_Tuple     = ck::Tuple<F32>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
+using I8_Tuple      = ck::Tuple<I8>;
+
+using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
 // GEMM layout
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -79,9 +86,9 @@ using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
 //
-using GK          = ck::tensor_layout::convolution::G_K;
-using GK_Tuple    = ck::Tuple<GK>;
-using GK_GK_Tuple = ck::Tuple<GK, GK>;
+using G_K         = ck::tensor_layout::convolution::G_K;
+using GK_Tuple    = ck::Tuple<G_K>;
+using GK_GK_Tuple = ck::Tuple<G_K, G_K>;
 
 // pointwise functor
 using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
@@ -91,12 +98,16 @@ using Scale          = ck::tensor_operation::element_wise::Scale;
 using Bilinear       = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu = ck::tensor_operation::element_wise::AddAddFastGelu;
 using AddFastGelu    = ck::tensor_operation::element_wise::AddFastGelu;
+using AddRelu        = ck::tensor_operation::element_wise::AddRelu;
+using AddSilu        = ck::tensor_operation::element_wise::AddSilu;
 using AddReluAdd     = ck::tensor_operation::element_wise::AddReluAdd;
 using FastGelu       = ck::tensor_operation::element_wise::FastGelu;
 using AddMultiply    = ck::tensor_operation::element_wise::AddMultiply;
+using MultiplyAdd    = ck::tensor_operation::element_wise::MultiplyAdd;
 using ScaleAdd       = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu           = ck::tensor_operation::element_wise::Gelu;
 using Swish          = ck::tensor_operation::element_wise::Swish;
+using Add            = ck::tensor_operation::element_wise::Add;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;

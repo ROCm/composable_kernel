@@ -14,7 +14,7 @@
 
 using CDE0ElementOp = ck::tensor_operation::element_wise::AddRelu;
 using CDE1ElementOp = ck::tensor_operation::element_wise::Add;
-
+#ifdef CK_ENABLE_FP16
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -137,3 +137,4 @@ struct DeviceOperationInstanceFactory<
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

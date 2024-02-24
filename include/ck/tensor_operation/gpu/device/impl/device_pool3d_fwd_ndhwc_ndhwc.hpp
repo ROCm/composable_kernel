@@ -8,8 +8,10 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/device/device_pool_fwd.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -30,8 +32,15 @@ template <typename InDataType,
           ck::index_t MThreadSliceSize,
           ck::index_t KThreadSliceSize,
           ck::index_t InSrcOutDstVectorSize>
-struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
-    : public DevicePoolFwd<5, 3, InDataType, OutDataType, IndexDataType, ReduceOpId, OutputIndex>
+struct DevicePool3dFwd_NDHWC_NDHWC : public DevicePoolFwd<5,
+                                                          3,
+                                                          InDataType,
+                                                          OutDataType,
+                                                          IndexDataType,
+                                                          tensor_layout::convolution::NDHWC,
+                                                          tensor_layout::convolution::NDHWC,
+                                                          ReduceOpId,
+                                                          OutputIndex>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -51,45 +60,48 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
     using AccElementwiseOperation =
         typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
 
-    // for NDHWC, the dim C is the vector Dim for both input and output in memory, which is not
-    // reduced.
-    static constexpr index_t InSrcOutDstVectorDim = 0;
-
     static constexpr ck::index_t M_BlockTileSize = MThreadClusterSize * MThreadSliceSize;
     static constexpr ck::index_t K_BlockTileSize = KThreadClusterSize * KThreadSliceSize;
 
-    static auto MakeABGridDescriptor_A_M_K_B_M(ck::index_t N,
-                                               ck::index_t C,
-                                               std::vector<ck::index_t> input_spatial_lengths,
-                                               std::vector<ck::index_t> window_spatial_lengths,
-                                               std::vector<ck::index_t> output_spatial_lengths,
-                                               std::vector<ck::index_t> window_strides,
-                                               std::vector<ck::index_t> input_left_pads,
-                                               std::vector<ck::index_t> input_right_pads)
+    static auto MakeABGridDescriptor_A_M_K_B_M(std::vector<ck::index_t> input_ncdhw_lengths,
+                                               std::vector<ck::index_t> output_ncdhw_lengths,
+                                               std::vector<ck::index_t> input_ncdhw_stride,
+                                               std::vector<ck::index_t> output_ncdhw_stride,
+                                               std::vector<ck::index_t> window_spatial_zyx_lengths,
+                                               std::vector<ck::index_t> window_zyx_strides,
+                                               std::vector<ck::index_t> window_zyx_dilations,
+                                               std::vector<ck::index_t> input_left_dhw_pads,
+                                               std::vector<ck::index_t> input_right_dhw_pads)
     {
-        const index_t Di = input_spatial_lengths[0];
-        const index_t Hi = input_spatial_lengths[1];
-        const index_t Wi = input_spatial_lengths[2];
+        const index_t N  = input_ncdhw_lengths[0];
+        const index_t C  = input_ncdhw_lengths[1];
+        const index_t Di = input_ncdhw_lengths[2];
+        const index_t Hi = input_ncdhw_lengths[3];
+        const index_t Wi = input_ncdhw_lengths[4];
 
-        const index_t Do = output_spatial_lengths[0];
-        const index_t Ho = output_spatial_lengths[1];
-        const index_t Wo = output_spatial_lengths[2];
+        const index_t Do = output_ncdhw_lengths[2];
+        const index_t Ho = output_ncdhw_lengths[3];
+        const index_t Wo = output_ncdhw_lengths[4];
 
-        const index_t Z = window_spatial_lengths[0];
-        const index_t Y = window_spatial_lengths[1];
-        const index_t X = window_spatial_lengths[2];
+        const index_t Z = window_spatial_zyx_lengths[0];
+        const index_t Y = window_spatial_zyx_lengths[1];
+        const index_t X = window_spatial_zyx_lengths[2];
 
-        const index_t ConvStrideD = window_strides[0];
-        const index_t ConvStrideH = window_strides[1];
-        const index_t ConvStrideW = window_strides[2];
+        const index_t WindowStrideD = window_zyx_strides[0];
+        const index_t WindowStrideH = window_zyx_strides[1];
+        const index_t WindowStrideW = window_zyx_strides[2];
 
-        const index_t InLeftPadD = input_left_pads[0];
-        const index_t InLeftPadH = input_left_pads[1];
-        const index_t InLeftPadW = input_left_pads[2];
+        const index_t WindowDilationD = window_zyx_dilations[0];
+        const index_t WindowDilationH = window_zyx_dilations[1];
+        const index_t WindowDilationW = window_zyx_dilations[2];
 
-        const index_t InRightPadD = input_right_pads[0];
-        const index_t InRightPadH = input_right_pads[1];
-        const index_t InRightPadW = input_right_pads[2];
+        const index_t InLeftPadD = input_left_dhw_pads[0];
+        const index_t InLeftPadH = input_left_dhw_pads[1];
+        const index_t InLeftPadW = input_left_dhw_pads[2];
+
+        const index_t InRightPadD = input_right_dhw_pads[0];
+        const index_t InRightPadH = input_right_dhw_pads[1];
+        const index_t InRightPadW = input_right_dhw_pads[2];
 
         const index_t MRaw = N * Do * Ho * Wo * C;
         const index_t MPad = math::integer_least_multiple(MRaw, M_BlockTileSize) - MRaw;
@@ -98,8 +110,15 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         const index_t KPad = math::integer_least_multiple(KRaw, K_BlockTileSize) - KRaw;
 
         // A[ReduceM, ReduceK]
-        const auto in_grid_desc_n_di_hi_wi_c =
-            make_naive_tensor_descriptor_packed(make_tuple(N, Di, Hi, Wi, C));
+        const index_t Ni_stride = input_ncdhw_stride[0];
+        const index_t Ci_stride = input_ncdhw_stride[1];
+        const index_t Di_stride = input_ncdhw_stride[2];
+        const index_t Hi_stride = input_ncdhw_stride[3];
+        const index_t Wi_stride = input_ncdhw_stride[4];
+
+        const auto in_grid_desc_n_di_hi_wi_c = make_naive_tensor_descriptor(
+            make_tuple(N, Di, Hi, Wi, C),
+            make_tuple(Ni_stride, Di_stride, Hi_stride, Wi_stride, Ci_stride));
 
         const auto in_grid_desc_n_dip_hip_wip_c = transform_tensor_descriptor(
             in_grid_desc_n_di_hi_wi_c,
@@ -113,11 +132,12 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
 
         const auto in_grid_desc_n_z_do_y_ho_x_wo_c = transform_tensor_descriptor(
             in_grid_desc_n_dip_hip_wip_c,
-            make_tuple(make_pass_through_transform(N),
-                       make_embed_transform(make_tuple(Z, Do), make_tuple(I1, ConvStrideD)),
-                       make_embed_transform(make_tuple(Y, Ho), make_tuple(I1, ConvStrideH)),
-                       make_embed_transform(make_tuple(X, Wo), make_tuple(I1, ConvStrideW)),
-                       make_pass_through_transform(C)),
+            make_tuple(
+                make_pass_through_transform(N),
+                make_embed_transform(make_tuple(Z, Do), make_tuple(WindowDilationD, WindowStrideD)),
+                make_embed_transform(make_tuple(Y, Ho), make_tuple(WindowDilationH, WindowStrideH)),
+                make_embed_transform(make_tuple(X, Wo), make_tuple(WindowDilationW, WindowStrideW)),
+                make_pass_through_transform(C)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
             make_tuple(Sequence<0>{},
                        Sequence<1, 2>{},
@@ -139,8 +159,21 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
         // B[ReduceM]
-        const auto out_grid_desc_reducemraw =
-            make_naive_tensor_descriptor_packed(make_tuple(N * Do * Ho * Wo * C));
+        const index_t No_stride = output_ncdhw_stride[0];
+        const index_t Co_stride = output_ncdhw_stride[1];
+        const index_t Do_stride = output_ncdhw_stride[2];
+        const index_t Ho_stride = output_ncdhw_stride[3];
+        const index_t Wo_stride = output_ncdhw_stride[4];
+
+        const auto out_grid_desc_n_do_ho_wo_c = make_naive_tensor_descriptor(
+            make_tuple(N, Di, Hi, Wi, C),
+            make_tuple(No_stride, Do_stride, Ho_stride, Wo_stride, Co_stride));
+
+        const auto out_grid_desc_reducemraw = transform_tensor_descriptor(
+            out_grid_desc_n_do_ho_wo_c,
+            make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo, C))),
+            make_tuple(Sequence<0, 1, 2, 3, 4>{}),
+            make_tuple(Sequence<0>{}));
 
         const auto out_grid_desc_reducem =
             transform_tensor_descriptor(out_grid_desc_reducemraw,
@@ -151,7 +184,9 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         return make_tuple(in_grid_desc_reducem_reducek, out_grid_desc_reducem);
     }
 
-    using ABGridDescs   = decltype(MakeABGridDescriptor_A_M_K_B_M(1, 1, {}, {}, {}, {}, {}, {}));
+    using ABGridDescs =
+        decltype(MakeABGridDescriptor_A_M_K_B_M({}, {}, {}, {}, {}, {}, {}, {}, {}));
+
     using AGridDesc_M_K = remove_cvref_t<decltype(ABGridDescs{}[I0])>;
     using BGridDesc_M   = remove_cvref_t<decltype(ABGridDescs{}[I1])>;
 
@@ -160,36 +195,41 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         Argument(const InDataType* p_in_dev,
                  OutDataType* p_out_dev,
                  IndexDataType* p_out_indices_dev,
-                 ck::index_t N,
-                 ck::index_t C,
-                 std::vector<ck::index_t>& input_spatial_lengths,
-                 std::vector<ck::index_t>& window_spatial_lengths,
-                 std::vector<ck::index_t>& output_spatial_lengths,
-                 std::vector<ck::index_t>& window_strides,
-                 std::vector<ck::index_t>& input_left_pads,
-                 std::vector<ck::index_t>& input_right_pads)
+                 std::vector<ck::index_t>& input_ncdhw_lengths,
+                 std::vector<ck::index_t>& output_ncdhw_lengths,
+                 std::vector<ck::index_t>& input_ncdhw_stride,
+                 std::vector<ck::index_t>& output_ncdhw_stride,
+                 std::vector<ck::index_t>&, // indices_ncdhw_stride
+                 std::vector<ck::index_t>& window_spatial_zyx_lengths,
+                 std::vector<ck::index_t>& window_zyx_strides,
+                 std::vector<ck::index_t>& window_zyx_dilations,
+                 std::vector<ck::index_t>& input_left_dhw_pads,
+                 std::vector<ck::index_t>& input_right_dhw_pads)
             : p_in_dev_{p_in_dev},
               p_out_dev_{p_out_dev},
               p_out_indices_dev_{p_out_indices_dev},
               a_grid_desc_m_k_{},
-              b_grid_desc_m_{}
+              b_grid_desc_m_{},
+              input_ncdhw_lengths_{input_ncdhw_lengths},
+              output_ncdhw_lengths_{output_ncdhw_lengths},
+              input_ncdhw_stride_{input_ncdhw_stride},
+              output_ncdhw_stride_{output_ncdhw_stride}
         {
-            const auto descs = MakeABGridDescriptor_A_M_K_B_M(N,
-                                                              C,
-                                                              input_spatial_lengths,
-                                                              window_spatial_lengths,
-                                                              output_spatial_lengths,
-                                                              window_strides,
-                                                              input_left_pads,
-                                                              input_right_pads);
+            const auto descs = MakeABGridDescriptor_A_M_K_B_M(input_ncdhw_lengths,
+                                                              output_ncdhw_lengths,
+                                                              input_ncdhw_stride,
+                                                              output_ncdhw_stride,
+                                                              window_spatial_zyx_lengths,
+                                                              window_zyx_strides,
+                                                              window_zyx_dilations,
+                                                              input_left_dhw_pads,
+                                                              input_right_dhw_pads);
 
             a_grid_desc_m_k_ = descs[I0];
             b_grid_desc_m_   = descs[I1];
 
-            invariant_lowest_length_ = C;
-
-            int32_t reduceLength =
-                window_spatial_lengths[0] * window_spatial_lengths[1] * window_spatial_lengths[2];
+            int32_t reduceLength = window_spatial_zyx_lengths[0] * window_spatial_zyx_lengths[1] *
+                                   window_spatial_zyx_lengths[2];
 
             std::tie(in_element_op_, acc_element_op_) =
                 reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(reduceLength);
@@ -200,17 +240,25 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         IndexDataType* p_out_indices_dev_;
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_M b_grid_desc_m_;
+
         InElementwiseOperation in_element_op_;
         AccElementwiseOperation acc_element_op_;
 
         // for checking vector load/store
-        ck::index_t invariant_lowest_length_;
+        std::vector<ck::index_t> input_ncdhw_lengths_;
+        std::vector<ck::index_t> output_ncdhw_lengths_;
+        std::vector<ck::index_t> input_ncdhw_stride_;
+        std::vector<ck::index_t> output_ncdhw_stride_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            // for NDHWC, the dim C is the fastest dimension, and is not reduced.
+            // Hence, it is in M dimension for reduction kernel.
+            static constexpr index_t InSrcOutDstVectorDim = 0; // 0: M, 1: K
+
             using gridwise_reduce =
                 GridwiseReduction_mk_to_m_threadwise<InDataType,
                                                      OutDataType,
@@ -276,60 +324,66 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
     {
         const Argument* pArg = dynamic_cast<const Argument*>(p_arg);
 
-        if(pArg->invariant_lowest_length_ % InSrcOutDstVectorSize != 0)
-        {
+        // C should be fastest dimension
+        if(pArg->input_ncdhw_stride_[1] != 1)
             return false;
+
+        for(int i = 0; i < InOutRank; ++i)
+        {
+            if(pArg->input_ncdhw_stride_[i] == 1 &&
+               pArg->input_ncdhw_lengths_[i] % InSrcOutDstVectorSize != 0)
+                return false;
+
+            if(pArg->output_ncdhw_stride_[i] == 1 &&
+               pArg->output_ncdhw_lengths_[i] % InSrcOutDstVectorSize != 0)
+                return false;
         }
 
         return true;
     }
 
-    std::unique_ptr<BaseArgument>
+    virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in_dev,
                         void* p_out_dev,
                         void* p_out_indices_dev,
-                        std::vector<ck::index_t> input_lengths,
-                        std::vector<ck::index_t> window_lengths,
-                        std::vector<ck::index_t> output_lengths,
-                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
-                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
-                        std::vector<ck::index_t>, // Suppose tensor layout = NDHWC
-                        std::vector<ck::index_t> window_strides,
-                        std::vector<ck::index_t> input_left_pads,
-                        std::vector<ck::index_t> input_right_pads,
+                        std::vector<ck::index_t> input_ncdhw_lengths,
+                        std::vector<ck::index_t> window_zyx_lengths,
+                        std::vector<ck::index_t> output_ncdhw_lengths,
+                        std::vector<ck::index_t> input_ncdhw_stride,
+                        std::vector<ck::index_t> output_ncdhw_stride,
+                        std::vector<ck::index_t> indices_ncdhw_stride,
+                        std::vector<ck::index_t> window_zyx_strides,
+                        std::vector<ck::index_t> window_zyx_dilations,
+                        std::vector<ck::index_t> input_left_dhw_pads,
+                        std::vector<ck::index_t> input_right_dhw_pads,
                         std::vector<ck::index_t> pooling_dims) override
     {
-        if(input_lengths.size() != InOutRank || window_lengths.size() != WindowRank ||
-           input_lengths.size() != InOutRank || window_strides.size() != WindowRank ||
-           input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
+        if(input_ncdhw_lengths.size() != InOutRank || window_zyx_lengths.size() != WindowRank ||
+           input_ncdhw_lengths.size() != InOutRank || window_zyx_strides.size() != WindowRank ||
+           window_zyx_dilations.size() != WindowRank || input_left_dhw_pads.size() != WindowRank ||
+           input_right_dhw_pads.size() != WindowRank)
             throw std::runtime_error("dimension is incorrect");
 
         if(pooling_dims != std::vector<ck::index_t>{2, 3, 4})
             throw std::runtime_error("pooling_dims only support {2, 3, 4} in pool3d so far");
 
-        index_t N  = input_lengths[0];
-        index_t C  = input_lengths[1];
-        index_t Di = input_lengths[2];
-        index_t Hi = input_lengths[3];
-        index_t Wi = input_lengths[4];
-        index_t Do = output_lengths[2];
-        index_t Ho = output_lengths[3];
-        index_t Wo = output_lengths[4];
-
-        std::vector<ck::index_t> input_spatial_lengths  = {Di, Hi, Wi};
-        std::vector<ck::index_t> output_spatial_lengths = {Do, Ho, Wo};
+        if(output_ncdhw_stride != indices_ncdhw_stride)
+            throw std::runtime_error(
+                "output_ncdhw_stride need to be equal to indices_ncdhw_stride for now");
 
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_dev),
                                           static_cast<OutDataType*>(p_out_dev),
                                           static_cast<IndexDataType*>(p_out_indices_dev),
-                                          N,
-                                          C,
-                                          input_spatial_lengths,
-                                          window_lengths,
-                                          output_spatial_lengths,
-                                          window_strides,
-                                          input_left_pads,
-                                          input_right_pads);
+                                          input_ncdhw_lengths,
+                                          output_ncdhw_lengths,
+                                          input_ncdhw_stride,
+                                          output_ncdhw_stride,
+                                          indices_ncdhw_stride,
+                                          window_zyx_lengths,
+                                          window_zyx_strides,
+                                          window_zyx_dilations,
+                                          input_left_dhw_pads,
+                                          input_right_dhw_pads);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
@@ -342,7 +396,7 @@ struct DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DevicePool3dFwd_Input_N_Di_Hi_Wi_C_Output_N_Do_Ho_Wo_C<" << BlockSize << ",";
+        str << "DevicePool3dFwd_NDHWC_NDHWC<" << BlockSize << ",";
         str << "M_C" << MThreadClusterSize << "_S" << MThreadSliceSize << ",";
         str << "K_C" << KThreadClusterSize << "_S" << KThreadSliceSize << ",";
         str <<"InSrcOutDstVectorSize_" << InSrcOutDstVectorSize << ">";

@@ -64,7 +64,7 @@ __global__ void
             index_t NRaw)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemmWelford::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemmWelford::template Run<HasMainKBlockLoop>(
@@ -364,11 +364,13 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
     // We have to separate mean var descriptor for gemm and layernorm bacause of different grid
     // layout(different padding)
-    using GemmMeanVarGridDesc_M_NBlock = decltype(
-        MakeMeanVarDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1, 1));
+    using GemmMeanVarGridDesc_M_NBlock =
+        decltype(MakeMeanVarDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1,
+                                                                                                1));
 
-    using GemmCountGridDesc_M_NBlock = decltype(
-        MakeCountDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1, 1));
+    using GemmCountGridDesc_M_NBlock =
+        decltype(MakeCountDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1,
+                                                                                              1));
 
     using LayernormMeanVarGridDesc_M_NBlock =
         decltype(MakeMeanVarDescriptor_M_N<Sequence<true, true>,
@@ -819,7 +821,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         return (workspace_size);
     };
 
-    void SetWorkSpacePointer(BaseArgument* pArg, void* p_workspace) const override
+    void SetWorkSpacePointer(BaseArgument* pArg,
+                             void* p_workspace,
+                             const StreamConfig& = StreamConfig{}) const override
     {
         Argument* pArg_ = dynamic_cast<Argument*>(pArg);
 
@@ -855,8 +859,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-             ck::get_device_name() == "gfx940"))
+        if(!ck::is_xdl_supported())
         {
             return false;
         }

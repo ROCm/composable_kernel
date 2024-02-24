@@ -150,28 +150,6 @@ __host__ __device__ constexpr T clamp(const T& x, const T& lowerbound, const T& 
     return min(max(x, lowerbound), upperbound);
 }
 
-// disallow implicit type casting
-template <typename T>
-__device__ T exp(T x);
-
-// TODO: add f16 support using v_exp_f16
-
-template <>
-__device__ float exp<float>(float x)
-{
-    return __expf(x);
-}
-
-template <>
-__device__ double exp<double>(double x)
-{
-    return exp(x);
-}
-
-static inline __host__ float exp(float x) { return std::expf(x); }
-
-static inline __host__ double exp(double x) { return std::exp(x); }
-
 // greatest common divisor, aka highest common factor
 __host__ __device__ constexpr index_t gcd(index_t x, index_t y)
 {
@@ -239,6 +217,22 @@ struct less
 {
     __host__ __device__ constexpr bool operator()(T x, T y) const { return x < y; }
 };
+
+template <index_t X>
+__host__ __device__ constexpr auto next_power_of_two()
+{
+    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
+    constexpr index_t Y = 1 << (32 - __builtin_clz(X - 1));
+    return Y;
+}
+
+template <index_t X>
+__host__ __device__ constexpr auto next_power_of_two(Number<X> x)
+{
+    // TODO: X need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
+    constexpr index_t Y = 1 << (32 - __builtin_clz(x.value - 1));
+    return Number<Y>{};
+}
 
 } // namespace math
 } // namespace ck

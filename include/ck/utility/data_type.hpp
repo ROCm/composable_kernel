@@ -9,9 +9,9 @@ namespace ck {
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-using int4_t = _BitInt(4);
-#endif
+using int4_t  = _BitInt(4);
+using f8_t    = _BitInt(8);
+using bf8_t   = unsigned _BitInt(8);
 
 // vector_type
 template <typename T, index_t N>
@@ -142,7 +142,20 @@ struct scalar_type<int4_t>
 };
 #endif
 
-//
+template <>
+struct scalar_type<f8_t>
+{
+    using type                           = f8_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf8_t>
+{
+    using type                           = bf8_t;
+    static constexpr index_t vector_size = 1;
+};
+
 template <typename T>
 struct vector_type<T, 1>
 {
@@ -176,6 +189,7 @@ struct vector_type<T, 1>
     }
 };
 
+int static err = 0;
 template <typename T>
 struct vector_type<T, 2>
 {
@@ -208,6 +222,10 @@ struct vector_type<T, 2>
         {
             return data_.d2x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -222,6 +240,10 @@ struct vector_type<T, 2>
         else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -265,6 +287,10 @@ struct vector_type<T, 4>
         {
             return data_.d4x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -284,6 +310,10 @@ struct vector_type<T, 4>
         else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -334,6 +364,10 @@ struct vector_type<T, 8>
         {
             return data_.d8x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -358,6 +392,10 @@ struct vector_type<T, 8>
         else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -415,6 +453,10 @@ struct vector_type<T, 16>
         {
             return data_.d16x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -444,6 +486,10 @@ struct vector_type<T, 16>
         else if constexpr(is_same<X, d16_t>::value)
         {
             return data_.d16x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -507,6 +553,10 @@ struct vector_type<T, 32>
         {
             return data_.d32x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -540,6 +590,10 @@ struct vector_type<T, 32>
         else if constexpr(is_same<X, d32_t>::value)
         {
             return data_.d32x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -610,6 +664,10 @@ struct vector_type<T, 64>
         {
             return data_.d64x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -648,6 +706,10 @@ struct vector_type<T, 64>
         else if constexpr(is_same<X, d64_t>::value)
         {
             return data_.d64x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -724,6 +786,10 @@ struct vector_type<T, 128>
         {
             return data_.d128x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -766,6 +832,10 @@ struct vector_type<T, 128>
         else if constexpr(is_same<X, d128_t>::value)
         {
             return data_.d128x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -848,6 +918,10 @@ struct vector_type<T, 256>
         {
             return data_.d256x1_;
         }
+        else
+        {
+            return err;
+        }
     }
 
     template <typename X>
@@ -894,6 +968,10 @@ struct vector_type<T, 256>
         else if constexpr(is_same<X, d256_t>::value)
         {
             return data_.d256x1_;
+        }
+        else
+        {
+            return err;
         }
     }
 };
@@ -944,208 +1022,21 @@ using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
-// Convert X to Y
-template <typename Y, typename X>
-__host__ __device__ constexpr Y type_convert(X x)
-{
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+// f8
+using f8x2_t  = typename vector_type<f8_t, 2>::type;
+using f8x4_t  = typename vector_type<f8_t, 4>::type;
+using f8x8_t  = typename vector_type<f8_t, 8>::type;
+using f8x16_t = typename vector_type<f8_t, 16>::type;
+using f8x32_t = typename vector_type<f8_t, 32>::type;
+using f8x64_t = typename vector_type<f8_t, 64>::type;
 
-    return static_cast<Y>(x);
-}
-
-// convert bfp16 to fp32
-template <>
-inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t x)
-{
-    union
-    {
-        uint32_t int32;
-        float fp32;
-    } u = {uint32_t(x) << 16};
-
-    return u.fp32;
-}
-
-// Convert X to Y
-template <typename Y, typename X>
-__host__ __device__ constexpr Y type_convert_sp(X x)
-{
-    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
-
-    return static_cast<Y>(x);
-}
-
-template <>
-inline __host__ __device__ constexpr int type_convert_sp<int, float>(float x)
-{
-    union
-    {
-        float fp32;
-        int int32;
-    } u = {x};
-
-    return u.int32;
-}
-
-template <>
-inline __host__ __device__ constexpr float type_convert_sp<float, int>(int x)
-{
-    union
-    {
-        int int32;
-        float fp32;
-    } u = {x};
-
-    return u.fp32;
-}
-
-template <>
-inline __host__ __device__ constexpr int type_convert_sp<int, half_t>(half_t x)
-{
-    union
-    {
-        half_t fp16;
-        int int32;
-    } u = {x};
-
-    return u.int32;
-}
-
-template <>
-inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
-{
-    union
-    {
-        int int32;
-        half_t fp16;
-    } u = {x};
-
-    return u.fp16;
-}
-
-// convert fp32 to bfp16
-template <>
-inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float x)
-{
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {x};
-
-    return uint16_t(u.int32 >> 16);
-}
-
-// convert bfp16 to fp16 via fp32
-template <>
-inline __host__ __device__ constexpr half_t type_convert<half_t, bhalf_t>(bhalf_t x)
-{
-    float x_fp32 = type_convert<float>(x);
-
-    return static_cast<half_t>(x_fp32);
-}
-
-// convert fp16 to bfp16 via fp32
-template <>
-inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, half_t>(half_t x)
-{
-    float x_fp32 = static_cast<float>(x);
-
-    return type_convert<bhalf_t>(x_fp32);
-}
-
-// convert bfp16 to int32 via fp32
-template <>
-inline __host__ __device__ constexpr int32_t type_convert<int32_t, bhalf_t>(bhalf_t x)
-{
-    float x_fp32 = type_convert<float>(x);
-
-    return static_cast<int32_t>(x_fp32);
-}
-
-// convert int32 to bfp16 via fp32
-template <>
-inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int32_t>(int32_t x)
-{
-    float x_fp32 = static_cast<float>(x);
-
-    return type_convert<bhalf_t>(x_fp32);
-}
-
-// convert bfp16 to int8 via fp32
-template <>
-inline __host__ __device__ constexpr int8_t type_convert<int8_t, bhalf_t>(bhalf_t x)
-{
-    float x_fp32 = type_convert<float>(x);
-
-    return static_cast<int8_t>(x_fp32);
-}
-
-// convert int8 to bfp16 via fp32
-template <>
-inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_t x)
-{
-    float x_fp32 = static_cast<float>(x);
-
-    return type_convert<bhalf_t>(x_fp32);
-}
-
-// Declare a template function for bf16 conversion using RTN
-template <typename Y, typename X>
-__host__ __device__ constexpr Y bf16_convert_rtn(X x);
-
-// Convert fp32 to bf16 with RTN if higher precision is needed
-template <>
-inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
-{
-    union
-    {
-        float fp32;
-        uint32_t int32;
-    } u = {x};
-
-    // When the exponent bits are not all 1s, then the value is zero, normal,
-    // or subnormal. We round the bfloat16 mantissa up by adding 0x7FFF, plus
-    // 1 if the least significant bit of the bfloat16 mantissa is 1 (odd).
-    // This causes the bfloat16's mantissa to be incremented by 1 if the 16
-    // least significant bits of the float mantissa are greater than 0x8000,
-    // or if they are equal to 0x8000 and the least significant bit of the
-    // bfloat16 mantissa is 1 (odd). This causes it to be rounded to even when
-    // the lower 16 bits are exactly 0x8000. If the bfloat16 mantissa already
-    // has the value 0x7f, then incrementing it causes it to become 0x00 and
-    // the exponent is incremented by one, which is the next higher FP value
-    // to the unrounded bfloat16 value. When the bfloat16 value is subnormal
-    // with an exponent of 0x00 and a mantissa of 0x7f, it may be rounded up
-    // to a normal value with an exponent of 0x01 and a mantissa of 0x00.
-    // When the bfloat16 value has an exponent of 0xFE and a mantissa of 0x7F,
-    // incrementing it causes it to become an exponent of 0xFF and a mantissa
-    // of 0x00, which is Inf, the next higher value to the unrounded value.
-    bool flag0 = ~u.int32 & 0x7f800000;
-
-    // When all of the exponent bits are 1, the value is Inf or NaN.
-    // Inf is indicated by a zero mantissa. NaN is indicated by any nonzero
-    // mantissa bit. Quiet NaN is indicated by the most significant mantissa
-    // bit being 1. Signaling NaN is indicated by the most significant
-    // mantissa bit being 0 but some other bit(s) being 1. If any of the
-    // lower 16 bits of the mantissa are 1, we set the least significant bit
-    // of the bfloat16 mantissa, in order to preserve signaling NaN in case
-    // the bfloat16's mantissa bits are all 0.
-    bool flag1 = !flag0 && (u.int32 & 0xffff);
-
-    u.int32 += flag0 ? 0x7fff + ((u.int32 >> 16) & 1) : 0; // Round to nearest, round to even
-    u.int32 |= flag1 ? 0x10000 : 0x0;                      // Preserve signaling NaN
-
-    return uint16_t(u.int32 >> 16);
-}
-
-// convert fp16 to bfp16 via fp32 with RTN if higher precision is needed
-template <>
-inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, half_t>(half_t x)
-{
-    float x_fp32 = static_cast<float>(x);
-
-    return bf16_convert_rtn<bhalf_t>(x_fp32);
-}
+// bf8
+using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
+using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
+using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
+using bf8x16_t = typename vector_type<bf8_t, 16>::type;
+using bf8x32_t = typename vector_type<bf8_t, 32>::type;
+using bf8x64_t = typename vector_type<bf8_t, 64>::type;
 
 template <typename T>
 struct NumericLimits
@@ -1193,4 +1084,106 @@ struct NumericLimits<int4_t>
 };
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
+template <>
+struct NumericLimits<f8_t>
+{
+    // negative zero nan mode with exp bias = 8
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    static constexpr uint8_t binary_max    = 0x7F; // 0b01111111
+    static constexpr uint8_t binary_lowest = 0xFF; // 0b11111111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+    // ieee mode with exp bias = 7
+    // static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    // static constexpr uint8_t binary_max    = 0x77; // 0b01110111
+    // static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=0
+
+    __host__ __device__ static constexpr f8_t Min() { return f8_t(binary_min); }
+
+    __host__ __device__ static constexpr f8_t Max() { return f8_t(binary_max); }
+
+    __host__ __device__ static constexpr f8_t Lowest() { return f8_t(binary_lowest); }
+
+    __host__ __device__ static constexpr f8_t QuietNaN() { return f8_t(binary_qnan); }
+};
+
+template <>
+struct NumericLimits<bf8_t>
+{
+    // negative zero nan mode with exp bias = 16
+    static constexpr uint8_t binary_min    = 0x04; // 0b00000100
+    static constexpr uint8_t binary_max    = 0x7F; // 0b01111111
+    static constexpr uint8_t binary_lowest = 0xFF; // 0b11111111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+    // ieee mode with exp bias = 15
+    // static constexpr uint8_t binary_min    = 0x04; // 0b00000100
+    // static constexpr uint8_t binary_max    = 0x7B; // 0b01111011
+    // static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011
+    // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=
+
+    __host__ __device__ static constexpr bf8_t Min() { return bf8_t(binary_min); }
+
+    __host__ __device__ static constexpr bf8_t Max() { return bf8_t(binary_max); }
+
+    __host__ __device__ static constexpr bf8_t Lowest() { return bf8_t(binary_lowest); }
+
+    __host__ __device__ static constexpr bf8_t QuietNaN() { return bf8_t(binary_qnan); }
+};
+
+template <typename T>
+struct NumericUtils
+{
+};
+
+template <>
+struct NumericUtils<float>
+{
+    static constexpr int exp            = 8;
+    static constexpr int mant           = 23;
+    static constexpr int bias           = 127;
+    static constexpr uint32_t nan_mask  = 0x7F800000;
+    static constexpr uint32_t head_mask = 0xFF800000;
+    static constexpr uint32_t mant_mask = 0x7FFFFF;
+    static constexpr uint32_t exp_mask  = 0xFF;
+    static constexpr uint32_t Inf       = 0x7F800000;
+    static constexpr uint32_t NegInf    = 0xFF800000;
+    static constexpr uint32_t NaN       = 0x7F800001;
+    static constexpr uint32_t Neg0      = 0x80000000;
+    using bitwise_type                  = uint32_t;
+};
+
+template <>
+struct NumericUtils<half_t>
+{
+    static constexpr int exp            = 5;
+    static constexpr int mant           = 10;
+    static constexpr int bias           = 15;
+    static constexpr uint16_t nan_mask  = 0x7C00;
+    static constexpr uint16_t head_mask = 0xFC00;
+    static constexpr uint16_t mant_mask = 0x3FF;
+    static constexpr uint16_t exp_mask  = 0x1F;
+    static constexpr uint32_t Inf       = 0x7C00;
+    static constexpr uint32_t NegInf    = 0xFC00;
+    static constexpr uint32_t NaN       = 0x7C01;
+    static constexpr uint32_t Neg0      = 0x8000;
+    using bitwise_type                  = uint16_t;
+};
+
+template <>
+struct NumericUtils<f8_t>
+{
+    static constexpr int exp  = 4;
+    static constexpr int mant = 3;
+    static constexpr int bias = 8; // negative zero nan mode
+    // static constexpr int bias = 7; // ieee mode
+};
+
+template <>
+struct NumericUtils<bf8_t>
+{
+    static constexpr int exp  = 5;
+    static constexpr int mant = 2;
+    static constexpr int bias = 16; // negative zero nan mode
+    // static constexpr int bias = 15; // ieee mode
+};
 } // namespace ck

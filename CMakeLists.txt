@@ -1,11 +1,93 @@
 cmake_minimum_required(VERSION 3.14)
+if(POLICY CMP0140)
+  # policies CMP0140 not known to CMake until 3.25
+  cmake_policy(SET CMP0140 NEW)
+endif()
 
+get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
+if(_GENERATOR_IS_MULTI_CONFIG)
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
+            "Available build types (configurations) on multi-config generators")
+else()
+    set(CMAKE_BUILD_TYPE Release CACHE STRING
+            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
+endif()
+
+# Default installation path
+if(NOT WIN32)
+    set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+endif()
+
+set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel)
+project(composable_kernel VERSION ${version} LANGUAGES CXX)
+include(CTest)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-enable_testing()
+if (DTYPES)
+    add_definitions(-DDTYPES)
+    if (DTYPES MATCHES "int8")
+        add_definitions(-DCK_ENABLE_INT8)
+        set(CK_ENABLE_INT8 "ON")
+    endif()
+    if (DTYPES MATCHES "fp8")
+        add_definitions(-DCK_ENABLE_FP8)
+        set(CK_ENABLE_FP8 "ON")
+    endif()
+    if (DTYPES MATCHES "bf8")
+        add_definitions(-DCK_ENABLE_BF8)
+        set(CK_ENABLE_BF8 "ON")
+    endif()
+    if (DTYPES MATCHES "fp16")
+        add_definitions(-DCK_ENABLE_FP16)
+        set(CK_ENABLE_FP16 "ON")
+    endif()
+    if (DTYPES MATCHES "fp32")
+        add_definitions(-DCK_ENABLE_FP32)
+        set(CK_ENABLE_FP32 "ON")
+    endif()
+    if (DTYPES MATCHES "fp64")
+        add_definitions(-DCK_ENABLE_FP64)
+        set(CK_ENABLE_FP64 "ON")
+    endif()
+    if (DTYPES MATCHES "bf16")
+        add_definitions(-DCK_ENABLE_BF16)
+        set(CK_ENABLE_BF16 "ON")
+    endif()
+    message("DTYPES macro set to ${DTYPES}")
+else()
+    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
+    set(CK_ENABLE_ALL_DTYPES "ON")
+endif()
+
+#for f8/bf8_t type
+add_compile_options(-Wno-bit-int-extension)
+add_compile_options(-Wno-pass-failed)
+add_compile_options(-Wno-switch-default)
+
+if(DL_KERNELS)
+    add_definitions(-DDL_KERNELS)
+    set(CK_ENABLE_DL_KERNELS "ON")
+endif()
+
+if(INSTANCES_ONLY)
+    add_definitions(-DINSTANCES_ONLY)
+    set(CK_ENABLE_INSTANCES_ONLY "ON")
+endif()
+
+include(getopt)
+
+# CK config file to record supported datatypes, etc.
+configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
+
+# CK version file to record release version as well as git commit hash
+find_package(Git REQUIRED)
+execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
+configure_file(include/ck/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/version.h)
 
 set(ROCM_SYMLINK_LIBS OFF)
 find_package(ROCM REQUIRED PATHS /opt/rocm)
@@ -16,13 +98,90 @@ include(ROCMSetupVersion)
 include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
-
-rocm_setup_version(VERSION 0.2.0)
+include(ROCMCheckTargetIds)
 include(TargetFlags)
-list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip)
 
-option(USE_BITINT_EXTENSION_INT4, "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_NAVI3X, "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
+rocm_setup_version(VERSION ${version})
+
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
+
+message("GPU_TARGETS= ${GPU_TARGETS}")
+
+message("checking which targets are supported")
+#This is the list of targets to be used in case GPU_TARGETS is not set on command line
+#These targets will be filtered and only supported ones will be used
+#Setting GPU_TARGETS on command line will override this list
+if(NOT PROFILER_ONLY)
+    rocm_check_target_ids(DEFAULT_GPU_TARGETS
+        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+else()
+    add_definitions(-DPROFILER_ONLY)
+    set(GPU_TARGETS "" CACHE STRING "" FORCE)
+    if(GPU_TARGETS)
+        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx90, gfx94, gfx10, or gfx11")
+    endif()
+    if(GPU_ARCH MATCHES "gfx90")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx908;gfx90a")
+    elseif(GPU_ARCH MATCHES "gfx94")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx940;gfx941;gfx942")
+    elseif(GPU_ARCH MATCHES "gfx10")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1030")
+    elseif(GPU_ARCH MATCHES "gfx11")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1100;gfx1101;gfx1102")
+    else()
+        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx90, gfx94, gfx10, or gfx11")
+    endif()
+    set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
+endif()
+
+message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
+
+set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
+
+if(GPU_TARGETS)
+    message("Building CK for the following targets: ${GPU_TARGETS}")
+else()
+    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+endif()
+find_package(hip)
+# No assumption that HIP kernels are launched with uniform block size for backward compatibility
+# SWDEV-413293 and https://reviews.llvm.org/D155213
+math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+message("hip_version_flat=${hip_VERSION_FLAT}")
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
+   message("Adding the fno-offload-uniform-block compiler flag")
+   add_compile_options(-fno-offload-uniform-block)
+endif()
+
+#
+# Seperate linking jobs from compiling
+# Too many concurrent linking jobs can break the build
+# Copied from LLVM
+set(CK_PARALLEL_LINK_JOBS "" CACHE STRING
+  "Define the maximum number of concurrent link jobs (Ninja only).")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  if(CK_PARALLEL_LINK_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS link_job_pool=${CK_PARALLEL_LINK_JOBS})
+    set(CMAKE_JOB_POOL_LINK link_job_pool)
+  endif()
+elseif(CK_PARALLEL_LINK_JOBS)
+  message(WARNING "Job pooling is only available with Ninja generators.")
+endif()
+# Similar for compiling
+set(CK_PARALLEL_COMPILE_JOBS "" CACHE STRING
+  "Define the maximum number of concurrent compile jobs (Ninja only).")
+if(CMAKE_GENERATOR MATCHES "Ninja")
+  if(CK_PARALLEL_COMPILE_JOBS)
+    set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_job_pool=${CK_PARALLEL_COMPILE_JOBS})
+    set(CMAKE_JOB_POOL_COMPILE compile_job_pool)
+  endif()
+elseif(CK_PARALLEL_COMPILE_JOBS)
+  message(WARNING "Job pooling is only available with Ninja generators.")
+endif()
+
+
+option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
+option(USE_OPT_NAVI3X "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -42,7 +201,6 @@ find_package(Threads REQUIRED)
 link_libraries(Threads::Threads)
 
 ## C++
-enable_language(CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -91,7 +249,11 @@ if( DEFINED CK_OVERRIDE_HIP_VERSION_PATCH )
 endif()
 message(STATUS "Build with HIP ${HIP_VERSION}")
 link_libraries(hip::device)
-add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+if(CK_hip_VERSION VERSION_GREATER_EQUAL 6.0.23494)
+    add_compile_definitions(__HIP_PLATFORM_AMD__=1)
+else()
+    add_compile_definitions(__HIP_PLATFORM_HCC__=1)
+endif()
 
 ## tidy
 include(EnableCompilerWarnings)
@@ -238,12 +400,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
+# set CK project include directories
 include_directories(BEFORE
+    ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/library/include
     ${HIP_INCLUDE_DIRS}
 )
-
 
 SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
@@ -257,36 +420,78 @@ file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp"
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
 set(CK_DEVICE_INSTANCES)
 FOREACH(subdir_path ${dir_list})
-    IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
-       list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
-    ENDIF()
+set(target_dir)
+IF(IS_DIRECTORY "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}")
+    set(cmake_instance)
+    file(READ "${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/${subdir_path}/CMakeLists.txt" cmake_instance)
+    set(add_inst 0)
+    if(("${cmake_instance}" MATCHES "fp8" OR "${cmake_instance}" MATCHES "_f8") AND DTYPES MATCHES "fp8")
+        set(add_inst 1)
+    endif()
+    if(("${cmake_instance}" MATCHES "bf8" OR "${cmake_instance}" MATCHES "_b8") AND DTYPES MATCHES "bf8")
+        set(add_inst 1)
+    endif()
+    if(("${cmake_instance}" MATCHES "fp16" OR "${cmake_instance}" MATCHES "_f16") AND DTYPES MATCHES "fp16")
+        set(add_inst 1)
+    endif()
+    if(("${cmake_instance}" MATCHES "fp32" OR "${cmake_instance}" MATCHES "_f32") AND DTYPES MATCHES "fp32")
+        set(add_inst 1)
+    endif()
+    if(("${cmake_instance}" MATCHES "fp64" OR "${cmake_instance}" MATCHES "_f64") AND DTYPES MATCHES "fp64")
+        set(add_inst 1)
+    endif()
+    if(("${cmake_instance}" MATCHES "bf16" OR "${cmake_instance}" MATCHES "_b16") AND DTYPES MATCHES "bf16")
+        set(add_inst 1)
+    endif()
+    if(("${cmake_instance}" MATCHES "int8" OR "${cmake_instance}" MATCHES "_i8") AND DTYPES MATCHES "int8")
+        set(add_inst 1)
+    endif()
+    if(NOT "${cmake_instance}" MATCHES "DTYPES")
+        set(add_inst 1)
+    endif()
+    if(add_inst EQUAL 1 OR NOT DEFINED DTYPES)
+        list(APPEND CK_DEVICE_INSTANCES device_${subdir_path}_instance)
+    endif()
+ENDIF()
 ENDFOREACH()
-add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 
-rocm_package_setup_component(tests
+add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
+add_subdirectory(library)
+
+if(NOT DEFINED INSTANCES_ONLY)
+ if(NOT DEFINED PROFILER_ONLY)
+   rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
-)
+   )
 
-rocm_package_setup_component(examples
+   rocm_package_setup_component(examples
         LIBRARY_NAME composablekernel
         PACKAGE_NAME examples
-)
+   )
+   add_subdirectory(example)
+   if(BUILD_TESTING)
+      add_subdirectory(test)
+   endif()
 
-rocm_package_setup_component(profiler
+   rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
-        PACKAGE_NAME ckProfiler
-)
-
-add_subdirectory(library)
-add_subdirectory(example)
-add_subdirectory(test)
-add_subdirectory(profiler)
+        PACKAGE_NAME ckprofiler
+   )
+   add_subdirectory(profiler)
+  else()
+    #When building PROFILER_ONLY, label the package with GPU_ARCH
+    rocm_package_setup_component(profiler
+       LIBRARY_NAME composablekernel
+       PACKAGE_NAME ckprofiler_${GPU_ARCH}
+    )
+    add_subdirectory(profiler)
+  endif()
+endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
 
-set(version 1.0.0)
 write_basic_package_version_file(
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     VERSION "${version}"
@@ -294,15 +499,22 @@ write_basic_package_version_file(
 )
 
 configure_package_config_file(${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in
-        "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        NO_CHECK_REQUIRED_COMPONENTS_MACRO
+    "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+    NO_CHECK_REQUIRED_COMPONENTS_MACRO
 )
 
 rocm_install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/composable_kernelConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+)
+
+# Install CK version and configuration files
+rocm_install(FILES
+    ${PROJECT_BINARY_DIR}/include/ck/version.h
+    ${PROJECT_BINARY_DIR}/include/ck/config.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck/
 )
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")

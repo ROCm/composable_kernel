@@ -9,13 +9,13 @@ namespace ck {
 
 struct GridwiseGemmPipeline_v2
 {
-    __host__ __device__ static constexpr bool IsSupported(index_t num_loop)
+    __host__ __device__ static constexpr bool IsSupported(const index_t num_loop)
     {
         // TODO: improve applicability
         return num_loop % 2 == 0;
     }
 
-    __host__ __device__ static constexpr bool CalculateHasMainLoop(index_t num_loop)
+    __host__ __device__ static constexpr bool CalculateHasMainLoop(const index_t num_loop)
     {
         return (num_loop / 2) > 1;
     }
@@ -79,6 +79,10 @@ struct GridwiseGemmPipeline_v2
 
             do
             {
+#if CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT
+                __builtin_amdgcn_iglp_opt(CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT);
+#endif
+
                 block_sync_lds();
 
                 // GEMM i

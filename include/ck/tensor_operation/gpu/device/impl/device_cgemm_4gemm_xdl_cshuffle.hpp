@@ -123,7 +123,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         ALayout,
         BLayout,
         CLayout,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
@@ -284,8 +285,11 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel =
-                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, ADataType, CDataType, true>;
+                const auto kernel = kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                                ADataType,
+                                                                BDataType,
+                                                                CDataType,
+                                                                true>;
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -357,8 +361,11 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             }
             else
             {
-                const auto kernel =
-                    kernel_gemm_xdl_cshuffle_v1<GridwiseGemm, ADataType, CDataType, false>;
+                const auto kernel = kernel_gemm_xdl_cshuffle_v1<GridwiseGemm,
+                                                                ADataType,
+                                                                BDataType,
+                                                                CDataType,
+                                                                false>;
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -448,6 +455,11 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
         return GridwiseGemm::CheckValidity(arg);
     }
 

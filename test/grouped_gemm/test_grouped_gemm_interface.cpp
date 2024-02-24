@@ -111,6 +111,10 @@ TEST_F(TestGGemmSplitKInterface_MKNKMN, KLoops)
     EXPECT_FALSE(
         DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
 
+    Ks = std::vector<int>{256, 512, 384, 768};
+    EXPECT_TRUE(
+        DefaultGGemmInstance{}.IsSupported(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch));
+
     // Not all gemms have same value for main_k0_block_loop!
     Ks = std::vector<int>{256, 512, 512, 512};
     EXPECT_THROW(DefaultGGemmInstance{}.Run(Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch),

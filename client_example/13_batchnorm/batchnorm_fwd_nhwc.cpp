@@ -187,6 +187,12 @@ int main(int argc, char* argv[])
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+
+            SimpleDeviceMem workspace(workspace_sz);
+
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
+
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }
 

@@ -4,7 +4,8 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
-#include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
+#include "ck/utility/loop_scheduler.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
 

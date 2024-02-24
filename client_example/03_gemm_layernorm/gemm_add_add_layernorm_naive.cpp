@@ -172,17 +172,18 @@ int main()
             BLayout,
             CLayout>();
 
-    const auto normalize_ptrs =
-        ck::tensor_operation::device::instance::get_device_normalize_from_mean_meansquare_instances<
-            CDataType,
-            ReduceDataType,
-            ReduceDataType,
-            GammaDataType,
-            BetaDataType,
-            LayerNormOutDataType>();
-
     std::cout << "found " << gemm_reduce_ptrs.size()
               << " gemm_reduceMean_reduceSquareMean instances" << std::endl;
+
+    using NormalizeDeviceOp = ck::tensor_operation::device::DeviceElementwise<
+        ck::Tuple<CDataType, ReduceDataType, ReduceDataType, GammaDataType, BetaDataType>,
+        ck::Tuple<LayerNormOutDataType>,
+        ck::tensor_operation::element_wise::Normalize,
+        2>;
+
+    const auto normalize_ptrs =
+        ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            NormalizeDeviceOp>::GetInstances();
 
     std::cout << "found " << normalize_ptrs.size() << " normalize instances" << std::endl;
 
