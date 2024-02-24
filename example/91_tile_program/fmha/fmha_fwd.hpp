@@ -143,9 +143,9 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
         else
             return i_perm ? seqlen_k : nhead_k * seqlen_k;
     }();
-    const ck::index_t stride_bias = (i_perm ? seqlen_k : 1 * seqlen_k);
-    const ck::index_t stride_drop = (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k);
-    const ck::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
+    const ck::index_t stride_bias    = (i_perm ? seqlen_k : 1 * seqlen_k);
+    const ck::index_t stride_randval = (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k);
+    const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
     // setup nhead_stride_* arguments
     const ck::index_t nhead_stride_q = (i_perm ? seqlen_q * hdim_q : hdim_q);
     const ck::index_t nhead_stride_k = (i_perm ? seqlen_k * hdim_q : hdim_q);
@@ -156,7 +156,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
             return i_perm ? hdim_v * seqlen_k : seqlen_k;
     }();
     const ck::index_t nhead_stride_bias = (i_perm ? 0 * seqlen_q * seqlen_k : 0 * seqlen_k);
-    const ck::index_t nhead_stride_drop =
+    const ck::index_t nhead_stride_randval =
         (seqlen_q * (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k));
     const ck::index_t nhead_stride_lse = (seqlen_q * 1);
     const ck::index_t nhead_stride_o   = (o_perm ? seqlen_q * hdim_v : hdim_v);
@@ -165,7 +165,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
     const ck::index_t batch_stride_k    = (nhead_k * seqlen_k * hdim_q);
     const ck::index_t batch_stride_v    = (nhead_k * hdim_v * seqlen_k);
     const ck::index_t batch_stride_bias = (0 * nhead * seqlen_q * seqlen_k);
-    const ck::index_t batch_stride_drop =
+    const ck::index_t batch_stride_randval =
         (nhead * seqlen_q * (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k));
     const ck::index_t batch_stride_lse = (nhead * seqlen_q * 1);
     const ck::index_t batch_stride_o   = (nhead * seqlen_q * hdim_v);
@@ -192,13 +192,13 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          stride_k,
                                          stride_v,
                                          stride_bias,
-                                         stride_drop,
+                                         stride_randval,
                                          stride_o,
                                          nhead_stride_q,
                                          nhead_stride_k,
                                          nhead_stride_v,
                                          nhead_stride_bias,
-                                         nhead_stride_drop,
+                                         nhead_stride_randval,
                                          nhead_stride_lse,
                                          nhead_stride_o,
                                          mask_y,
@@ -227,20 +227,20 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          stride_k,
                                          stride_v,
                                          stride_bias,
-                                         stride_drop,
+                                         stride_randval,
                                          stride_o,
                                          nhead_stride_q,
                                          nhead_stride_k,
                                          nhead_stride_v,
                                          nhead_stride_bias,
-                                         nhead_stride_drop,
+                                         nhead_stride_randval,
                                          nhead_stride_lse,
                                          nhead_stride_o,
                                          batch_stride_q,
                                          batch_stride_k,
                                          batch_stride_v,
                                          batch_stride_bias,
-                                         batch_stride_drop,
+                                         batch_stride_randval,
                                          batch_stride_lse,
                                          batch_stride_o,
                                          mask_y,

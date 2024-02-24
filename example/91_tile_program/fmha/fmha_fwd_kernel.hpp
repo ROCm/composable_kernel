@@ -130,17 +130,17 @@ struct FmhaFwdKernel
             drop_seed   = std::get<0>(drop_seeds);
             drop_offset = std::get<1>(drop_seeds);
         }
-        float rp_undrop               = 1;
-        uint8_t p_undrop_in_uint8_t   = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed            = 1;
-        uint64_t drop_offset          = 0;
-        void* rand_val_ptr            = nullptr;
-        ck::index_t stride_drop       = 0;
-        ck::index_t nhead_stride_drop = 0;
+        float rp_undrop                  = 1;
+        uint8_t p_undrop_in_uint8_t      = std::numeric_limits<uint8_t>::max();
+        uint64_t drop_seed               = 1;
+        uint64_t drop_offset             = 0;
+        void* rand_val_ptr               = nullptr;
+        ck::index_t stride_randval       = 0;
+        ck::index_t nhead_stride_randval = 0;
     };
     struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
     {
-        ck::index_t batch_stride_drop = 0;
+        ck::index_t batch_stride_randval = 0;
     };
 
     struct FmhaFwdBatchModeKargs
@@ -191,20 +191,20 @@ struct FmhaFwdKernel
               ck::index_t stride_k,
               ck::index_t stride_v,
               ck::index_t stride_bias,
-              ck::index_t stride_drop,
+              ck::index_t stride_randval,
               ck::index_t stride_o,
               ck::index_t nhead_stride_q,
               ck::index_t nhead_stride_k,
               ck::index_t nhead_stride_v,
               ck::index_t nhead_stride_bias,
-              ck::index_t nhead_stride_drop,
+              ck::index_t nhead_stride_randval,
               ck::index_t nhead_stride_lse,
               ck::index_t nhead_stride_o,
               ck::index_t batch_stride_q,
               ck::index_t batch_stride_k,
               ck::index_t batch_stride_v,
               ck::index_t batch_stride_bias,
-              ck::index_t batch_stride_drop,
+              ck::index_t batch_stride_randval,
               ck::index_t batch_stride_lse,
               ck::index_t batch_stride_o,
               ck::index_t mask_y,
@@ -273,10 +273,10 @@ struct FmhaFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, drop_seeds);
-            kargs.rand_val_ptr      = rand_val_ptr;
-            kargs.stride_drop       = stride_drop;
-            kargs.nhead_stride_drop = nhead_stride_drop;
-            kargs.batch_stride_drop = batch_stride_drop;
+            kargs.rand_val_ptr         = rand_val_ptr;
+            kargs.stride_randval       = stride_randval;
+            kargs.nhead_stride_randval = nhead_stride_randval;
+            kargs.batch_stride_randval = batch_stride_randval;
         }
 
         return kargs;
@@ -302,13 +302,13 @@ struct FmhaFwdKernel
               ck::index_t stride_k,
               ck::index_t stride_v,
               ck::index_t stride_bias,
-              ck::index_t stride_drop,
+              ck::index_t stride_randval,
               ck::index_t stride_o,
               ck::index_t nhead_stride_q,
               ck::index_t nhead_stride_k,
               ck::index_t nhead_stride_v,
               ck::index_t nhead_stride_bias,
-              ck::index_t nhead_stride_drop,
+              ck::index_t nhead_stride_randval,
               ck::index_t nhead_stride_lse,
               ck::index_t nhead_stride_o,
               ck::index_t mask_y,
@@ -374,9 +374,9 @@ struct FmhaFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, drop_seeds);
-            kargs.rand_val_ptr      = rand_val_ptr;
-            kargs.stride_drop       = stride_drop;
-            kargs.nhead_stride_drop = nhead_stride_drop;
+            kargs.rand_val_ptr         = rand_val_ptr;
+            kargs.stride_randval       = stride_randval;
+            kargs.nhead_stride_randval = nhead_stride_randval;
         }
 
         return kargs;
@@ -421,8 +421,8 @@ struct FmhaFwdKernel
         long_index_t batch_offset_lse  = 0;
         long_index_t batch_offset_o    = 0;
 
-        long_index_t nhead_stride_drop = 0;
-        index_t max_seqlen_k           = 0;
+        long_index_t nhead_stride_randval = 0;
+        index_t max_seqlen_k              = 0;
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -453,9 +453,9 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasDropout)
             {
-                batch_offset_drop = query_start * kargs.stride_drop;
-                nhead_stride_drop = kargs.nhead_stride_drop;
-                max_seqlen_k      = kargs.stride_drop;
+                batch_offset_drop    = query_start * kargs.stride_randval;
+                nhead_stride_randval = kargs.nhead_stride_randval;
+                max_seqlen_k         = kargs.stride_randval;
             }
 
             batch_offset_o = query_start * kargs.stride_o;
@@ -496,9 +496,9 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasDropout)
             {
-                batch_offset_drop = static_cast<long_index_t>(i_batch) * kargs.batch_stride_drop;
-                nhead_stride_drop = kargs.nhead_stride_drop;
-                max_seqlen_k      = kargs.stride_drop;
+                batch_offset_drop = static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
+                nhead_stride_randval = kargs.nhead_stride_randval;
+                max_seqlen_k         = kargs.stride_randval;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
@@ -676,7 +676,7 @@ struct FmhaFwdKernel
 
         // about dropout
         long_index_t i_total_id =
-            static_cast<long_index_t>(i_nhead) * nhead_stride_drop + batch_offset_drop;
+            static_cast<long_index_t>(i_nhead) * nhead_stride_randval + batch_offset_drop;
         auto drop_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto drop_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
@@ -689,7 +689,7 @@ struct FmhaFwdKernel
                     const auto drop_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
                         rand_val_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                        make_tuple(kargs.stride_drop, 1),
+                        make_tuple(kargs.stride_randval, 1),
                         Number<32>{},
                         Number<1>{});
 
