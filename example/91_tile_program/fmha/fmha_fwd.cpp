@@ -259,7 +259,7 @@ bool run(const ArgParser& arg_parser)
 
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
-    Tensor<RandValOutputDataType> drop_host(
+    Tensor<RandValOutputDataType> randval_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck::index_t, 4>{1, 1, 1, 1});
 
@@ -294,7 +294,7 @@ bool run(const ArgParser& arg_parser)
     DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
 
-    DeviceMem drop_buf(drop_host.GetElementSpaceSizeInBytes());
+    DeviceMem randval_buf(randval_host.GetElementSpaceSizeInBytes());
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -333,7 +333,7 @@ bool run(const ArgParser& arg_parser)
                                    k_buf.GetDeviceBuffer(),
                                    v_buf.GetDeviceBuffer(),
                                    bias_buf.GetDeviceBuffer(),
-                                   drop_buf.GetDeviceBuffer(),
+                                   randval_buf.GetDeviceBuffer(),
                                    lse_buf.GetDeviceBuffer(),
                                    o_buf.GetDeviceBuffer(),
                                    seqstart_q.GetDeviceBuffer(),
@@ -382,10 +382,10 @@ bool run(const ArgParser& arg_parser)
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
-    drop_buf.FromDevice(drop_host.data());
+    randval_buf.FromDevice(randval_host.data());
     float p_undrop = 1.0 - p_drop;
     uint8_t p_undrop_in_uint8_t =
-        RandValOutputDataType(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+        uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
     float rp_undrop = 1.0 / p_undrop;
 
     bool pass = true;
@@ -491,11 +491,13 @@ bool run(const ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            Tensor<RandValOutputDataType> drop_host_result({nhead, real_seqlen_q, real_seqlen_k});
-            drop_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = drop_host(b, idx[0], idx[1] + query_offset, idx[2]);
+            Tensor<RandValOutputDataType> randval_host_result(
+                {nhead, real_seqlen_q, real_seqlen_k});
+            randval_host_result.ForEach([&](auto& self, auto idx) {
+                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
-            reference_batched_dropout(p_host_ref, drop_host_result, p_undrop_in_uint8_t, rp_undrop);
+            reference_batched_dropout(
+                p_host_ref, randval_host_result, p_undrop_in_uint8_t, rp_undrop);
         }
 
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(

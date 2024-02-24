@@ -4,20 +4,10 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
-#include "ck/tensor_description/tensor_descriptor.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_description/tensor_adaptor.hpp"
 
 #include "ck/tile_program/tile/tile_distribution.hpp"
-#include "ck/tile_program/tile/load_tile.hpp"
 #include "ck/tile_program/tile/store_tile.hpp"
-#include "ck/tile_program/tile/tile_elementwise.hpp"
-#include "ck/tile_program/tile/tile_gemm_shape.hpp"
-#include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck/tile_program/block_tile/block_reduce.hpp"
-#include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 #include "ck/utility/philox_rand.hpp"
 
 namespace ck {
@@ -175,7 +165,7 @@ struct BlockFmhaDropout
                 auto warp_id  = get_warp_id();
                 auto lane_idx = get_lane_id();
                 auto idx_n    = lane_idx % kNPerStep + i_n0 * kNPerStep + start_n0_idx;
-                auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * 32;
+                auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * WG::kM;
                 const uint64_t element_global_1d_id = idx_m * total_n_len + idx_n + global_idx;
 
                 // generate random number
