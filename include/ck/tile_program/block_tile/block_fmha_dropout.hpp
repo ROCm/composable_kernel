@@ -28,7 +28,7 @@ struct BlockFmhaDropout
     }
 
     template <typename Problem, typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeDropLdsBlockDescriptor()
+    __host__ __device__ static constexpr auto MakeRandValLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -42,24 +42,24 @@ struct BlockFmhaDropout
         static_assert(kNPerBlock % kNPerStep == 0,
                       "kNPerStep must be evenly divided by kNPerBlock");
 
-        constexpr auto dop_lds_block_desc_0 = make_naive_tensor_descriptor(
+        constexpr auto randval_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(Number<kN0_0>{}, Number<kMPerBlock>{}, Number<kN0_1>{}),
             make_tuple(Number<(kMPerBlock + 1) * kN0_1>{}, Number<kN0_1>{}, Number<1>{}),
             Number<kN0_1>{},
             Number<1>{});
 
-        constexpr auto drop_lds_block_desc = transform_tensor_descriptor(
-            dop_lds_block_desc_0,
+        constexpr auto randval_lds_block_desc = transform_tensor_descriptor(
+            randval_lds_block_desc_0,
             make_tuple(make_pass_through_transform(Number<kMPerBlock>{}),
                        make_merge_transform(make_tuple(Number<kN0_0>{}, Number<kN0_1>{}))),
             make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
 
-        return drop_lds_block_desc;
+        return randval_lds_block_desc;
     }
 
     template <typename Problem, typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeDropSramTileDistribution()
+    __host__ __device__ static constexpr auto MakeRandValSramTileDistribution()
     {
         constexpr index_t MPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t NPerBlock = Problem::BlockFmhaShape::kN0;
@@ -123,7 +123,7 @@ struct BlockFmhaDropout
     __host__ __device__ void Run(void* smem_ptr,
                                  const index_t start_n0_idx,
                                  PComputeWindow& p_compute,
-                                 DropDramWindow& drop_dram_window,
+                                 DropDramWindow& randval_dram_window,
                                  ck::philox& ph) const
     {
         using RandValOutputDataType       = remove_cvref_t<typename Problem::RandValOutputDataType>;
@@ -139,20 +139,20 @@ struct BlockFmhaDropout
                 decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
             using WG = remove_cvref_t<decltype(config.template At<0>())>;
 
-            // dropout tile in LDS
+            // rand val tile in LDS
             auto drop_lds = make_tensor_view<AddressSpaceEnum::Lds>(
                 reinterpret_cast<uint8_t*>(reinterpret_cast<char*>(smem_ptr) +
                                            Policy::template GetSmemSizeKV<Problem>()),
-                MakeDropLdsBlockDescriptor<Problem, decltype(gemm_0)>());
+                MakeRandValLdsBlockDescriptor<Problem, decltype(gemm_0)>());
 
             auto drop_lds_window = make_tile_window(
                 drop_lds,
-                MakeDropLdsBlockDescriptor<Problem, decltype(gemm_0)>().GetLengths(),
+                MakeRandValLdsBlockDescriptor<Problem, decltype(gemm_0)>().GetLengths(),
                 {0, 0});
 
             // register distribute
             auto drop_distr_origin = make_static_distributed_tensor<uint8_t>(
-                MakeDropSramTileDistribution<Problem, decltype(gemm_0)>());
+                MakeRandValSramTileDistribution<Problem, decltype(gemm_0)>());
 
             auto drop_lds_read_window =
                 make_tile_window(drop_lds_window.GetBottomTensorView(),
@@ -171,11 +171,11 @@ struct BlockFmhaDropout
                 // generate random number
                 uint8_t tmp[16];
                 ph.get_random_16x8(tmp, element_global_1d_id);
-                constexpr auto drop_origin_spans =
+                constexpr auto randval_distr_generated_spans =
                     decltype(drop_distr_origin)::GetDistributedSpans();
                 int i_random_idx = 0;
-                sweep_tile_span(drop_origin_spans[Number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(drop_origin_spans[Number<1>{}], [&](auto idx1) {
+                sweep_tile_span(randval_distr_generated_spans[Number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(randval_distr_generated_spans[Number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx     = make_tuple(idx0, idx1);
                         drop_distr_origin(i_j_idx) = type_convert<uint8_t>(tmp[i_random_idx++]);
                     });
@@ -184,24 +184,25 @@ struct BlockFmhaDropout
                 store_tile(drop_lds_window, drop_distr_origin);
                 block_sync_lds(); // wait data save to LDS
                 // read form LDS to register
-                auto dropout              = load_tile(drop_lds_read_window);
-                constexpr auto drop_spans = decltype(dropout)::GetDistributedSpans();
-                sweep_tile_span(drop_spans[Number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(drop_spans[Number<1>{}], [&](auto idx1) {
+                auto randval_for_dropping = load_tile(drop_lds_read_window);
+                constexpr auto randval_for_dropping_spans =
+                    decltype(randval_for_dropping)::GetDistributedSpans();
+                sweep_tile_span(randval_for_dropping_spans[Number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(randval_for_dropping_spans[Number<1>{}], [&](auto idx1) {
                         constexpr auto second_ =
                             TileDistributedIndex<i_n0, idx1.impl_.At(1), idx1.impl_.At(2)>{};
                         constexpr auto p_idx = make_tuple(idx0, second_);
                         constexpr auto d_idx = make_tuple(idx0, idx1);
-                        p_compute(p_idx)     = dropout[d_idx] <= p_undrop_in_uint8_t
+                        p_compute(p_idx)     = randval_for_dropping[d_idx] <= p_undrop_in_uint8_t
                                                    ? p_compute[p_idx] * p_dropout_rescale
                                                    : float(0);
                     });
                 });
                 // save to Global
-                const auto dropout_store = cast_tile<RandValOutputDataType>(dropout);
-                store_tile(drop_dram_window, dropout_store);
+                const auto randval_store = cast_tile<RandValOutputDataType>(randval_for_dropping);
+                store_tile(randval_dram_window, randval_store);
                 __builtin_amdgcn_sched_barrier(0);
-                move_tile_window(drop_dram_window, {0, WG::kN});
+                move_tile_window(randval_dram_window, {0, WG::kN});
             });
         }
     }

@@ -677,7 +677,7 @@ struct FmhaFwdKernel
         // about dropout
         long_index_t i_total_id =
             static_cast<long_index_t>(i_nhead) * nhead_stride_randval + batch_offset_drop;
-        auto drop_dram_window = [&, i_nhead_ = i_nhead]() {
+        auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto drop_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
             if constexpr(kHasDropout)
@@ -685,20 +685,21 @@ struct FmhaFwdKernel
                 RandValOutputDataType* rand_val_ptr =
                     reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) + i_total_id;
 
-                const auto drop_dram = [&]() {
-                    const auto drop_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
-                        rand_val_ptr,
-                        make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                        make_tuple(kargs.stride_randval, 1),
-                        Number<32>{},
-                        Number<1>{});
+                const auto randval_dram = [&]() {
+                    const auto randval_dram_naive =
+                        make_naive_tensor_view<AddressSpaceEnum::Global>(
+                            rand_val_ptr,
+                            make_tuple(kargs.seqlen_q, kargs.seqlen_k),
+                            make_tuple(kargs.stride_randval, 1),
+                            Number<32>{},
+                            Number<1>{});
 
-                    return pad_tensor_view(drop_dram_naive,
+                    return pad_tensor_view(randval_dram_naive,
                                            drop_dram_window_lengths,
                                            Sequence<kPadSeqLenQ, kPadSeqLenK>{});
                 }();
 
-                return make_tile_window(drop_dram, drop_dram_window_lengths, {i_m0, 0});
+                return make_tile_window(randval_dram, drop_dram_window_lengths, {i_m0, 0});
             }
             else
             {
@@ -734,7 +735,7 @@ struct FmhaFwdKernel
                                       k_dram_window,
                                       v_dram_window,
                                       bias_dram_window,
-                                      drop_dram_window,
+                                      randval_dram_window,
                                       lse_dram_window,
                                       mask,
                                       kargs.scale,
@@ -750,7 +751,7 @@ struct FmhaFwdKernel
                                       k_dram_window,
                                       v_dram_window,
                                       bias_dram_window,
-                                      drop_dram_window,
+                                      randval_dram_window,
                                       lse_dram_window,
                                       mask,
                                       kargs.scale,

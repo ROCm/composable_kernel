@@ -75,14 +75,14 @@ struct BlockFmhaPipelineQRKSVSFp8
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
-              typename DropDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp>
     __host__ __device__ auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               DropDramBlockWindowTmp& drop_dram_block_window_tmp,       // M0*N0 tile
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
                LSEDramBlockWindowTmp& /*lse_dram_window_tmp*/,           // not supported
                FmhaMask mask,
                float scale,
@@ -188,9 +188,9 @@ struct BlockFmhaPipelineQRKSVSFp8
 
         constexpr auto config = decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template At<0>())>;
-        const auto drop_origin = drop_dram_block_window_tmp.GetWindowOrigin();
-        auto drop_dram_window  = make_tile_window(
-            drop_dram_block_window_tmp.GetBottomTensorView(),
+        const auto drop_origin   = randval_dram_block_window_tmp.GetWindowOrigin();
+        auto randval_dram_window = make_tile_window(
+            randval_dram_block_window_tmp.GetBottomTensorView(),
             make_tuple(Number<kM0>{}, Number<WG::kN>{}),
             {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             BlockFmhaDropout::template MakeDropSramPartTileDistribution<Problem,
@@ -409,7 +409,7 @@ struct BlockFmhaPipelineQRKSVSFp8
             });
 
             dropout.Run<Problem, Policy>(
-                smem_ptr, i_total_loops * kN0, p_compute, drop_dram_window, ph);
+                smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
 
             block_sync_lds();
             if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
