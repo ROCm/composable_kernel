@@ -413,13 +413,13 @@ struct FmhaFwdKernel
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
-        long_index_t batch_offset_q    = 0;
-        long_index_t batch_offset_k    = 0;
-        long_index_t batch_offset_v    = 0;
-        long_index_t batch_offset_bias = 0;
-        long_index_t batch_offset_drop = 0;
-        long_index_t batch_offset_lse  = 0;
-        long_index_t batch_offset_o    = 0;
+        long_index_t batch_offset_q       = 0;
+        long_index_t batch_offset_k       = 0;
+        long_index_t batch_offset_v       = 0;
+        long_index_t batch_offset_bias    = 0;
+        long_index_t batch_offset_randval = 0;
+        long_index_t batch_offset_lse     = 0;
+        long_index_t batch_offset_o       = 0;
 
         long_index_t nhead_stride_randval = 0;
         index_t max_seqlen_k              = 0;
@@ -453,7 +453,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasDropout)
             {
-                batch_offset_drop    = query_start * kargs.stride_randval;
+                batch_offset_randval = query_start * kargs.stride_randval;
                 nhead_stride_randval = kargs.nhead_stride_randval;
                 max_seqlen_k         = kargs.stride_randval;
             }
@@ -496,7 +496,8 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasDropout)
             {
-                batch_offset_drop = static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
+                batch_offset_randval =
+                    static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
                 nhead_stride_randval = kargs.nhead_stride_randval;
                 max_seqlen_k         = kargs.stride_randval;
             }
@@ -676,7 +677,7 @@ struct FmhaFwdKernel
 
         // about dropout
         long_index_t i_total_id =
-            static_cast<long_index_t>(i_nhead) * nhead_stride_randval + batch_offset_drop;
+            static_cast<long_index_t>(i_nhead) * nhead_stride_randval + batch_offset_randval;
 
         float rp_undrop             = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();

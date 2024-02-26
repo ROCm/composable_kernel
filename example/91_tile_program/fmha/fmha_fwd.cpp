@@ -491,13 +491,11 @@ bool run(const ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
-            Tensor<RandValOutputDataType> randval_host_result(
-                {nhead, real_seqlen_q, real_seqlen_k});
-            randval_host_result.ForEach([&](auto& self, auto idx) {
+            Tensor<RandValOutputDataType> randval_host_ref({nhead, real_seqlen_q, real_seqlen_k});
+            randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
-            reference_batched_dropout(
-                p_host_ref, randval_host_result, p_undrop_in_uint8_t, rp_undrop);
+            reference_batched_dropout(p_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
         }
 
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
