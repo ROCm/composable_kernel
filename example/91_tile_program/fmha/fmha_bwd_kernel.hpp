@@ -788,15 +788,15 @@ struct FmhaBwdKernel
             }
         }();
 
-        const auto dbias_dram_window = [&, i_nhead_ = i_nhead]() {
+        auto dbias_dram_window = [&, i_nhead_ = i_nhead]() {
             if constexpr(kHasBias)
             {
-                const BiasGradDataType* dbias_ptr =
-                    reinterpret_cast<const BiasGradDataType*>(kargs.dbias_ptr) +
+                BiasGradDataType* dbias_ptr =
+                    reinterpret_cast<BiasGradDataType*>(kargs.dbias_ptr) +
                     static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_dbias +
                     batch_offset_dbias;
 
-                const auto dbias_dram = [&]() {
+                auto dbias_dram = [&]() {
                     const auto dbias_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
                         dbias_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),

@@ -7,7 +7,7 @@ for prec in "fp16" "bf16" ; do
 for perm in 0 1 ; do
 for hdim in 32 64 128 ; do
 for mode in 0 1 ; do
-for bias in 0 ; do
+for bias in 0 1 ; do
 
 $EXE -prec=$prec -b=1 -h=1 -d=$hdim -s=1024 -bias=$bias -iperm=$perm -operm=$perm -v=1 -mode=$mode
 $EXE -prec=$prec -b=1 -h=4 -h_k=2 -d=$hdim -s=256 -bias=$bias -iperm=$perm -operm=$perm -v=1 -mode=$mode

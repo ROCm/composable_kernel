@@ -52,6 +52,14 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    __host__ __device__ static constexpr auto GetSmemKPackBias()
+    {
+        // TODO: this is for 3d layout
+        using BiasDataType = remove_cvref_t<typename Problem::BiasDataType>;
+        return 16 / sizeof(BiasDataType);
+    }
+
+    template <typename Problem>
     __host__ __device__ static constexpr auto GetSmemKPackOGrad()
     {
         // TODO: this is for 3d layout
@@ -83,6 +91,22 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     __host__ __device__ static constexpr auto GetTransposedVectorloadOGrad()
     {
         return 4; // TODO: fix me
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetTransposedVectorloadBias()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
+
+        // TODO: not correct!
+        if constexpr(total_pixels > 32)
+            return 8;
+        else
+            return 4;
     }
 
     template <typename Problem, typename BlockGemm>
@@ -353,6 +377,44 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    __host__ __device__ static constexpr auto MakeBiasTLdsBlockDescriptor()
+    {
+        using BiasDataType             = remove_cvref_t<typename Problem::BiasDataType>;
+        constexpr index_t Banks        = 32; // TODO: need change based on arch
+        constexpr index_t PixelsPerRow = Banks * 4 / sizeof(BiasDataType);
+        constexpr index_t kKPack       = GetSmemKPackBias<Problem>();
+        constexpr index_t kMPerBlock   = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN0;
+
+        static_assert(PixelsPerRow % kKPack == 0);
+        constexpr index_t NPerRow = PixelsPerRow / kKPack;
+        static_assert(kNPerBlock % NPerRow == 0);
+        static_assert(kMPerBlock % kKPack == 0);
+
+        constexpr auto biast_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(Number<kMPerBlock / kKPack>{},
+                       Number<kNPerBlock / NPerRow>{},
+                       Number<NPerRow>{},
+                       Number<kKPack>{}),
+            make_tuple(Number<(kNPerBlock / NPerRow) * (PixelsPerRow + kKPack)>{},
+                       Number<PixelsPerRow + kKPack>{},
+                       Number<kKPack>{},
+                       Number<1>{}),
+            Number<kKPack>{},
+            Number<1>{});
+
+        constexpr auto biast_lds_block_desc = transform_tensor_descriptor(
+            biast_lds_block_desc_0,
+            make_tuple(
+                make_merge_transform(make_tuple(Number<kNPerBlock / NPerRow>{}, Number<NPerRow>{})),
+                make_merge_transform(make_tuple(Number<kMPerBlock / kKPack>{}, Number<kKPack>{}))),
+            make_tuple(Sequence<1, 2>{}, Sequence<0, 3>{}),
+            make_tuple(Sequence<1>{}, Sequence<0>{}));
+
+        return biast_lds_block_desc;
+    }
+
+    template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeQ()
     {
         constexpr index_t smem_size_q = sizeof(typename Problem::QDataType) *
@@ -420,6 +482,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeBias()
+    {
+        constexpr index_t smem_size_bias =
+            sizeof(typename Problem::BiasDataType) *
+            MakeBiasTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        return smem_size_bias;
+    }
+
+    template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         constexpr index_t smem_size_q  = GetSmemSizeQ<Problem>();
@@ -456,25 +527,32 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return GetSmemSizeOGradT<Problem>();
         }();
 
-        constexpr index_t smem_size_ds = GetSmemSizeSGrad<Problem>();
+        constexpr index_t smem_size_ds   = GetSmemSizeSGrad<Problem>();
+        constexpr index_t smem_size_bias = [&]() {
+            if constexpr(Problem::kHasBias)
+                return GetSmemSizeBias<Problem>();
+            else
+                return 0;
+        }();
+        constexpr index_t smem_size_transpose = math::max(smem_size_ds, smem_size_bias);
 
         index_t smem_size = 0;
 
         if constexpr(Problem::BlockFmhaShape::kQLoadOnce && Problem::BlockFmhaShape::kOGradLoadOnce)
             smem_size += smem_size_q + smem_size_qt + smem_size_do + smem_size_dot +
-                         smem_size_ds; // 1~4 & 10
+                         smem_size_transpose; // 1~4 & 10
         else if(Problem::BlockFmhaShape::kQLoadOnce && !Problem::BlockFmhaShape::kOGradLoadOnce &&
                 !Problem::BlockFmhaShape::kOGradTLoadOnce)
             smem_size += smem_size_q + smem_size_qt +
                          math::max(smem_size_do,
                                    smem_size_dot,
-                                   smem_size_ds); // 5/7/11 TODO: Multiple buffers strategy
+                                   smem_size_transpose); // 5/7/11 TODO: Multiple buffers strategy
         else if(!Problem::BlockFmhaShape::kQLoadOnce && !Problem::BlockFmhaShape::kQTLoadOnce &&
                 Problem::BlockFmhaShape::kOGradLoadOnce)
             smem_size += smem_size_do + smem_size_dot +
                          math::max(smem_size_q,
                                    smem_size_qt,
-                                   smem_size_ds); // 6/8/12 TODO: Multiple buffers strategy
+                                   smem_size_transpose); // 6/8/12 TODO: Multiple buffers strategy
         else if(!Problem::BlockFmhaShape::kQLoadOnce && !Problem::BlockFmhaShape::kQTLoadOnce &&
                 !Problem::BlockFmhaShape::kOGradLoadOnce &&
                 !Problem::BlockFmhaShape::kOGradTLoadOnce)
@@ -482,7 +560,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                    smem_size_qt,
                                    smem_size_do,
                                    smem_size_dot,
-                                   smem_size_ds); // 9/13 TODO: Multiple buffers strategy
+                                   smem_size_transpose); // 9/13 TODO: Multiple buffers strategy
 
         // 14/15 needs to be adjusted
         if constexpr(Problem::BlockFmhaShape::kKLoadOnce)
@@ -896,6 +974,94 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
                                            Sequence<1, 2>,
                                            Sequence<1, 3>>{});
+    }
+
+    template <typename Problem>
+    __device__ static constexpr auto MakeBiasTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t N1 = GetTransposedVectorloadBias<Problem>();
+        constexpr index_t N0 = kNPerBlock / N1; // P
+
+        constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
+        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
+        constexpr index_t M3     = total_pixels / N1;
+        constexpr index_t kKPack = GetSmemKPackBias<Problem>();
+        static_assert(kKPack % M3 == 0);
+        constexpr index_t M2 = kKPack / M3; // TODO: this dimention could be outside single wave
+        constexpr index_t M1 = get_warp_size() / (M2 * N0);
+        constexpr index_t M0 = kBlockSize / get_warp_size();
+        static_assert(kMPerBlock == M0 * M1 * M2 * M3);
+
+        return make_static_tile_distribution(
+            StaticTileDistributionEncoding<Sequence<1>,
+                                           Tuple<Sequence<M0, M1, M2, M3>, Sequence<N0, N1>>,
+                                           Tuple<Sequence<1>, Sequence<1, 2, 1>>,
+                                           Tuple<Sequence<0>, Sequence<1, 0, 2>>,
+                                           Sequence<1, 2>,
+                                           Sequence<3, 1>>{});
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeShuffledBiasTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t N1           = GetTransposedVectorloadBias<Problem>();
+        constexpr index_t N0           = kNPerBlock / N1;
+        constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
+        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
+        constexpr index_t M3     = total_pixels / N1;
+        constexpr index_t kKPack = GetSmemKPackBias<Problem>();
+        static_assert(kKPack % M3 == 0);
+        constexpr index_t M2 = kKPack / M3; // TODO: this dimention could be outside single wave
+        constexpr index_t M1 = get_warp_size() / (M2 * N0);
+        constexpr index_t M0 = kBlockSize / get_warp_size();
+
+        return make_static_tile_distribution(
+            StaticTileDistributionEncoding<Sequence<1>,
+                                           Tuple<Sequence<M0, M1, M2, M3>, Sequence<N0, N1>>,
+                                           Tuple<Sequence<1>, Sequence<1, 2, 1>>,
+                                           Tuple<Sequence<0>, Sequence<1, 0, 2>>,
+                                           Sequence<2, 1>,
+                                           Sequence<1, 3>>{});
+    }
+
+    template <typename Problem, typename BlockGemm>
+    __host__ __device__ static constexpr auto MakeBiasTTileDistribution()
+    {
+        constexpr index_t MPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t NPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+
+        constexpr index_t MWarp = config.template At<1>();
+        constexpr index_t NWarp = config.template At<2>();
+
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
+
+        // Construct C-Block-Tensor
+        constexpr auto c_block_outer_dstr_encoding = StaticTileDistributionEncoding<
+            Sequence<>,
+            Tuple<Sequence<MIterPerWarp, MWarp>, Sequence<NIterPerWarp, NWarp>>,
+            Tuple<Sequence<1, 2>>,
+            Tuple<Sequence<1, 1>>,
+            Sequence<1, 2>,
+            Sequence<0, 0>>{};
+
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+
+        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
+
+        return c_block_dstr;
     }
 
     template <typename Problem>

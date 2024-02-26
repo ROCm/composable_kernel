@@ -96,13 +96,13 @@ struct BlockFmhaBwdPipelineV10
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
                const KTDramBlockWindowTmp& /*kt_dram_block_window_tmp*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
-               const BiasDramBlockWindowTmp& /*bias_dram_block_window_tmp*/,
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
                const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
                const OGradTDramBlockWindowTmp& /*dot_dram_block_window_tmp*/,
                const LSEDramBlockWindowTmp& lse_dram_block_window_tmp,
                const DDramBlockWindowTmp& d_dram_block_window_tmp,
                const QGradDramBlockWindowTmp& dq_dram_block_window_tmp,
-               const BiasGradDramBlockWindowTmp& /*dbias_dram_block_window_tmp*/,
+               const BiasGradDramBlockWindowTmp& dbias_dram_block_window_tmp,
                FmhaMask mask,
                float raw_scale,
 #if CK_FMHA_FWD_FAST_EXP2
@@ -188,6 +188,24 @@ struct BlockFmhaBwdPipelineV10
         auto ds_lds_window =
             make_tile_window(ds_lds, make_tuple(Number<kM0>{}, Number<kN0>{}), {0, 0});
 
+        // Bias/BiasGrad tile in LDS
+        BiasDataType* bias_lds_ptr = static_cast<BiasDataType*>(static_cast<void*>(
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>()));
+        auto bias_lds              = make_tensor_view<AddressSpaceEnum::Lds>(
+            bias_lds_ptr, Policy::template MakeBiasTLdsBlockDescriptor<Problem>());
+        auto bias_lds_window =
+            make_tile_window(bias_lds, make_tuple(Number<kM0>{}, Number<kN0>{}), {0, 0});
+        auto dbias_lds_window =
+            make_tile_window(bias_lds,
+                             make_tuple(Number<kM0>{}, Number<kN0>{}),
+                             {0, 0},
+                             Policy::template MakeShuffledBiasTileDistribution<Problem>());
+
+        static_assert(sizeof(BiasDataType) == sizeof(BiasGradDataType),
+                      "sizeof BiasDataType and BiasGradDataType is different!");
+
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetPTOGradTBlockGemm<Problem>();
@@ -266,6 +284,18 @@ struct BlockFmhaBwdPipelineV10
                                                     d_dram_block_window_tmp.GetWindowLengths(),
                                                     {seqlen_q_start});
 
+        const auto bias_origin = bias_dram_block_window_tmp.GetWindowOrigin();
+        auto bias_dram_block_window =
+            make_tile_window(bias_dram_block_window_tmp.GetBottomTensorView(),
+                             bias_dram_block_window_tmp.GetWindowLengths(),
+                             {seqlen_q_start, bias_origin.At(Number<1>{})}); // M/N
+
+        const auto dbias_origin = dbias_dram_block_window_tmp.GetWindowOrigin();
+        auto dbias_dram_block_window =
+            make_tile_window(dbias_dram_block_window_tmp.GetBottomTensorView(),
+                             dbias_dram_block_window_tmp.GetWindowLengths(),
+                             {seqlen_q_start, dbias_origin.At(Number<1>{})}); // M/N
+
         auto lse_dram_window = make_tile_window(
             lse_dram_block_window.GetBottomTensorView(),
             lse_dram_block_window.GetWindowLengths(),
@@ -277,6 +307,18 @@ struct BlockFmhaBwdPipelineV10
             d_dram_block_window.GetWindowLengths(),
             d_dram_block_window.GetWindowOrigin(),
             Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
+
+        auto bias_dram_window =
+            make_tile_window(bias_dram_block_window.GetBottomTensorView(),
+                             bias_dram_block_window.GetWindowLengths(),
+                             bias_dram_block_window.GetWindowOrigin(),
+                             Policy::template MakeBiasTileDistribution<Problem>());
+
+        auto biast_lds_window = make_tile_window(
+            bias_lds_window.GetBottomTensorView(),
+            bias_lds_window.GetWindowLengths(),
+            bias_lds_window.GetWindowOrigin(),
+            Policy::template MakeBiasTTileDistribution<Problem, decltype(gemm_0)>());
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
@@ -307,6 +349,18 @@ struct BlockFmhaBwdPipelineV10
             clear_tile(st_acc);                     // Initialize S^T
             store_tile(q_lds_window, q_block_tile); // LDS write
 
+            if constexpr(kHasBias)
+            {
+                __builtin_amdgcn_sched_barrier(
+                    0); // prevent from messing up the order of global loads
+            }
+            const auto bias_tile = load_tile(bias_dram_window); // load bias tile
+            if constexpr(kHasBias)
+            {
+                __builtin_amdgcn_sched_barrier(
+                    0); // prevent from messing up the order of global loads
+            }
+
             if constexpr(k0_loops > 1)
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
@@ -336,9 +390,33 @@ struct BlockFmhaBwdPipelineV10
             }
 
             // STAGE 2, Scale, Add bias, Mask, Softmax
+            if constexpr(kHasBias)
+            {
+                block_sync_lds();
+                auto bias_shuffle_tmp = make_static_distributed_tensor<BiasDataType>(
+                    Policy::template MakeShuffledBiasTileDistribution<Problem>());
+                shuffle_distributed_tensor(bias_shuffle_tmp, bias_tile);
+                store_tile(bias_lds_window, bias_shuffle_tmp);
+                block_sync_lds();
+                auto biast_tile = load_tile(biast_lds_window);
+                tile_elementwise_inout(
+                    [&](auto& x, const auto& y) {
 #if !CK_FMHA_FWD_FAST_EXP2
-            tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, st_acc);
+                        x = raw_scale * x + type_convert<AccDataType>(y);
+#else
+                        x = scale * x + math::log2e_v<AccDataType> * type_convert<AccDataType>(y);
 #endif
+                    },
+                    st_acc,
+                    biast_tile);
+                move_tile_window(bias_dram_window, {kM0, 0});
+            }
+            else
+            {
+#if !CK_FMHA_FWD_FAST_EXP2
+                tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, st_acc);
+#endif
+            }
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -361,7 +439,7 @@ struct BlockFmhaBwdPipelineV10
             const auto lse = load_tile(lse_dram_window);
 
             static const auto get_validated_lse = [](LSEDataType raw_lse) {
-                if constexpr(FmhaMask::IsMasking)
+                if constexpr(kHasBias || FmhaMask::IsMasking)
                 {
                     return raw_lse == -NumericLimits<LSEDataType>::Infinity()
                                ? type_convert<LSEDataType>(0.f)
@@ -378,12 +456,19 @@ struct BlockFmhaBwdPipelineV10
             sweep_tile_span(pt_spans[Number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_FMHA_FWD_FAST_EXP2
-                auto row_lse = math::log2e_v<LSEDataType> * lse[i_idx];
+                auto row_lse = math::log2e_v<LSEDataType> * get_validated_lse(lse[i_idx]);
 #endif
                 sweep_tile_span(pt_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_FMHA_FWD_FAST_EXP2
-                    pt(i_j_idx) = math::exp2(scale * st_acc[i_j_idx] - get_validated_lse(row_lse));
+                    if constexpr(kHasBias)
+                    {
+                        pt(i_j_idx) = math::exp2(st_acc[i_j_idx] - row_lse);
+                    }
+                    else
+                    {
+                        pt(i_j_idx) = math::exp2(scale * st_acc[i_j_idx] - row_lse);
+                    }
 #else
                     pt(i_j_idx) = math::exp(st_acc[i_j_idx] - get_validated_lse(lse[i_idx]));
 #endif
@@ -434,6 +519,19 @@ struct BlockFmhaBwdPipelineV10
                     dst(i_j_idx)           = pt[i_j_idx] * (dpt_acc[i_j_idx] - d[i_idx]);
                 });
             });
+
+            if constexpr(kHasBias)
+            {
+                const auto dbiast = cast_tile<BiasGradDataType>(dst);
+                store_tile(bias_lds_window, dbiast);
+                block_sync_lds();
+                auto dbias_tile        = load_tile(dbias_lds_window);
+                auto dbias_shuffle_tmp = make_static_distributed_tensor<BiasGradDataType>(
+                    Policy::template MakeBiasTileDistribution<Problem>());
+                shuffle_distributed_tensor(dbias_shuffle_tmp, dbias_tile);
+                store_tile(dbias_dram_block_window, dbias_shuffle_tmp);
+                move_tile_window(dbias_dram_block_window, {kM0, 0});
+            }
 
             // STAGE 6, SGrad^T@Q^T Gemm3
             block_sync_lds();
