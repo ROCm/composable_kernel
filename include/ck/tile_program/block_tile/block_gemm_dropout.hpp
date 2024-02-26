@@ -38,8 +38,8 @@ struct BlockGemmDropout
         using WG              = remove_cvref_t<decltype(config.template At<0>())>;
 
         constexpr index_t kNPerStep = WG::kN;
-        constexpr index_t kN1     = 8;
-        constexpr index_t kN0     = kNPerStep / kN1;
+        constexpr index_t kN1       = 8;
+        constexpr index_t kN0       = kNPerStep / kN1;
         static_assert(kNPerBlock % kNPerStep == 0,
                       "kNPerStep must be evenly divided by kNPerBlock");
 
@@ -71,8 +71,8 @@ struct BlockGemmDropout
         using WG = remove_cvref_t<decltype(config.template At<0>())>;
 
         constexpr index_t kNPerStep = WG::kN;
-        constexpr index_t kN1     = 1;
-        constexpr index_t kN0     = kNPerStep / kN1;
+        constexpr index_t kN1       = 1;
+        constexpr index_t kN0       = kNPerStep / kN1;
 
         constexpr index_t kM3 = 8;
         constexpr index_t kM2 = get_warp_size() / kN0;
@@ -82,15 +82,16 @@ struct BlockGemmDropout
         static_assert(NPerBlock % kNPerStep == 0, "kNPerStep must be evenly divided by NPerBlock");
 
         // Construct Drop-Block-Tensor
-        constexpr auto randval_block_dstr_encoding = StaticTileDistributionEncoding<
-            Sequence<>,
-            Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0, kN1>>,
-            Tuple<Sequence<1>, Sequence<1, 2>>,
-            Tuple<Sequence<0>, Sequence<2, 0>>,
-            Sequence<1, 1, 2>,
-            Sequence<1, 3, 1>>{};
+        constexpr auto randval_block_dstr_encoding =
+            StaticTileDistributionEncoding<Sequence<>,
+                                           Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0, kN1>>,
+                                           Tuple<Sequence<1>, Sequence<1, 2>>,
+                                           Tuple<Sequence<0>, Sequence<2, 0>>,
+                                           Sequence<1, 1, 2>,
+                                           Sequence<1, 3, 1>>{};
 
-        constexpr auto randval_block_dstr = make_static_tile_distribution(randval_block_dstr_encoding);
+        constexpr auto randval_block_dstr =
+            make_static_tile_distribution(randval_block_dstr_encoding);
 
         return randval_block_dstr;
     }
@@ -116,8 +117,9 @@ struct BlockGemmDropout
             Sequence<1, 2>,
             Sequence<0, 0>>{};
 
-        constexpr auto randval_block_part_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            randval_block_outer_part_dstr_encoding, typename WG::CWarpDstrEncoding{});
+        constexpr auto randval_block_part_dstr_encode =
+            detail::make_embed_tile_distribution_encoding(randval_block_outer_part_dstr_encoding,
+                                                          typename WG::CWarpDstrEncoding{});
 
         return make_static_tile_distribution(randval_block_part_dstr_encode);
     }
@@ -125,11 +127,11 @@ struct BlockGemmDropout
     template <typename BlockGemm,
               typename RandValOutputDataType,
               typename PComputeWindow,
-              typename DropDramWindow>
+              typename RandValDramWindow>
     __host__ __device__ void Run(void* randval_ptr,
                                  const index_t start_n0_idx,
                                  PComputeWindow& p_compute,
-                                 DropDramWindow& randval_dram_window,
+                                 RandValDramWindow& randval_dram_window,
                                  ck::philox& ph) const
     {
         using Problem               = remove_cvref_t<typename BlockGemm::Problem>;
@@ -173,7 +175,7 @@ struct BlockGemmDropout
             int i_random_idx = 0;
             sweep_tile_span(randval_distr_generated_spans[Number<0>{}], [&](auto idx0) {
                 sweep_tile_span(randval_distr_generated_spans[Number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx     = make_tuple(idx0, idx1);
+                    constexpr auto i_j_idx        = make_tuple(idx0, idx1);
                     randval_distr_origin(i_j_idx) = type_convert<uint8_t>(tmp[i_random_idx++]);
                 });
             });
@@ -196,18 +198,21 @@ struct BlockGemmDropout
                 });
             });
             // save to Global
-            const auto randval_store = cast_tile<RandValOutputDataType>(randval_for_dropping);
-            store_tile(randval_dram_window, randval_store);
-            __builtin_amdgcn_sched_barrier(0);
-            move_tile_window(randval_dram_window, {0, WG::kN});
+            if(is_store_randval)
+            {
+                const auto randval_store = cast_tile<RandValOutputDataType>(randval_for_dropping);
+                store_tile(randval_dram_window, randval_store);
+                __builtin_amdgcn_sched_barrier(0);
+                move_tile_window(randval_dram_window, {0, WG::kN});
+            }
         });
     }
 
-    private:
     long_index_t global_idx;
     float p_dropout_rescale;
     uint8_t p_undrop_in_uint8_t;
     index_t total_n_len;
+    bool is_store_randval = false;
 };
 
 } // namespace block

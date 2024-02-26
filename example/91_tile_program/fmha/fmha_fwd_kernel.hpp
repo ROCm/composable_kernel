@@ -677,11 +677,35 @@ struct FmhaFwdKernel
         // about dropout
         long_index_t i_total_id =
             static_cast<long_index_t>(i_nhead) * nhead_stride_randval + batch_offset_drop;
+
+        float rp_undrop             = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        uint64_t drop_seed          = 0;
+        uint64_t drop_offset        = 0;
+
+        if constexpr(kHasDropout)
+        {
+            rp_undrop           = kargs.rp_undrop;
+            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
+            drop_seed           = kargs.drop_seed;
+            drop_offset         = kargs.drop_offset;
+        }
+        ck::philox ph(drop_seed, 0, drop_offset);
+        BlockGemmDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto drop_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
             if constexpr(kHasDropout)
             {
+                if(kargs.rand_val_ptr == nullptr)
+                {
+                    dropout.is_store_randval = false;
+                }
+                else
+                {
+                    dropout.is_store_randval = true;
+                }
+
                 RandValOutputDataType* rand_val_ptr =
                     reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) + i_total_id;
 
@@ -706,20 +730,6 @@ struct FmhaFwdKernel
                 return make_null_tile_window(drop_dram_window_lengths);
             }
         }();
-        float rp_undrop             = 1;
-        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed          = 0;
-        uint64_t drop_offset        = 0;
-
-        if constexpr(kHasDropout)
-        {
-            rp_undrop           = kargs.rp_undrop;
-            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
-            drop_seed           = kargs.drop_seed;
-            drop_offset         = kargs.drop_offset;
-        }
-        ck::philox ph(drop_seed, 0, drop_offset);
-        BlockGemmDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
