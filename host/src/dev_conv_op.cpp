@@ -176,7 +176,7 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
             x.gemm_specialization =
                 GetGemmSpec(prob.G, // TODO: check the input going into this is correct
                             prob.N,
-                            prob.K,
+                            prob.C,
                             x.tile_desc.m_per_block,
                             x.tile_desc.n_per_block,
                             x.tile_desc.k_per_block);
@@ -199,7 +199,14 @@ extern "C" __global__ void run_${name}(const ck::half_t* a, const ck::half_t* b,
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
 
+    static constexpr bool isMultiA = ck::is_detected<ck::is_tuple, ${ADataType}>::value;
+    static constexpr bool isMultiB = ck::is_detected<ck::is_tuple, ${BDataType}>::value;
+
+    static constexpr std::size_t NumATensor = ck::tensor_operation::device::GetNumABTensors<isMultiA, ${ADataType}>();
+    static constexpr std::size_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<isMultiB, ${BDataType}>();
      constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
+     using Block2ETileMap =
+        ck::remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc))>;
     // GridwiseGemm
     using GridwiseGemm = ck::GridwiseGemmMultipleABD_xdl_cshuffle<
         ${ADataType},
@@ -246,31 +253,22 @@ extern "C" __global__ void run_${name}(const ck::half_t* a, const ck::half_t* b,
         ${CDEBlockTransferScalarPerVector_NPerBlock},
         LoopSched>;
 
-    static constexpr bool isMultiA = ck::is_detected<ck::is_tuple, ${ADataType}>::value;
-    static constexpr bool isMultiB = ck::is_detected<ck::is_tuple, ${BDataType}>::value;
 
-    static constexpr std::size_t NumATensor = ck::tensor_operation::device::GetNumABTensors<isMultiA, ${ADataType}>();
-    static constexpr std::size_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<isMultiB, ${BDataType}>();
-
-    using AGridPointer = ck::remove_cvref_t<decltype(ck::tensor_operation::device::GetAGridPointer < isMultiA || isMultiB, GridwiseGemm, ${ADataType} > ())>;
-    using BGridPointer = ck::remove_cvref_t<decltype(ck::tensor_operation::device::GetBGridPointer < isMultiA || isMultiB, GridwiseGemm, ${BDataType} > ())>;
-
-    const auto kernel = kernel_grouped_conv_fwd__multiple_abd_xdl_cshuffle<
+    const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
-                    AGridPointer,
-                    BGridPointer,
+                    const ${ADataType}*,
+                    const ${BDataType}*,
                     typename GridwiseGemm::DsGridPointer,
                     ${EDataType},
                     ${AElementwiseOperation},
                     ${BElementwiseOperation},
                     ${CDEElementwiseOperation},
-                    decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc)),
-                    decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc)),
-                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    a_grid_desc,
+                    b_grid_desc,
+                    d_grid_desc,
+                    e_grid_desc,
                     Block2ETileMap,
-                    ck::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>, //replace call
-                    has_main_loop,
+                    true,
                     isMultiA,
                     isMultiB>;
 }

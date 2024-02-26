@@ -1,11 +1,16 @@
 
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 add_subdirectory(rtc)
-
+add_definitions(-std=c++17)
 file(GLOB TEST_SRCS CONFIGURE_DEPENDS *.cpp)
 foreach(TEST_SRC ${TEST_SRCS})
 get_filename_component(BASE_NAME ${TEST_SRC} NAME_WE)
+message("Adding exe")
 rocm_add_test_executable(test_host_${BASE_NAME} ${TEST_SRC})
 target_link_libraries(test_host_${BASE_NAME} ck_rtc ck_host)
 target_include_directories(test_host_${BASE_NAME} PUBLIC include())
+message("Setting 2nd include: ${CK_ROOT}/include")
+target_include_directories(test_host_${BASE_NAME} PUBLIC ${CK_ROOT}/include)
+message("Setting 3rd include: ${CK_ROOT}/library/include/ck/library/utility")
+target_include_directories(test_host_${BASE_NAME} PUBLIC ${CK_ROOT}/library/include/ck/library/utility)
 endforeach()

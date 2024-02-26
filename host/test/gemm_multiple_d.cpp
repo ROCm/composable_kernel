@@ -6,10 +6,12 @@
 #include "ck/host/stringutils.hpp"
 #include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
-#include "ck/host/tuples.hpp"
-#include "ck/host/seq.hpp"
-#include "ck/host/tensor_desc.hpp"
-#include "ck/host/transform.hpp"
+//#include "ck/host/tuples.hpp"
+//#include "ck/host/seq.hpp"
+//#include "ck/host/tensor_desc.hpp"
+//#include "ck/host/transform.hpp"
+#include "ck/utility/data_type.hpp"
+#include "ck/utility/common_header.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -19,7 +21,7 @@
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 
-using half = _Float64;
+// using half = _Float64;
 // using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
@@ -174,6 +176,10 @@ TEST_CASE(test_problem_kernel)
 };
 )";
     std::string epilogue = "";
+
+    static constexpr auto I0 = ck::Number<0>{};
+
+    // static constexpr auto I1 = Number<1>{};
     // length+stride arrays
     std::array<std::size_t, 5> in_lengths{prob.G, prob.N, prob.C, prob.Hi, prob.Wi};
     std::array<std::size_t, 5> out_lengths{prob.G, prob.N, prob.K, prob.Ho, prob.Wo};
@@ -218,7 +224,7 @@ TEST_CASE(test_problem_kernel)
         auto grid_size = ck::host::integer_divide_ceil(prob.G, m_per_block) *
                          ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME:
         // creation of grid desc for run fcn here
-        static constexpr auto GemmSpec = ck::host::GemmSpecialization::Default;
+        /**static constexpr auto GemmSpec = ck::host::GemmSpecialization::Default;
         // ck::host::GemmSpecialization GemmSpec = gemm_spec;
         static auto matrix_padder =
             ck::host::GemmPadder<GemmSpec, std::size_t, std::size_t, std::size_t>{
@@ -294,12 +300,13 @@ TEST_CASE(test_problem_kernel)
                                  ck::host::Sequence<3, 4>{},
                                  ck::host::Sequence<5>{}));
 
-        const auto in_gemmm_gemmk_desc = ck::host::transform_tensor_descriptor(
+        auto in_gemmm_gemmk_desc = ck::host::transform_tensor_descriptor(
             in_n_y_ho_x_wo_c_desc,
             ck::host::make_tuple(ck::host::make_merge_transform(ck::host::make_tuple(N_in, Ho, Wo)),
                                  ck::host::make_merge_transform(ck::host::make_tuple(Y, X, C_in))),
             ck::host::make_tuple(ck::host::Sequence<0, 2, 4>{}, ck::host::Sequence<1, 3, 5>{}),
             ck::host::make_tuple(ck::host::Sequence<0>{}, ck::host::Sequence<1>{}));
+        using AGridDesc_M_K  = ck::host::remove_cvref_t<decltype(in_gemmm_gemmk_desc)>;
         // weight tensor desc
         const std::size_t K_wei = wei_lengths[1];
         const std::size_t C     = wei_lengths[2];
@@ -340,7 +347,7 @@ TEST_CASE(test_problem_kernel)
             ck::host::make_tuple(NHoWo, K_out), ck::host::make_tuple(WoStride, KStride_out));
         // d desc
         // auto NumDTensor = prob.DsDataType
-        auto d_gemm_desc = ck::host::generate_tuple(
+        auto d_grid_desc = ck::host::generate_tuple(
             [&](auto i) {
                 // using DLayout = ck::host::remove_cvref_t<ck::host::tuple_element_t<i.value,
                 // DsLayout>>;
@@ -351,15 +358,16 @@ TEST_CASE(test_problem_kernel)
                     ck::host::make_tuple(NHoWo, K_out),
                     d_strides[i]); // FIXME: get the right stride for Ds
             },
-            ck::host::Number<NumDTensor>{});
+            ck::host::Number<NumDTensor>{});**/
 
         k.launch(nullptr, grid_size * block_size, block_size)(
             a.data(),
             b.data(),
-            c.data(),
+            c.data()
+	    /**AGridDesc_M_K{},
             wei_gemmn_gemmk_desc,
-            d_gemm_desc,
-            out_gemmm_gemmn_desc); // FIXME: my launch will bw different: will need
+            d_grid_desc,
+            out_gemmm_gemmn_desc**/); // FIXME: my launch will bw different: will need
                                    // to pass in grid ptrs for run fcns
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }

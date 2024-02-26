@@ -41,6 +41,10 @@ target_include_directories(ck_host PUBLIC
 add_executable(ck-template-driver driver/main.cpp)
 target_link_libraries(ck-template-driver ck_host)
 
+#message("Setting 2nd include: ${CK_ROOT}/include")
+#include_directories(${CK_ROOT}/include)
+#message("Setting 3rd include: ${CK_ROOT}/library/include/ck/library/utility")
+#include_directories(${CK_ROOT}/library/include/ck/library/utility)
 rocm_install(
     TARGETS ck_host ck_headers
     EXPORT ck_hostTargets
@@ -49,4 +53,5 @@ rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(BUILD_TESTING)
 add_subdirectory(test)
+message(STATUS "adding test")
 endif()
