@@ -305,4 +305,3 @@ int main(int argc, char* argv[])
         3840, 4096, 4096, tile_shape, thread_layout);
     return 0;
 }
-// MI300X Perf:   0.411552 ms, 313.081 TFlops, 234.403 GB/s,
