@@ -1447,10 +1447,7 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
                                                     1,
                                                     0);
                 v_theother_row = type_convert_sp<SrcData>(temp);
-                // if (get_thread_local_1d_id() == 0){
-                //                 printf("src_offset:%d, dst_offset for this row: %d, dst_offset
-                //                 for the other row: %d \n",
-                //                         src_offset, dst_offset, dst_offset+DstScalarPerVector);}
+
                 if(get_thread_local_1d_id() % 32 < 16)
                 {
                     // apply type convert

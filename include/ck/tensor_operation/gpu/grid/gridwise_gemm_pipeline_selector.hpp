@@ -17,6 +17,7 @@ enum struct PipelineVersion
     v2,
     // v3 is only used in the Stream-K implementation.
     v4,
+    weight_only,
 };
 
 template <PipelineVersion PipelineVer,
@@ -44,6 +45,9 @@ constexpr auto GridwiseGemmPipeline_Selector()
     else if constexpr(PipelineVer == PipelineVersion::v4)
     {
         return GridwiseGemmPipeline_v4<NumPrefetch>{};
+    else if constexpr(PipelineVer == PipelineVersion::weight_only)
+    {
+        return GridwiseGemmPipeline_v1_WeightOnly<NumPrefetch, AEnableLds, BEnableLds>{};
     }
     else
     {

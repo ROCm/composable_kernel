@@ -3,10 +3,23 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_fpAintB_gemm_wmma.hpp"
+
+// Implementation follows the paper:
+// Kim, Young Jin, Rawn Henry, Raffy Fahim, and Hany Hassan Awadalla. “Who Says Elephants Can’t Run:
+// Bringing Large Scale MoE Models into Cloud Scale Production.” arXiv, November 17, 2022.
+// https://doi.org/10.48550/arXiv.2211.10017. Assume weight (Matrix B) is add preprocess to
+// unsigned.
+
+// The DeviceOp is CDataType = ADataType * Dequant(BDataType) * ScaleDataType
+// The HostRef  is CDataType = ADataType * Dequant(QuantDataType) * ScaleDataType
+
+// TODO: Current implementation consume more VGPR than expected.
 
 using ADataType        = ck::half_t;
-using BDataType        = ck::half_t;
+using QuantDataType    = int8_t;
+using BDataType        = uint8_t;
+using ScaleDataType    = ck::half_t;
 using AccDataType      = float;
 using CShuffleDataType = float;
 using CDataType        = ck::half_t;
@@ -22,12 +35,13 @@ using CElementOp = PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // clang-format off
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceFpAintBGemm_Wmma_CShuffle
          < ALayout,             
            BLayout,             
            CLayout,             
            ADataType, 
            BDataType,
+           ScaleDataType,
            CDataType, 
            AccDataType, 
            CShuffleDataType,  
@@ -65,8 +79,14 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
            8>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferencefpAintBGemm<ADataType,
+                                                                               QuantDataType,
+                                                                               ScaleDataType,
+                                                                               CDataType,
+                                                                               AccDataType,
+                                                                               AElementOp,
+                                                                               BElementOp,
+                                                                               CElementOp>;
 
 #include "run_gemm_example.inc"
 
