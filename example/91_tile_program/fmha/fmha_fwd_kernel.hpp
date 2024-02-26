@@ -694,7 +694,7 @@ struct FmhaFwdKernel
         ck::philox ph(drop_seed, 0, drop_offset);
         BlockGemmDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
-            constexpr auto drop_dram_window_lengths =
+            constexpr auto randval_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
             if constexpr(kHasDropout)
             {
@@ -720,15 +720,15 @@ struct FmhaFwdKernel
                             Number<1>{});
 
                     return pad_tensor_view(randval_dram_naive,
-                                           drop_dram_window_lengths,
+                                           randval_dram_window_lengths,
                                            Sequence<kPadSeqLenQ, kPadSeqLenK>{});
                 }();
 
-                return make_tile_window(randval_dram, drop_dram_window_lengths, {i_m0, 0});
+                return make_tile_window(randval_dram, randval_dram_window_lengths, {i_m0, 0});
             }
             else
             {
-                return make_null_tile_window(drop_dram_window_lengths);
+                return make_null_tile_window(randval_dram_window_lengths);
             }
         }();
 
