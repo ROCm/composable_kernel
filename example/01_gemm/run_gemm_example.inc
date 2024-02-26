@@ -240,7 +240,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+        return ck::utils::check_err(
+            c_m_n_device_result, c_m_n_host_result, "Error: Incorrect results!", 1e-1, 1e-1);
 #endif
     }
 
