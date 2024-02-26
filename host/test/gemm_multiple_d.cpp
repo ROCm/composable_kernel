@@ -1,3 +1,5 @@
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/data_type.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/conv/conv_op.hpp"
@@ -10,8 +12,6 @@
 //#include "ck/host/seq.hpp"
 //#include "ck/host/tensor_desc.hpp"
 //#include "ck/host/transform.hpp"
-#include "ck/utility/data_type.hpp"
-#include "ck/utility/common_header.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -21,7 +21,7 @@
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 
-// using half = _Float64;
+using half = _Float16;
 // using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
