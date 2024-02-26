@@ -409,10 +409,8 @@ struct BlockFmhaPipelineQRKSVSFp8
 
             if constexpr(kHasDropout)
             {
-                auto randval_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.Run<decltype(gemm_0), RandValOutputDataType>(
-                    randval_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
+                    smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
             }
 
             block_sync_lds();
