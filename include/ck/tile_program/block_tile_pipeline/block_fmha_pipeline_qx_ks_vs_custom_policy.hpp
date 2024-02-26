@@ -657,14 +657,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
-         if constexpr(AsyncCopyK){
+        if constexpr(AsyncCopyK)
+        {
             return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
         }
         else
         {
-            return std::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>());
+            return math::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>());
         }
-        
     }
 
     template <typename Problem>
