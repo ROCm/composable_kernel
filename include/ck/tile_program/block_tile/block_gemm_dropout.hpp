@@ -106,7 +106,7 @@ struct BlockGemmDropout
         constexpr index_t MWarp = config.template At<1>();
         constexpr index_t NWarp = config.template At<2>();
 
-        constexpr index_t MIterPerWarp = 1;
+        constexpr index_t MIterPerWarp = BlockGemm::BlockGemmShape::kM / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp = 1; // only a part s_acc distribution
 
         constexpr auto randval_block_outer_part_dstr_encoding = StaticTileDistributionEncoding<
@@ -150,7 +150,7 @@ struct BlockGemmDropout
             randval_lds, MakeRandValLdsBlockDescriptor<BlockGemm>().GetLengths(), {0, 0});
 
         // register distribute
-        auto randval_distr_origin =
+        auto randval_distr_generated =
             make_static_distributed_tensor<uint8_t>(MakeRandValSramTileDistribution<BlockGemm>());
 
         auto randval_lds_read_window =
@@ -170,17 +170,19 @@ struct BlockGemmDropout
             // generate random number
             uint8_t tmp[16];
             ph.get_random_16x8(tmp, element_global_1d_id);
+
+            static_assert(randval_distr_generated.kThreadElementSpaceSize == 16, "Wrong!");
             constexpr auto randval_distr_generated_spans =
-                decltype(randval_distr_origin)::GetDistributedSpans();
+                decltype(randval_distr_generated)::GetDistributedSpans();
             int i_random_idx = 0;
             sweep_tile_span(randval_distr_generated_spans[Number<0>{}], [&](auto idx0) {
                 sweep_tile_span(randval_distr_generated_spans[Number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx        = make_tuple(idx0, idx1);
-                    randval_distr_origin(i_j_idx) = type_convert<uint8_t>(tmp[i_random_idx++]);
+                    constexpr auto i_j_idx           = make_tuple(idx0, idx1);
+                    randval_distr_generated(i_j_idx) = type_convert<uint8_t>(tmp[i_random_idx++]);
                 });
             });
             // save to LDS
-            store_tile(randval_lds_window, randval_distr_origin);
+            store_tile(randval_lds_window, randval_distr_generated);
             block_sync_lds(); // wait data save to LDS
             // read form LDS to register
             auto randval_for_dropping = load_tile(randval_lds_read_window);
