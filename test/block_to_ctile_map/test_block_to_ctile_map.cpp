@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -364,12 +364,11 @@ TEST(BlockToCTileMap, BlockToCTileMap_LinearKSplit_BottomIndex)
 
 TEST(BlockToCTileMap, BlockToCTileMap_LinearKSplit_NextKTile)
 {
-    const index_t M               = 768;
-    const index_t N               = 384;
-    const index_t MPerBlock       = 128;
-    const index_t NPerBlock       = 64;
-    const index_t KSplit          = 3;
-    const index_t tiles_per_block = 1;
+    const index_t M         = 768;
+    const index_t N         = 384;
+    const index_t MPerBlock = 128;
+    const index_t NPerBlock = 64;
+    const index_t KSplit    = 3;
 
     auto c_grid_desc_m_n = make_naive_tensor_descriptor_packed(make_tuple(M, N));
 
@@ -378,7 +377,7 @@ TEST(BlockToCTileMap, BlockToCTileMap_LinearKSplit_NextKTile)
     auto m0n0k0_idx = tile_map.CalculateBottomIndex(3);
     EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
               (std::vector<int>{0, 1, 0}));
-    EXPECT_TRUE(tile_map.IsFirstKSplitBlock(tiles_per_block));
+    EXPECT_TRUE(tile_map.IsFirstKSplitBlock());
 
     for(index_t i = 0; i < KSplit - 1; i++)
     {
@@ -386,11 +385,16 @@ TEST(BlockToCTileMap, BlockToCTileMap_LinearKSplit_NextKTile)
         m0n0k0_idx = tile_map.GetBottomIndex();
         EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
                   (std::vector<int>{0, 1, i + 1}));
-        EXPECT_FALSE(tile_map.IsFirstKSplitBlock(tiles_per_block));
+        EXPECT_TRUE(tile_map.IsFirstKSplitBlock());
     }
     EXPECT_FALSE(tile_map.GetNextKTileIdx());
     m0n0k0_idx = tile_map.GetBottomIndex();
     EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
               (std::vector<int>{0, 1, 2}));
-    EXPECT_FALSE(tile_map.IsFirstKSplitBlock(tiles_per_block));
+    EXPECT_TRUE(tile_map.IsFirstKSplitBlock());
+
+    m0n0k0_idx = tile_map.CalculateBottomIndex(7);
+    EXPECT_EQ((std::vector<int>{m0n0k0_idx[I0], m0n0k0_idx[I1], m0n0k0_idx[I2]}),
+              (std::vector<int>{0, 2, 1}));
+    EXPECT_FALSE(tile_map.IsFirstKSplitBlock());
 }
