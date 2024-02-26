@@ -14,9 +14,9 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-struct BlockFmhaDropout
+struct BlockGemmDropout
 {
-    __host__ __device__ BlockFmhaDropout(const long_index_t& global_idx_,
+    __host__ __device__ BlockGemmDropout(const long_index_t& global_idx_,
                                          float& p_dropout_rescale_,
                                          uint8_t& p_undrop_in_uint8_t_,
                                          index_t& total_n_len_)
