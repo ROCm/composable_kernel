@@ -251,8 +251,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             randval_dram_block_window_tmp.GetBottomTensorView(),
             make_tuple(Number<kM0>{}, Number<WG::kN>{}),
             {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
-            BlockFmhaDropout::template MakeDropSramPartTileDistribution<Problem,
-                                                                        decltype(gemm_0)>());
+            BlockFmhaDropout::template MakeRandValSramPartTileDistribution<decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
@@ -493,8 +492,13 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             });
 
-            dropout.Run<Problem, Policy>(
-                smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
+            if constexpr(kHasDropout)
+            {
+                auto randval_ptr =
+                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
+                dropout.Run<decltype(gemm_0), RandValOutputDataType>(
+                    randval_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
+            }
 
             const auto p = cast_tile<PDataType>(p_compute);
 
