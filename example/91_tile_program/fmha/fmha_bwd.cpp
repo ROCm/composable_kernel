@@ -482,6 +482,7 @@ bool run(const ArgParser& arg_parser)
     o_buf.ToDevice(o_host.data());
     lse_buf.ToDevice(lse_host.data());
     dq_buf.SetZero();
+    dbias_buf.SetZero();
 
     fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_vconfig);
     fmha_bwd(fmha_traits, fmha_args, stream_vconfig);
