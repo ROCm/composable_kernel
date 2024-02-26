@@ -19,7 +19,7 @@
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 #include "ck/utility/philox_rand.hpp"
-#include "ck/tile_program/block_tile/block_fmha_dropout.hpp"
+#include "ck/tile_program/block_tile/block_gemm_dropout.hpp"
 
 namespace ck {
 namespace tile_program {
