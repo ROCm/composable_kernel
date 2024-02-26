@@ -16,6 +16,10 @@ using int4_t  = _BitInt(4);
 using f8_t    = _BitInt(8);
 using bf8_t   = unsigned _BitInt(8);
 
+struct null_type
+{
+};
+
 // vector_type
 template <typename T, index_t N>
 struct vector_type;

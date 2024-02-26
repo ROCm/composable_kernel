@@ -1,0 +1,1 @@
+add_example_executable(example_variance2d variance2d.cpp)
