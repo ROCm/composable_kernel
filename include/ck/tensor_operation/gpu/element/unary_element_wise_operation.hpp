@@ -121,6 +121,9 @@ struct PassThrough
     __host__ __device__ void operator()<bhalf_t, int8_t>(bhalf_t& y, const int8_t& x) const
     {
         y = type_convert<bhalf_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<uint8_t, uint8_t>(uint8_t& y, const uint8_t& x) const
     {
         y = x;
@@ -738,5 +741,4 @@ struct FastNumericArrayConverter<uint8_t, ck::half_t, N>
 
 } // namespace element_wise
 } // namespace tensor_operation
-} 
-}// namespace ck
+} // namespace ck

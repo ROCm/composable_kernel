@@ -596,6 +596,93 @@ struct GridwiseGemmMultipleD_Wmma
             Number<NumDTensor>{});
     }
 
+    // CheckValidity for kernels without multi D
+    template <typename Block2CTileMap>
+    __host__ __device__ static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,
+                                                            const BGridDesc& b_grid_desc,
+                                                            const EGridDesc_M_N& e_grid_desc_m_n,
+                                                            const Block2CTileMap& block_2_ctile_map)
+    {
+        static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
+                      "wrong! K1 need to be known at compile-time");
+
+        static_assert((MPerBlock % (MPerWmma * MRepeat) == 0) &&
+                          (NPerBlock % (NRepeat * NPerWmma)) == 0,
+                      "Invalid tuning param!");
+
+        const auto GetAProblemsizeMK = [&]() {
+            if constexpr(AEnableLds)
+            {
+                return make_tuple(a_grid_desc.GetLength(I1),
+                                  a_grid_desc.GetLength(I0) * a_grid_desc.GetLength(I2));
+            }
+            else
+            {
+                return make_tuple(a_grid_desc.GetLength(I1) * a_grid_desc.GetLength(I2) *
+                                      a_grid_desc.GetLength(I5),
+                                  a_grid_desc.GetLength(I0) * a_grid_desc.GetLength(I3) *
+                                      a_grid_desc.GetLength(I4) * a_grid_desc.GetLength(I6));
+            }
+        };
+
+        const auto GetBProblemsizeNK = [&]() {
+            if constexpr(BEnableLds)
+            {
+                return make_tuple(b_grid_desc.GetLength(I1),
+                                  b_grid_desc.GetLength(I0) * b_grid_desc.GetLength(I2));
+            }
+            else
+            {
+                return make_tuple(b_grid_desc.GetLength(I1) * b_grid_desc.GetLength(I2) *
+                                      b_grid_desc.GetLength(I5),
+                                  b_grid_desc.GetLength(I0) * b_grid_desc.GetLength(I3) *
+                                      b_grid_desc.GetLength(I4) * b_grid_desc.GetLength(I6));
+            }
+        };
+
+        const auto M = GetAProblemsizeMK()[I0];
+        const auto N = GetBProblemsizeNK()[I0];
+        const auto K = GetAProblemsizeMK()[I1];
+
+        if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) &&
+             K == GetBProblemsizeNK()[I1]))
+        {
+            printf("GridwiseOp: ABE descriptor dimension cross check failure\n");
+            return false;
+        }
+
+        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
+        {
+            printf("GridwiseOp: Problemsize descriptor dimension check failure\n");
+            return false;
+        }
+
+        // check gridwise gemm pipeline
+        const auto num_k_loop = K / KPerBlock;
+
+        if(!GridwiseGemmPipe::IsSupported(num_k_loop))
+        {
+            return false;
+        }
+
+        if(!block_2_ctile_map.CheckValidity(e_grid_desc_m_n))
+        {
+            return false;
+        }
+
+        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_grid_desc.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             b_grid_desc.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
+             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc& a_grid_desc,

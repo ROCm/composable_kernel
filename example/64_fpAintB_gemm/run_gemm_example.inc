@@ -34,29 +34,14 @@ bool run_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
     {
     case 0: break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-5.f, 5.f}(quant_b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-5.f, 5.f}(scale_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-1.f, 1.f}(a_m_k);
+        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-1.f, 1.f}(quant_b_k_n);
+        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-1.f, 1.f}(scale_k_n);
         break;
     case 2:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
         ck::utils::FillUniformDistribution<QuantDataType>{-1.f, 1.f}(quant_b_k_n);
         ck::utils::FillUniformDistribution<ScaleDataType>{-1.f, 1.f}(scale_k_n);
-        break;
-    case 3:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-5.f, 5.f}(quant_b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-5.f, 5.f}(scale_k_n);
-        break;
-    case 4:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{1.f, 1.f}(quant_b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{2.f, 2.f}(scale_k_n);
-        break;
-    case 5:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<QuantDataType>{-2.f, 2.f}(quant_b_k_n);
-        ck::utils::FillUniformDistributionIntegerValue<ScaleDataType>{-2.f, 2.f}(scale_k_n);
         break;
     default:
         ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
