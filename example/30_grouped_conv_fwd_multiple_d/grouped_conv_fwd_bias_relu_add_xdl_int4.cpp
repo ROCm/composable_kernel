@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#error Should compile this file with ck::int4_t support
+#endif
 
 #include "common.hpp"
 
@@ -27,4 +29,3 @@ using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 #include "run_grouped_conv_fwd_bias_relu_add_example.inc"
 
 int main(int argc, char* argv[]) { return !run_grouped_conv_fwd_bias_relu_add_example(argc, argv); }
-#endif

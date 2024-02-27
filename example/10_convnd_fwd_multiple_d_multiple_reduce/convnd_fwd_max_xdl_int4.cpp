@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+#error Should compile this file with ck::int4_t support
+#endif
 
 #define BUILD_INT4_EXAMPLE
 
@@ -22,4 +24,3 @@ using RsDataType        = ck::Tuple<R0DataType>;
 #include "run_convnd_fwd_max_example.inc"
 
 int main(int argc, char* argv[]) { return !run_convnd_fwd_max_example(argc, argv); }
-#endif

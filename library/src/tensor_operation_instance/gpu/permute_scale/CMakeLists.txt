@@ -1,2 +1,0 @@
-add_instance_library(device_permute_scale_instance 
-	device_permute_scale_instances.cpp)

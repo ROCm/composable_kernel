@@ -1,9 +1,5 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
-
 #include <iostream>
 #include <cstdlib>
-#include <random>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
@@ -52,8 +48,10 @@ void host_elementwise4D(HostTensorB& B_nhwc,
                 for(std::size_t n = 0; n < N; ++n)
                 {
                     ADataType tmp_val;
+                    // auto a_val = A_nchw(n, c, h, w);
                     auto a_val = A_nchw.mData[(n) + (c * N) + (h * C * N) + (w * H * C * N)];
                     functor_b(tmp_val, a_val);
+                    // functor_a(B_nhwc(n, h, w, c), scale * tmp_val);
                     functor_a(B_nhwc.mData[(n) + (c * W * H * N) + (h * N) + (w * H * N)],
                               scale * tmp_val);
                 }
@@ -64,14 +62,12 @@ int main()
     bool do_verification = true;
     bool time_kernel     = true;
 
-    std::vector<std::size_t> nchw = {16, 8, 32, 64};
-    std::vector<std::size_t> nhwc = {16, 32, 64, 8};
+    std::vector<std::size_t> nchw = {4, 2, 1, 8};
+    std::vector<std::size_t> nhwc = {4, 1, 8, 2};
     Tensor<ADataType> a(nchw);
     Tensor<BDataType> b(nhwc);
     float scale = 1.f;
     auto i      = 0;
-    std::mt19937 gen(11939);
-    std::uniform_int_distribution<int> dis(0, 1);
     for(std::size_t w = 0; w < a.mDesc.GetLengths()[3]; ++w)
         for(std::size_t h = 0; h < a.mDesc.GetLengths()[2]; ++h)
             for(std::size_t c = 0; c < a.mDesc.GetLengths()[1]; ++c)
@@ -79,7 +75,7 @@ int main()
                 {
                     a.mData[(n * nchw[1] * nchw[2] * nchw[3]) + (c * nchw[2] * nchw[3]) +
                             (h * nchw[3]) + w] = i;
-                    i                          = dis(gen);
+                    i++;
                 }
 
     DeviceMem a_device_buf(sizeof(ADataType) * a.mDesc.GetElementSpaceSize());

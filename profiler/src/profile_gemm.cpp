@@ -42,15 +42,12 @@ static void print_helper_msg()
               << "arg6: print tensor value (0: no; 1: yes)\n"
               << "arg7: time kernel (0: no, 1: yes)\n"
               << "arg8 to 13: M, N, K, StrideA, StrideB, StrideC\n"
-              << "optional:\n"
-              << "arg14: number of warm-up cycles (default 1)\n"
-              << "arg15: number of iterations (default 10)\n"
               << std::endl;
 }
 
 int profile_gemm(int argc, char* argv[])
 {
-    if(argc != 14 && argc != 16)
+    if(argc != 14)
     {
         print_helper_msg();
         exit(1);
@@ -71,13 +68,6 @@ int profile_gemm(int argc, char* argv[])
     const int StrideB = std::stoi(argv[12]);
     const int StrideC = std::stoi(argv[13]);
 
-    int n_warmup = 1;
-    int n_iter   = 10;
-    if(argc == 16)
-    {
-        n_warmup = std::stoi(argv[14]);
-        n_iter   = std::stoi(argv[15]);
-    }
     using F32 = float;
     using F16 = ck::half_t;
 #ifdef CK_ENABLE_BF16
@@ -130,21 +120,13 @@ int profile_gemm(int argc, char* argv[])
                                                        K,
                                                        (StrideA < 0) ? DefaultStrideA : StrideA,
                                                        (StrideB < 0) ? DefaultStrideB : StrideB,
-                                                       (StrideC < 0) ? DefaultStrideC : StrideC,
-                                                       n_warmup,
-                                                       n_iter);
+                                                       (StrideC < 0) ? DefaultStrideC : StrideC);
 
         return pass ? 0 : 1;
     };
 
-    if(data_type != GemmDataType::F32_F32_F32 && data_type != GemmDataType::F16_F16_F16 &&
-       data_type != GemmDataType::BF16_BF16_BF16 && data_type != GemmDataType::INT8_INT8_INT8 &&
-       data_type != GemmDataType::F8_F8_F8)
-    {
-        // dummy clause before the else clauses for different data types
-        std::cout << "Gemm: this data_type is not implemented" << std::endl;
-        return 1;
-    }
+    if(false)
+        ;
 #ifdef CK_ENABLE_FP32
     else if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -237,7 +219,7 @@ int profile_gemm(int argc, char* argv[])
 #endif
     else
     {
-        std::cout << "Gemm: this data_type & layout is not implemented" << std::endl;
+        std::cout << "this data_type & layout is not implemented" << std::endl;
 
         return 1;
     }

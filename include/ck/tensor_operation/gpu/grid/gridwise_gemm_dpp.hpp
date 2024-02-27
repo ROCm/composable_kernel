@@ -28,7 +28,8 @@ __global__ void
 #endif
         kernel_gemm_dpp(const typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx103__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1030__) || defined(__gfx1100__) || \
+    defined(__gfx1101__) || defined(__gfx1102__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const auto a_grid_desc_ak0_m_ak1 = amd_wave_read_first_lane(

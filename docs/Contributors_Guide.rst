@@ -1,14 +1,9 @@
-.. meta::
-  :description: Composable Kernel documentation and API reference library
-  :keywords: composable kernel, CK, ROCm, API, documentation
+===================
+Contributor's Guide
+===================
 
-.. _contributing-to:
-
-********************************************************************
-Contributor's guide
-********************************************************************
-
-This chapter explains the rules for contributing to the Composable Kernel project, and how to contribute.
+This chapter explains how to get started contributing to the Composable Kernel project and what are
+the contributing rules.
 
 Getting started
 ===============
@@ -19,21 +14,23 @@ Getting started
    build the library. You can also find some of this information in the
    `README file <https://github.com/ROCmSoftwarePlatform/composable_kernel/blob/develop/README.md>`_
    on the project's GitHub page.
-#. **Additional reading:** The blog post `AMD Composable Kernel library: efficient fused kernels for AI apps with just a few lines of code <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_ provides a deeper understanding of the CK library and showcases its performance capabilities.
+#. **Additional reading:** We also recommend reading a `blog post
    <https://community.amd.com/t5/instinct-accelerators/amd-composable-kernel-library-efficient-fused-kernels-for-ai/ba-p/553224>`_
-   from the AMD Community portal. It offers a deeper understanding of the library's objectives and showcases its performance capabilities.
+   from the AMD Community portal. It offers a deeper understanding of the library's objectives and
+   showcases its performance capabilities.
 #. **General information:** For broader information about AMD products, consider exploring the
    `AMD Developer Central portal <https://www.amd.com/en/developer.html>`_.
 
-How to contribute
+How do I contribute
 ===================
 
-You can make an impact by reporting issues or proposing code enhancements through pull requests.
+We deeply value contributions from our users. You can make an impact by reporting issues or
+proposing code enhancements through pull requests.
 
 Reporting issues
 ----------------
 
-Use `Github issues <https://github.com/ROCmSoftwarePlatform/composable_kernel/issues>`_
+We use `Github issues <https://github.com/ROCmSoftwarePlatform/composable_kernel/issues>`_
 to track public bugs and enhancement requests.
 
 If you encounter an issue with the library, please check if the problem has already been
@@ -62,7 +59,7 @@ issue. All reported issues must include:
 
   * How frequently does this issue happen? Does it reproduce every time? Or is it a sporadic issue?
 
-Before submitting any issue, ensure you have addressed all relevant questions from the checklist.
+Before sumbitting any issue, ensure you have addressed all relevant questions from the checklist.
 
 Creating Pull Requests
 ----------------------
@@ -71,7 +68,7 @@ You can submit `Pull Requests (PR) on GitHub
 <https://github.com/ROCmSoftwarePlatform/composable_kernel/pulls>`_.
 
 All contributors are required to develop their changes on a separate branch and then create a
-pull request to merge their changes into the `develop` branch, which is the default
+pull requrest to merge their changes into the `develop` branch, which is the default
 development branch in the Composable Kernel project. All external contributors must use their own
 forks of the project to develop their changes.
 
@@ -102,4 +99,4 @@ When submitting a Pull Request you should:
 Following the above guidelines ensures a seamless review process and faster assistance from our
 end.
 
-Thank you for your commitment to enhancing the Composable Kernel project! 
+Thank you for your commitment to enhancing the Composable Kernel project! We look forward to collaborating with you.

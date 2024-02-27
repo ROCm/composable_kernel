@@ -42,7 +42,7 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::KPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShuffle
     // clang-format off

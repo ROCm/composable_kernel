@@ -106,8 +106,9 @@ struct DeviceOperationInstanceFactory<
         return op_ptrs;
     }
 };
-#endif
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

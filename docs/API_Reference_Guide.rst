@@ -1,13 +1,11 @@
-.. meta::
-  :description: Composable Kernel documentation and API reference library
-  :keywords: composable kernel, CK, ROCm, API, documentation
 
-.. _api-reference:
+*******************
+API Reference Guide
+*******************
 
-********************************************************************
-API reference guide
-********************************************************************
-
+=================
+Introduction
+=================
 
 This document contains details of the APIs for the Composable Kernel (CK) library and introduces
 some of the key design principles that are used to write new classes that extend CK functionality.
@@ -32,7 +30,7 @@ DeviceMem
 Kernels For Flashattention
 ---------------------------
 
-The Flashattention algorithm is defined in :cite:t:`dao2022flashattention`. This section lists
+The Flashattention algorithm is defined in :cite:t:`dao2022flashattention`. This sections lists
 the classes that are used in the CK GPU implementation of Flashattention.
 
 **Gridwise classes**

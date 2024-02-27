@@ -360,8 +360,6 @@ struct ReferenceConvFwd : public device::BaseOperator
 
                 return 0;
             }
-            throw std::runtime_error("Conv_fwd: number of dimensions must be between 1 and 3.");
-            return 1;
         }
 
         float Run(const device::BaseArgument* p_arg,

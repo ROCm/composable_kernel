@@ -14,7 +14,6 @@
 #include "ck/tensor_operation/gpu/device/device_contraction_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_contraction_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -56,7 +55,7 @@ __global__ void
             const Block2ETileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_as_grid,
@@ -501,29 +500,22 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             // for sanity check of vector memory access
             for(index_t i = 0; i < NumATensor; ++i)
             {
-                as_mz_consecutive_[i] = a_ms_ks_strides[i][NumDimM - 1] == 1;
-                as_kz_consecutive_[i] = a_ms_ks_strides[i][NumDimM + NumDimK - 1] == 1;
-                as_max_read_elems_[i] =
-                    CalculateMaxRead<NumDimM, NumDimK>(a_ms_ks_lengths[i], a_ms_ks_strides[i]);
+                a_mz_stride_[i] = a_ms_ks_strides[i][NumDimM - 1];
+                a_kz_stride_[i] = a_ms_ks_strides[i][NumDimM + NumDimK - 1];
             }
 
             for(index_t i = 0; i < NumBTensor; ++i)
             {
-                bs_nz_consecutive_[i] = b_ns_ks_strides[i][NumDimN - 1] == 1;
-                bs_kz_consecutive_[i] = b_ns_ks_strides[i][NumDimN + NumDimK - 1] == 1;
-                bs_max_read_elems_[i] =
-                    CalculateMaxRead<NumDimN, NumDimK>(b_ns_ks_lengths[i], b_ns_ks_strides[i]);
+                b_nz_stride_[i] = b_ns_ks_strides[i][NumDimN - 1];
+                b_kz_stride_[i] = b_ns_ks_strides[i][NumDimN + NumDimK - 1];
             }
 
             for(index_t i = 0; i < NumDTensor; ++i)
             {
-                ds_nz_consecutive_[i] = d_ms_ns_strides[i][NumDimM + NumDimN - 1] == 1;
-                ds_max_read_elems_[i] =
-                    CalculateMaxRead<NumDimM, NumDimN>(d_ms_ns_lengths[i], d_ms_ns_strides[i]);
+                ds_nz_stride_[i] = d_ms_ns_strides[i][NumDimM + NumDimN - 1];
             }
 
-            e_nz_consecutive_  = e_ms_ns_stride[NumDimM + NumDimN - 1] == 1;
-            e_max_write_elems_ = CalculateMaxRead<NumDimM, NumDimN>(e_ms_ns_length, e_ms_ns_stride);
+            e_nz_stride_ = e_ms_ns_stride[NumDimM + NumDimN - 1];
         }
 
         // pointers
@@ -553,19 +545,16 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
 
-        // Describe whether the last part of a given dimension of A/B/D/E is consecutive
-        // in the memory or not.
-        std::array<bool, NumATensor> as_mz_consecutive_;
-        std::array<bool, NumATensor> as_kz_consecutive_;
-        std::array<bool, NumBTensor> bs_nz_consecutive_;
-        std::array<bool, NumBTensor> bs_kz_consecutive_;
-        std::array<bool, NumDTensor> ds_nz_consecutive_;
-        bool e_nz_consecutive_;
+        // Strides for the last M/N/K dimensions of A/B/Ds/E
+        //   for sanity check of vector load/store
+        std::array<index_t, NumATensor> a_mz_stride_;
+        std::array<index_t, NumATensor> a_kz_stride_;
 
-        std::array<index_t, NumATensor> as_max_read_elems_;
-        std::array<index_t, NumBTensor> bs_max_read_elems_;
-        std::array<index_t, NumDTensor> ds_max_read_elems_;
-        index_t e_max_write_elems_;
+        std::array<index_t, NumBTensor> b_nz_stride_;
+        std::array<index_t, NumBTensor> b_kz_stride_;
+
+        std::array<index_t, NumDTensor> ds_nz_stride_;
+        index_t e_nz_stride_;
     };
 
     // Invoker
@@ -654,65 +643,73 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
 
         // check vector load/store
         {
-            bool valid_as_access = true;
+            bool all_valid = true;
+
             static_for<0, NumATensor, 1>{}([&](auto i) {
-                const bool valid_a_vector_size =
-                    arg.as_max_read_elems_[i] % ABlockTransferSrcScalarPerVector == 0;
-                const bool valid_a_access_dim_m =
-                    ABlockTransferSrcVectorDim == 1 && arg.as_mz_consecutive_[i];
-                const bool valid_a_access_dim_k =
-                    ABlockTransferSrcVectorDim == 2 && arg.as_kz_consecutive_[i];
-                const bool valid_a_access_dim = valid_a_access_dim_m || valid_a_access_dim_k;
-                if(!(valid_a_vector_size && valid_a_access_dim))
+                // vector memory access of A: could be on M or AK1 dimension
+                if constexpr(ABlockTransferSrcVectorDim == 1)
                 {
-                    valid_as_access = false;
+                    if(!(arg.a_mz_stride_[i] == 1 && arg.as_grid_desc_ak0_m_ak1_[i].GetLength(I1) %
+                                                             ABlockTransferSrcScalarPerVector ==
+                                                         0))
+                    {
+                        all_valid = false;
+                    }
+                }
+                else
+                {
+                    if(!(arg.a_kz_stride_[i] == 1 && arg.as_grid_desc_ak0_m_ak1_[i].GetLength(I2) %
+                                                             ABlockTransferSrcScalarPerVector ==
+                                                         0))
+                    {
+                        all_valid = false;
+                    }
                 }
             });
-            if(!valid_as_access)
-            {
-                return false;
-            }
 
-            bool valid_bs_access = true;
+            // vector memory access of B: could be on N or BK1 dimension
             static_for<0, NumBTensor, 1>{}([&](auto i) {
-                const bool valid_b_vector_size =
-                    arg.bs_max_read_elems_[i] % BBlockTransferSrcScalarPerVector == 0;
-                const bool valid_b_access_dim_n =
-                    BBlockTransferSrcVectorDim == 1 && arg.bs_nz_consecutive_[i];
-                const bool valid_b_access_dim_k =
-                    BBlockTransferSrcVectorDim == 2 && arg.bs_kz_consecutive_[i];
-                const bool valid_b_access_dim = valid_b_access_dim_n || valid_b_access_dim_k;
-                if(!(valid_b_vector_size && valid_b_access_dim))
+                if constexpr(BBlockTransferSrcVectorDim == 1)
                 {
-                    valid_bs_access = false;
+                    if(!(arg.b_nz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I1) %
+                                                             BBlockTransferSrcScalarPerVector ==
+                                                         0))
+                    {
+                        all_valid = false;
+                    }
+                }
+                else
+                {
+                    if(!(arg.b_kz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I2) %
+                                                             BBlockTransferSrcScalarPerVector ==
+                                                         0))
+                    {
+                        all_valid = false;
+                    }
                 }
             });
-            if(!valid_bs_access)
-            {
-                return false;
-            }
 
-            bool valid_ds_access = true;
+            // check vector load of Ds
             static_for<0, NumDTensor, 1>{}([&](auto i) {
-                const bool valid_d_vector_size =
-                    arg.ds_max_read_elems_[i] % CDEBlockTransferScalarPerVector_NPerBlock == 0;
-                // Vector read of Ds is always on N dimension.
-                const bool valid_d_access_dim = arg.ds_nz_consecutive_[i];
-                if(!(valid_d_vector_size && valid_d_access_dim))
+                if(!(arg.ds_nz_stride_[i] == 1 &&
+                     arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
+                             CDEBlockTransferScalarPerVector_NPerBlock ==
+                         0))
                 {
-                    valid_ds_access = false;
+                    all_valid = false;
                 }
             });
-            if(!valid_ds_access)
+
+            // vector memory access of E: always on NPerBlock dimension
+            if(!(arg.e_nz_stride_ == 1 &&
+                 arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
+                         CDEBlockTransferScalarPerVector_NPerBlock ==
+                     0))
             {
-                return false;
+                all_valid = false;
             }
 
-            const bool valid_e_vector_size =
-                arg.e_max_write_elems_ % CDEBlockTransferScalarPerVector_NPerBlock == 0;
-            // Vector write of E is always on N dimension.
-            const bool valid_e_access_dim = arg.e_nz_consecutive_;
-            if(!(valid_e_vector_size && valid_e_access_dim))
+            if(!all_valid)
             {
                 return false;
             }

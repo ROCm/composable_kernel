@@ -55,7 +55,10 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        if(ck::is_navi3_supported())
+        const bool is_navi3x = ck::get_device_name() == "gfx1100" ||
+                               ck::get_device_name() == "gfx1101" ||
+                               ck::get_device_name() == "gfx1102";
+        if(is_navi3x)
         {
             // on navi3x only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)

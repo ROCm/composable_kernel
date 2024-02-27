@@ -135,8 +135,6 @@ class TestConvTensorRearrangeInterface : public ::testing::Test
 
             return col2img.IsSupportedArgument(argument);
         }
-        throw std::runtime_error("Conv_tensor_rearrange: problem with tensor rearrange operator. ");
-        return 1;
     }
 };
 

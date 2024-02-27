@@ -147,9 +147,3 @@ export onnx_log="perf_onnx_gemm.log"
 print_log_header $onnx_log $env_type $branch $host_name
 ./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
 ./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
-
-#run mixed fp16/fp8 and fp8/fp16 gemm tests
-export mixed_gemm_log="perf_mixed_gemm.log"
-print_log_header $mixed_gemm_log $env_type $branch $host_name
-./profile_mixed_gemm.sh gemm_splitk 4 0 $verify 2 0 1 16 2>&1 | tee -a $mixed_gemm_log
-./profile_mixed_gemm.sh gemm_splitk 5 0 $verify 2 0 1 16 2>&1 | tee -a $mixed_gemm_log

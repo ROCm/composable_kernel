@@ -63,9 +63,7 @@ class TestGroupedGemm : public testing::TestWithParam<int>
              const std::vector<int>& StrideAs,
              const std::vector<int>& StrideBs,
              const std::vector<int>& StrideCs,
-             int kbatch   = 1,
-             int n_warmup = 1,
-             int n_iter   = 10)
+             int kbatch = 1)
     {
         bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
                                                             BDataType,
@@ -73,19 +71,8 @@ class TestGroupedGemm : public testing::TestWithParam<int>
                                                             float,
                                                             ALayout,
                                                             BLayout,
-                                                            ELayout>(verify_,
-                                                                     init_method_,
-                                                                     log_,
-                                                                     bench_,
-                                                                     Ms,
-                                                                     Ns,
-                                                                     Ks,
-                                                                     StrideAs,
-                                                                     StrideBs,
-                                                                     StrideCs,
-                                                                     kbatch,
-                                                                     n_warmup,
-                                                                     n_iter);
+                                                            ELayout>(
+            verify_, init_method_, log_, bench_, Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch);
         EXPECT_TRUE(pass);
     }
 };

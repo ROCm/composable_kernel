@@ -133,7 +133,7 @@ def parse_logfile(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[4])
-    elif 'onnx_gemm' in logfile or 'splitK_gemm' in logfile or 'mixed_gemm' in logfile:
+    elif 'onnx_gemm' in logfile or 'splitK_gemm' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
@@ -295,10 +295,6 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_splitK_gemm_tflops"
-        if 'mixed_gemm' in filename:
-            for i in range(1,len(results)+1):
-                testlist.append("Test%i"%i)
-            table_name="ck_mixed_gemm_tflops"
 
         tflops_base = get_baseline(table_name,conn)
         store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, conn)

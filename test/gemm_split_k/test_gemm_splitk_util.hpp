@@ -60,9 +60,7 @@ class TestGemmSplitK : public testing::Test
                    const int StrideA,
                    const int StrideB,
                    const int StrideC,
-                   int kbatch   = 1,
-                   int n_warmup = 1,
-                   int n_iter   = 10)
+                   int kbatch = 1)
     {
         bool pass = ck::profiler::profile_gemm_splitk_impl<ADataType,
                                                            BDataType,
@@ -70,19 +68,8 @@ class TestGemmSplitK : public testing::Test
                                                            CDataType,
                                                            ALayout,
                                                            BLayout,
-                                                           CLayout>(verify_,
-                                                                    init_method_,
-                                                                    log_,
-                                                                    bench_,
-                                                                    M,
-                                                                    N,
-                                                                    K,
-                                                                    StrideA,
-                                                                    StrideB,
-                                                                    StrideC,
-                                                                    kbatch,
-                                                                    n_warmup,
-                                                                    n_iter);
+                                                           CLayout>(
+            verify_, init_method_, log_, bench_, M, N, K, StrideA, StrideB, StrideC, kbatch);
         EXPECT_TRUE(pass);
     }
 };

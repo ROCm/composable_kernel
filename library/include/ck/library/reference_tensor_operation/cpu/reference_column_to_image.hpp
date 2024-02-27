@@ -265,8 +265,6 @@ struct ReferenceColumnToImage : public device::BaseOperator
 
                 return 0;
             }
-            throw std::runtime_error("Col2Img: number of dimensions should be between 1 and 3.");
-            return 1;
         }
 
         float Run(const device::BaseArgument* p_arg,

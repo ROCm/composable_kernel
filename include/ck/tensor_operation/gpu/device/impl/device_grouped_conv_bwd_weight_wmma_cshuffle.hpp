@@ -698,7 +698,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         // check device
-        if(ck::is_navi3_supported())
+        if(get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
+           get_device_name() == "gfx1102")
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

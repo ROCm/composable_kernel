@@ -1,4 +1,0 @@
-add_instance_library(device_gemm_add_relu_instance
-   device_gemm_add_relu_xdl_c_shuffle_f16_i8_f16_f16_mk_kn_mn_mn_instance.cpp
-   device_gemm_add_relu_xdl_c_shuffle_bf16_i8_bf16_bf16_mk_kn_mn_mn_instance.cpp
-)
