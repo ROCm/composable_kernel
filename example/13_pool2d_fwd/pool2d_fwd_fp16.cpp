@@ -18,7 +18,7 @@ using IndexDataType = int32_t;
 using InLayout  = ck::tensor_layout::convolution::NHWC;
 using OutLayout = ck::tensor_layout::convolution::NHWC;
 
-#if 0
+#if 1
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 #else
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
