@@ -373,7 +373,7 @@ struct WmmaGemm
         static_assert(NPerWmma == 16 && MPerWmma == 16,
                       "Only support GemmNPerWmma == 16 and GemmMPerWmma == 16 for wmma");
 
-        static_assert(KPack == wmma_instr.k_per_wmma, "KPack should be k_per_wmma");
+        static_assert(KPack % wmma_instr.k_per_wmma == 0, "KPack should be multiple of k_per_wmma");
     }
 
     // WMMA output supporting C = A * B
@@ -486,14 +486,16 @@ struct WmmaGemm
                 ,
             "base type couple must be (half, float), (bhalf, float), (half, half), (bhalf, bhalf), "
             "(int8, int32) or (int4, int32)!");
-        if constexpr(!TransposeC)
-        {
-            wmma_instr.template run<MPerWmma, NPerWmma>(p_a_wave, p_b_wave, p_c_thread);
-        }
-        else
-        {
-            wmma_instr.template run<MPerWmma, NPerWmma>(p_b_wave, p_a_wave, p_c_thread);
-        }
+        static_for<0, KPack / wmma_instr.k_per_wmma, 1>{}([&](auto k) {
+            if constexpr(!TransposeC)
+            {
+                wmma_instr.template run<MPerWmma, NPerWmma>(p_a_wave[k], p_b_wave[k], p_c_thread);
+            }
+            else
+            {
+                wmma_instr.template run<MPerWmma, NPerWmma>(p_b_wave[k], p_a_wave[k], p_c_thread);
+            }
+        });
     }
 
     __device__ static auto GetLaneId() { return get_thread_local_1d_id() % wmma_instr.wave_size; }
