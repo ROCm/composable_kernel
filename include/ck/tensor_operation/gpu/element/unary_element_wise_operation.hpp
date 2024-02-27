@@ -207,6 +207,18 @@ struct PassThrough
     {
         y = ck::type_convert<bf8_t>(x);
     }
+
+    template <>
+    __host__ __device__ void operator()<_BitInt(8), f8_t>(_BitInt(8)& y, const f8_t& x) const
+    {
+        y = x.data;
+    }
+
+    template <>
+    __host__ __device__ void operator()<_BitInt(8), bf8_t>(_BitInt(8)& y, const bf8_t& x) const
+    {
+        y = x.data;
+    }
 };
 
 struct UnaryConvert
