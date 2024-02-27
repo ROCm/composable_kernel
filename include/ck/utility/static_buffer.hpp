@@ -145,7 +145,11 @@ struct StaticBufferTupleOfVector
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_x = (i % s_per_v) / s_per_x;
 
-        base::operator()(i_v).template AsType<X>()(i_x) = x;
+        // if using custom data type, use data member
+        if constexpr(is_same_v<X, f8_t> || is_same_v<X, bf8_t>)
+            base::operator()(i_v).template AsType<X>()(i_x) = x.data;
+        else
+            base::operator()(i_v).template AsType<X>()(i_x) = x;
     }
 
     // Get read access to vector_type V

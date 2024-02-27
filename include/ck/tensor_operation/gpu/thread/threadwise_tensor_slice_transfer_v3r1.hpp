@@ -213,7 +213,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
-            using dst_vector_t    = typename dst_vector_type::type;
+            // using dst_vector_t    = typename dst_vector_type::type;
             dst_vector_type op_r_v;
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -252,8 +252,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
-                .template SetAsType<dst_vector_t>(src_data_idx_seq,
-                                                  op_r_v.template AsType<dst_vector_t>()[I0]);
+                .template SetAsType<dst_elem_op_vec_t>(src_data_idx_seq,
+                                                  op_r_v.template AsType<dst_elem_op_vec_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
