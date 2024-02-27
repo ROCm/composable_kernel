@@ -308,30 +308,83 @@ bool run(const ArgParser& arg_parser)
                                        mask.type,
                                        use_bias,
                                        lse};
-    auto fmha_args   = fmha_fwd_args{q_buf.GetDeviceBuffer(),
-                                   k_buf.GetDeviceBuffer(),
-                                   v_buf.GetDeviceBuffer(),
-                                   bias_buf.GetDeviceBuffer(),
-                                   lse_buf.GetDeviceBuffer(),
-                                   o_buf.GetDeviceBuffer(),
-                                   seqstart_q.GetDeviceBuffer(),
-                                   seqstart_k.GetDeviceBuffer(),
-                                   nullptr,
-                                   batch,
-                                   nhead,
-                                   nhead_k,
-                                   shape_seqlen_q,
-                                   shape_seqlen_k,
-                                   hdim_q,
-                                   hdim_v,
-                                   max_seqlen_q,
-                                   scale,
-                                   descale_q * descale_k,
-                                   descale_v,
-                                   i_perm,
-                                   o_perm,
-                                   mask.y,
-                                   mask.x};
+    auto fmha_args   = [&]() {
+        assert(nhead % nhead_k == 0);
+        /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
+        ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
+        ///       'nhead_stride_bias' are 0.
+        // setup stride_* arguments
+        const ck::index_t stride_q = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck::index_t stride_k = (i_perm ? hdim_q : nhead_k * hdim_q);
+        const ck::index_t stride_v = [&]() {
+            if(is_v_rowmajor)
+                return i_perm ? hdim_v : nhead_k * hdim_v;
+            else
+                return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
+        }();
+        const ck::index_t stride_bias = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
+        // setup nhead_stride_* arguments
+        const ck::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
+        const ck::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
+        const ck::index_t nhead_stride_v = [&]() {
+            if(is_v_rowmajor)
+                return i_perm ? shape_seqlen_k * hdim_v : hdim_v;
+            else
+                return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
+        }();
+        const ck::index_t nhead_stride_bias =
+            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
+        const ck::index_t nhead_stride_lse = (shape_seqlen_q * 1);
+        const ck::index_t nhead_stride_o   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        // setup batch_stride_* arguments
+        const ck::index_t batch_stride_q    = (nhead * shape_seqlen_q * hdim_q);
+        const ck::index_t batch_stride_k    = (nhead_k * shape_seqlen_k * hdim_q);
+        const ck::index_t batch_stride_v    = (nhead_k * hdim_v * shape_seqlen_k);
+        const ck::index_t batch_stride_bias = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck::index_t batch_stride_lse  = (nhead * shape_seqlen_q * 1);
+        const ck::index_t batch_stride_o    = (nhead * shape_seqlen_q * hdim_v);
+
+        return fmha_fwd_args{q_buf.GetDeviceBuffer(),
+                             k_buf.GetDeviceBuffer(),
+                             v_buf.GetDeviceBuffer(),
+                             bias_buf.GetDeviceBuffer(),
+                             lse_buf.GetDeviceBuffer(),
+                             o_buf.GetDeviceBuffer(),
+                             seqstart_q.GetDeviceBuffer(),
+                             seqstart_k.GetDeviceBuffer(),
+                             nullptr,
+                             shape_seqlen_q,
+                             shape_seqlen_k,
+                             batch,
+                             max_seqlen_q,
+                             hdim_q,
+                             hdim_v,
+                             nhead,
+                             nhead_k,
+                             scale,
+                             stride_q,
+                             stride_k,
+                             stride_v,
+                             stride_bias,
+                             stride_o,
+                             nhead_stride_q,
+                             nhead_stride_k,
+                             nhead_stride_v,
+                             nhead_stride_bias,
+                             nhead_stride_lse,
+                             nhead_stride_o,
+                             batch_stride_q,
+                             batch_stride_k,
+                             batch_stride_v,
+                             batch_stride_bias,
+                             batch_stride_lse,
+                             batch_stride_o,
+                             mask.y,
+                             mask.x,
+                             descale_q * descale_k,
+                             descale_v};
+    }();
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
 
