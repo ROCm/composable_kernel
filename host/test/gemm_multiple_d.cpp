@@ -21,8 +21,9 @@
 #include <test.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
+#include <fstream>
 
-using half = _Float16;
+// using half = _Float16;
 // using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
@@ -144,16 +145,16 @@ ${template};
 TEST_CASE(test_problem_kernel)
 {
     ck::host::conv::Problem_Conv prob;
-    prob.G  = 64;
+    prob.G  = 4;
     prob.N  = 64;
-    prob.C  = 64;
-    prob.K  = 64;
-    prob.Y  = 64;
-    prob.X  = 64;
-    prob.Hi = 64;
-    prob.Wi = 64;
-    prob.Ho = 64;
-    prob.Wo = 64;
+    prob.C  = 32;
+    prob.K  = 32;
+    prob.Y  = 3;
+    prob.X  = 3;
+    prob.Hi = 32;
+    prob.Wi = 32;
+    prob.Ho = 32;
+    prob.Wo = 32;
     check_all<half> check;
     auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
     auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
@@ -212,6 +213,13 @@ TEST_CASE(test_problem_kernel)
              {"m", std::to_string(prob.G)},
              {"n", std::to_string(prob.N)},
              {"k", std::to_string(prob.C)}}); // FIXME: pass in the right dims
+                                              
+        std::ofstream ofh("kernel.txt");
+        ofh << "##########################################################\n";
+        ofh << solution.ToTemplateString();
+        ofh << "##########################################################\n";
+        ofh.close();
+
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
