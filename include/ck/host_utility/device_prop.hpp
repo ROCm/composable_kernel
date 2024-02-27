@@ -55,14 +55,34 @@ inline bool is_xdl_supported()
 {
     return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
            ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
-           ck::get_device_name() == "gfx942";
+           ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950";
 }
 
 inline bool is_lds_direct_load_supported()
 {
     // Check if direct loads from global memory to LDS are supported.
     return ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx940" ||
-           ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942";
+           ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942" ||
+           ck::get_device_name() == "gfx950";
+}
+
+inline bool is_navi1_supported()
+{
+    return ck::get_device_name() == "gfx1010" || ck::get_device_name() == "gfx1011" ||
+           ck::get_device_name() == "gfx1012";
+}
+
+inline bool is_navi2_supported()
+{
+    return ck::get_device_name() == "gfx1030" || ck::get_device_name() == "gfx1031" ||
+           ck::get_device_name() == "gfx1032" || ck::get_device_name() == "gfx1034" ||
+           ck::get_device_name() == "gfx1035" || ck::get_device_name() == "gfx1036";
+}
+
+inline bool is_navi3_supported()
+{
+    return ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
+           ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103";
 }
 
 } // namespace ck

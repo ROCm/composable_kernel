@@ -1,4 +1,4 @@
-list(APPEND gpu_list1 gfx908 gfx90a gfx940 gfx941 gfx942)
+list(APPEND gpu_list1 gfx908 gfx90a gfx940 gfx941 gfx942 gfx950)
 list(APPEND gpu_list2 gfx1100 gfx1101 gfx1102)
 
 set(target 0)

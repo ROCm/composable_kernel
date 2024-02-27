@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+
 #include <iostream>
 #include <cstdlib>
 
@@ -14,8 +17,8 @@
 using F16 = ck::half_t;
 using F32 = float;
 
-using ADataType = F16;
-using BDataType = F16;
+using ADataType = F32;
+using BDataType = F32;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using DeviceElementwisePermuteInstance =
@@ -25,10 +28,10 @@ using DeviceElementwisePermuteInstance =
                                                           2,                    // NumDim_m, {N, C}
                                                           2,                    // NumDim_n, {H, W}
                                                           1,                    // NumDim_k, {D}
-                                                          8,                    // MPerThread
-                                                          8,                    // NPerThread
-                                                          8,                    // KPerThread
-                                                          ck::Sequence<8>,  // InScalarPerVectorSeq
+                                                          4,                    // MPerThread
+                                                          4,                    // NPerThread
+                                                          4,                    // KPerThread
+                                                          ck::Sequence<4>,  // InScalarPerVectorSeq
                                                           ck::Sequence<4>>; // OutScalarPerVectorSeq
 
 template <typename HostTensorA, typename HostTensorB, typename Functor>

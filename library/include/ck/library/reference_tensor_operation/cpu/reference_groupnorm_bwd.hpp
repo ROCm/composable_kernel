@@ -16,6 +16,31 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
+// def normalization_backward_x(dy, x, gamma, x_mean, rstd, reduce_axis, reduce_size):
+//     ds = np.sum(dy * gamma * x, axis=reduce_axis, keepdims=True)
+//     db = np.sum(dy * gamma, axis=reduce_axis, keepdims=True)
+//     b = (db * x_mean - ds) * rstd ** (3) / reduce_size
+//     c = -b * x_mean - db * rstd / reduce_size
+//     dx = rstd * dy * gamma + b * x + c
+//     return dx
+
+// def normalization_backward_gamma_beta(dy, x, x_mean, rstd, reduce_axis):
+//     # Assume shape of gamma and beta are the same
+//     dgamma = np.sum(dy * (x - x_mean) * rstd, axis=reduce_axis, keepdims=True)
+//     dbeta = np.sum(dy, axis=reduce_axis, keepdims=True)
+//     return dgamma, dbeta
+
+// def groupnorm_backward(dy, x, gamma, x_mean, rstd):
+//     # dy, x = [N, H, W, G, C], gamma = [1, 1, 1, G, C], x_mean, rstd = [N, 1, 1, G, 1]
+//     N, H, W, G, C = x.shape
+//     dx = normalization_input_backward(
+//         dy, x, gamma, x_mean, rstd, (1, 2, 4), H * W * C)
+//     dgamma, dbeta = normalization_gamma_beta_backward(
+//         dy, x, x_mean, rstd, (0, 1, 2))
+//     return dx, dgamma, dbeta
+
+// Reference (Layernorm and groupnorm):
+// https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cpu/group_norm_kernel.cpp#L655
 template <typename DYDataType,
           typename XDataType,
           typename GammaDataType,

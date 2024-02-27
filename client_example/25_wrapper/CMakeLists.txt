@@ -1,0 +1,4 @@
+add_executable(client_tensor_transform_using_wrapper tensor_transform_using_wrapper.cpp)
+target_link_libraries(client_tensor_transform_using_wrapper PRIVATE composable_kernel::device_other_operations)
+add_executable(client_wrapper_img2col wrapper_img2col.cpp)
+target_link_libraries(client_wrapper_img2col PRIVATE composable_kernel::device_other_operations)

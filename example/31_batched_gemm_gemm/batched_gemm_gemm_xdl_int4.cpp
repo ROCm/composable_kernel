@@ -9,9 +9,7 @@ Gemm + Gemm fused operation. Computes C_m_o = A_m_k * B0_k_n * B1_n_o
                                                        Gemm1
 */
 
-#ifndef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-#error Should compile this file with ck::int4_t support
-#endif
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 #include <iostream>
 #include <numeric>
@@ -145,3 +143,4 @@ static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
 #endif
 
 int main(int argc, char* argv[]) { return run_batched_gemm_gemm_example(argc, argv) ? 0 : 1; }
+#endif
