@@ -202,16 +202,16 @@ struct BlockFmhaBwdPipelineV9
         auto ds_lds_window =
             make_tile_window(ds_lds, make_tuple(Number<kM0>{}, Number<kN0>{}), {0, 0});
 
-        // Bias/BiasGrad tile in LDS
-        BiasDataType* bias_lds_ptr = static_cast<BiasDataType*>(static_cast<void*>(
+        // BiasT/BiasGradT tile in LDS, use the same size and layout
+        BiasDataType* biast_lds_ptr = static_cast<BiasDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
             Policy::template GetSmemSizeKT<Problem>()));
-        auto bias_lds              = make_tensor_view<AddressSpaceEnum::Lds>(
-            bias_lds_ptr, Policy::template MakeBiasTLdsBlockDescriptor<Problem>());
-        auto bias_lds_window =
-            make_tile_window(bias_lds, make_tuple(Number<kM0>{}, Number<kN0>{}), {0, 0});
-        auto dbias_lds_window =
-            make_tile_window(bias_lds,
+        auto biast_lds              = make_tensor_view<AddressSpaceEnum::Lds>(
+            biast_lds_ptr, Policy::template MakeBiasTLdsBlockDescriptor<Problem>());
+        auto biast_lds_shuffle_window =
+            make_tile_window(biast_lds, make_tuple(Number<kM0>{}, Number<kN0>{}), {0, 0});
+        auto dbiast_lds_shuffle_window =
+            make_tile_window(biast_lds,
                              make_tuple(Number<kM0>{}, Number<kN0>{}),
                              {0, 0},
                              Policy::template MakeShuffledBiasTileDistribution<Problem>());
@@ -362,9 +362,9 @@ struct BlockFmhaBwdPipelineV9
                              Policy::template MakeBiasTileDistribution<Problem>());
 
         auto biast_lds_window = make_tile_window(
-            bias_lds_window.GetBottomTensorView(),
-            bias_lds_window.GetWindowLengths(),
-            bias_lds_window.GetWindowOrigin(),
+            biast_lds_shuffle_window.GetBottomTensorView(),
+            biast_lds_shuffle_window.GetWindowLengths(),
+            biast_lds_shuffle_window.GetWindowOrigin(),
             Policy::template MakeBiasTTileDistribution<Problem, decltype(gemm_0)>());
 
         index_t i_total_loops      = 0;
@@ -459,7 +459,7 @@ struct BlockFmhaBwdPipelineV9
                 auto bias_shuffle_tmp = make_static_distributed_tensor<BiasDataType>(
                     Policy::template MakeShuffledBiasTileDistribution<Problem>());
                 shuffle_distributed_tensor(bias_shuffle_tmp, bias_tile);
-                store_tile(bias_lds_window, bias_shuffle_tmp);
+                store_tile(biast_lds_shuffle_window, bias_shuffle_tmp);
                 block_sync_lds();
                 auto biast_tile = load_tile(biast_lds_window);
                 tile_elementwise_inout(
@@ -647,13 +647,13 @@ struct BlockFmhaBwdPipelineV9
             if constexpr(kHasBias)
             {
                 const auto dbiast = cast_tile<BiasGradDataType>(dst);
-                store_tile(bias_lds_window, dbiast);
+                store_tile(biast_lds_shuffle_window, dbiast);
                 block_sync_lds();
-                auto dbias_tile        = load_tile(dbias_lds_window);
-                auto dbias_shuffle_tmp = make_static_distributed_tensor<BiasGradDataType>(
+                auto dbiast_tile        = load_tile(dbiast_lds_shuffle_window);
+                auto dbiast_shuffle_tmp = make_static_distributed_tensor<BiasGradDataType>(
                     Policy::template MakeBiasTileDistribution<Problem>());
-                shuffle_distributed_tensor(dbias_shuffle_tmp, dbias_tile);
-                store_tile(dbias_dram_block_window, dbias_shuffle_tmp);
+                shuffle_distributed_tensor(dbiast_shuffle_tmp, dbiast_tile);
+                store_tile(dbias_dram_block_window, dbiast_shuffle_tmp);
                 move_tile_window(dbias_dram_block_window, {kM0, 0});
             }
 
