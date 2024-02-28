@@ -1,6 +1,3 @@
-#include "ck/utility/math_v2.hpp"
-#include "ck/utility/data_type.hpp"
-#include "ck/utility/common_header.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/conv/conv_op.hpp"
@@ -9,6 +6,22 @@
 #include "ck/host/stringutils.hpp"
 #include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/math_v2.hpp"
+#include "ck/tensor_description/tensor_descriptor.hpp"
+#include "ck/tensor_description/tensor_descriptor_helper.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/io.hpp"
 //#include "ck/host/tuples.hpp"
 //#include "ck/host/seq.hpp"
 //#include "ck/host/tensor_desc.hpp"
@@ -22,7 +35,7 @@
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 
-using half = _Float16;
+// using half = _Float16;
 // using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
@@ -134,6 +147,25 @@ auto report(const Solution& solution, bool pass)
 {
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
+
+/**#define ToLayout(lay_out,x){ \
+	if(lay_out == "ck::tensor_layout::gemm::RowMajor"){\
+		ck::tensor_layout::gemm::RowMajor layout ;\
+		x = layout;\
+	}else{\
+		ck::tensor_layout::gemm::ColumnMajor layout ;\
+		x = layout;\
+	}\
+}**/
+/**auto to_layout(std::string layout){
+	if(layout == "ck::tensor_layout::gemm::RowMajor"){
+		return ck::tensor_layout::gemm::RowMajor{};
+	}else{
+		return ck::tensor_layout::gemm::ColumnMajor{};
+	}
+	return -1;
+}**/
+
 const std::string conv_compile_check = R"__ck__(
 #include <${include}>
 
@@ -179,6 +211,9 @@ TEST_CASE(test_problem_kernel)
     std::string epilogue = "";
 
     static constexpr auto I0 = ck::Number<0>{};
+    static constexpr auto I1 = ck::Number<1>{};
+    static constexpr auto I2 = ck::Number<2>{};
+    static constexpr auto I3 = ck::Number<3>{};
 
     // static constexpr auto I1 = Number<1>{};
     // length+stride arrays
@@ -199,7 +234,9 @@ TEST_CASE(test_problem_kernel)
     std::vector<std::size_t> conv_filter_dilations = {1, 1};
     std::vector<std::size_t> input_left_pads       = {1, 1};
     std::vector<std::size_t> input_right_pads      = {1, 1};
-
+    static constexpr auto ConvSpec =
+        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
+    static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
     // auto argument_ptr    = ck_args.MakeArgPtr(sh_conv_ptr, data_ctx.tensors); //FIXME: arg ptr
     // call -> use this? how is it passed in?
 
@@ -218,12 +255,32 @@ TEST_CASE(test_problem_kernel)
         options.kernel_name = "f";
         auto k              = rtc::compile_kernel(srcs, options);
         auto block_size     = solution.GetTemplateParameter<std::size_t>("BlockSize");
-        auto m_per_block    = solution.GetTemplateParameter<std::size_t>("MPerBlock");
-        auto n_per_block    = solution.GetTemplateParameter<std::size_t>("NPerBlock");
-        auto k_per_block    = solution.GetTemplateParameter<std::size_t>("KPerBlock");
-        // auto gemm_spec       = solution.GetTemplateParameter("GemmSpecialization");
-        auto grid_size = ck::host::integer_divide_ceil(prob.G, m_per_block) *
-                         ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME:
+        auto m_per_block    = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
+        auto n_per_block    = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
+        auto k_per_block    = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
+        auto a_layout       = solution.GetTemplateParameter<std::string>("ALayout");
+        auto grid_size      = ck::host::integer_divide_ceil(prob.G, m_per_block) *
+                         ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME
+
+	//auto A_Layout = ToLayout(a_layout);
+        auto conv_to_gemm_transformer =
+            ck::tensor_operation::TransformConvFwdToGemm<2, ConvSpec>{};
+
+        auto matrix_padder = ck::tensor_operation::device::
+            MatrixPadder<GemmSpec, ck::index_t, ck::index_t, ck::index_t>{
+                m_per_block, n_per_block, k_per_block};
+
+        /**const auto in_gemmmraw_gemmkraw_desc =
+            conv_to_gemm_transformer.template MakeADescriptor_M_K<ALayout>(in_lengths,
+                                                                        in_strides,
+                                                                        wei_lengths,
+                                                                        wei_strides,
+                                                                        out_lengths,
+                                                                        out_strides,
+                                                                        conv_filter_strides,
+                                                                        conv_filter_dilations,
+                                                                        input_left_pads,
+                                                                        input_right_pads);**/
         // creation of grid desc for run fcn here
         /**static constexpr auto GemmSpec = ck::host::GemmSpecialization::Default;
         // ck::host::GemmSpecialization GemmSpec = gemm_spec;
@@ -364,7 +421,18 @@ TEST_CASE(test_problem_kernel)
         k.launch(nullptr, grid_size * block_size, block_size)(
             a.data(),
             b.data(),
-            c.data()
+            c.data(),
+	    conv_to_gemm_transformer,
+	    in_lengths,
+	    in_strides, 
+	    wei_lengths,
+	    wei_strides,
+	    out_lengths,
+	    out_strides, 
+	    conv_filter_strides,
+	    conv_filter_dilations,
+	    input_left_pads, 
+	    input_right_pads
 	    /**AGridDesc_M_K{},
             wei_gemmn_gemmk_desc,
             d_grid_desc,
