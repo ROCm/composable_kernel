@@ -141,8 +141,8 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
     // Wave mode dependent propety
     static constexpr index_t wave_size = Number<WaveSize>{};
     // * Fixed in Navi3x, Will be wave mode dependent on Navi4x
-    static constexpr index_t num_src_a_vgprs_per_wave = m_per_wmma * src_a_data_size / 4;
-    static constexpr index_t num_src_b_vgprs_per_wave = n_per_wmma * src_b_data_size / 4;
+    static constexpr index_t num_src_a_vgprs_per_wave = k_per_wmma / 2 * src_a_data_size / 4;
+    static constexpr index_t num_src_b_vgprs_per_wave = k_per_wmma / 2 * src_b_data_size / 4;
     // * num_acc_vgprs_per_wave alone M direction
     // * num_subgroups alone M direction
     static constexpr index_t num_acc_vgprs_per_wave =
@@ -390,7 +390,7 @@ struct WmmaSelector
         static_assert(selected_wmma.k_per_wmma == 16, "WRONG! WMMA_M must equal to 16");
 
         static_assert(selected_wmma.wave_size * selected_wmma.num_acc_vgprs_per_wave *
-                              selected_wmma.acc_data_size * selected_wmma.acc_pack_number ==
+                              selected_wmma.acc_data_size ==
                           selected_wmma.m_per_wmma * selected_wmma.n_per_wmma * 4,
                       "WRONG! Invalid Number of Accumulator Register");
     }
@@ -510,7 +510,7 @@ struct WmmaGemm
 
     __device__ static constexpr index_t GetRegSizePerWmma()
     {
-        return wmma_instr.num_acc_vgprs_per_wave * wmma_instr.acc_pack_number;
+        return wmma_instr.num_acc_vgprs_per_wave;
     }
 
     __device__ static constexpr index_t GetWaveSize() { return wmma_instr.wave_size; }
@@ -566,12 +566,14 @@ struct WmmaGemm
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        return TransposeC ? GetLaneIdUnderSubGroup() : GetSwizzledLaneIdLow();
+        // return TransposeC ? GetLaneIdUnderSubGroup() : GetSwizzledLaneIdLow();
+        return GetLaneIdUnderSubGroup();
     }
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        return TransposeC ? GetSwizzledLaneIdLow() : GetLaneIdUnderSubGroup();
+        // return TransposeC ? GetSwizzledLaneIdLow() : GetLaneIdUnderSubGroup();
+        return GetLaneIdUnderSubGroup();
     }
 
     __device__ static CIndex GetBeginOfThreadBlk()
@@ -597,10 +599,7 @@ struct WmmaGemm
     __host__ __device__ static constexpr auto
     GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths()
     {
-        return make_tuple(I1,
-                          I1,
-                          Number<wmma_instr.num_acc_vgprs_per_wave>{},
-                          Number<wmma_instr.acc_pack_number>{});
+        return make_tuple(I1, I1, Number<wmma_instr.num_acc_vgprs_per_wave>{});
     }
 };
 
