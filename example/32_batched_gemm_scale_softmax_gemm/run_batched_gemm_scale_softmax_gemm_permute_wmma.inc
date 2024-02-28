@@ -182,9 +182,9 @@ int run(int argc, char* argv[])
     printf("Verification: %s\n", do_verification ? "ON" : "OFF");
     // TODO ANT: replace array with vector?
     ck::static_for<0, std::tuple_size_v<DeviceMHAFactory>, 1>{}([&](auto i) -> void {
-        const auto device_conv_mha_instance = std::get<i>(DeviceMHAFactory{});
+        const auto device_mha_instance = std::get<i>(DeviceMHAFactory{});
 
-        using DeviceMHAInstance = ck::remove_cvref_t<decltype(device_conv_mha_instance)>;
+        using DeviceMHAInstance = ck::remove_cvref_t<decltype(device_mha_instance)>;
         auto gemm               = DeviceMHAInstance{};
         auto invoker            = gemm.MakeInvoker();
         auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
