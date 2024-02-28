@@ -83,12 +83,12 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             32,
             //      Gemm 0
-            16, 128, 64, 8,  8,
+            16, 32, 160, 8, 8, 
             //      Gemm 1
-                64, 64, 8,  
-            16, 16, 16, 
+                80, 32, 8,
+            16, 16, 16,
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 8, 4,
+            1, 2, 5,
             // ABlockTransfer MK -> K0 M K1
             S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
@@ -105,12 +105,34 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             32,
             //      Gemm 0
-            16, 64, 64, 8,  8,
+            16, 64, 80, 8, 8, 
             //      Gemm 1
-                64, 64, 8,  
+                80, 64, 8,
+            16, 16, 16,
+            // Per repeat = wave_m = wave_num, wave_n = 1
+            1, 4, 5,
+            // ABlockTransfer MK -> K0 M K1
+            S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B0BlockTransfer LK -> K0 L K1
+            S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B1BlockTransfer NL -> L0 N L1
+            S<2, 2, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 8, 1, false,
+            // CShuffleBlockTransfer MN
+            1, 1, S<1, 16, 1, 2>, 8,             
+            MaskingSpec>,
+        ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
+            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
+            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            32,
+            //      Gemm 0
+            16, 64, 48, 8,  8,
+            //      Gemm 1
+                48, 64, 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 4, 4,
+            1, 4, 3,
             // ABlockTransfer MK -> K0 M K1
             S<2, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
@@ -129,16 +151,16 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             64,
             //      Gemm 0
-            32, 128, 64, 8, 8,
+            32, 64, 48, 8,  8,
             //      Gemm 1
-                 64, 64, 8,  
+                48, 64, 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 8, 4,
+            1, 4, 3,
             // ABlockTransfer MK -> K0 M K1
             S<2, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
-            S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            S<2, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B1BlockTransfer NL -> L0 N L1
             S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
             // CShuffleBlockTransfer MN
@@ -151,16 +173,38 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             64,
             //      Gemm 0
-            32, 64, 64, 8, 8,
+            32, 64, 80, 8,  8,
             //      Gemm 1
-                64, 64, 8,  
+                80, 64, 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 4, 4,
+            1, 4, 5,
             // ABlockTransfer MK -> K0 M K1
             S<2, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
-            S<4, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            S<2, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B1BlockTransfer NL -> L0 N L1
+            S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
+            // CShuffleBlockTransfer MN
+            1, 1, S<1, 32, 1, 2>, 8,             
+            MaskingSpec>,
+        ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
+            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
+            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            64,
+            //      Gemm 0
+            32, 32, 160, 8, 8,
+            //      Gemm 1
+                80, 32, 8,  
+            16, 16, 16, 
+            // Per repeat = wave_m = wave_num, wave_n = 1
+            1, 2, 5,
+            // ABlockTransfer MK -> K0 M K1
+            S<2, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B0BlockTransfer LK -> K0 L K1
+            S<2, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B1BlockTransfer NL -> L0 N L1
             S<2, 4, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 4, 1, false,
             // CShuffleBlockTransfer MN
@@ -175,16 +219,38 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             128,
             //      Gemm 0
-            64, 128, 64, 8, 8,
+            64, 128, 80, 8, 8,  
             //      Gemm 1
-                64, 64, 8,  
+                80, 64, 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 8, 4,
+            1, 8, 5,
             // ABlockTransfer MK -> K0 M K1
             S<2, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
-            S<8, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            S<2, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B1BlockTransfer NL -> L0 N L1
+            S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
+            // CShuffleBlockTransfer MN
+            1, 1, S<1, 64, 1, 2>, 8,             
+            MaskingSpec>,
+        ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
+            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
+            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            128,
+            //      Gemm 0
+            64, 192, 48, 8, 8,
+            //      Gemm 1
+                48, 64, 8,  
+            16, 16, 16, 
+            // Per repeat = wave_m = wave_num, wave_n = 1
+            1, 12, 3,
+            // ABlockTransfer MK -> K0 M K1
+            S<2, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B0BlockTransfer LK -> K0 L K1
+            S<2, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
@@ -197,20 +263,20 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             128,
             //      Gemm 0
-            64, 64, 64, 8, 8,
+            64, 64, 48, 8, 8,
             //      Gemm 1
-                64, 64, 8,  
+                48, 64, 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 4, 4,
+            1, 4, 3,
             // ABlockTransfer MK -> K0 M K1
             S<2, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
-            S<8, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            S<2, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B1BlockTransfer NL -> L0 N L1
             S<2, 8, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 2, 1, false,
             // CShuffleBlockTransfer MN
-            1, 1, S<1, 64, 1, 2>, 8,           
+            1, 1, S<1, 64, 1, 2>, 8,             
             MaskingSpec>,
 #endif
 #ifdef CK_MHA_USE_WAVE_8
@@ -221,40 +287,18 @@ using DeviceMHAFactory =
             GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
             256,
             //      Gemm 0
-            128, 128, 64, 8, 8,   
+            128, 192, 48, 8,4,   
             //      Gemm 1
-                  64, 64, 8,  
+                 48, 64, 8,  
             16, 16, 16, 
             // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 8, 4,
+            1, 12, 3,
             // ABlockTransfer MK -> K0 M K1
             S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
             // B0BlockTransfer LK -> K0 L K1
-            S<8,  32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 4, 4, true,
             // B1BlockTransfer NL -> L0 N L1
-            S<2,  16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
-            // CShuffleBlockTransfer MN
-            1, 1, S<1, 128, 1, 2>, 8,             
-            MaskingSpec>,
-        ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
-            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
-            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
-            AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
-            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
-            256,
-            //      Gemm 0
-            128, 128, 64, 8, 8,   
-            //      Gemm 1
-                  64, 64, 8,  
-            16, 16, 16, 
-            // Per repeat = wave_m = wave_num, wave_n = 1
-            1, 8, 4,
-            // ABlockTransfer MK -> K0 M K1
-            S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
-            // B0BlockTransfer LK -> K0 L K1
-            S<8,  32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
-            // B1BlockTransfer NL -> L0 N L1
-            S<2,  16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
+            S<2, 16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
             // CShuffleBlockTransfer MN
             1, 1, S<1, 128, 1, 2>, 8,             
             MaskingSpec>
