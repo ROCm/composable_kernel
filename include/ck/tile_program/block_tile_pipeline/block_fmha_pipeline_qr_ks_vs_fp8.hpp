@@ -89,7 +89,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                float descale_qk,
                float descale_sv,
                void* smem_ptr,
-               BlockGemmDropout& dropout,
+               BlockDropout& dropout,
                ck::philox& ph) const
     {
         static_assert(
@@ -193,7 +193,7 @@ struct BlockFmhaPipelineQRKSVSFp8
             randval_dram_block_window_tmp.GetBottomTensorView(),
             make_tuple(Number<kM0>{}, Number<WG::kN>{}),
             {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
-            BlockGemmDropout::template MakeRandValSramPartTileDistribution<decltype(gemm_0)>());
+            BlockDropout::template MakeRandValSramPartTileDistribution<decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),

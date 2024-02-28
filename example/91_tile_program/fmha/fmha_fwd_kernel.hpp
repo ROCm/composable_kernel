@@ -692,7 +692,7 @@ struct FmhaFwdKernel
             drop_offset         = kargs.drop_offset;
         }
         ck::philox ph(drop_seed, 0, drop_offset);
-        BlockGemmDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
+        BlockDropout dropout(i_total_id, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto randval_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});

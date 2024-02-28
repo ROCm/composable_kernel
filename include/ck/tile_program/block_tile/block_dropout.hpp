@@ -14,12 +14,12 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-struct BlockGemmDropout
+struct BlockDropout
 {
-    __host__ __device__ BlockGemmDropout(const long_index_t& global_idx_,
-                                         float& p_dropout_rescale_,
-                                         uint8_t& p_undrop_in_uint8_t_,
-                                         index_t& total_n_len_)
+    __host__ __device__ BlockDropout(const long_index_t& global_idx_,
+                                     float& p_dropout_rescale_,
+                                     uint8_t& p_undrop_in_uint8_t_,
+                                     index_t& total_n_len_)
         : global_idx(global_idx_),
           p_dropout_rescale(p_dropout_rescale_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),

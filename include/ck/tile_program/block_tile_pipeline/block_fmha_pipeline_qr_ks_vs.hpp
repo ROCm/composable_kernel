@@ -19,7 +19,7 @@
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 #include "ck/utility/philox_rand.hpp"
-#include "ck/tile_program/block_tile/block_gemm_dropout.hpp"
+#include "ck/tile_program/block_tile/block_dropout.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -98,7 +98,7 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               BlockGemmDropout& dropout,
+               BlockDropout& dropout,
                ck::philox& ph) const
     {
         static_assert(
@@ -211,7 +211,7 @@ struct BlockFmhaPipelineQRKSVS
             randval_dram_block_window_tmp.GetBottomTensorView(),
             make_tuple(Number<kM0>{}, Number<WG::kN>{}),
             {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
-            BlockGemmDropout::template MakeRandValSramPartTileDistribution<decltype(gemm_0)>());
+            BlockDropout::template MakeRandValSramPartTileDistribution<decltype(gemm_0)>());
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
@@ -551,7 +551,7 @@ struct BlockFmhaPipelineQRKSVS
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               BlockGemmDropout& dropout,
+               BlockDropout& dropout,
                ck::philox& ph) const
     {
         return operator()(q_dram_block_window_tmp,
