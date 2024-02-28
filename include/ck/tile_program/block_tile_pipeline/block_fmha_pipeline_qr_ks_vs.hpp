@@ -218,6 +218,9 @@ struct BlockFmhaPipelineQRKSVS
             }
 
             // STAGE 2, scale softmax
+#if CK_EXPERIMENTAL_EXP_INTERLEAVE_IGLP_OPT
+            __builtin_amdgcn_iglp_opt(2);
+#endif
             tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
 
             const auto s =

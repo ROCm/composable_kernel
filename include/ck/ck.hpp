@@ -181,6 +181,11 @@
 #define CK_EXPERIMENTAL_PIPELINE_V2_IGLP_OPT 0
 #endif
 
+// experimental feature: optimize fmha kernels by using IGLP exp interleave pipelin (value=true/false for inclusion)
+#ifndef CK_EXPERIMENTAL_EXP_INTERLEAVE_IGLP_OPT
+#define CK_EXPERIMENTAL_EXP_INTERLEAVE_IGLP_OPT 0
+#endif
+
 // hack: have underlying assumption that need to be satsified, otherwise it's a bug
 // hack for forcing register to keep idx_diff_low_const in SGPR. idx_diff_low_const must be
 // thread-invariant, otherwise it's a bug
