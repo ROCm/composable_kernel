@@ -266,11 +266,11 @@ bool run(const ArgParser& arg_parser)
     DeviceMem lse_buf(lse_host.GetElementSpaceSizeInBytes());
     DeviceMem d_buf(d_host.GetElementSpaceSizeInBytes());
     // DeviceMem z_buf(z_host.GetElementSpaceSizeInBytes());
-    DeviceMem dq_buf(sizeof(QGradDataType) * dq_host.GetElementSpaceSize());
-    DeviceMem dk_buf(sizeof(KGradDataType) * dk_host.GetElementSpaceSize());
-    DeviceMem dv_buf(sizeof(VGradDataType) * dv_host.GetElementSpaceSize());
-    DeviceMem do_buf(sizeof(OGradDataType) * do_host.GetElementSpaceSize());
-    DeviceMem dbias_buf(sizeof(BiasGradDataType) * dbias_host.GetElementSpaceSize());
+    DeviceMem dq_buf(dq_host.GetElementSpaceSizeInBytes());
+    DeviceMem dk_buf(dk_host.GetElementSpaceSizeInBytes());
+    DeviceMem dv_buf(dv_host.GetElementSpaceSizeInBytes());
+    DeviceMem do_buf(do_host.GetElementSpaceSizeInBytes());
+    DeviceMem dbias_buf(dbias_host.GetElementSpaceSizeInBytes());
     DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
 
