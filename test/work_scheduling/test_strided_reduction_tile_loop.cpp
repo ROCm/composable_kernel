@@ -156,7 +156,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
 
             // Accumulate partial results. We can have different # of workgroups to reduce, thus we
             // read actual flag value.
-            for(index_t i = 1; i <= neighbour_count; ++i)
+            for(index_t i = 1; i < neighbour_count; ++i)
             {
                 partial_result += p_workspace[(get_block_1d_id()) * MPerBlock * NPerBlock +
                                               i * MPerBlock * NPerBlock + get_thread_local_1d_id()];

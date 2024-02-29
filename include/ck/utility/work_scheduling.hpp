@@ -116,7 +116,7 @@ class StridedReductionTileLoop
         index_t neighbour_count = 0;
         if(tiles_per_block_ < k_tiles)
         {
-            // Since we can have deviation (+1) in neighbours number
+            // Since we can have deviation (+/-1) in neighbours number
             // we calculate how many workgroups are needed to process the k-tiles left.
             neighbour_count = (k_tiles - k_tile_idx - 1 + tiles_per_block_ - 1) / tiles_per_block_;
         }
@@ -139,7 +139,9 @@ class StridedReductionTileLoop
 
         if(neighbour_count > 0)
         {
-            finished_block_flags_.wait_lt(
+            // Also count this workgroup
+            neighbour_count++;
+            finished_block_flags_.wait_eq(
                 GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset),
                 neighbour_count);
         }
