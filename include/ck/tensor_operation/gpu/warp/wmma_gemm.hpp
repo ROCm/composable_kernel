@@ -141,8 +141,8 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
     // Wave mode dependent propety
     static constexpr index_t wave_size = Number<WaveSize>{};
     // * Fixed in Navi3x, Will be wave mode dependent on Navi4x
-    static constexpr index_t num_src_a_vgprs_per_wave = k_per_wmma / 2 * src_a_data_size / 4;
-    static constexpr index_t num_src_b_vgprs_per_wave = k_per_wmma / 2 * src_b_data_size / 4;
+    // static constexpr index_t num_src_a_vgprs_per_wave = k_per_wmma / 2 * src_a_data_size / 4;
+    // static constexpr index_t num_src_b_vgprs_per_wave = k_per_wmma / 2 * src_b_data_size / 4;
     // * num_acc_vgprs_per_wave alone M direction
     // * num_subgroups alone M direction
     static constexpr index_t num_acc_vgprs_per_wave =
@@ -158,6 +158,7 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
         }
         else if constexpr(wave_size == 64)
         {
+            static_assert(1, "");
         }
     }
 };
