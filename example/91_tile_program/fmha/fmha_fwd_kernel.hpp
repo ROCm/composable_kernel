@@ -137,6 +137,7 @@ struct FmhaFwdKernel
         void* rand_val_ptr               = nullptr;
         ck::index_t stride_randval       = 0;
         ck::index_t nhead_stride_randval = 0;
+        bool is_store_randval            = false;
     };
     struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
     {
@@ -212,6 +213,7 @@ struct FmhaFwdKernel
               float descale_qk,
               float descale_sv,
               float p_drop,
+              bool s_randval,
               std::tuple<uint64_t, uint64_t>& drop_seeds)
     {
         Kargs kargs{{q_ptr,
@@ -277,6 +279,7 @@ struct FmhaFwdKernel
             kargs.stride_randval       = stride_randval;
             kargs.nhead_stride_randval = nhead_stride_randval;
             kargs.batch_stride_randval = batch_stride_randval;
+            kargs.is_store_randval     = s_randval;
         }
 
         return kargs;
@@ -316,6 +319,7 @@ struct FmhaFwdKernel
               float descale_qk,
               float descale_sv,
               float p_drop,
+              bool s_randval,
               std::tuple<uint64_t, uint64_t>& drop_seeds)
     {
         Kargs kargs{{q_ptr,
@@ -377,6 +381,7 @@ struct FmhaFwdKernel
             kargs.rand_val_ptr         = rand_val_ptr;
             kargs.stride_randval       = stride_randval;
             kargs.nhead_stride_randval = nhead_stride_randval;
+            kargs.is_store_randval     = s_randval;
         }
 
         return kargs;
@@ -683,6 +688,7 @@ struct FmhaFwdKernel
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
         uint64_t drop_seed          = 0;
         uint64_t drop_offset        = 0;
+        bool is_store_randval       = false;
 
         if constexpr(kHasDropout)
         {
@@ -690,28 +696,21 @@ struct FmhaFwdKernel
             p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
             drop_seed           = kargs.drop_seed;
             drop_offset         = kargs.drop_offset;
+            is_store_randval    = kargs.is_store_randval;
         }
         BlockDropout dropout(i_total_id + i_m0 * max_seqlen_k,
                              rp_undrop,
                              p_undrop_in_uint8_t,
                              max_seqlen_k,
                              drop_seed,
-                             drop_offset);
+                             drop_offset,
+                             is_store_randval);
 
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto randval_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
             if constexpr(kHasDropout)
             {
-                if(kargs.rand_val_ptr == nullptr)
-                {
-                    dropout.is_store_randval = false;
-                }
-                else
-                {
-                    dropout.is_store_randval = true;
-                }
-
                 RandValOutputDataType* rand_val_ptr =
                     reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) + i_total_id;
 

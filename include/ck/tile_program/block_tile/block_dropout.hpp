@@ -21,12 +21,14 @@ struct BlockDropout
                                      uint8_t& p_undrop_in_uint8_t_,
                                      index_t& total_n_len_,
                                      unsigned long long seed,
-                                     unsigned long long offset)
+                                     unsigned long long offset,
+                                     bool is_store_randval_)
         : global_idx(global_idx_),
           p_dropout_rescale(p_dropout_rescale_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
           total_n_len(total_n_len_),
-          ph(seed, 0, offset)
+          ph(seed, 0, offset),
+          is_store_randval(is_store_randval_)
     {
     }
 

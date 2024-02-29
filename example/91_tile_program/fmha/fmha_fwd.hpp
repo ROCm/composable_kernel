@@ -125,6 +125,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      ck::index_t mask_y,
                                      ck::index_t mask_x,
                                      float p_drop,
+                                     bool s_randval,
                                      std::tuple<uint64_t, uint64_t>& drop_seeds)
 {
     constexpr bool is_v_rowmajor =
@@ -206,6 +207,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          descale_qk,
                                          descale_sv,
                                          p_drop,
+                                         s_randval,
                                          drop_seeds);
         }
         else
@@ -248,6 +250,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          descale_qk,
                                          descale_sv,
                                          p_drop,
+                                         s_randval,
                                          drop_seeds);
         }
     }();
@@ -286,6 +289,7 @@ struct fmha_fwd_args
     ck::index_t mask_y;
     ck::index_t mask_x;
     float p_drop;
+    bool s_randval;
     std::tuple<uint64_t, uint64_t> drop_seeds;
 };
 
@@ -319,6 +323,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.mask_y,
                                                        args.mask_x,
                                                        args.p_drop,
+                                                       args.s_randval,
                                                        args.drop_seeds);
 }
 
