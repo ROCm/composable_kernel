@@ -330,7 +330,7 @@ template <ck::index_t HDim_,
           typename FmhaMask_,
           bool kHasBias_,
           bool kStoreLse_,
-          bool kUseDropout_>
+          bool kHasDropout_>
 struct fmha_fwd_traits_
 {
     static constexpr ck::index_t HDim        = HDim_;
@@ -340,7 +340,7 @@ struct fmha_fwd_traits_
     using FmhaMask                           = ck::remove_cvref_t<FmhaMask_>;
     static constexpr bool kHasBias           = kHasBias_;
     static constexpr bool kStoreLse          = kStoreLse_;
-    static constexpr bool kUseDropout        = kUseDropout_;
+    static constexpr bool kHasDropout        = kHasDropout_;
 };
 
 template <typename Traits_>
