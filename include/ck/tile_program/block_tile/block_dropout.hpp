@@ -32,6 +32,27 @@ struct BlockDropout
     {
     }
 
+    template <typename BlockGemm, typename RandValDramBlockWindowTmp>
+    __host__ __device__ static constexpr auto
+    MakeRandvalDramWindows(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
+                           index_t seqlen_k_start)
+    {
+        using Problem        = typename BlockGemm::Problem;
+        constexpr index_t kM = Problem::BlockGemmShape::kM;
+
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+
+        const auto drop_origin   = randval_dram_block_window_tmp.GetWindowOrigin();
+        auto randval_dram_window = make_tile_window(
+            randval_dram_block_window_tmp.GetBottomTensorView(),
+            make_tuple(Number<kM>{}, Number<WG::kN>{}),
+            {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
+            BlockDropout::template MakeRandValSramPartTileDistribution<BlockGemm>());
+
+        return randval_dram_window;
+    }
+
     template <typename BlockGemm>
     __host__ __device__ static constexpr auto MakeRandValLdsBlockDescriptor()
     {

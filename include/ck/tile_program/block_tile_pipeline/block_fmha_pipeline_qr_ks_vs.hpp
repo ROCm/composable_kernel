@@ -203,14 +203,8 @@ struct BlockFmhaPipelineQRKSVS
             {bias_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        constexpr auto config = decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
-        const auto drop_origin   = randval_dram_block_window_tmp.GetWindowOrigin();
-        auto randval_dram_window = make_tile_window(
-            randval_dram_block_window_tmp.GetBottomTensorView(),
-            make_tuple(Number<kM0>{}, Number<WG::kN>{}),
-            {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
-            BlockDropout::template MakeRandValSramPartTileDistribution<decltype(gemm_0)>());
+        auto randval_dram_window = dropout.MakeRandvalDramWindows<decltype(gemm_0)>(
+            randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
