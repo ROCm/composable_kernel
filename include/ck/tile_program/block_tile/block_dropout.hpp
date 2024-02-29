@@ -19,11 +19,14 @@ struct BlockDropout
     __host__ __device__ BlockDropout(const long_index_t& global_idx_,
                                      float& p_dropout_rescale_,
                                      uint8_t& p_undrop_in_uint8_t_,
-                                     index_t& total_n_len_)
+                                     index_t& total_n_len_,
+                                     unsigned long long seed,
+                                     unsigned long long offset)
         : global_idx(global_idx_),
           p_dropout_rescale(p_dropout_rescale_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
-          total_n_len(total_n_len_)
+          total_n_len(total_n_len_),
+          ph(seed, 0, offset)
     {
     }
 
@@ -131,8 +134,7 @@ struct BlockDropout
     __host__ __device__ void Run(void* randval_ptr,
                                  const index_t start_n0_idx,
                                  PComputeWindow& p_compute,
-                                 RandValDramWindow& randval_dram_window,
-                                 ck::philox& ph) const
+                                 RandValDramWindow& randval_dram_window) const
     {
         using Problem               = remove_cvref_t<typename BlockGemm::Problem>;
         using BlockGemmShape        = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
@@ -214,6 +216,7 @@ struct BlockDropout
     float p_dropout_rescale;
     uint8_t p_undrop_in_uint8_t;
     index_t total_n_len;
+    ck::philox ph;
     bool is_store_randval = false;
 };
 

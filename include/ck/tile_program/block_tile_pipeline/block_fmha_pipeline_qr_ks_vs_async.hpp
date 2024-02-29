@@ -102,8 +102,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               BlockDropout& dropout,
-               ck::philox& ph) const
+               BlockDropout& dropout) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -497,7 +496,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 auto randval_ptr =
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.Run<decltype(gemm_0), RandValOutputDataType>(
-                    randval_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
+                    randval_ptr, i_total_loops * kN0, p_compute, randval_dram_window);
             }
 
             const auto p = cast_tile<PDataType>(p_compute);
@@ -634,8 +633,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                FmhaMask mask,
                float scale,
                void* smem_ptr,
-               BlockDropout& dropout,
-               ck::philox& ph) const
+               BlockDropout& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -651,8 +649,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                           mask,
                           scale,
                           smem_ptr,
-                          dropout,
-                          ph);
+                          dropout);
     }
 };
 

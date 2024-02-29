@@ -691,9 +691,13 @@ struct FmhaFwdKernel
             drop_seed           = kargs.drop_seed;
             drop_offset         = kargs.drop_offset;
         }
-        ck::philox ph(drop_seed, 0, drop_offset);
-        BlockDropout dropout(
-            i_total_id + i_m0 * max_seqlen_k, rp_undrop, p_undrop_in_uint8_t, max_seqlen_k);
+        BlockDropout dropout(i_total_id + i_m0 * max_seqlen_k,
+                             rp_undrop,
+                             p_undrop_in_uint8_t,
+                             max_seqlen_k,
+                             drop_seed,
+                             drop_offset);
+
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto randval_dram_window_lengths =
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
@@ -754,8 +758,7 @@ struct FmhaFwdKernel
                                       kargs.descale_qk,
                                       kargs.descale_sv,
                                       smem_ptr,
-                                      dropout,
-                                      ph);
+                                      dropout);
             }
             else
             {
@@ -768,8 +771,7 @@ struct FmhaFwdKernel
                                       mask,
                                       kargs.scale,
                                       smem_ptr,
-                                      dropout,
-                                      ph);
+                                      dropout);
             }
         }();
 

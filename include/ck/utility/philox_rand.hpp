@@ -38,7 +38,7 @@ class philox
         return output;
     }
 
-    __host__ __device__ inline uint4 get_philox_4x32(const unsigned long long subsequence)
+    __host__ __device__ inline uint4 get_philox_4x32(const unsigned long long subsequence) const
     {
 
         uint4 counter_ = counter;
@@ -71,7 +71,8 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __host__ __device__ void get_random_8x16(ushort* out, const unsigned long long subsequence)
+    __host__ __device__ void get_random_8x16(ushort* out,
+                                             const unsigned long long subsequence) const
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
@@ -84,7 +85,8 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __host__ __device__ void get_random_16x8(uint8_t* out, const unsigned long long subsequence)
+    __host__ __device__ void get_random_16x8(uint8_t* out,
+                                             const unsigned long long subsequence) const
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
@@ -97,7 +99,8 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __host__ __device__ void get_random_4x16(ushort* out, const unsigned long long subsequence)
+    __host__ __device__ void get_random_4x16(ushort* out,
+                                             const unsigned long long subsequence) const
     {
         uint4 tmp_ph;
         tmp_ph = get_philox_4x32(subsequence);
@@ -130,7 +133,7 @@ class philox
 
     __host__ __device__ inline void incr() { counter = incr(counter); }
 
-    __host__ __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b)
+    __host__ __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b) const
     {
         uint2* res;
         unsigned long long tmp;
@@ -139,7 +142,7 @@ class philox
         return *res;
     }
 
-    __host__ __device__ inline uint4 single_loop(const uint4 ctr, const uint2 i_key)
+    __host__ __device__ inline uint4 single_loop(const uint4 ctr, const uint2 i_key) const
     {
 
         uint2 res0 = u32_high_low_multi(kPhiloxSA, ctr.x);

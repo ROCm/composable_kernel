@@ -89,8 +89,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                float descale_qk,
                float descale_sv,
                void* smem_ptr,
-               BlockDropout& dropout,
-               ck::philox& ph) const
+               BlockDropout& dropout) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -410,7 +409,7 @@ struct BlockFmhaPipelineQRKSVSFp8
             if constexpr(kHasDropout)
             {
                 dropout.Run<decltype(gemm_0), RandValOutputDataType>(
-                    smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window, ph);
+                    smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window);
             }
 
             block_sync_lds();
