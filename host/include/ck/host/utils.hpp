@@ -15,7 +15,7 @@ std::size_t integer_divide_ceil(std::size_t x, std::size_t y);
 
 const std::unordered_set<std::string>& get_xdlop_archs();
 // swallow
-struct swallow
+/**struct swallow
 {
     template <typename... Ts>
     constexpr swallow(Ts&&...)
@@ -228,7 +228,8 @@ struct is_known_at_compile_time<index_t>
     static constexpr bool value = false;
 };
 
-/**template <typename UpLengths,
+//TODO: this whole part should be commeneted
+//template <typename UpLengths,
           typename Coefficients,
           typename enable_if<UpLengths::Size() == Coefficients::Size(), bool>::type = false>
 struct Embed

@@ -29,6 +29,18 @@ std::string ToString(DataType dt)
     throw std::runtime_error("Incorrect data type");
 }
 
+/**auto ToType(DataType dt)
+{
+    switch(dt)
+    {
+    case DataType::Float: return float;
+    case DataType::Half: return ck::half_t;
+    case DataType::Int8: return int8_t;
+    case DataType::Int32: return int32_t;
+    }
+    throw std::runtime_error("Incorrect data type");
+}**/
+
 Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
 std::string ToString(Layout dl)
@@ -37,9 +49,26 @@ std::string ToString(Layout dl)
     {
     case Layout::Row: return "ck::tensor_layout::gemm::RowMajor";
     case Layout::Column: return "ck::tensor_layout::gemm::ColumnMajor";
+    case Layout::GNCHW: return "ck::tensor_layout::convolution::GNCHW";
+    case Layout::GNKHW: return "ck::tensor_layout::convolution::GNKHW";
+    case Layout::GKCYX: return "ck::tensor_layout::convolution::GKCYX";
+    case Layout::GNHWC: return "ck::tensor_layout::convolution::GNHWC";
+    case Layout::NHWGC: return "ck::tensor_layout::convolution::NHWGC";
+    case Layout::GKYXC: return "ck::tensor_layout::convolution::GKYXC";
+    case Layout::NHWGK: return "ck::tensor_layout::convolution::NHWGK";
     }
     throw std::runtime_error("Incorrect layout");
 }
+
+/**auto ToLayout(Layout dl)
+{
+    switch(dl)
+    {
+    case Layout::Row: return ck::tensor_layout::gemm::RowMajor;
+    case Layout::Column: return ck::tensor_layout::gemm::ColumnMajor;
+    }
+    throw std::runtime_error("Incorrect layout");
+}**/
 
 std::string ToString(GemmType gt)
 {
@@ -49,6 +78,15 @@ std::string ToString(GemmType gt)
     }
     throw std::runtime_error("Incorrect gemm type");
 }
+
+/**auto ToGemm(GemmType gt)
+{
+    switch(gt)
+    {
+    case GemmType::Default: return ck::tensor_operation::device::GemmSpecialization::Default;
+    }
+    throw std::runtime_error("Incorrect gemm type");
+}**/
 
 std::string SequenceStr(const std::vector<int>& v)
 {

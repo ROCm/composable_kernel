@@ -63,6 +63,7 @@ struct Emitters
         std::vector<std::string> match;
         for(auto op : ops)
         {
+            // std::cout << op << std::endl;
             // check that user's prob desc matches the instances
             if(prob.ADataType == op.A.element || prob.BDataType == op.B.element ||
                prob.EDataType == op.E.element || ck::host::ToLayout(prob.TransA) == op.A.layout ||
@@ -71,7 +72,7 @@ struct Emitters
                prob.BElementOp == op.b_elem_op || prob.CDEElementOp == op.cde_elem_op)
             {
                 match.push_back(op.ToSolution().ToTemplateString());
-                std::cout << op.ToSolution().ToTemplateString() << std::endl;
+                // std::cout << op.ToSolution().ToTemplateString() << std::endl;
                 // std::cout << op.ToSolution().GetTemplateParameter("GemmSpecialization") <<
                 // std::endl;
             }
@@ -139,8 +140,8 @@ int main(int argc, const char* argv[])
     prob.Wo = 1024;
     e.Select<ck::host::conv::Operation_Conv>(prob, "Device_Conv", prologue, epilogue);
 
-    // for(auto name : args)
-    //  std::cout << e.Emit(name) << std::endl;
+    for(auto name : args)
+        std::cout << e.Emit(name) << std::endl;
 
     return 0;
 }

@@ -152,8 +152,8 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const std::string& 
                                                              const std::string& epilogue)
 {
     return CreateOperationsImpl([](auto x) -> std::vector<Operation_Conv> { return {x}; },
-                                Layout::Column,
-                                Layout::Row,
+                                Layout::NHWGC,
+                                Layout::GKYXC,
                                 prologue,
                                 epilogue);
 }
@@ -164,9 +164,9 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
     return CreateOperationsImpl(
         [&](Operation_Conv x) -> std::array<Operation_Conv, 1> {
             x.NumDim      = prob.NumDim;
-            x.A           = TensorDesc{prob.ADataType, ToLayout(prob.TransA)};
-            x.B           = TensorDesc{prob.BDataType, ToLayout(prob.TransB)};
-            x.E           = TensorDesc{prob.EDataType, ToLayout(prob.TransE)};
+            x.A           = TensorDesc{prob.ADataType, prob.ALayout};
+            x.B           = TensorDesc{prob.BDataType, prob.BLayout};
+            x.E           = TensorDesc{prob.EDataType, prob.ELayout};
             x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
                 return TensorDesc{dt, ToLayout(trans)};
             });
@@ -182,8 +182,8 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
                             x.tile_desc.k_per_block);
             return {x};
         },
-        ToLayout(prob.TransA),
-        ToLayout(prob.TransB),
+        prob.ALayout,
+        prob.BLayout,
         prologue,
         epilogue);
 }
@@ -193,7 +193,7 @@ static const char* const Device_ConvTemplate =
 ${Prologue}
 ${Epilogue}
 
-extern "C" __global__ void run_${name}(const ck::half_t* a, const ck::half_t* b, ck::half_t* c, void* a_grid_desc, void* b_grid_desc, void* d_grid_desc, void* e_grid_desc)
+extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}* b, ${EDataType}* c, const std::array<std::size_t, ${NumDim}> in_lengths, std::array<std::size_t, ${NumDim}> in_strides, std::array<std::size_t, ${NumDim}> wei_lengths,std::array<std::size_t, ${NumDim}> wei_strides, std::array<std::size_t, ${NumDim}> out_lengths, std::array<std::size_t, ${NumDim}> out_strides, std::array<std::size_t, ${NumDim}> conv_filter_strides, std::array<std::size_t, ${NumDim}> conv_filter_dilations, std::array<std::size_t, ${NumDim}> input_left_pads, std::array<std::size_t, ${NumDim}> input_right_pads)
 {
     using CDEElementOp = Prologue;
 
@@ -202,11 +202,10 @@ extern "C" __global__ void run_${name}(const ck::half_t* a, const ck::half_t* b,
     static constexpr bool isMultiA = ck::is_detected<ck::is_tuple, ${ADataType}>::value;
     static constexpr bool isMultiB = ck::is_detected<ck::is_tuple, ${BDataType}>::value;
 
-    static constexpr std::size_t NumATensor = ck::tensor_operation::device::GetNumABTensors<isMultiA, ${ADataType}>();
-    static constexpr std::size_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<isMultiB, ${BDataType}>();
-     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
-     using Block2ETileMap =
-        ck::remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc))>;
+    //static constexpr std::size_t NumATensor = ck::tensor_operation::device::GetNumABTensors<isMultiA, ${ADataType}>();
+    //static constexpr std::size_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<isMultiB, ${BDataType}>();
+    constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
+
     // GridwiseGemm
     using GridwiseGemm = ck::GridwiseGemmMultipleABD_xdl_cshuffle<
         ${ADataType},
