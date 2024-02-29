@@ -491,6 +491,7 @@ def Build_CK(Map conf=[:]){
         def variant = env.STAGE_NAME
         def retimage
         def navi_node = 0
+        def mi300_node = 0
 
         gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
@@ -506,6 +507,9 @@ def Build_CK(Map conf=[:]){
                         }
                         if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
                             navi_node = 1
+                        }
+                        if ( runShell('grep -n "gfx942" clinfo.log') ){
+                            mi300_node = 1
                         }
                     }
                 }
@@ -528,6 +532,9 @@ def Build_CK(Map conf=[:]){
                         if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
                             navi_node = 1
                         }
+                        if ( runShell('grep -n "gfx942" clinfo.log') ){
+                            mi300_node = 1
+                        }
                     }
                 }
             }
@@ -544,8 +551,8 @@ def Build_CK(Map conf=[:]){
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                            stash "ckProfiler.tar.gz"
                         }
-                        if (params.RUN_FULL_QA){
-                           // build deb packages
+                        if (params.RUN_FULL_QA && mi300_node == 0 ){
+                           // build deb packages for all MI100/200/300 targets and prepare to export
                            sh 'make -j package'
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
@@ -822,6 +829,26 @@ pipeline {
                                            -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """ 
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
+                stage("Build CK and run Tests on MI300")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_QA.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx942" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx942" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
