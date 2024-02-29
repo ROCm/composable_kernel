@@ -425,7 +425,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             return (kKPerBlock / kKPack) * (kNPerBlock / NPerRow) * (PixelsPerRow + kKPack);
         }();
 
-        return math::max(SingleKSize, SingleVSize);
+        return max(SingleKSize, SingleVSize);
     }
 
     template <typename Problem, typename BlockGemm>
@@ -610,7 +610,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         // constexpr index_t SingleVSize =
         // MakeVLdsBlockDescriptor<Problem>().get_element_space_size();
         constexpr index_t BufferSize =
-            GetSingleSmemElementSpaceSize<Problem>(); //  math::max(SingleKSize, SingleVSize);
+            GetSingleSmemElementSpaceSize<Problem>(); //  max(SingleKSize, SingleVSize);
 
         constexpr auto k_lds_block_desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<NumPrefetchK>{},       // num_buffers
@@ -693,7 +693,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             GetSingleSmemElementSpaceSize<Problem>() * sizeof(typename Problem::KDataType);
 
         return QXPolicy::template GetSmemSizeQ<Problem>() +
-               single_smem_size * math::max(NumPrefetchK, NumPrefetchV);
+               single_smem_size * max(NumPrefetchK, NumPrefetchV);
     }
 
     template <typename Problem>

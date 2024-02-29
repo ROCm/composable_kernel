@@ -58,11 +58,12 @@ struct tensor_view
 #endif
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
-    template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                           typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                 bool>::type = false>
+    template <
+        typename X,
+        bool oob_conditional_check          = true,
+        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
+                                bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_vectorized_elements(const TensorCoord& coord,
                             bool_constant<oob_conditional_check> = {}) const
@@ -75,11 +76,12 @@ struct tensor_view
 
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
-    template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                           typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                 bool>::type = false>
+    template <
+        typename X,
+        bool oob_conditional_check          = true,
+        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
+                                bool>::type = false>
     CK_TILE_HOST_DEVICE void
     get_vectorized_elements_raw(remove_cvref_t<X>& dst,
                                 const TensorCoord& coord,
@@ -91,10 +93,11 @@ struct tensor_view
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
     }
 
-    template <typename X,
-              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                           typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                 bool>::type = false>
+    template <
+        typename X,
+        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
+                                bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void async_get_vectorized_elements(remove_cvref_t<DataType>* smem,
                                                                      const TensorCoord& coord) const
     {
@@ -103,11 +106,12 @@ struct tensor_view
 
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
-    template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                           typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                 bool>::type = false>
+    template <
+        typename X,
+        bool oob_conditional_check          = true,
+        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
+                                bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void set_vectorized_elements(
         const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
     {
@@ -117,11 +121,12 @@ struct tensor_view
             x);
     }
 
-    template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                           typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                 bool>::type = false>
+    template <
+        typename X,
+        bool oob_conditional_check          = true,
+        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
+                                bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void set_vectorized_elements_raw(
         const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
     {
@@ -172,9 +177,9 @@ template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
           typename DataType,
           typename... Lengths,
           typename... Strides,
-          index_t GuaranteedLastDimensionVectorLength                              = -1,
-          index_t GuaranteedLastDimensionVectorStride                              = -1,
-          typename enable_if<sizeof...(Lengths) == sizeof...(Strides), bool>::type = false>
+          index_t GuaranteedLastDimensionVectorLength                                   = -1,
+          index_t GuaranteedLastDimensionVectorStride                                   = -1,
+          typename std::enable_if<sizeof...(Lengths) == sizeof...(Strides), bool>::type = false>
 CK_TILE_HOST_DEVICE constexpr auto
 make_naive_tensor_view(DataType* p,
                        const tuple<Lengths...>& lengths,
@@ -245,8 +250,7 @@ pad_tensor_view(const tensor_view& tensor_view, const TileLengths& tile_lengths,
 
             const auto tile_length = tile_lengths[idim];
 
-            const auto new_length =
-                math::integer_divide_ceil(old_length, tile_length) * tile_length;
+            const auto new_length = integer_divide_ceil(old_length, tile_length) * tile_length;
 
             const auto pad_length = new_length - old_length;
 

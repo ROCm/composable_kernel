@@ -6,6 +6,8 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 
 namespace ck_tile {
 

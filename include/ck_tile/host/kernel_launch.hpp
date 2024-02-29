@@ -86,7 +86,7 @@ float launch_and_time_kernel_with_preprocess(const stream_config& s,
 #if CK_TILE_TIME_KERNEL
     if(s.time_kernel_)
     {
-#if DEBUG_LOG
+#if CK_TILE_DEBUG_LOG
         printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
                __func__,
                grid_dim.x,
@@ -104,7 +104,7 @@ float launch_and_time_kernel_with_preprocess(const stream_config& s,
         hip_check_error(hipGetLastError());
 
         const int nrepeat = 10;
-#if DEBUG_LOG
+#if CK_TILE_DEBUG_LOG
         printf("Start running %d times...\n", nrepeat);
 #endif
         hipEvent_t start, stop;

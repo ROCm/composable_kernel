@@ -89,7 +89,7 @@ struct tile_distribution
         return generate_tuple(
             [&](auto i) {
                 constexpr index_t x_length =
-                    container_reduce(typename DstrEncode::HsLengthss{}[i], math::multiplies{}, 1);
+                    container_reduce(typename DstrEncode::HsLengthss{}[i], multiplies{}, 1);
 
                 return number<x_length>{};
             },
@@ -530,7 +530,7 @@ struct reverse_slice_sequence_impl<sequence<x, xs...>,
 
     static constexpr auto slice_size = old_scan::remaining_slice_sizes::Front().value;
     static constexpr auto slice_length =
-        std::conditional_t<m, number<math::gcd(x, slice_size)>, number<x>>::value;
+        std::conditional_t<m, number<gcd(x, slice_size)>, number<x>>::value;
 
     using dim_lengths =
         typename sequence_merge<sequence<slice_length>, typename old_scan::dim_lengths>::type;
@@ -557,7 +557,7 @@ struct reverse_slice_sequence_impl<sequence<x>, sequence<m>, sequence<id>, Slice
 {
     static constexpr auto slice_size = SliceSize;
     static constexpr auto slice_length =
-        std::conditional_t<m, number<math::gcd(x, slice_size)>, number<x>>::value;
+        std::conditional_t<m, number<gcd(x, slice_size)>, number<x>>::value;
 
     using dim_lengths = sequence<slice_length>;
     using dim_slices  = sequence<x / slice_length>;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -187,7 +188,7 @@ struct BlockFmhaPipelineQRKSVSFp8
         const auto [seqlen_k_start, seqlen_k_end] =
             mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = math::integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking)
@@ -306,8 +307,7 @@ struct BlockFmhaPipelineQRKSVSFp8
 #if !CK_FMHA_FWD_FAST_EXP2
                         x = scale * x + type_convert<SaccDataType>((y));
 #else
-                        x = scale * x +
-                            math::log2e_v<SaccDataType> * type_convert<SaccDataType>((y));
+                        x = scale * x + log2e_v<SaccDataType> * type_convert<SaccDataType>((y));
 #endif
                     },
                     s_acc,
@@ -379,14 +379,14 @@ struct BlockFmhaPipelineQRKSVSFp8
 #if CK_FMHA_FWD_FAST_EXP2
                     if constexpr(kHasBias)
                     {
-                        p_compute(i_j_idx) = math::exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
-                        p_compute(i_j_idx) = math::exp2(scale * s[i_j_idx] - row_max);
+                        p_compute(i_j_idx) = exp2(scale * s[i_j_idx] - row_max);
                     }
 #else
-                    p_compute(i_j_idx)     = math::exp(s[i_j_idx] - get_validated_m(m[i_idx]));
+                    p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
 #endif
                 });
             });
@@ -403,16 +403,16 @@ struct BlockFmhaPipelineQRKSVSFp8
                 const auto tmp = [&]() {
                     if constexpr(kHasBias)
                     {
-                        return math::exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
+                        return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
                     else
                     {
                         auto row_max = scale * get_validated_m(m[i_idx]);
-                        return math::exp2(scale * m_old[i_idx] - row_max);
+                        return exp2(scale * m_old[i_idx] - row_max);
                     }
                 }();
 #else
-                const auto tmp       = math::exp(m_old[i_idx] - get_validated_m(m[i_idx]));
+                const auto tmp       = exp(m_old[i_idx] - get_validated_m(m[i_idx]));
 #endif
                 l(i_idx) = tmp * l[i_idx] + rowsum_p[i_idx];
                 sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {

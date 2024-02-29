@@ -224,7 +224,7 @@ struct pad : public base_transform<1, 1>
 
     CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time()
     {
-        return ck_tile::ck_tile::is_known_at_compile_time<UpLengths>::value &&
+        return ck_tile::is_known_at_compile_time<UpLengths>::value &&
                ck_tile::is_known_at_compile_time<LeftPadLength>::value &&
                ck_tile::is_known_at_compile_time<RightPadLength>::value;
     }
@@ -577,7 +577,7 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
     using UpperIndex = multi_index<1>;
 
     using UpLengths =
-        decltype(make_tuple(container_reduce(LowLengths{}, math::multiplies{}, number<1>{})));
+        decltype(make_tuple(container_reduce(LowLengths{}, multiplies{}, number<1>{})));
 
     using LowLengthsMagicDivisor = decltype(generate_tuple(
         lambda_merge_generate_MagicDivision_calculate_magic_divisor<LowLengths>{},
@@ -597,7 +597,7 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
           low_lengths_magic_divisor_{generate_tuple(
               [&](auto i) { return magic_division::calculate_magic_numbers(low_lengths[i]); },
               number<NDimLow>{})},
-          up_lengths_{make_tuple(container_reduce(low_lengths, math::multiplies{}, I1))}
+          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies{}, I1))}
     {
         static_assert(LowerIndex::size() == NDimLow, "wrong!");
     }
@@ -722,10 +722,10 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
     using UpperIndex = multi_index<1>;
 
     using LowLengthsScan =
-        decltype(container_reverse_exclusive_scan(LowLengths{}, math::multiplies{}, number<1>{}));
+        decltype(container_reverse_exclusive_scan(LowLengths{}, multiplies{}, number<1>{}));
 
     using UpLengths =
-        decltype(make_tuple(container_reduce(LowLengths{}, math::multiplies{}, number<1>{})));
+        decltype(make_tuple(container_reduce(LowLengths{}, multiplies{}, number<1>{})));
 
     LowLengths low_lengths_;
     LowLengthsScan low_lengths_scan_;
@@ -736,8 +736,8 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
     CK_TILE_HOST_DEVICE constexpr merge_v3_division_mod(const LowLengths& low_lengths)
         : low_lengths_{low_lengths},
           low_lengths_scan_{
-              container_reverse_exclusive_scan(low_lengths, math::multiplies{}, number<1>{})},
-          up_lengths_{make_tuple(container_reduce(low_lengths, math::multiplies{}, number<1>{}))}
+              container_reverse_exclusive_scan(low_lengths, multiplies{}, number<1>{})},
+          up_lengths_{make_tuple(container_reduce(low_lengths, multiplies{}, number<1>{}))}
     {
         static_assert(LowerIndex::size() == NDimLow, "wrong!");
     }
@@ -855,7 +855,7 @@ struct unmerge : public base_transform<1, UpLengths::size()>
     using UpperIndex = multi_index<NDimUp>;
 
     using UpLengthsScan =
-        decltype(container_reverse_exclusive_scan(UpLengths{}, math::multiplies{}, number<1>{}));
+        decltype(container_reverse_exclusive_scan(UpLengths{}, multiplies{}, number<1>{}));
 
     UpLengths up_lengths_;
     UpLengthsScan up_lengths_scan_;
@@ -864,8 +864,7 @@ struct unmerge : public base_transform<1, UpLengths::size()>
 
     CK_TILE_HOST_DEVICE constexpr unmerge(const UpLengths& up_lengths)
         : up_lengths_{up_lengths},
-          up_lengths_scan_{
-              container_reverse_exclusive_scan(up_lengths, math::multiplies{}, number<1>{})}
+          up_lengths_scan_{container_reverse_exclusive_scan(up_lengths, multiplies{}, number<1>{})}
     {
     }
 
@@ -944,7 +943,7 @@ struct unmerge : public base_transform<1, UpLengths::size()>
         {
             if(low_vector_lengths[0] != -1)
             {
-                up_vector_lengths(NDimUp - 1) = math::gcd(low_vector_lengths[0], up_length_last);
+                up_vector_lengths(NDimUp - 1) = gcd(low_vector_lengths[0], up_length_last);
             }
         }
 
@@ -979,7 +978,7 @@ struct freeze : public base_transform<1, 0>
 
     CK_TILE_HOST_DEVICE constexpr freeze(const LowerIndex& low_idx) : low_idx_{low_idx} {}
 
-    CK_TILE_HOST_DEVICE static constexpr auto get_upper_lengths() { return Tuple<>{}; }
+    CK_TILE_HOST_DEVICE static constexpr auto get_upper_lengths() { return tuple<>{}; }
 
     template <typename LowIdx, typename UpIdx>
     CK_TILE_HOST_DEVICE constexpr void calculate_lower_index(LowIdx& idx_low,
@@ -1428,7 +1427,7 @@ struct xor_t : public base_transform<2, 2>
         {
             if(low_vector_lengths[1] != -1)
             {
-                up_vector_lengths(1) = math::gcd(low_vector_lengths[1], math::abs(right_shift_));
+                up_vector_lengths(1) = gcd(low_vector_lengths[1], abs(right_shift_));
             }
         }
 
@@ -1546,35 +1545,35 @@ struct offset : public base_transform<1, 1>
 template <typename LowLength>
 CK_TILE_HOST_DEVICE constexpr auto make_pass_through_transform(const LowLength& low_length)
 {
-    return PassThrough<LowLength>{low_length};
+    return pass_through<LowLength>{low_length};
 }
 
-template <typename LowLength, typename left_pad, typename right_pad, bool SkipIsValidCheck = false>
+template <typename LowLength, typename LeftPad, typename RightPad, bool SkipIsValidCheck = false>
 CK_TILE_HOST_DEVICE constexpr auto
 make_pad_transform(const LowLength& low_length,
-                   const left_pad& left_pad,
-                   const right_pad& right_pad,
+                   const LeftPad& left_pad,
+                   const RightPad& right_pad,
                    integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
 {
-    return pad<LowLength, left_pad, right_pad, SkipIsValidCheck>{low_length, left_pad, right_pad};
+    return pad<LowLength, LeftPad, RightPad, SkipIsValidCheck>{low_length, left_pad, right_pad};
 }
 
 template <typename LowLength, typename LeftPadLength, bool SkipIsValidCheck = false>
 CK_TILE_HOST_DEVICE constexpr auto make_left_pad_transform(
     const LowLength& low_length,
-    const LeftPadLength& left_pad,
+    const LeftPadLength& left_pad_,
     integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
 {
-    return left_pad<LowLength, LeftPadLength, SkipIsValidCheck>{low_length, left_pad};
+    return left_pad<LowLength, LeftPadLength, SkipIsValidCheck>{low_length, left_pad_};
 }
 
 template <typename LowLength, typename RightPadLength, bool SkipIsValidCheck = false>
 CK_TILE_HOST_DEVICE constexpr auto make_right_pad_transform(
     const LowLength& low_length,
-    const RightPadLength& right_pad,
+    const RightPadLength& right_pad_,
     integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
 {
-    return right_pad<LowLength, RightPadLength, SkipIsValidCheck>{low_length, right_pad};
+    return right_pad<LowLength, RightPadLength, SkipIsValidCheck>{low_length, right_pad_};
 }
 
 template <typename UpLengths,

@@ -5,7 +5,7 @@
 import argparse
 import itertools
 from pathlib import Path
-from typing import List, Optional, tuple
+from typing import List, Optional
 from dataclasses import dataclass
 import copy
 

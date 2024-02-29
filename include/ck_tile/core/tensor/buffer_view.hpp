@@ -82,10 +82,10 @@ struct buffer_view<address_space_enum::generic,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE constexpr auto
     get(index_t i, bool is_valid_element, bool_constant<oob_conditional_check> = {}) const
     {
@@ -99,7 +99,7 @@ struct buffer_view<address_space_enum::generic,
 
         if(is_valid_element)
         {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
             X tmp;
 
             __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
@@ -125,9 +125,9 @@ struct buffer_view<address_space_enum::generic,
     // i is offset of T, not X. i should be aligned to X
     template <InMemoryDataOperationEnum Op,
               typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void update(index_t i, bool is_valid_element, const X& x)
     {
         if constexpr(Op == InMemoryDataOperationEnum::set)
@@ -144,9 +144,9 @@ struct buffer_view<address_space_enum::generic,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void set(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -159,7 +159,7 @@ struct buffer_view<address_space_enum::generic,
 
         if(is_valid_element)
         {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
             X tmp = x;
 
             __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
@@ -253,10 +253,10 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE constexpr auto
     get(index_t i, bool is_valid_element, bool_constant<oob_conditional_check> = {}) const
     {
@@ -268,7 +268,7 @@ struct buffer_view<address_space_enum::global,
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-#if CK_USE_AMD_BUFFER_LOAD
+#if CK_TILE_USE_AMD_BUFFER_LOAD
         bool constexpr use_amd_buffer_addressing = true;
 #else
         bool constexpr use_amd_buffer_addressing = false;
@@ -300,7 +300,7 @@ struct buffer_view<address_space_enum::global,
         {
             if(is_valid_element)
             {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
                 X tmp;
 
                 __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
@@ -326,10 +326,10 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE constexpr auto
     get_raw(remove_cvref_t<X>& dst, index_t i, bool is_valid_element) const
     {
@@ -348,9 +348,9 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE constexpr auto
     async_get(remove_cvref_t<T>* smem, index_t i, bool /*is_valid_element*/) const
     {
@@ -370,9 +370,9 @@ struct buffer_view<address_space_enum::global,
     // i is offset of T, not X. i should be aligned to X
     template <InMemoryDataOperationEnum Op,
               typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void update(index_t i, bool is_valid_element, const X& x)
     {
         if constexpr(Op == InMemoryDataOperationEnum::set)
@@ -399,10 +399,10 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void set(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -413,7 +413,7 @@ struct buffer_view<address_space_enum::global,
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-#if CK_USE_AMD_BUFFER_STORE
+#if CK_TILE_USE_AMD_BUFFER_STORE
         bool constexpr use_amd_buffer_addressing = true;
 #else
         bool constexpr use_amd_buffer_addressing = false;
@@ -430,7 +430,7 @@ struct buffer_view<address_space_enum::global,
         {
             if(is_valid_element)
             {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
                 X tmp = x;
 
                 __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
@@ -443,10 +443,10 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void set_raw(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -463,9 +463,9 @@ struct buffer_view<address_space_enum::global,
     }
 
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void atomic_add(index_t i, bool is_valid_element, const X& x)
     {
         using scalar_t = typename scalar_type<remove_cvref_t<T>>::type;
@@ -480,14 +480,14 @@ struct buffer_view<address_space_enum::global,
 
         static_assert(get_address_space() == address_space_enum::global, "only support global mem");
 
-#if CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
+#if CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
             is_same_v<remove_cvref_t<scalar_t>, int32_t> ||
             is_same_v<remove_cvref_t<scalar_t>, float> ||
             (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0);
-#elif CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
+#elif CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
         bool constexpr use_amd_buffer_addressing = is_same_v<remove_cvref_t<scalar_t>, int32_t>;
-#elif(!CK_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
+#elif(!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
             is_same_v<remove_cvref_t<scalar_t>, float> ||
             (is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0);
@@ -512,9 +512,9 @@ struct buffer_view<address_space_enum::global,
     }
 
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void atomic_max(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -527,7 +527,7 @@ struct buffer_view<address_space_enum::global,
 
         static_assert(get_address_space() == address_space_enum::global, "only support global mem");
 
-#if CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64
+#if CK_TILE_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64
         using scalar_t                           = typename scalar_type<remove_cvref_t<T>>::type;
         bool constexpr use_amd_buffer_addressing = is_same_v<remove_cvref_t<scalar_t>, double>;
 #else
@@ -628,10 +628,10 @@ struct buffer_view<address_space_enum::lds,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE constexpr auto
     get(index_t i, bool is_valid_element, bool_constant<oob_conditional_check> = {}) const
     {
@@ -645,7 +645,7 @@ struct buffer_view<address_space_enum::lds,
 
         if(is_valid_element)
         {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
             X tmp;
 
             __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
@@ -671,9 +671,9 @@ struct buffer_view<address_space_enum::lds,
     // i is offset of T, not X. i should be aligned to X
     template <InMemoryDataOperationEnum Op,
               typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void update(index_t i, bool is_valid_element, const X& x)
     {
         if constexpr(Op == InMemoryDataOperationEnum::set)
@@ -690,9 +690,9 @@ struct buffer_view<address_space_enum::lds,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void set(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -703,7 +703,7 @@ struct buffer_view<address_space_enum::lds,
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
-#if CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
+#if CK_TILE_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE
         bool constexpr workaround_int8_ds_write_issue = true;
 #else
         bool constexpr workaround_int8_ds_write_issue = false;
@@ -807,7 +807,7 @@ struct buffer_view<address_space_enum::lds,
         {
             if(is_valid_element)
             {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
                 X tmp = x;
 
                 __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
@@ -899,10 +899,10 @@ struct buffer_view<address_space_enum::vgpr,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              bool oob_conditional_check     = true,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              bool oob_conditional_check          = true,
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE constexpr auto
     get(index_t i, bool is_valid_element, bool_constant<oob_conditional_check> = {}) const
     {
@@ -916,7 +916,7 @@ struct buffer_view<address_space_enum::vgpr,
 
         if(is_valid_element)
         {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
             X tmp;
 
             __builtin_memcpy(&tmp, &(p_data_[i]), sizeof(X));
@@ -942,9 +942,9 @@ struct buffer_view<address_space_enum::vgpr,
     // i is offset of T, not X. i should be aligned to X
     template <InMemoryDataOperationEnum Op,
               typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void update(index_t i, bool is_valid_element, const X& x)
     {
         if constexpr(Op == InMemoryDataOperationEnum::set)
@@ -961,9 +961,9 @@ struct buffer_view<address_space_enum::vgpr,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
-              typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value,
-                                 bool>::type = false>
+              typename std::enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
+                                              typename scalar_type<remove_cvref_t<T>>::type>::value,
+                                      bool>::type = false>
     CK_TILE_DEVICE void set(index_t i, bool is_valid_element, const X& x)
     {
         // X contains multiple T
@@ -976,7 +976,7 @@ struct buffer_view<address_space_enum::vgpr,
 
         if(is_valid_element)
         {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
+#if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
             X tmp = x;
 
             __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
@@ -1024,13 +1024,13 @@ CK_TILE_HOST_DEVICE constexpr auto make_buffer_view(T* p, BufferSizeType buffer_
     return buffer_view<BufferAddressSpace, T, BufferSizeType, true, Coherence>{p, buffer_size};
 }
 
-template <
-    address_space_enum BufferAddressSpace,
-    amd_buffer_coherence_enum Coherence = amd_buffer_coherence_enum::coherence_default,
-    typename T,
-    typename BufferSizeType,
-    typename X,
-    typename enable_if<is_same<remove_cvref_t<T>, remove_cvref_t<X>>::value, bool>::type = false>
+template <address_space_enum BufferAddressSpace,
+          amd_buffer_coherence_enum Coherence = amd_buffer_coherence_enum::coherence_default,
+          typename T,
+          typename BufferSizeType,
+          typename X,
+          typename std::enable_if<is_same<remove_cvref_t<T>, remove_cvref_t<X>>::value,
+                                  bool>::type = false>
 CK_TILE_HOST_DEVICE constexpr auto
 make_buffer_view(T* p, BufferSizeType buffer_size, X invalid_element_value)
 {

@@ -1754,7 +1754,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
+#if CK_TILE_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK
     uint32_t src_addr_shift = [&]() {
         if constexpr(oob_conditional_check)
             return src_thread_element_valid ? 0 : 0x80000000;
@@ -1876,7 +1876,7 @@ amd_buffer_store(const typename vector_type_maker<T, N>::type::type src_thread_d
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
+#if CK_TILE_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK
     uint32_t dst_addr_shift = [&]() {
         if constexpr(oob_conditional_check)
             return dst_thread_element_valid ? 0 : 0x80000000;
@@ -1951,7 +1951,7 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
+#if CK_TILE_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
     uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
 
     amd_buffer_atomic_add_impl<scalar_t, vector_size>(
@@ -1986,7 +1986,7 @@ amd_buffer_atomic_max(const typename vector_type_maker<T, N>::type::type src_thr
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK
+#if CK_TILE_EXPERIMENTAL_USE_BUFFER_ATOMIC_MAX_OOB_CHECK_OFFSET_TRICK
     uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
 
     amd_buffer_atomic_max_impl<scalar_t, vector_size>(
@@ -2028,7 +2028,7 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     const int32x4_t src_resource = make_wave_buffer_resource(global_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
-#if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
+#if CK_TILE_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
     T* lds_ptr = lds_base_ptr + lds_offset;
     auto const lds_ptr_sgpr =
         __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(lds_ptr)));

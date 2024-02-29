@@ -4,11 +4,12 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 
 namespace ck_tile {
 
@@ -55,14 +56,6 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return sizeof...(Is); }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return true; };
 
-    CK_TILE_HOST_DEVICE static constexpr index_t at(index_t I)
-    {
-        // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
-        static_assert(I < size(), "wrong! I too large");
-        const index_t mData[mSize + 1] = {Is..., 0};
-        return mData[I];
-    }
-
     template <index_t I>
     CK_TILE_HOST_DEVICE static constexpr auto get()
     {
@@ -81,7 +74,7 @@ struct sequence
     {
         // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
         static_assert(I < size(), "wrong! I too large");
-        const index_t mData[mSize + 1] = {Is..., 0};
+        const index_t mData[size() + 1] = {Is..., 0};
         return mData[I];
     }
 
@@ -298,7 +291,7 @@ struct arithmetic_sequence_gen
     static constexpr bool kHasContent =
         (Increment > 0 && IBegin < IEnd) || (Increment < 0 && IBegin > IEnd);
 
-    using type = typename conditional<kHasContent, type0, type1>::type;
+    using type = typename std::conditional<kHasContent, type0, type1>::type;
 };
 
 template <index_t IEnd>
@@ -403,8 +396,8 @@ struct sequence_reverse<sequence<Ns...>>
 {
 };
 
-template <index_t... Ns>
-using sequence_reverse_t = typename sequence_reverse<Ns...>::type;
+// template <index_t... Ns>
+// using sequence_reverse_t = typename sequence_reverse<Ns...>::type;
 
 #if 1
 template <typename Reduce, typename Seq, typename... Seqs>
@@ -449,16 +442,15 @@ struct sequence_sort_impl
         using new_merged_values = decltype(MergedValues::push_back(number<chosen_value>{}));
         using new_merged_ids    = decltype(MergedIds::push_back(number<chosen_id>{}));
 
-        using new_left_values =
-            typename conditional<choose_left, decltype(LeftValues::pop_front()), LeftValues>::type;
+        using new_left_values = typename std::
+            conditional<choose_left, decltype(LeftValues::pop_front()), LeftValues>::type;
         using new_left_ids =
-            typename conditional<choose_left, decltype(LeftIds::pop_front()), LeftIds>::type;
+            typename std::conditional<choose_left, decltype(LeftIds::pop_front()), LeftIds>::type;
 
-        using new_right_values = typename conditional<choose_left,
-                                                      RightValues,
-                                                      decltype(RightValues::pop_front())>::type;
+        using new_right_values = typename std::
+            conditional<choose_left, RightValues, decltype(RightValues::pop_front())>::type;
         using new_right_ids =
-            typename conditional<choose_left, RightIds, decltype(RightIds::pop_front())>::type;
+            typename std::conditional<choose_left, RightIds, decltype(RightIds::pop_front())>::type;
 
         using merge = sorted_sequence_merge_impl<new_left_values,
                                                  new_left_ids,
@@ -557,9 +549,10 @@ struct sequence_sort_impl<sequence<ValueX, ValueY>, sequence<IdX, IdY>, Compare>
 {
     static constexpr bool choose_x = Compare{}(ValueX, ValueY);
 
-    using sorted_values =
-        typename conditional<choose_x, sequence<ValueX, ValueY>, sequence<ValueY, ValueX>>::type;
-    using sorted_ids = typename conditional<choose_x, sequence<IdX, IdY>, sequence<IdY, IdX>>::type;
+    using sorted_values = typename std::
+        conditional<choose_x, sequence<ValueX, ValueY>, sequence<ValueY, ValueX>>::type;
+    using sorted_ids =
+        typename std::conditional<choose_x, sequence<IdX, IdY>, sequence<IdY, IdX>>::type;
 };
 
 template <index_t Value, index_t Id, typename Compare>
@@ -606,14 +599,15 @@ struct sequence_unique_sort
         using new_remain_ids    = decltype(RemainIds::pop_front());
 
         using new_uniquified_values =
-            typename conditional<is_unique_value,
-                                 decltype(UniquifiedValues::push_back(number<current_value>{})),
-                                 UniquifiedValues>::type;
+            typename std::conditional<is_unique_value,
+                                      decltype(UniquifiedValues::push_back(
+                                          number<current_value>{})),
+                                      UniquifiedValues>::type;
 
         using new_uniquified_ids =
-            typename conditional<is_unique_value,
-                                 decltype(UniquifiedIds::push_back(number<current_id>{})),
-                                 UniquifiedIds>::type;
+            typename std::conditional<is_unique_value,
+                                      decltype(UniquifiedIds::push_back(number<current_id>{})),
+                                      UniquifiedIds>::type;
 
         using uniquify = sorted_sequence_uniquify_impl<new_remain_values,
                                                        new_remain_ids,
@@ -662,8 +656,9 @@ struct sequence_unique_sort
 };
 
 template <typename SeqMap>
-struct is_valid_sequence_map : is_same<typename arithmetic_sequence_gen<0, SeqMap::size(), 1>::type,
-                                       typename sequence_sort<SeqMap, math::less<index_t>>::type>
+struct is_valid_sequence_map
+    : std::is_same<typename arithmetic_sequence_gen<0, SeqMap::size(), 1>::type,
+                   typename sequence_sort<SeqMap, less<index_t>>::type>
 {
 };
 
@@ -906,7 +901,7 @@ constexpr auto prefix_sum_sequence(Seq)
 {
     return typename sequence_exclusive_scan<sequence<0>,
                                             typename sequence_merge<Seq, sequence<0>>::type,
-                                            math::plus<index_t>>::type{};
+                                            plus<index_t>>::type{};
 }
 
 template <typename Seq, index_t... Is>
@@ -920,9 +915,9 @@ namespace detail {
 template <typename WorkSeq, typename RemainSeq, typename RemainMask>
 struct pick_sequence_elements_by_mask_impl
 {
-    using new_work_seq = typename conditional<RemainMask::front(),
-                                              decltype(WorkSeq::push_back(RemainSeq::front())),
-                                              WorkSeq>::type;
+    using new_work_seq = typename std::conditional<RemainMask::front(),
+                                                   decltype(WorkSeq::push_back(RemainSeq::front())),
+                                                   WorkSeq>::type;
 
     using type =
         typename pick_sequence_elements_by_mask_impl<new_work_seq,
@@ -1088,9 +1083,12 @@ struct sorted_sequence_histogram<h_idx, sequence<x>, sequence<r, rs...>>
 };
 } // namespace detail
 
+template <typename, index_t>
+struct array; // declare for later use (array->seq utility)
+
 // SeqSortedSamples: <0, 2, 3, 5, 7>, SeqRange: <0, 3, 6, 9> -> SeqHistogram : <2, 2, 1>
 template <typename SeqSortedSamples, index_t r, index_t... rs>
-constexpr auto histogram_sorted_sequence(SeqSortedSamples, sequence<r, rs...>)
+CK_TILE_HOST_DEVICE constexpr auto histogram_sorted_sequence(SeqSortedSamples, sequence<r, rs...>)
 {
     constexpr auto bins      = sizeof...(rs); // or categories
     constexpr auto histogram = [&]() {

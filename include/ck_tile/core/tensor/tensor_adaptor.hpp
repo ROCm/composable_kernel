@@ -10,6 +10,7 @@
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/limits.hpp"
 
 namespace ck_tile {
 
@@ -457,7 +458,7 @@ transform_tensor_adaptor(const OldTensorAdaptor& old_tensor_adaptor,
         generate_sequence(lambda_get_up_dim_num<NewTransforms>{}, number<num_new_transform>{});
 
     constexpr auto up_dim_numbers_scan = merge_sequences(
-        Sequence<0>{}, inclusive_scan_sequence(up_dim_numbers, plus<index_t>{}, number<0>{}));
+        sequence<0>{}, inclusive_scan_sequence(up_dim_numbers, plus<index_t>{}, number<0>{}));
 
     constexpr auto up_dim_hidden_idss = generate_tuple(
         [ old_hidden_dim_number, up_dim_numbers_scan ](auto i) constexpr {
@@ -510,7 +511,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
 
     // shift
     constexpr index_t adaptor0_max_hidden_id = [&]() {
-        index_t adaptor0_max_hidden_id_ = NumericLimits<index_t>::Min();
+        index_t adaptor0_max_hidden_id_ = numeric_limits<index_t>::min();
 
         static_for<0, TensorAdaptor0::get_num_of_transform(), 1>{}([&](auto itran) {
             constexpr index_t ndim_low =
@@ -536,7 +537,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
     }();
 
     constexpr index_t adaptor1_min_hidden_id = [&]() {
-        index_t adaptor1_min_hidden_id_ = NumericLimits<index_t>::Max();
+        index_t adaptor1_min_hidden_id_ = numeric_limits<index_t>::max();
 
         static_for<0, TensorAdaptor1::get_num_of_transform(), 1>{}([&](auto itran) {
             constexpr index_t ndim_low =
@@ -680,7 +681,9 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                           remove_cvref_t<decltype(top_dim_hidden_ids)>>{all_transforms};
 }
 
-template <typename X, typename... Xs, typename enable_if<sizeof...(Xs) >= 2, bool>::type = false>
+template <typename X,
+          typename... Xs,
+          typename std::enable_if<sizeof...(Xs) >= 2, bool>::type = false>
 CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&... xs)
 {
     return chain_tensor_adaptors(x, chain_tensor_adaptors(xs...));

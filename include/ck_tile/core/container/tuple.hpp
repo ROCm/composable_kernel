@@ -100,8 +100,8 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     {
         bool flag = true;
 
-        static_for<0, sizeof...(Xs), 1>{}([&flag](auto i) {
-            flag &= is_static_v<remove_cvref_t<__type_pack_element<i.value, Xs...>>>;
+        static_for<0, sizeof...(T), 1>{}([&flag](auto i) {
+            flag &= is_static_v<remove_cvref_t<__type_pack_element<i.value, T...>>>;
         });
 
         return flag;
@@ -262,11 +262,11 @@ CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const T& element)
 }
 
 template <index_t Depth = 0, index_t MaxDepth = -1, typename... Ts>
-CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const tuple<Ts...>& tuple)
+CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const tuple<Ts...>& t)
 {
     if constexpr(Depth == MaxDepth)
     {
-        return tuple;
+        return t;
     }
     else
     {
@@ -274,33 +274,33 @@ CK_TILE_HOST_DEVICE constexpr auto unroll_nested_tuple(const tuple<Ts...>& tuple
             [&](auto&&... ts) {
                 return concat_tuple(unroll_nested_tuple<Depth + 1, MaxDepth>(ts)...);
             },
-            tuple);
+            t);
     }
 }
 
 template <typename... Ts>
-CK_TILE_HOST_DEVICE constexpr auto tuple_reverse(const tuple<Ts...>& tuple)
+CK_TILE_HOST_DEVICE constexpr auto tuple_reverse(const tuple<Ts...>& t)
 {
     return generate_tuple(
         [&](auto i) {
-            using Idx = number<tuple<Ts...>::size()() - i - 1>;
-            return tuple.at(Idx{});
+            using Idx = number<tuple<Ts...>::size() - i - 1>;
+            return t.at(Idx{});
         },
         number<tuple<Ts...>::size()()>{});
 }
 
 // Reduce tuple values in specific range using Function
 template <index_t Idx, index_t End, typename F, typename... Ts>
-CK_TILE_HOST_DEVICE constexpr auto tuple_reduce(F&& f, const tuple<Ts...>& tuple)
+CK_TILE_HOST_DEVICE constexpr auto tuple_reduce(F&& f, const tuple<Ts...>& t)
 {
     static_assert(Idx < End, "Wrong parameters for tuple_reduce");
     if constexpr(Idx + 1 == End)
     {
-        return tuple.at(number<Idx>{});
+        return t.at(number<Idx>{});
     }
     else
     {
-        return f(tuple.at(number<Idx>{}), tuple_reduce<Idx + 1, End>(f, tuple));
+        return f(t.at(number<Idx>{}), tuple_reduce<Idx + 1, End>(f, t));
     }
 }
 
@@ -322,7 +322,7 @@ CK_TILE_HOST_DEVICE constexpr auto tuple_depth(const T&)
 template <index_t depth = 0, typename... Ts>
 CK_TILE_HOST_DEVICE constexpr auto tuple_depth(const tuple<Ts...>&)
 {
-    return math::max(tuple_depth<depth + 1>(Ts{})...);
+    return max(tuple_depth<depth + 1>(Ts{})...);
 }
 
 template <typename... Seqs>
@@ -456,6 +456,7 @@ CK_TILE_HOST_DEVICE constexpr auto operator/(const tuple<Xs...>& x, const tuple<
 
 } // namespace ck_tile
 
+#include <tuple>
 // WARNING: needed by compiler for C++ structured binding support only, don't use this
 namespace std {
 
@@ -465,7 +466,7 @@ struct tuple_size<ck_tile::tuple<Ts...>> : std::integral_constant<std::size_t, s
 };
 
 template <std::size_t I, typename... Ts>
-struct tuple_element<I, ck_tile::tuple<Ts...>> : ck_tile::tuple_element<I, ck_tile::tuple<Ts...>>
+struct tuple_element<I, ck_tile::tuple<Ts...>> : std::tuple_element<I, std::tuple<Ts...>>
 {
 };
 
@@ -476,7 +477,7 @@ struct tuple_size<const ck_tile::tuple<Ts...>> : std::integral_constant<std::siz
 
 template <std::size_t I, typename... Ts>
 struct tuple_element<I, const ck_tile::tuple<Ts...>>
-    : ck_tile::tuple_element<I, const ck_tile::tuple<Ts...>>
+    : std::tuple_element<I, const std::tuple<Ts...>>
 {
 };
 

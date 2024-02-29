@@ -7,7 +7,7 @@
 #include <string>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/fmha.hpp"
+#include "ck_tile/ops/fmha.hpp"
 
 enum class mask_enum
 {

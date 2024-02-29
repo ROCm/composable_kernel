@@ -43,10 +43,10 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
                 constexpr index_t lid_over_rid_derivative =
                     DstrEncodeDetail::ps_over_rs_derivative_[idim_p_lane][idim_r];
 
-                static_assert(math::is_power_of_two_integer(r_length),
+                static_assert(is_power_of_two_integer(r_length),
                               "wrong! only support power of 2 reduction");
 
-                constexpr index_t nstage = math::integer_log2_floor(r_length);
+                constexpr index_t nstage = integer_log2_floor(r_length);
 
                 // reduction sweep forward
                 static_for<0, nstage, 1>{}([&](auto istage) {
@@ -78,10 +78,10 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
                     constexpr index_t lid_over_rid_derivative =
                         DstrEncodeDetail::ps_over_rs_derivative_[NDimP - 1][idim_r];
 
-                    static_assert(math::is_power_of_two_integer(r_length),
+                    static_assert(is_power_of_two_integer(r_length),
                                   "wrong! only support power of 2 reduction");
 
-                    constexpr index_t nstage = math::integer_log2_floor(r_length);
+                    constexpr index_t nstage = integer_log2_floor(r_length);
 
                     // broadcast sweep backward
                     static_for<0, nstage, 1>{}([&](auto istage) {

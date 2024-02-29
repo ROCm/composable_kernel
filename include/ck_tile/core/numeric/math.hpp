@@ -6,6 +6,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 #include <type_traits>
 #include <stdint.h>
 
@@ -290,7 +291,7 @@ float abs(const float& x)
 CK_TILE_HOST_DEVICE
 bool isnan(const float& x)
 {
-    uint32_t xx = reinterpret_cast<const uint32_t&>(x);
+    uint32_t xx = bit_cast<uint32_t>(x);
     return (xx & 0x7fffffff) > 0x7F800000;
 }
 

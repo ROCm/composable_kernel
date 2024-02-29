@@ -6,6 +6,7 @@
 #include "ck_tile/core/numeric/arithmetic.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/limits.hpp"
 #include <stdint.h>
 
 #pragma once
@@ -32,7 +33,7 @@ struct alignas(2) bfloat16_t
     raw_type data;
 
     CK_TILE_HOST_DEVICE
-    static bfloat16_t bit_cast(raw_type x)
+    static constexpr bfloat16_t bit_cast(raw_type x)
     {
         bfloat16_t y;
         y.data = x;

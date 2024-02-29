@@ -6,6 +6,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/multi_index.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
+#include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -119,7 +120,7 @@ struct space_filling_curve
         constexpr auto ordered_access_idx = generate_tuple(compute_index, number<nDim>{});
 #endif
         constexpr auto forward_sweep = [&]() {
-            StaticallyIndexedArray<bool, nDim> forward_sweep_;
+            statically_indexed_array<bool, nDim> forward_sweep_;
 
             forward_sweep_(I0) = true;
 

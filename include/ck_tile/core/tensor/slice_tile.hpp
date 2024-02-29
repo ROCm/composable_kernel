@@ -14,7 +14,6 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
-namespace tile_program {
 
 template <typename BottomTensorView_,
           typename WindowLengths_,
@@ -90,5 +89,4 @@ set_slice_tile(static_distributed_tensor<DstDataType_, DstStaticTileDistribution
     dst_tile.SetSlicedThreadData(sliced_y_origins, sliced_y_lengths, src_tile.get_thread_buffer());
 }
 
-} // namespace tile_program
 } // namespace ck_tile

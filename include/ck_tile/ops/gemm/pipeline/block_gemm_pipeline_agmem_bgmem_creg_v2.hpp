@@ -64,8 +64,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV2
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         constexpr index_t a_lds_block_space_size_aligned =
-            math::integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
-                                      16) *
+            integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(), 16) *
             16;
 
         // B tile in LDS

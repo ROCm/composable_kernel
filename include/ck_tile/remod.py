@@ -65,6 +65,7 @@ class submodule_t:
 submodule = submodule_t()
 # formatting
 for x in all_files:
+    subprocess.Popen(f'dos2unix {str(x)}', shell=True)
     cmd = f'clang-format-12 -style=file -i {str(x)}'
     #for xp in x.parents:
     #print(get_file_base(x))

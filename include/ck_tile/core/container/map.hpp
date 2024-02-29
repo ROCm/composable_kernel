@@ -75,11 +75,11 @@ struct map
 
     CK_TILE_HOST_DEVICE void clear() { size_ = 0; }
 
-    CK_TILE_HOST_DEVICE constexpr index_t find_position(const key& key) const
+    CK_TILE_HOST_DEVICE constexpr index_t find_position(const key& k) const
     {
         for(index_t i = 0; i < size(); i++)
         {
-            if(impl_[i].template at<0>() == key)
+            if(impl_[i].template at<0>() == k)
             {
                 return i;
             }
@@ -88,39 +88,39 @@ struct map
         return size_;
     }
 
-    CK_TILE_HOST_DEVICE constexpr const_iterator find(const key& key) const
+    CK_TILE_HOST_DEVICE constexpr const_iterator find(const key& k) const
     {
-        return const_iterator{impl_, find_position(key)};
+        return const_iterator{impl_, find_position(k)};
     }
 
-    CK_TILE_HOST_DEVICE constexpr iterator find(const key& key)
+    CK_TILE_HOST_DEVICE constexpr iterator find(const key& k)
     {
-        return iterator{impl_, find_position(key)};
+        return iterator{impl_, find_position(k)};
     }
 
-    CK_TILE_HOST_DEVICE constexpr const data& operator[](const key& key) const
+    CK_TILE_HOST_DEVICE constexpr const data& operator[](const key& k) const
     {
-        const auto it = find(key);
+        const auto it = find(k);
 
         // FIXME
-        assert(it.pos_ < size());
+        // assert(it.pos_ < size());
 
         return impl_[it.pos_].template at<1>();
     }
 
-    CK_TILE_HOST_DEVICE constexpr data& operator()(const key& key)
+    CK_TILE_HOST_DEVICE constexpr data& operator()(const key& k)
     {
-        auto it = find(key);
+        auto it = find(k);
 
         // if entry not found
         if(it.pos_ == size())
         {
-            impl_(it.pos_).template at<0>() = key;
+            impl_(it.pos_).template at<0>() = k;
             size_++;
         }
 
         // FIXME
-        assert(size_ <= max_size);
+        // assert(size_ <= max_size);
 
         return impl_(it.pos_).template at<1>();
     }
@@ -146,12 +146,12 @@ struct map
         //
         printf("impl_: [");
         //
-        for(const auto& [key, data] : *this)
+        for(const auto& [k, d] : *this)
         {
             printf("{key: ");
-            print(key);
+            print(k);
             printf(", data: ");
-            print(data);
+            print(d);
             printf("}, ");
         }
         //

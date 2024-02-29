@@ -3,26 +3,29 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/utility/limits.hpp"
 #include <hip/hip_fp16.h>
 
 #pragma once
 
 namespace ck_tile {
 
-CK_TILE_HOST_DEVICE
-float fp16_to_float_hip(const _Float16& x);
+using fp16_hip_t = __half; // most of hip internal function use this type
 
 CK_TILE_HOST_DEVICE
-_Float16 float_to_fp16_hip(const float& x);
+float fp16_to_float_hip(const fp16_hip_t& x);
 
-// HIP use _Float16 as interchangable data type for float16
+CK_TILE_HOST_DEVICE
+fp16_hip_t float_to_fp16_hip(const float& x);
+
+// HIP use fp16_hip_t as interchangable data type for float16
 struct alignas(2) half_t
 {
     using raw_type = uint16_t;
     raw_type data;
 
     CK_TILE_HOST_DEVICE
-    static half_t bit_cast(raw_type x)
+    static constexpr half_t bit_cast(raw_type x)
     {
         half_t y;
         y.data = x;
@@ -30,56 +33,62 @@ struct alignas(2) half_t
     }
 
     CK_TILE_HOST_DEVICE
-    _Float16 to_fp16() const { return reinterpret_cast<const raw_type&>(data); }
+    constexpr fp16_hip_t to_fp16() const { return ck_tile::bit_cast<fp16_hip_t>(data); }
 
     // constructor
-    half_t() = default;
+    constexpr half_t() : data() {}
 
     // construct from HIP half
     CK_TILE_HOST_DEVICE
-    explicit half_t(const _Float16& x) : data(reinterpret_cast<const raw_type&>(x)) {}
+    explicit constexpr half_t(const fp16_hip_t& x) : data(ck_tile::bit_cast<raw_type>(x)) {}
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit half_t(const float& x) : half_t(float_to_fp16_hip(x)) {}
+    explicit constexpr half_t(const float& x) : half_t(float_to_fp16_hip(x)) {}
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit half_t(const int& x) : half_t(__int2half_rn(x)) {}
+    explicit constexpr half_t(const int& x) : half_t(static_cast<fp16_hip_t>(__int2half_rn(x))) {}
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
-    explicit half_t(const unsigned int& x) : half_t(__uint2half_rn(x)) {}
+    explicit constexpr half_t(const unsigned int& x)
+        : half_t(static_cast<fp16_hip_t>(__uint2half_rn(x)))
+    {
+    }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit operator float() const { return fp16_to_float_hip(to_fp16()); }
+    explicit constexpr operator float() const { return fp16_to_float_hip(to_fp16()); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit operator int() const { return static_cast<int>(fp16_to_float_hip(to_fp16())); }
+    explicit constexpr operator int() const
+    {
+        return static_cast<int>(fp16_to_float_hip(to_fp16()));
+    }
 
     // internal access
     CK_TILE_HOST_DEVICE
-    raw_type& get() { return data; }
+    constexpr raw_type& get() { return data; }
 
     CK_TILE_HOST_DEVICE
-    raw_type get() const { return data; }
+    constexpr raw_type get() const { return data; }
 };
 
 // conversions
 CK_TILE_HOST_DEVICE
-float fp16_to_float_hip(const _Float16& x)
+float fp16_to_float_hip(const fp16_hip_t& x)
 {
     // return __half2float(x);
     return static_cast<float>(x);
 }
 
 CK_TILE_HOST_DEVICE
-_Float16 float_to_fp16_hip(const float& x)
+fp16_hip_t float_to_fp16_hip(const float& x)
 {
     // return __float2half(x);
-    return static_cast<_Float16>(x);
+    return static_cast<fp16_hip_t>(x);
 }
 
 CK_TILE_HOST_DEVICE

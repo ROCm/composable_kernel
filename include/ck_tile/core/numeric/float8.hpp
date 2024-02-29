@@ -8,6 +8,7 @@
 #include "ck_tile/core/numeric/arithmetic.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/utility/limits.hpp"
 #include <stdint.h>
 #include <type_traits>
 
@@ -62,7 +63,7 @@ struct alignas(1) float8_e4m3_t
     raw_type data;
 
     CK_TILE_HOST_DEVICE
-    static float8_e4m3_t bit_cast(raw_type x)
+    static constexpr float8_e4m3_t bit_cast(raw_type x)
     {
         float8_e4m3_t y;
         y.data = x;
@@ -70,37 +71,40 @@ struct alignas(1) float8_e4m3_t
     }
 
     // constructor
-    float8_e4m3_t() = default;
+    constexpr float8_e4m3_t() : data() {}
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit float8_e4m3_t(const float& x) { data = float_to_fp8_raw(x); }
+    explicit constexpr float8_e4m3_t(const float& x) { data = float_to_fp8_raw(x); }
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit float8_e4m3_t(const int& x) { data = float_to_fp8_raw(static_cast<float>(x)); }
+    explicit constexpr float8_e4m3_t(const int& x)
+    {
+        data = float_to_fp8_raw(static_cast<float>(x));
+    }
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
-    explicit float8_e4m3_t(const unsigned int& x)
+    explicit constexpr float8_e4m3_t(const unsigned int& x)
     {
         data = float_to_fp8_raw(static_cast<float>(x));
     }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit operator float() const { return fp8_to_float_raw(data); }
+    explicit constexpr operator float() const { return fp8_to_float_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit operator int() const { return static_cast<int>(fp8_to_float_raw(data)); }
+    explicit constexpr operator int() const { return static_cast<int>(fp8_to_float_raw(data)); }
 
     // internal access
     CK_TILE_HOST_DEVICE
-    raw_type& get() { return data; }
+    constexpr raw_type& get() { return data; }
 
     CK_TILE_HOST_DEVICE
-    raw_type get() const { return data; }
+    constexpr raw_type get() const { return data; }
 };
 
 struct alignas(1) float8_e5m2_t
@@ -116,7 +120,7 @@ struct alignas(1) float8_e5m2_t
     raw_type data;
 
     CK_TILE_HOST_DEVICE
-    static float8_e5m2_t bit_cast(raw_type x)
+    static constexpr float8_e5m2_t bit_cast(raw_type x)
     {
         float8_e5m2_t y;
         y.data = x;
@@ -124,37 +128,40 @@ struct alignas(1) float8_e5m2_t
     }
 
     // constructor
-    float8_e5m2_t() = default;
+    constexpr float8_e5m2_t() : data() {}
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit float8_e5m2_t(const float& x) { data = float_to_bf8_raw(x); }
+    explicit constexpr float8_e5m2_t(const float& x) { data = float_to_bf8_raw(x); }
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit float8_e5m2_t(const int& x) { data = float_to_bf8_raw(static_cast<float>(x)); }
+    explicit constexpr float8_e5m2_t(const int& x)
+    {
+        data = float_to_bf8_raw(static_cast<float>(x));
+    }
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
-    explicit float8_e5m2_t(const unsigned int& x)
+    explicit constexpr float8_e5m2_t(const unsigned int& x)
     {
         data = float_to_bf8_raw(static_cast<float>(x));
     }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit operator float() const { return bf8_to_float_raw(data); }
+    explicit constexpr constexpr operator float() const { return bf8_to_float_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit operator int() const { return static_cast<int>(bf8_to_float_raw(data)); }
+    explicit constexpr operator int() const { return static_cast<int>(bf8_to_float_raw(data)); }
 
     // internal access
     CK_TILE_HOST_DEVICE
-    raw_type& get() { return data; }
+    constexpr raw_type& get() { return data; }
 
     CK_TILE_HOST_DEVICE
-    raw_type get() const { return data; }
+    constexpr raw_type get() const { return data; }
 };
 
 // below is sw fp8 conversion, not utilizing hw instruction

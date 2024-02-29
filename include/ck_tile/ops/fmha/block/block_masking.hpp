@@ -107,7 +107,7 @@ struct GenericAttentionMask
             index_t x_start = [&]() {
                 if constexpr(IsLocal)
                 {
-                    index_t tmp = math::max(-y + i_y + 1, 0);
+                    index_t tmp = max(-y + i_y + 1, 0);
                     return (tmp / XTile) * XTile; // round to tile aligned
                 }
                 else
@@ -119,7 +119,7 @@ struct GenericAttentionMask
             // TODO: end could be negative, we ignore clamp here, and let caller to check
             //      ... in which case end-start is negative
             index_t x_end = [&]() {
-                index_t tmp = math::min(i_y + YTile - 1 + x, x_total);
+                index_t tmp = min(i_y + YTile - 1 + x, x_total);
                 return ((tmp + XTile - 1) / XTile) * XTile;
             }();
 
@@ -138,7 +138,7 @@ struct GenericAttentionMask
         {
             // no need to do min/max here, since i_x will never be < 0 or >= x_total
             index_t x_start = -y + i_y + 1;
-            index_t x_end   = math::min(i_y + x, x_total);
+            index_t x_end   = min(i_y + x, x_total);
 
             if constexpr(IsLocal)
             {
@@ -164,7 +164,7 @@ struct GenericAttentionMask
             // check top-right corner > x or left-borrom corner < x
             index_t i_tile_right  = i_tile_left + TileWidth;
             index_t i_tile_bottom = i_tile_top + TileHeight;
-            index_t x_end         = math::min(i_tile_top + x, x_total);
+            index_t x_end         = min(i_tile_top + x, x_total);
 
             bool top_right_edge          = i_tile_right > (i_tile_top + x);
             bool bottom_left_edge        = i_tile_bottom > (i_tile_left + y);
@@ -176,7 +176,7 @@ struct GenericAttentionMask
         {
             // only need to check top-right corner > x
             index_t i_tile_right = i_tile_left + TileWidth;
-            index_t x_end        = math::min(i_tile_top + x, x_total);
+            index_t x_end        = min(i_tile_top + x, x_total);
 
             bool top_right_edge = i_tile_right > x_end;
             return top_right_edge;

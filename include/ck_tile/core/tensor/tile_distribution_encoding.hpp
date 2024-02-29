@@ -71,7 +71,7 @@ struct tile_distribution_encoding
 
         // max_ndim_rh_minor_
         static constexpr index_t max_ndim_rh_minor_ =
-            container_reduce(ndims_rhs_minor_, math::maximize<index_t>{}, 0);
+            container_reduce(ndims_rhs_minor_, maximize<index_t>{}, 0);
 
         // rhs_lengthss_[ndim_rh_major_][max_ndim_rh_minor_]
         static constexpr auto rhs_lengthss_ =
@@ -122,7 +122,7 @@ struct tile_distribution_encoding
 
         // max_ndim_span_minor_
         static constexpr index_t max_ndim_span_minor_ =
-            container_reduce(ndims_span_minor_, math::maximize<index_t>{}, 0);
+            container_reduce(ndims_span_minor_, maximize<index_t>{}, 0);
 
         // rhs_major_minor_to_span_minor_ [ndim_rh_major_][max_ndim_rh_minor_]
         static constexpr auto rhs_major_minor_to_span_minor_ = [] {
@@ -293,8 +293,7 @@ struct tile_distribution_encoding
         template <typename IdxSeq, typename PrefixSumSeq>
         CK_TILE_HOST_DEVICE static constexpr auto get_sorted_info(IdxSeq, PrefixSumSeq)
         {
-            using sorted_idx =
-                sequence_unique_sort<IdxSeq, math::less<index_t>, math::equal<index_t>>;
+            using sorted_idx = sequence_unique_sort<IdxSeq, less<index_t>, equal<index_t>>;
 
             constexpr auto sorted_dims = typename sorted_idx::type{};
             constexpr auto sorted_maps = typename sorted_idx::sorted2unsorted_map{};

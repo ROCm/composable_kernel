@@ -4,9 +4,9 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/container/sequence.hpp"
 #include <stdint.h>
 #include <utility>
 
