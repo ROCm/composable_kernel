@@ -170,6 +170,11 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
     } val;
     val.fval      = x;
     uint32_t ival = 0;
+    const float max_bf8 = 57344.0f;
+    // if x is not +/- infinity or nan
+    if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+        // clip float value
+        val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
     ival          = __builtin_amdgcn_cvt_sr_bf8_f32(val.fval, rng, ival, 0); // 0 pos
     val.i32val    = ival;
     return val.i8val[0]; // little endian
@@ -269,6 +274,11 @@ inline __host__ __device__ bf8_t f8_convert_rne<bf8_t, float>(float x)
     } val;
     val.fval      = x;
     uint32_t ival = 0;
+    const float max_bf8 = 57344.0f;
+    // if x is not +/- infinity or nan
+    if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+        // clip float value
+        val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
     ival       = __builtin_amdgcn_cvt_pk_bf8_f32(val.fval, val.fval, ival, false); // false -> WORD0
     val.i32val = ival;
     return val.i8val[0];
