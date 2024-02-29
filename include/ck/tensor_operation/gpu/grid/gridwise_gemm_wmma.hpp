@@ -135,7 +135,7 @@ struct GridwiseGemm_Wmma
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = (K1 == 16) ? 32 : 16;
+    static constexpr auto WmmaK  = 16;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -840,10 +840,6 @@ struct GridwiseGemm_Wmma
             constexpr auto NWave              = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp.GetLength(I4);
             constexpr auto NThreadPerSubGroup = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp.GetLength(I5);
             constexpr auto MAccVgprs          = c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp.GetLength(I6);
-
-	    static_assert(MSubGroup == 2, "");
-	    static_assert(NThreadPerSubGroup == 16, "");
-	    static_assert(MAccVgprs == 8, "");
 
             // LDS descriptor, shuffle and write out in MRepeat x NRepeat times
             constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =

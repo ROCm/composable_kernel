@@ -129,12 +129,12 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
 {
     // Absolute fixing property
     // * Data Pixel
-    static constexpr index_t m_per_wmma      = 16;
-    static constexpr index_t n_per_wmma      = 16;
-    static constexpr index_t k_per_wmma      = 16;
-    static constexpr index_t src_a_data_size = 2;
-    static constexpr index_t src_b_data_size = 2;
-    static constexpr index_t acc_data_size   = 4;
+    static constexpr index_t m_per_wmma = 16;
+    static constexpr index_t n_per_wmma = 16;
+    static constexpr index_t k_per_wmma = 16;
+    // static constexpr index_t src_a_data_size = 2;
+    // static constexpr index_t src_b_data_size = 2;
+    // static constexpr index_t acc_data_size   = 4;
     // * Thread mapping inside wave, num_thread_per_subgroups always alone N direction
     static constexpr index_t num_thread_per_subgroups = n_per_wmma;
 
@@ -145,9 +145,8 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
     // static constexpr index_t num_src_b_vgprs_per_wave = k_per_wmma / 2 * src_b_data_size / 4;
     // * num_acc_vgprs_per_wave alone M direction
     // * num_subgroups alone M direction
-    static constexpr index_t num_acc_vgprs_per_wave =
-        m_per_wmma * n_per_wmma * acc_data_size / wave_size / 4;
-    static constexpr index_t num_subgroups = wave_size / num_thread_per_subgroups;
+    static constexpr index_t num_acc_vgprs_per_wave = m_per_wmma * n_per_wmma / wave_size;
+    static constexpr index_t num_subgroups          = wave_size / num_thread_per_subgroups;
 
     template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
@@ -390,10 +389,12 @@ struct WmmaSelector
 
         static_assert(selected_wmma.k_per_wmma == 16, "WRONG! WMMA_M must equal to 16");
 
+#if 0
         static_assert(selected_wmma.wave_size * selected_wmma.num_acc_vgprs_per_wave *
                               selected_wmma.acc_data_size ==
                           selected_wmma.m_per_wmma * selected_wmma.n_per_wmma * 4,
                       "WRONG! Invalid Number of Accumulator Register");
+#endif
     }
 };
 
@@ -442,8 +443,6 @@ struct WmmaGemm
             c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I1);
         const auto NWave =
             c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma.GetLength(I4);
-
-        static_assert(wmma_instr.num_acc_vgprs_per_wave == 8, "");
 
         return transform_tensor_descriptor(
             c_desc_mblockxrepeat_mwave_mperwmma_nblockxrepeat_nwave_nperwmma,
@@ -553,6 +552,9 @@ struct WmmaGemm
 
     __device__ static auto GetSubGroupId()
     {
+        static_assert(wmma_instr.num_thread_per_subgroups * wmma_instr.num_subgroups ==
+                          wmma_instr.wave_size,
+                      "");
         return (GetLaneId() / wmma_instr.num_thread_per_subgroups) % wmma_instr.num_subgroups;
     }
 
@@ -567,13 +569,11 @@ struct WmmaGemm
 
     __host__ __device__ static auto CalculateAThreadOriginDataIndex()
     {
-        // return TransposeC ? GetLaneIdUnderSubGroup() : GetSwizzledLaneIdLow();
         return GetLaneIdUnderSubGroup();
     }
 
     __host__ __device__ static auto CalculateBThreadOriginDataIndex()
     {
-        // return TransposeC ? GetSwizzledLaneIdLow() : GetLaneIdUnderSubGroup();
         return GetLaneIdUnderSubGroup();
     }
 

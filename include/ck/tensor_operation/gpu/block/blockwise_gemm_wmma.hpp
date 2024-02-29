@@ -108,7 +108,7 @@ struct BlockwiseGemmWMMA
             const auto WMMA_a_idx = wmma_gemm.CalculateAThreadOriginDataIndex();
 
             //  |KRepeat   |MRepeat|MWave    |KRow  |MLane  |KPack
-            return make_tuple(0, 0, waveId_m, 0, WMMA_a_idx, 0);
+            return make_tuple(0, 0, waveId_m, wmma_gemm.GetSubGroupId(), WMMA_a_idx, 0);
         }
         else
         {
@@ -125,7 +125,7 @@ struct BlockwiseGemmWMMA
             const auto WMMA_b_idx = wmma_gemm.CalculateBThreadOriginDataIndex();
 
             //  |KRepeat   |NRepeat|Nwave     |KRow  |NLane  |KPack
-            return make_tuple(0, 0, waveId_n, 0, WMMA_b_idx, 0);
+            return make_tuple(0, 0, waveId_n, wmma_gemm.GetSubGroupId(), WMMA_b_idx, 0);
         }
         else
         {
@@ -300,6 +300,9 @@ struct BlockwiseGemmWMMA
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
             b_thread_desc_.GetElementSpaceSize());
 
+        static_assert(KPack % (A_K1 * A_KRow) == 0, "");
+        static_assert(KPack % (B_K1 * B_KRow) == 0, "");
+
         // basic intrinsic to determine loopover direction
         if constexpr(MRepeat < NRepeat)
         {
@@ -309,7 +312,7 @@ struct BlockwiseGemmWMMA
                         // read A
                         a_thread_copy_.Run(
                             a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / A_KRow>{}, m0, I0, I0, I0, I0),
                             a_block_buf,
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
@@ -319,7 +322,7 @@ struct BlockwiseGemmWMMA
                             // read B
                             b_thread_copy_.Run(
                                 b_block_desc_k0_n0_n1_n2_k1,
-                                make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                                make_tuple(Number<k * KPack / B_KRow>{}, n0, I0, I0, I0, I0),
                                 b_block_buf,
                                 b_thread_desc_,
                                 make_tuple(I0, n0, I0, I0, I0, I0),
@@ -365,7 +368,7 @@ struct BlockwiseGemmWMMA
                         // read B
                         b_thread_copy_.Run(
                             b_block_desc_k0_n0_n1_n2_k1,
-                            make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / B_K1>{}, n0, I0, I0, I0, I0),
                             b_block_buf,
                             b_thread_desc_,
                             make_tuple(I0, n0, I0, I0, I0, I0),
@@ -373,7 +376,7 @@ struct BlockwiseGemmWMMA
                         // read A
                         a_thread_copy_.Run(
                             a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / A_K1>{}, m0, I0, I0, I0, I0),
                             a_block_buf,
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
@@ -416,7 +419,7 @@ struct BlockwiseGemmWMMA
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
         make_tuple(Number<KPack / A_K1 / A_KRow>{}, Number<MRepeat>{}, I1, I1, I1, Number<A_K1>{}),
         make_tuple(Number<A_K1>{},
-                   Number<A_KRow * A_K1>{},
+                   Number<KPack / A_KRow>{},
                    Number<A_K1>{},
                    Number<A_K1>{},
                    Number<A_K1>{},
@@ -425,7 +428,7 @@ struct BlockwiseGemmWMMA
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
         make_tuple(Number<KPack / B_K1 / B_KRow>{}, Number<NRepeat>{}, I1, I1, I1, Number<B_K1>{}),
         make_tuple(Number<B_K1>{},
-                   Number<B_KRow * B_K1>{},
+                   Number<KPack / B_KRow>{},
                    Number<B_K1>{},
                    Number<B_K1>{},
                    Number<B_K1>{},
