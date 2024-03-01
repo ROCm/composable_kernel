@@ -140,15 +140,15 @@ struct FmhaFwdKernel
         ck::index_t stride_randval       = 0;
         ck::index_t nhead_stride_randval = 0;
     };
-    struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
+    struct FmhaFwdBatchModeDropoutKargs : FmhaFwdDropoutKargs
     {
         ck::index_t batch_stride_randval = 0;
         ck::index_t num_head_q           = 0;
     };
 
-    struct FmhaFwdGroupModelDropoutKargs : FmhaFwdDropoutKargs
+    struct FmhaFwdGroupModeDropoutKargs : FmhaFwdDropoutKargs
     {
-        ck::index_t batch = 0;
+        ck::index_t num_batch = 0;
     };
 
     struct FmhaFwdBatchModeKargs
@@ -157,7 +157,7 @@ struct FmhaFwdKernel
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdBatchModeLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdBatchModelDropoutKargs, FmhaFwdEmptyKargs<4>>
+          std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
@@ -171,7 +171,7 @@ struct FmhaFwdKernel
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdGroupModelDropoutKargs, FmhaFwdEmptyKargs<4>>
+          std::conditional_t<kHasDropout, FmhaFwdGroupModeDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -306,7 +306,7 @@ struct FmhaFwdKernel
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
               const void* seqlen_k_ptr,
-              ck::index_t batch,
+              ck::index_t num_batch,
               ck::index_t hdim_q,
               ck::index_t hdim_v,
               ck::index_t nhead_ratio_qk,
@@ -392,7 +392,7 @@ struct FmhaFwdKernel
             kargs.stride_randval       = stride_randval;
             kargs.nhead_stride_randval = nhead_stride_randval;
             kargs.is_store_randval     = s_randval;
-            kargs.batch                = batch;
+            kargs.num_batch            = num_batch;
         }
 
         return kargs;
@@ -470,11 +470,11 @@ struct FmhaFwdKernel
             if constexpr(kHasDropout)
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
-
-                total_seqlen_k = kargs.seqstart_k_ptr[kargs.batch];
+                
+                const index_t total_seqlen_q = kargs.seqstart_q_ptr[kargs.num_batch];
+                total_seqlen_k = kargs.seqstart_k_ptr[kargs.num_batch];
                 tile_start_sequence_id =
-                    (static_cast<long_index_t>(i_nhead) * kargs.seqstart_q_ptr[kargs.batch] +
-                     query_start + i_m0) *
+                    (static_cast<long_index_t>(i_nhead) * total_seqlen_q + query_start + i_m0) *
                     total_seqlen_k;
             }
 

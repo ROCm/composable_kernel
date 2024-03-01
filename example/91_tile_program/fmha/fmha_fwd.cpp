@@ -74,8 +74,8 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed")
-        .insert("p_drop", "0.1", "0~1 probability of dropout")
-        .insert("s_randval", "1", "0 will not save rand value of dropout, 1 save")
+        .insert("p_drop", "0", "0~1 probability of dropout")
+        .insert("s_randval", "0", "0 will not save rand value of dropout, 1 save")
         .insert("drop_seed", "1", "seed for random number maker")
         .insert("drop_offset", "0", "offset for random number maker");
 
