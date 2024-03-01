@@ -130,18 +130,25 @@ struct FmhaFwdKernel
             drop_seed   = std::get<0>(drop_seeds);
             drop_offset = std::get<1>(drop_seeds);
         }
-        float rp_undrop                  = 1;
-        uint8_t p_undrop_in_uint8_t      = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed               = 1;
-        uint64_t drop_offset             = 0;
-        void* rand_val_ptr               = nullptr;
+        float rp_undrop             = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        bool is_store_randval       = false;
+        uint64_t drop_seed          = 1;
+        uint64_t drop_offset        = 0;
+        void* rand_val_ptr          = nullptr;
+
         ck::index_t stride_randval       = 0;
         ck::index_t nhead_stride_randval = 0;
-        bool is_store_randval            = false;
     };
     struct FmhaFwdBatchModelDropoutKargs : FmhaFwdDropoutKargs
     {
         ck::index_t batch_stride_randval = 0;
+        ck::index_t num_head_q           = 0;
+    };
+
+    struct FmhaFwdGroupModelDropoutKargs : FmhaFwdDropoutKargs
+    {
+        ck::index_t batch = 0;
     };
 
     struct FmhaFwdBatchModeKargs
@@ -164,7 +171,7 @@ struct FmhaFwdKernel
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdDropoutKargs, FmhaFwdEmptyKargs<4>>
+          std::conditional_t<kHasDropout, FmhaFwdGroupModelDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -186,6 +193,7 @@ struct FmhaFwdKernel
               ck::index_t seqlen_k,
               ck::index_t hdim_q,
               ck::index_t hdim_v,
+              ck::index_t num_head_q,
               ck::index_t nhead_ratio_qk,
               float scale,
               ck::index_t stride_q,
@@ -280,6 +288,7 @@ struct FmhaFwdKernel
             kargs.nhead_stride_randval = nhead_stride_randval;
             kargs.batch_stride_randval = batch_stride_randval;
             kargs.is_store_randval     = s_randval;
+            kargs.num_head_q           = num_head_q;
         }
 
         return kargs;
@@ -297,6 +306,7 @@ struct FmhaFwdKernel
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
               const void* seqlen_k_ptr,
+              ck::index_t batch,
               ck::index_t hdim_q,
               ck::index_t hdim_v,
               ck::index_t nhead_ratio_qk,
@@ -382,6 +392,7 @@ struct FmhaFwdKernel
             kargs.stride_randval       = stride_randval;
             kargs.nhead_stride_randval = nhead_stride_randval;
             kargs.is_store_randval     = s_randval;
+            kargs.batch                = batch;
         }
 
         return kargs;
@@ -426,8 +437,8 @@ struct FmhaFwdKernel
         long_index_t batch_offset_lse     = 0;
         long_index_t batch_offset_o       = 0;
 
-        long_index_t nhead_stride_randval = 0;
-        index_t max_seqlen_k              = 0;
+        long_index_t tile_start_sequence_id = 0;
+        index_t total_seqlen_k              = 0;
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -459,8 +470,12 @@ struct FmhaFwdKernel
             if constexpr(kHasDropout)
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
-                nhead_stride_randval = kargs.nhead_stride_randval;
-                max_seqlen_k         = kargs.stride_randval;
+
+                total_seqlen_k = kargs.seqstart_k_ptr[kargs.batch];
+                tile_start_sequence_id =
+                    (static_cast<long_index_t>(i_nhead) * kargs.seqstart_q_ptr[kargs.batch] +
+                     query_start + i_m0) *
+                    total_seqlen_k;
             }
 
             batch_offset_o = query_start * kargs.stride_o;
@@ -503,8 +518,13 @@ struct FmhaFwdKernel
             {
                 batch_offset_randval =
                     static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
-                nhead_stride_randval = kargs.nhead_stride_randval;
-                max_seqlen_k         = kargs.stride_randval;
+
+                total_seqlen_k = kargs.seqlen_k;
+                tile_start_sequence_id =
+                    ((static_cast<long_index_t>(i_batch) * kargs.num_head_q + i_nhead) *
+                         kargs.seqlen_q +
+                     i_m0) *
+                    kargs.seqlen_k;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
@@ -681,9 +701,6 @@ struct FmhaFwdKernel
         }();
 
         // about dropout
-        long_index_t i_total_id = static_cast<long_index_t>(i_nhead) * nhead_stride_randval +
-                                  batch_offset_randval + i_m0 * max_seqlen_k;
-
         float rp_undrop             = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
         uint64_t drop_seed          = 0;
@@ -698,10 +715,10 @@ struct FmhaFwdKernel
             drop_offset         = kargs.drop_offset;
             is_store_randval    = kargs.is_store_randval;
         }
-        BlockDropout dropout(i_total_id,
+        BlockDropout dropout(tile_start_sequence_id,
                              rp_undrop,
                              p_undrop_in_uint8_t,
-                             max_seqlen_k,
+                             total_seqlen_k,
                              drop_seed,
                              drop_offset,
                              is_store_randval);
