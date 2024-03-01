@@ -681,8 +681,8 @@ struct FmhaFwdKernel
         }();
 
         // about dropout
-        long_index_t i_total_id =
-            static_cast<long_index_t>(i_nhead) * nhead_stride_randval + batch_offset_randval;
+        long_index_t i_total_id = static_cast<long_index_t>(i_nhead) * nhead_stride_randval +
+                                  batch_offset_randval + i_m0 * max_seqlen_k;
 
         float rp_undrop             = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
@@ -698,7 +698,7 @@ struct FmhaFwdKernel
             drop_offset         = kargs.drop_offset;
             is_store_randval    = kargs.is_store_randval;
         }
-        BlockDropout dropout(i_total_id + i_m0 * max_seqlen_k,
+        BlockDropout dropout(i_total_id,
                              rp_undrop,
                              p_undrop_in_uint8_t,
                              max_seqlen_k,
@@ -712,7 +712,9 @@ struct FmhaFwdKernel
             if constexpr(kHasDropout)
             {
                 RandValOutputDataType* rand_val_ptr =
-                    reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) + i_total_id;
+                    reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
+                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_randval +
+                    batch_offset_randval;
 
                 const auto randval_dram = [&]() {
                     const auto randval_dram_naive =

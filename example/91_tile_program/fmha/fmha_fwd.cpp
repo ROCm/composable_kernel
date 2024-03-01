@@ -195,7 +195,7 @@ bool run(const ArgParser& arg_parser)
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
-    auto seqlen_randval = std::numeric_limits<int32_t>::min();
+    auto max_seqlen_k = std::numeric_limits<int32_t>::min();
     {
         for(ck::index_t wb = 0; wb < batch; ++wb)
         {
@@ -207,9 +207,9 @@ bool run(const ArgParser& arg_parser)
                 max_seqlen_q = real_seqlen_q;
             }
 
-            if(seqlen_randval < real_seqlen_k)
+            if(max_seqlen_k < real_seqlen_k)
             {
-                seqlen_randval = real_seqlen_k;
+                max_seqlen_k = real_seqlen_k;
             }
 
             using namespace ck::literals;
@@ -262,7 +262,7 @@ bool run(const ArgParser& arg_parser)
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
     Tensor<RandValOutputDataType> randval_host(
-        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, seqlen_randval)
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck::index_t, 4>{1, 1, 1, 1});
 
     if(init_method == 0)
@@ -349,7 +349,7 @@ bool run(const ArgParser& arg_parser)
                                    hdim_q,
                                    hdim_v,
                                    max_seqlen_q,
-                                   seqlen_randval,
+                                   max_seqlen_k,
                                    scale,
                                    descale_q * descale_k,
                                    descale_v,
