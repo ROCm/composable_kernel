@@ -116,7 +116,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      ck::index_t hdim_q,
                                      ck::index_t hdim_v,
                                      ck::index_t max_seqlen_q,
-                                     ck::index_t max_seqlen_k,
+                                     ck::index_t seqlen_randval,
                                      float scale,
                                      float descale_qk,
                                      float descale_sv,
@@ -145,7 +145,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
             return i_perm ? seqlen_k : nhead_k * seqlen_k;
     }();
     const ck::index_t stride_bias    = (i_perm ? seqlen_k : 1 * seqlen_k);
-    const ck::index_t stride_randval = (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k);
+    const ck::index_t stride_randval = (seqlen_randval);
     const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
     // setup nhead_stride_* arguments
     const ck::index_t nhead_stride_q = (i_perm ? seqlen_q * hdim_q : hdim_q);
@@ -156,20 +156,18 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
         else
             return i_perm ? hdim_v * seqlen_k : seqlen_k;
     }();
-    const ck::index_t nhead_stride_bias = (i_perm ? 0 * seqlen_q * seqlen_k : 0 * seqlen_k);
-    const ck::index_t nhead_stride_randval =
-        (seqlen_q * (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k));
-    const ck::index_t nhead_stride_lse = (seqlen_q * 1);
-    const ck::index_t nhead_stride_o   = (o_perm ? seqlen_q * hdim_v : hdim_v);
+    const ck::index_t nhead_stride_bias    = (i_perm ? 0 * seqlen_q * seqlen_k : 0 * seqlen_k);
+    const ck::index_t nhead_stride_randval = (seqlen_q * seqlen_randval);
+    const ck::index_t nhead_stride_lse     = (seqlen_q * 1);
+    const ck::index_t nhead_stride_o       = (o_perm ? seqlen_q * hdim_v : hdim_v);
     // setup batch_stride_* arguments
-    const ck::index_t batch_stride_q    = (nhead * seqlen_q * hdim_q);
-    const ck::index_t batch_stride_k    = (nhead_k * seqlen_k * hdim_q);
-    const ck::index_t batch_stride_v    = (nhead_k * hdim_v * seqlen_k);
-    const ck::index_t batch_stride_bias = (0 * nhead * seqlen_q * seqlen_k);
-    const ck::index_t batch_stride_randval =
-        (nhead * seqlen_q * (FmhaKernel::kIsGroupMode ? max_seqlen_k : seqlen_k));
-    const ck::index_t batch_stride_lse = (nhead * seqlen_q * 1);
-    const ck::index_t batch_stride_o   = (nhead * seqlen_q * hdim_v);
+    const ck::index_t batch_stride_q       = (nhead * seqlen_q * hdim_q);
+    const ck::index_t batch_stride_k       = (nhead_k * seqlen_k * hdim_q);
+    const ck::index_t batch_stride_v       = (nhead_k * hdim_v * seqlen_k);
+    const ck::index_t batch_stride_bias    = (0 * nhead * seqlen_q * seqlen_k);
+    const ck::index_t batch_stride_randval = (nhead * seqlen_q * seqlen_randval);
+    const ck::index_t batch_stride_lse     = (nhead * seqlen_q * 1);
+    const ck::index_t batch_stride_o       = (nhead * seqlen_q * hdim_v);
 
     auto kargs = [&] {
         // create group mode kernel arguments
@@ -280,7 +278,7 @@ struct fmha_fwd_args
     ck::index_t hdim_q;
     ck::index_t hdim_v;
     ck::index_t max_seqlen_q;
-    ck::index_t max_seqlen_k;
+    ck::index_t seqlen_randval;
     float scale;
     float descale_qk;
     float descale_sv;
@@ -314,7 +312,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.hdim_q,
                                                        args.hdim_v,
                                                        args.max_seqlen_q,
-                                                       args.max_seqlen_k,
+                                                       args.seqlen_randval,
                                                        args.scale,
                                                        args.descale_qk,
                                                        args.descale_sv,

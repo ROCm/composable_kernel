@@ -74,8 +74,8 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed")
-        .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("s_randval", "0", "0 will not save rand value of dropout, 1 save")
+        .insert("p_drop", "0.1", "0~1 probability of dropout")
+        .insert("s_randval", "1", "0 will not save rand value of dropout, 1 save")
         .insert("drop_seed", "1", "seed for random number maker")
         .insert("drop_offset", "0", "offset for random number maker");
 
@@ -195,7 +195,7 @@ bool run(const ArgParser& arg_parser)
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
-    auto max_seqlen_k = std::numeric_limits<int32_t>::min();
+    auto seqlen_randval = std::numeric_limits<int32_t>::min();
     {
         for(ck::index_t wb = 0; wb < batch; ++wb)
         {
@@ -207,9 +207,9 @@ bool run(const ArgParser& arg_parser)
                 max_seqlen_q = real_seqlen_q;
             }
 
-            if(max_seqlen_k < real_seqlen_k)
+            if(seqlen_randval < real_seqlen_k)
             {
-                max_seqlen_k = real_seqlen_k;
+                seqlen_randval = real_seqlen_k;
             }
 
             using namespace ck::literals;
@@ -262,7 +262,7 @@ bool run(const ArgParser& arg_parser)
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
     Tensor<RandValOutputDataType> randval_host(
-        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, seqlen_randval)
                    : std::array<ck::index_t, 4>{1, 1, 1, 1});
 
     if(init_method == 0)
@@ -349,7 +349,7 @@ bool run(const ArgParser& arg_parser)
                                    hdim_q,
                                    hdim_v,
                                    max_seqlen_q,
-                                   max_seqlen_k,
+                                   seqlen_randval,
                                    scale,
                                    descale_q * descale_k,
                                    descale_v,
