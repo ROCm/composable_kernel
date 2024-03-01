@@ -43,11 +43,11 @@ struct BlockDropout
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template At<0>())>;
 
-        const auto drop_origin   = randval_dram_block_window_tmp.GetWindowOrigin();
+        const auto block_origin  = randval_dram_block_window_tmp.GetWindowOrigin();
         auto randval_dram_window = make_tile_window(
             randval_dram_block_window_tmp.GetBottomTensorView(),
             make_tuple(Number<kM>{}, Number<WG::kN>{}),
-            {drop_origin.At(Number<0>{}), seqlen_k_start}, // M/N
+            {block_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             BlockDropout::template MakeRandValSramPartTileDistribution<BlockGemm>());
 
         return randval_dram_window;

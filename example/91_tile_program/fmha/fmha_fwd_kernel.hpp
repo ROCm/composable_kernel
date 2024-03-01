@@ -470,9 +470,9 @@ struct FmhaFwdKernel
             if constexpr(kHasDropout)
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
-                
+
                 const index_t total_seqlen_q = kargs.seqstart_q_ptr[kargs.num_batch];
-                total_seqlen_k = kargs.seqstart_k_ptr[kargs.num_batch];
+                total_seqlen_k               = kargs.seqstart_k_ptr[kargs.num_batch];
                 tile_start_sequence_id =
                     (static_cast<long_index_t>(i_nhead) * total_seqlen_q + query_start + i_m0) *
                     total_seqlen_k;
