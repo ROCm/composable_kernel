@@ -168,15 +168,15 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
         uint32_t i32val;
         uint8_t i8val[4]; // not endian independent
     } val;
-    val.fval      = x;
-    uint32_t ival = 0;
+    val.fval            = x;
+    uint32_t ival       = 0;
     const float max_bf8 = 57344.0f;
     // if x is not +/- infinity or nan
     if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
         // clip float value
         val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
-    ival          = __builtin_amdgcn_cvt_sr_bf8_f32(val.fval, rng, ival, 0); // 0 pos
-    val.i32val    = ival;
+    ival       = __builtin_amdgcn_cvt_sr_bf8_f32(val.fval, rng, ival, 0); // 0 pos
+    val.i32val = ival;
     return val.i8val[0]; // little endian
 #else
     constexpr bool negative_zero_nan = true;
@@ -272,8 +272,8 @@ inline __host__ __device__ bf8_t f8_convert_rne<bf8_t, float>(float x)
         uint32_t i32val;
         uint8_t i8val[4]; // not endian independent
     } val;
-    val.fval      = x;
-    uint32_t ival = 0;
+    val.fval            = x;
+    uint32_t ival       = 0;
     const float max_bf8 = 57344.0f;
     // if x is not +/- infinity or nan
     if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
