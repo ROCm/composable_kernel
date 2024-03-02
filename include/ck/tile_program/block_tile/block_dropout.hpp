@@ -37,7 +37,7 @@ struct BlockDropout
     MakeRandvalDramWindows(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                            index_t seqlen_k_start)
     {
-        using Problem        = typename BlockGemm::Problem;
+        using Problem        = remove_cvref_t<typename BlockGemm::Problem>;
         constexpr index_t kM = Problem::BlockGemmShape::kM;
 
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -56,7 +56,7 @@ struct BlockDropout
     template <typename BlockGemm>
     __host__ __device__ static constexpr auto MakeRandValLdsBlockDescriptor()
     {
-        using Problem                = typename BlockGemm::Problem;
+        using Problem                = remove_cvref_t<typename BlockGemm::Problem>;
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
 
@@ -88,7 +88,7 @@ struct BlockDropout
     template <typename BlockGemm>
     __host__ __device__ static constexpr auto MakeRandValSramTileDistribution()
     {
-        using Problem               = typename BlockGemm::Problem;
+        using Problem               = remove_cvref_t<typename BlockGemm::Problem>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
 
