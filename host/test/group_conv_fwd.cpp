@@ -20,13 +20,16 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
+#include "ck/library/utility/iterator.hpp"
+#include "ck/library/utility/algorithm.hpp"
+#include "ck/library/utility/ranges.hpp"
+#include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/device_memory.hpp"
+#include "ck/library/utility/host_tensor.hpp"
+#include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
-//#include "ck/host/tuples.hpp"
-//#include "ck/host/seq.hpp"
-//#include "ck/host/tensor_desc.hpp"
-//#include "ck/host/transform.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -150,24 +153,6 @@ auto report(const Solution& solution, bool pass)
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
 
-/**#define ToLayout(lay_out,x){ \
-        if(lay_out == "ck::tensor_layout::gemm::RowMajor"){\
-                ck::tensor_layout::gemm::RowMajor layout ;\
-                x = layout;\
-        }else{\
-                ck::tensor_layout::gemm::ColumnMajor layout ;\
-                x = layout;\
-        }\
-}**/
-/**auto to_layout(std::string layout){
-        if(layout == "ck::tensor_layout::gemm::RowMajor"){
-                return ck::tensor_layout::gemm::RowMajor{};
-        }else{
-                return ck::tensor_layout::gemm::ColumnMajor{};
-        }
-        return -1;
-}**/
-
 struct Prologue
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
@@ -238,11 +223,11 @@ TEST_CASE(test_problem_kernel)
     using CDEElementOp = Prologue;
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-        5,
-        ck::tensor_layout::gemm::RowMajor,
-        ck::tensor_layout::gemm::RowMajor,
+        2,
+        ck::tensor_layout::convolution::NHWGC,
+        ck::tensor_layout::convolution::GKYXC,
         ck::Tuple<>,
-        ck::tensor_layout::gemm::RowMajor,
+        ck::tensor_layout::convolution::NHWGK,
         ck::half_t,
         ck::half_t,
         float,
@@ -251,7 +236,7 @@ TEST_CASE(test_problem_kernel)
         ck::half_t,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough, // FIXME: replace with prologue
+        CDEElementOp, // FIXME: replace with prologue
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         ck::tensor_operation::device::GemmSpecialization::Default,
         1,
@@ -324,11 +309,59 @@ TEST_CASE(test_problem_kernel)
     std::array<ck::index_t, 2> input_left_pads       = {1, 1};
     std::array<ck::index_t, 2> input_right_pads      = {1, 1};
 
-    // FIXME: populate arg call properly
+    // tensor descriptors
+    auto in_grid_desc =
+        HostTensorDescriptor({static_cast<int>(prob.G),
+                              static_cast<int>(prob.N),
+                              static_cast<int>(prob.C),
+                              in_lengths[0]},
+                             {static_cast<int>(prob.C),
+                              in_lengths[0] * static_cast<int>(prob.G) * static_cast<int>(prob.C),
+                              1,
+                              static_cast<int>(prob.G * prob.C)});
+
+    auto wei_grid_desc = HostTensorDescriptor(
+        {static_cast<int>(prob.G),
+         static_cast<int>(prob.K),
+         static_cast<int>(prob.C),
+         wei_lengths[0],
+         wei_lengths[1]},
+        {static_cast<int>(prob.K) * wei_lengths[0] * wei_lengths[1] * static_cast<int>(prob.C),
+         wei_lengths[0] * wei_lengths[1] * static_cast<int>(prob.C),
+         1,
+         wei_lengths[1] * static_cast<int>(prob.C),
+         static_cast<int>(prob.C)});
+
+    auto out_grid_desc = HostTensorDescriptor(
+        {static_cast<int>(prob.G),
+         static_cast<int>(prob.N),
+         static_cast<int>(prob.K),
+         out_lengths[0],
+         out_lengths[1]},
+        {static_cast<int>(prob.K),
+         out_lengths[0] * out_lengths[1] * static_cast<int>(prob.G) * static_cast<int>(prob.K),
+         1,
+         out_lengths[1] * static_cast<int>(prob.G) * static_cast<int>(prob.K),
+         static_cast<int>(prob.G) * static_cast<int>(prob.K)});
+
+    Tensor<ck::half_t> in(in_grid_desc);
+    Tensor<ck::half_t> wei(wei_grid_desc);
+    Tensor<ck::half_t> out(out_grid_desc);
+    in.GenerateTensorValue(GeneratorTensor_3<ck::half_t>{0.0, 1.0});
+    wei.GenerateTensorValue(GeneratorTensor_3<ck::half_t>{-0.5, 0.5});
+
+    DeviceMem in_device_buf(sizeof(ck::half_t) * in.mDesc.GetElementSpaceSize());
+    DeviceMem wei_device_buf(sizeof(ck::half_t) * wei.mDesc.GetElementSpaceSize());
+    DeviceMem out_device_buf(sizeof(ck::half_t) * out.mDesc.GetElementSpaceSize());
+
+    in_device_buf.ToDevice(in.mData.data());
+    wei_device_buf.ToDevice(wei.mData.data());
+
+    // populated arg call
     auto arg = DeviceConv::Argument(in_device_buf.GetDeviceBuffer(),
                                     wei_device_buf.GetDeviceBuffer(),
                                     std::array<const void*, 0>{},
-                                    out_device_buf.GetDeviceBuffer(), // TODO: add in dev buf calls
+                                    out_device_buf.GetDeviceBuffer(),
                                     in_lengths,
                                     in_strides,
                                     wei_lengths,
@@ -341,9 +374,9 @@ TEST_CASE(test_problem_kernel)
                                     conv_filter_dilations,
                                     input_left_pads,
                                     input_right_pads,
-                                    InElementOp{},
-                                    WeiElementOp{},
-                                    CDEElementOp{});
+                                    ck::tensor_operation::element_wise::PassThrough{},
+                                    ck::tensor_operation::element_wise::PassThrough{},
+                                    CDEElementOp{1.0f, 1.0f});
 
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
@@ -374,13 +407,6 @@ TEST_CASE(test_problem_kernel)
         // solution.GetTemplateParameter<ck::tensor_layout::convolution::NHWGC>("ALayout");
         auto grid_size = ck::host::integer_divide_ceil(prob.G, m_per_block) *
                          ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME
-
-        // auto A_Layout = ToLayout(a_layout);
-        auto conv_to_gemm_transformer = ck::tensor_operation::TransformConvFwdToGemm<2, ConvSpec>{};
-
-        auto matrix_padder = ck::tensor_operation::device::
-            MatrixPadder<GemmSpec, ck::index_t, ck::index_t, ck::index_t>{
-                m_per_block, n_per_block, k_per_block};
 
         // FIXME: how to pass layout?? remove hardcoding
         using ALayout = ck::tensor_layout::convolution::NHWGC;

@@ -132,7 +132,7 @@ std::vector<Operation_Conv> CreateOperationsImpl(
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Conv x;
-        x.NumDim           = 5;
+        x.NumDim           = 2;
         x.tile_desc        = tile_descriptions[i];
         x.a_block_transfer = a_block_descriptions[i];
         x.b_block_transfer = b_block_descriptions[i];
@@ -198,12 +198,6 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
     using CDEElementOp = Prologue;
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
-
-    static constexpr bool isMultiA = ck::is_detected<ck::is_tuple, ${ADataType}>::value;
-    static constexpr bool isMultiB = ck::is_detected<ck::is_tuple, ${BDataType}>::value;
-
-    //static constexpr std::size_t NumATensor = ck::tensor_operation::device::GetNumABTensors<isMultiA, ${ADataType}>();
-    //static constexpr std::size_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<isMultiB, ${BDataType}>();
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
     // GridwiseGemm
