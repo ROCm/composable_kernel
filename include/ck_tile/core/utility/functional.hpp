@@ -191,4 +191,18 @@ CK_TILE_HOST_DEVICE constexpr auto unpack2(F&& f, X&& x, Y&& y)
         std::forward<F>(f), std::forward<X>(x), std::forward<Y>(y));
 }
 
+// z = predicate ? x : y
+template <bool predicate, typename X, typename Y>
+constexpr auto conditional_expr(X&& x, Y&& y)
+{
+    if constexpr(predicate)
+    {
+        return std::forward<X>(x);
+    }
+    else
+    {
+        return std::forward<Y>(y);
+    }
+}
+
 } // namespace ck_tile

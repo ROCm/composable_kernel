@@ -114,9 +114,9 @@ struct BlockFmhaPipelineQSKSVS
                void* smem_ptr) const
     {
         static_assert(
-            is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
-                is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
-                is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
+            std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
+                std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
+                std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
             "wrong!");
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -434,7 +434,7 @@ struct BlockFmhaPipelineQSKSVS
             });
 
             block_sync_lds();
-            if constexpr(ck_tile::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                     Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
@@ -463,8 +463,7 @@ struct BlockFmhaPipelineQSKSVS
                                p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
                     block_sync_lds();
-                    if constexpr(ck_tile::is_same_v<VLayout,
-                                                    ck_tile::tensor_layout::gemm::RowMajor>)
+                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                     {
                         auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                             Policy::template MakeShuffledVRegBlockDescriptor<Problem>());

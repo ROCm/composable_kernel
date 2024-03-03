@@ -8,11 +8,13 @@
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
+#include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/tensor/tile_elementwise.hpp"
+#include "ck_tile/core/utility/transpose_vectors.hpp"
 
 namespace ck_tile {
 namespace detail {
@@ -74,8 +76,8 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
     constexpr index_t num_vec_in  = vec_length_out;
     constexpr index_t num_vec_out = vec_length_in;
 
-    using InVec  = vector_type<DataType, vec_length_in>;
-    using OutVec = vector_type<DataType, vec_length_out>;
+    using InVec  = array<DataType, vec_length_in>;
+    using OutVec = array<DataType, vec_length_out>;
 
     using InVecType  = typename InVec::type;
     using OutVecType = typename OutVec::type;
@@ -114,7 +116,7 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
 
             constexpr index_t in_offset = y_in_desc.calculate_offset(idx_y_in);
 
-            in_vectors(i).template AsType<InVecType>()(I0) =
+            in_vectors(i).template get_as<InVecType>()(I0) =
                 in_tensor.get_thread_buffer().template get_as<InVecType>(number<in_offset>{});
         });
 
@@ -134,7 +136,7 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
 
             out_tensor.get_thread_buffer().template set_as<OutVecType>(
                 number<out_offset / sizeof(OutVecType)>{},
-                out_vectors[i].template AsType<OutVecType>()[I0]);
+                out_vectors[i].template get_as<OutVecType>()[I0]);
         });
     });
 }

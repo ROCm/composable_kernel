@@ -188,7 +188,7 @@ CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
     using InDataType  = typename InDistributedTensor_::DataType;
     using AccDataType = remove_cvref_t<AccDataType_>;
 
-    static_assert(is_same_v<InDataType, remove_cvref_t<InDataType_>>, "wrong!");
+    static_assert(std::is_same_v<InDataType, remove_cvref_t<InDataType_>>, "wrong!");
 
     // declare acc_tensor
     constexpr auto acc_dstr =

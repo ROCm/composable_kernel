@@ -67,13 +67,12 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto get(number<I>)
     {
         static_assert(I < size(), "wrong! I too large");
-        return number<get(I)>{};
+        return number<get<I>()>{};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t at(index_t I)
     {
         // the last dummy element is to prevent compiler complain about empty array, when mSize = 0
-        static_assert(I < size(), "wrong! I too large");
         const index_t mData[size() + 1] = {Is..., 0};
         return mData[I];
     }
@@ -89,7 +88,7 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto at(number<I>)
     {
         static_assert(I < size(), "wrong! I too large");
-        return number<get(I)>{};
+        return number<get<I>()>{};
     }
 
     template <typename I>

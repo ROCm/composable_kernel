@@ -11,7 +11,7 @@ import copy
 
 DTYPE_MAP = {
     "fp16": "ck_tile::half_t",
-    "bf16": "ck_tile::bhalf_t",
+    "bf16": "ck_tile::bf16_t",
     "fp8" : "ck_tile::fp8_t"
 }
 

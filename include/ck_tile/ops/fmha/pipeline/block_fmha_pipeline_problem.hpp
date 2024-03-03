@@ -49,12 +49,12 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kStoreLSE      = Traits::kStoreLSE;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
     static constexpr bool kIsFp8 =
-        (is_same_v<QDataType, fp8_t> || is_same_v<QDataType, bf8_t>)&&(
-            is_same_v<KDataType, fp8_t> ||
-            is_same_v<KDataType, bf8_t>)&&(is_same_v<VDataType, fp8_t> ||
-                                           is_same_v<VDataType, bf8_t>)&&is_same_v<SaccDataType,
-                                                                                   float> &&
-        is_same_v<OaccDataType, float>;
+        (std::is_same_v<QDataType, fp8_t> || std::is_same_v<QDataType, bf8_t>)&&(
+            std::is_same_v<KDataType, fp8_t> ||
+            std::is_same_v<KDataType, bf8_t>)&&(std::is_same_v<VDataType, fp8_t> ||
+                                                std::is_same_v<VDataType, bf8_t>)&&std::
+            is_same_v<SaccDataType, float> &&
+        std::is_same_v<OaccDataType, float>;
 };
 
 } // namespace ck_tile

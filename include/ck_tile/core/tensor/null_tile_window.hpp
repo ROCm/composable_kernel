@@ -9,6 +9,7 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/tensor/tensor_view.hpp"
 
 namespace ck_tile {
 

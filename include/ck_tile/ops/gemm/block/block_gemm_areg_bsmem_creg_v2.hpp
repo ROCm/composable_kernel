@@ -28,10 +28,11 @@ struct BlockGemmARegBSmemCRegV2
                                    const ABlockTensorTmp& a_block_tensor_tmp,
                                    const BBlockWindowTmp& b_block_window_tmp) const
     {
-        static_assert(is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                          is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
-                          is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
+                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+            "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
@@ -126,9 +127,9 @@ struct BlockGemmARegBSmemCRegV2
 
         // check C-block-distribution
         static_assert(
-            is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
-                      remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
-                                                  .get_static_tile_distribution_encoding())>>,
+            std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
+                           remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
             "wrong!");
 
         using AWarpDstr = typename WG::AWarpDstr;

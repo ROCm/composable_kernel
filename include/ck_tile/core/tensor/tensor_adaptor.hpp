@@ -717,7 +717,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
         constexpr auto encoded_top_dims    = encoded_tensor_adaptor.template at<4>();             \
         constexpr index_t num_top_dim      = encoded_tensor_adaptor.template at<5>();             \
                                                                                                   \
-        constexpr auto trans = [&encoded_transforms, &num_transform]() {                          \
+        constexpr auto trans = [&encoded_transforms]() {                          \
             return generate_tuple(                                                                \
                 [&encoded_transforms](auto i) constexpr {                                         \
                     constexpr auto name        = encoded_transforms[i].template at<0>();          \
@@ -725,7 +725,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();          \
                     constexpr auto num_up_dim  = encoded_transforms[i].template at<4>();          \
                                                                                                   \
-                    STATIC_ASSERT(name == cood_transform_enum::PassThrough ||                     \
+                    STATIC_ASSERT(name == cood_transform_enum::pass_through ||                    \
                                       name == cood_transform_enum::pad ||                         \
                                       name == cood_transform_enum::embed ||                       \
                                       name == cood_transform_enum::merge ||                       \
@@ -733,7 +733,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                                       name == cood_transform_enum::replicate,                     \
                                   "");                                                            \
                                                                                                   \
-                    if constexpr(name == cood_transform_enum::PassThrough)                        \
+                    if constexpr(name == cood_transform_enum::pass_through)                       \
                     {                                                                             \
                         index_t pos  = 0;                                                         \
                         auto low_len = meta_data.template pop<index_t>(pos);                      \
@@ -841,7 +841,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
         constexpr auto encoded_top_dims    = encoded_tensor_adaptor.template at<4>();              \
         constexpr index_t num_top_dim      = encoded_tensor_adaptor.template at<5>();              \
                                                                                                    \
-        constexpr auto trans = [&encoded_transforms, &num_transform]() {                           \
+        constexpr auto trans = [&encoded_transforms]() {                           \
             return generate_tuple(                                                                 \
                 [&encoded_transforms](auto i) constexpr {                                          \
                     constexpr auto name        = encoded_transforms[i].template at<0>();           \
@@ -849,7 +849,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();           \
                     constexpr auto num_up_dim  = encoded_transforms[i].template at<4>();           \
                                                                                                    \
-                    STATIC_ASSERT(name == cood_transform_enum::PassThrough ||                      \
+                    STATIC_ASSERT(name == cood_transform_enum::pass_through ||                     \
                                       name == cood_transform_enum::pad ||                          \
                                       name == cood_transform_enum::embed ||                        \
                                       name == cood_transform_enum::merge ||                        \
@@ -857,7 +857,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                                       name == cood_transform_enum::replicate,                      \
                                   "");                                                             \
                                                                                                    \
-                    if constexpr(name == cood_transform_enum::PassThrough)                         \
+                    if constexpr(name == cood_transform_enum::pass_through)                        \
                     {                                                                              \
                         constexpr index_t low_len = meta_data.template get<index_t>(0);            \
                                                                                                    \
@@ -912,7 +912,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                 number<num_transform>{});                                                          \
         }();                                                                                       \
                                                                                                    \
-        constexpr auto low_dim_idss = [&encoded_transforms, &num_transform]() {                    \
+        constexpr auto low_dim_idss = [&encoded_transforms]() {                    \
             return generate_tuple(                                                                 \
                 [&encoded_transforms](auto i) {                                                    \
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();           \
@@ -923,7 +923,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                 number<num_transform>());                                                          \
         }();                                                                                       \
                                                                                                    \
-        constexpr auto up_dim_idss = [&encoded_transforms, &num_transform] {                       \
+        constexpr auto up_dim_idss = [&encoded_transforms] {                       \
             return generate_tuple(                                                                 \
                 [&encoded_transforms](auto i) {                                                    \
                     constexpr auto num_up_dim = encoded_transforms[i].template at<4>();            \

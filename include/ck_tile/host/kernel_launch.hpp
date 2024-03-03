@@ -147,8 +147,8 @@ float launch_and_time_kernel_with_preprocess(const stream_config& s,
 #endif
 }
 
-template <int MaxThreadPerBlock = CK_MAX_THREAD_PER_BLOCK,
-          int MinBlockPerCu     = CK_MIN_BLOCK_PER_CU,
+template <int MaxThreadPerBlock = CK_TILE_MAX_THREAD_PER_BLOCK,
+          int MinBlockPerCu     = CK_TILE_MIN_BLOCK_PER_CU,
           typename KernelImpl,
           typename... Args>
 float launch_kernel(const stream_config& s,

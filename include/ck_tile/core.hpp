@@ -6,8 +6,9 @@
 #include "ck_tile/core/algorithm/cluster_descriptor.hpp"
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
-#include "ck_tile/core/arch/amd_address_space.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/utility.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
@@ -51,6 +52,6 @@
 #include "ck_tile/core/utility/magic_div.hpp"
 #include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
-#include "ck_tile/core/utility/type_convert.hpp"
+#include "ck_tile/core/utility/transpose_vectors.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 

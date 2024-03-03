@@ -97,7 +97,7 @@ check_err(const Range& out,
 template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
-        std::is_same_v<ranges::range_value_t<Range>, bhalf_t>,
+        std::is_same_v<ranges::range_value_t<Range>, bf16_t>,
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
@@ -123,7 +123,7 @@ check_err(const Range& out,
     bool res{true};
     int err_count = 0;
     double err    = 0;
-    // TODO: This is a hack. We should have proper specialization for bhalf_t data type.
+    // TODO: This is a hack. We should have proper specialization for bf16_t data type.
     double max_err = std::numeric_limits<float>::min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
@@ -214,7 +214,7 @@ check_err(const Range& out,
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_integral_v<ranges::range_value_t<Range>> &&
-                  !std::is_same_v<ranges::range_value_t<Range>, bhalf_t>)
+                  !std::is_same_v<ranges::range_value_t<Range>, bf16_t>)
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
                      || std::is_same_v<ranges::range_value_t<Range>, int4_t>
 #endif

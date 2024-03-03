@@ -9,6 +9,7 @@
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
+#include "ck_tile/core/tensor/null_tensor.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -18,7 +19,7 @@ namespace ck_tile {
 template <typename InOutElementFunc,
           typename... InOutDstrTensors,
           typename = std::enable_if_t<std::conjunction_v<
-              std::negation<std::is_same<std::remove_const_t<InOutDstrTensors>, NullTensor>>...>>>
+              std::negation<std::is_same<std::remove_const_t<InOutDstrTensors>, null_tensor>>...>>>
 CK_TILE_DEVICE void tile_elementwise_inout(const InOutElementFunc& inout_element_func,
                                            InOutDstrTensors&... inout_dstr_tensors)
 {
@@ -26,7 +27,7 @@ CK_TILE_DEVICE void tile_elementwise_inout(const InOutElementFunc& inout_element
     // static_assert(xxx);
 
     constexpr index_t thread_buffer_size =
-        type_pack_element<0, InOutDstrTensors...>::get_thread_buffer_size();
+        __type_pack_element<0, InOutDstrTensors...>::get_thread_buffer_size();
 
     static_for<0, thread_buffer_size, 1>{}(
         [&](auto i) { inout_element_func(inout_dstr_tensors.get_thread_buffer().at(i)...); });
@@ -35,7 +36,7 @@ CK_TILE_DEVICE void tile_elementwise_inout(const InOutElementFunc& inout_element
 template <typename InElementFunc,
           typename... InDstrTensors,
           typename = std::enable_if_t<
-              std::conjunction_v<std::negation<std::is_same<InDstrTensors, NullTensor>>...>>>
+              std::conjunction_v<std::negation<std::is_same<InDstrTensors, null_tensor>>...>>>
 CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
                                         const InDstrTensors&... in_dstr_tensors)
 {
@@ -43,10 +44,10 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
 
     // TODO: make sure all distributed tensors have same lengths and distribution
     // static_assert(xxx);
-    constexpr auto in_tile_dstr = type_pack_element<0, InDstrTensors...>::get_tile_distribution();
+    constexpr auto in_tile_dstr = __type_pack_element<0, InDstrTensors...>::get_tile_distribution();
 
     constexpr index_t thread_buffer_size =
-        type_pack_element<0, InDstrTensors...>::get_thread_buffer_size();
+        __type_pack_element<0, InDstrTensors...>::get_thread_buffer_size();
 
     auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
 
@@ -69,7 +70,7 @@ CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, const T& value)
 }
 
 template <typename T>
-CK_TILE_DEVICE void set_tile(NullTensor&, const T&)
+CK_TILE_DEVICE void set_tile(null_tensor&, const T&)
 {
 }
 
@@ -82,7 +83,7 @@ CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
         DstrTensors::get_thread_buffer_size() * sizeof(typename DstrTensors::DataType);
     if constexpr(v == 0 && tensor_bytes % 4 == 0)
     {
-        using dvec_t = static_buffer_c<index_t, tensor_bytes / 4>;
+        using dvec_t = array<index_t, tensor_bytes / 4>;
         auto& tensor = reinterpret_cast<dvec_t&>(dstr_tensor.get_thread_buffer());
         for(auto i = 0; i < tensor.size(); i++)
             tensor.get(i) = v;
@@ -96,7 +97,7 @@ CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
 }
 
 template <index_t v>
-CK_TILE_DEVICE void set_tile(NullTensor&, number<v>)
+CK_TILE_DEVICE void set_tile(null_tensor&, number<v>)
 {
 }
 
@@ -139,7 +140,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8x4(const InDstrTensors& in_dstr_tensors)
             false); // false -> WORD0
 
         constexpr int32_t m0 = 0x05040100;
-        using vec_t          = typename vector_type<OutDataType, 4>::type;
+        using vec_t          = array<OutDataType, 4>;
 
         vec_t d = bit_cast<vec_t>(__builtin_amdgcn_perm(y, x, m0));
         out_dstr_tensor.get_thread_buffer().template set_as<vec_t>(number<i>{}, d);
@@ -157,9 +158,9 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8x4(const InDstrTensors& in_dstr_tensors)
 template <typename DstType, typename SrcDstrTensors>
 CK_TILE_DEVICE auto cast_tile(const SrcDstrTensors& src_tensor)
 {
-    if constexpr((ck_tile::is_same_v<DstType, fp8_t> ||
-                  ck_tile::is_same_v<DstType, bf8_t>)&&ck_tile::
-                     is_same_v<typename SrcDstrTensors::DataType, float> &&
+    if constexpr((std::is_same_v<DstType, fp8_t> ||
+                  std::is_same_v<DstType, bf8_t>)&&std::is_same_v<typename SrcDstrTensors::DataType,
+                                                                  float> &&
                  (SrcDstrTensors::get_thread_buffer_size() % 4 == 0))
     {
         return cast_tile_pk_fp8x4<DstType, SrcDstrTensors>(src_tensor);
@@ -169,23 +170,23 @@ CK_TILE_DEVICE auto cast_tile(const SrcDstrTensors& src_tensor)
                                    src_tensor);
 }
 
-// no-op function for NullTensor arguments
+// no-op function for null_tensor arguments
 template <typename InOutElementFunc,
           typename... MaybeNullTensor,
           typename = std::enable_if_t<
-              std::disjunction_v<std::is_same<remove_cvref_t<MaybeNullTensor>, NullTensor>...>>>
+              std::disjunction_v<std::is_same<remove_cvref_t<MaybeNullTensor>, null_tensor>...>>>
 CK_TILE_DEVICE void tile_elementwise_inout(const InOutElementFunc&, MaybeNullTensor&&...)
 {
 }
 
-// no-op function for NullTensor arguments
+// no-op function for null_tensor arguments
 template <typename InElementFunc,
           typename... MaybeNullTensor,
           typename = std::enable_if_t<
-              std::disjunction_v<std::is_same<remove_cvref_t<MaybeNullTensor>, NullTensor>...>>>
+              std::disjunction_v<std::is_same<remove_cvref_t<MaybeNullTensor>, null_tensor>...>>>
 CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc&, MaybeNullTensor&&...)
 {
-    return NullTensor{};
+    return null_tensor{};
 }
 
 } // namespace ck_tile

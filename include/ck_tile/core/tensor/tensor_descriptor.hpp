@@ -299,7 +299,7 @@ template <typename... Lengths,
 CK_TILE_HOST_DEVICE constexpr auto
 make_naive_tensor_descriptor_with_offset(const tuple<Lengths...>& lengths,
                                          const tuple<Strides...>& strides,
-                                         const offset& offset,
+                                         const offset& os,
                                          number<GuaranteedLastDimensionVectorLength> = number<-1>{},
                                          number<GuaranteedLastDimensionVectorStride> = number<-1>{})
 {
@@ -307,7 +307,7 @@ make_naive_tensor_descriptor_with_offset(const tuple<Lengths...>& lengths,
         const auto element_space_size = detail::calculate_element_space_size_impl(
             lengths, strides, number<0>{}, long_number<1>{});
 
-        const auto transforms = make_tuple(make_offset_transform(element_space_size, offset));
+        const auto transforms = make_tuple(make_offset_transform(element_space_size, os));
 
         constexpr auto low_dim_hidden_idss = make_tuple(sequence<0>{});
 
@@ -383,12 +383,12 @@ make_naive_tensor_descriptor_packed(const tuple<Lengths...>& lengths,
 
 template <typename... Lengths,
           typename... Strides,
-          typename offset,
+          typename Offset,
           index_t GuaranteedLastDimensionVectorLength                                   = -1,
           typename std::enable_if<sizeof...(Lengths) == sizeof...(Strides), bool>::type = false>
 CK_TILE_HOST_DEVICE constexpr auto make_naive_tensor_descriptor_packed_with_offset(
     const tuple<Lengths...>& lengths,
-    const offset& offset,
+    const Offset& offset,
     number<GuaranteedLastDimensionVectorLength> = number<-1>{})
 {
     const auto desc_0 = [&]() {

@@ -3,12 +3,15 @@
 
 #pragma once
 
+#include "ck_tile/core/arch/utility.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
+#include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -85,8 +88,9 @@ struct tile_window_with_static_distribution
         static constexpr index_t ScalarPerVector =
             get_vector_dim_y_scalar_per_vector().template at<1>();
 
-        using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
-        using vector_t      = typename vector_type_t::type;
+        // using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
+        // using vector_t      = typename vector_type_t::type;
+        using vector_t = array<DataType, ScalarPerVector>;
 
         private:
         static constexpr auto scalars_per_access_ = [] {
@@ -275,9 +279,8 @@ struct tile_window_with_static_distribution
     {
         using Traits = load_store_traits;
 
-        using vector_type_t = typename Traits::vector_type_t;
-        using vector_t      = typename vector_type_t::type;
-        using SFC_Ys        = typename Traits::SFC_Ys;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr = TileDstr{};
 
@@ -300,8 +303,6 @@ struct tile_window_with_static_distribution
                     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                         bottom_tensor_thread_coord, bool_constant<oob_conditional_check>{});
 
-                const vector_type_t vec{vec_value};
-
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
                     constexpr auto idx_ys = generate_array(
@@ -315,7 +316,7 @@ struct tile_window_with_static_distribution
                         tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
 
                     dst_tensor.get_thread_buffer().template at<d>() =
-                        vec.template AsType<DataType>()[j];
+                        vec_value.template get_as<DataType>()[j];
                 });
 
                 // move thread coordinate
@@ -341,16 +342,17 @@ struct tile_window_with_static_distribution
     {
         using Traits = load_store_traits;
 
-        using vector_type_t = typename Traits::vector_type_t;
-        using vector_t      = typename vector_type_t::type;
-        using SFC_Ys        = typename Traits::SFC_Ys;
+        // using vector_type_t = typename Traits::vector_type_t;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
         static constexpr index_t YElementSize =
             TileDstr{}.get_ys_to_d_descriptor().get_element_space_size();
         static_assert(YElementSize % Traits::ScalarPerVector == 0);
-        using vectorized_tbuf = StaticBuffer<address_space_enum::vgpr,
-                                             vector_t,
-                                             YElementSize / Traits::ScalarPerVector,
-                                             true>;
+        using vectorized_tbuf = array<vector_t, YElementSize / Traits::ScalarPerVector>;
+        // StaticBuffer<address_space_enum::vgpr,
+        //                                      vector_t,
+        //                                      YElementSize / Traits::ScalarPerVector,
+        //                                      true>;
 
         constexpr auto tile_dstr = TileDstr{};
 
@@ -426,9 +428,9 @@ struct tile_window_with_static_distribution
 
         using Traits = load_store_traits;
 
-        using vector_type_t = typename Traits::vector_type_t;
-        using vector_t      = typename vector_type_t::type;
-        using SFC_Ys        = typename Traits::SFC_Ys;
+        // using vector_type_t = typename Traits::vector_type_t;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
 
         LdsDataType* smem = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
 
@@ -468,9 +470,9 @@ struct tile_window_with_static_distribution
     {
         using Traits = load_store_traits;
 
-        using vector_type_t = typename Traits::vector_type_t;
-        using vector_t      = typename vector_type_t::type;
-        using SFC_Ys        = typename Traits::SFC_Ys;
+        // using vector_type_t = typename Traits::vector_type_t;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr = TileDstr{};
 
@@ -487,7 +489,8 @@ struct tile_window_with_static_distribution
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
                 // read from distributed tensor
-                vector_type_t vec;
+                // vector_type_t vec;
+                vector_t vec_value;
 
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
                     constexpr auto idx_ys = generate_array(
@@ -500,11 +503,11 @@ struct tile_window_with_static_distribution
                     constexpr index_t d =
                         tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
 
-                    vec.template AsType<DataType>()(j) =
+                    vec_value.template get_as<DataType>()(j) =
                         dstr_tensor.get_thread_buffer().template at<d>();
                 });
 
-                const vector_t vec_value = vec.template AsType<vector_t>().template at<0>();
+                // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
 
                 // write into bottom tensor
                 get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
@@ -530,9 +533,9 @@ struct tile_window_with_static_distribution
     {
         using Traits = load_store_traits;
 
-        using vector_type_t = typename Traits::vector_type_t;
-        using vector_t      = typename vector_type_t::type;
-        using SFC_Ys        = typename Traits::SFC_Ys;
+        // using vector_type_t = typename Traits::vector_type_t;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr                    = TileDstr{};
         static constexpr bool oob_conditional_check = true;
@@ -550,7 +553,8 @@ struct tile_window_with_static_distribution
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
                 // read from distributed tensor
-                vector_type_t vec;
+                // vector_type_t vec;
+                vector_t vec_value;
 
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
                     constexpr auto idx_ys = generate_array(
@@ -563,11 +567,11 @@ struct tile_window_with_static_distribution
                     constexpr index_t d =
                         tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
 
-                    vec.template AsType<DataType>()(j) =
+                    vec_value.template get_as<DataType>()(j) =
                         dstr_tensor.get_thread_buffer().template at<d>();
                 });
 
-                const vector_t vec_value = vec.template AsType<vector_t>().template at<0>();
+                // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
 
                 // write into bottom tensor
                 get_bottom_tensor_view()

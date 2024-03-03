@@ -28,3 +28,4 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_impl.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"

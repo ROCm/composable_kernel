@@ -72,7 +72,7 @@ auto get_elimit(int /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::bhalf_t>(int init_method)
+auto get_elimit<ck_tile::bf16_t>(int init_method)
 {
     if(init_method == 0)
     {
@@ -510,7 +510,7 @@ int main(int argc, char* argv[])
     }
     else if(data_type == "bf16")
     {
-        return run<ck_tile::bhalf_t>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "fp8")
     {

@@ -44,6 +44,19 @@ struct array
             data[i] = vlast;
         }
     }
+    CK_TILE_HOST_DEVICE explicit constexpr array(value_type c)
+    {
+        for(auto i = 0; i < size(); i++)
+            data[i] = c;
+    }
+    template <typename ArrayType>
+    CK_TILE_HOST_DEVICE constexpr array(const ArrayType& o)
+    {
+        static_assert(ArrayType::size() == size(), "wrong! size not the same");
+        for(auto i = 0; i < size(); i++)
+            data[i] = o.data[i];
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto size() { return N; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<value_type>; }
 
@@ -67,18 +80,18 @@ struct array
     CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const { return data[i]; }
     CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i)             { return data[i]; }
     CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i)             { return data[i]; }     // TODO: compatible
-
-    template <typename T>
-    CK_TILE_HOST_DEVICE constexpr auto operator=(const T& a)
+#if 0
+    template <typename ArrayType>
+    CK_TILE_HOST_DEVICE constexpr auto operator=(const ArrayType& a)
     {
-        static_assert(T::size() == size(), "wrong! size not the same");
+        static_assert(ArrayType::size() == size(), "wrong! size not the same");
         for(index_t i = 0; i < size(); ++i)
         {
             data[i] = a[i];
         }
         return *this;
     }
-
+#endif
     // type punning (strict aliasing) member functions for read/write
     // aliasing this array of type "T", "N" elements
     // as array of type "Tx", sizeof(T)*N/sizeof(Tx) elements
@@ -120,6 +133,17 @@ struct array<T, 0>
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return 0; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<T>; };
     CK_TILE_HOST_DEVICE void print() const { printf("array{size: 0, data: []}"); }
+};
+
+template <typename>
+struct vector_traits;
+
+// specialization for array
+template <typename T, index_t N>
+struct vector_traits<array<T, N>>
+{
+    using scalar_type                    = T;
+    static constexpr index_t vector_size = N;
 };
 
 template <typename T, typename... Ts>

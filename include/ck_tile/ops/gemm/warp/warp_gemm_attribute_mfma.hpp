@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp"
 
 namespace ck_tile {
 
@@ -74,8 +75,8 @@ struct WarpGemmAtrributeMfmaIterateK
     using BDataType = typename Impl::BDataType;
     using CDataType = typename Impl::CDataType;
 
-    using AVecType = typename vector_type_maker<typename Impl::AVecType, kKIter>::type::type;
-    using BVecType = typename vector_type_maker<typename Impl::BVecType, kKIter>::type::type;
+    using AVecType = array<ADataType, Impl::AVecType::size() * kKIter>;
+    using BVecType = array<BDataType, Impl::BVecType::size() * kKIter>;
     using CVecType = typename Impl::CVecType;
 
     static constexpr index_t kM = Impl::kM;
@@ -111,33 +112,27 @@ struct WarpGemmAtrributeMfmaIterateK
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
-        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
-
         static_for<0, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   a_vector.template AsType<typename Impl::AVecType>()[iKIter],
-                   b_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+                   a_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   b_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
-        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
-
         constexpr auto I0 = number<0>{};
 
         // c = a * b
-        auto c_vec = Impl{}(a_vector.template AsType<typename Impl::AVecType>()[I0],
-                            b_vector.template AsType<typename Impl::BVecType>()[I0]);
+        auto c_vec = Impl{}(a_vec.template get_as<typename Impl::AVecType>()[I0],
+                            b_vec.template get_as<typename Impl::BVecType>()[I0]);
 
         // c += a * b
         static_for<1, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   a_vector.template AsType<typename Impl::AVecType>()[iKIter],
-                   b_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+                   a_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   b_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
 
         return c_vec;
@@ -274,8 +269,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     using BDataType = typename Impl::ADataType;
     using CDataType = typename Impl::CDataType;
 
-    using AVecType = typename vector_type_maker<typename Impl::BVecType, kKIter>::type::type;
-    using BVecType = typename vector_type_maker<typename Impl::AVecType, kKIter>::type::type;
+    using AVecType = array<ADataType, Impl::AVecType::size() * kKIter>;
+    using BVecType = array<BDataType, Impl::BVecType::size() * kKIter>;
     using CVecType = typename Impl::CVecType;
 
     static constexpr index_t kM = Impl::kN;
@@ -311,34 +306,27 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
-
-        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
-
         // swap A and B, value and type
         static_for<0, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   b_vector.template AsType<typename Impl::AVecType>()[iKIter],
-                   a_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+                   a_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   b_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
-        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
-
         constexpr auto I0 = number<0>{};
 
         // swap A and B, value and type
-        auto c_vec = Impl{}(b_vector.template AsType<typename Impl::AVecType>()[I0],
-                            a_vector.template AsType<typename Impl::BVecType>()[I0]);
+        auto c_vec = Impl{}(a_vec.template get_as<typename Impl::AVecType>()[I0],
+                            b_vec.template get_as<typename Impl::BVecType>()[I0]);
 
         static_for<1, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   b_vector.template AsType<typename Impl::AVecType>()[iKIter],
-                   a_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+                   a_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   b_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
 
         return c_vec;
@@ -355,8 +343,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     using BDataType = typename Impl::ADataType;
     using CDataType = typename Impl::CDataType;
 
-    using AVecType = typename vector_type_maker<typename Impl::BVecType, kKIter>::type::type;
-    using BVecType = typename vector_type_maker<typename Impl::AVecType, kKIter>::type::type;
+    using AVecType = array<ADataType, Impl::AVecType::size() * kKIter>;
+    using BVecType = array<BDataType, Impl::BVecType::size() * kKIter>;
     using CVecType = typename Impl::CVecType;
 
     static constexpr index_t kM      = Impl::kN;
@@ -418,34 +406,27 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
-
-        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
-
         // swap A and B, value and type
         static_for<0, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   b_vector.template AsType<typename Impl::AVecType>()[iKIter],
-                   a_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+                   b_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   a_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        const auto a_vector = typename vector_type_maker<AVecType, 1>::type{a_vec};
-        const auto b_vector = typename vector_type_maker<BVecType, 1>::type{b_vec};
-
         constexpr auto I0 = number<0>{};
 
         // swap A and B, value and type
-        auto c_vec = Impl{}(b_vector.template AsType<typename Impl::AVecType>()[I0],
-                            a_vector.template AsType<typename Impl::BVecType>()[I0]);
+        auto c_vec = Impl{}(b_vec.template get_as<typename Impl::AVecType>()[I0],
+                            a_vec.template get_as<typename Impl::BVecType>()[I0]);
 
         static_for<1, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   b_vector.template AsType<typename Impl::AVecType>()[iKIter],
-                   a_vector.template AsType<typename Impl::BVecType>()[iKIter]);
+                   b_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   a_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
 
         return c_vec;

@@ -76,6 +76,9 @@ struct alignas(2) half_t
     constexpr raw_type get() const { return data; }
 };
 
+using fp16_t     = half_t;
+using fp16_raw_t = typename fp16_t::raw_type;
+
 // conversions
 CK_TILE_HOST_DEVICE
 float fp16_to_float_hip(const fp16_hip_t& x)
@@ -281,7 +284,5 @@ half_t exp2(half_t x) { return static_cast<half_t>(exp2f(static_cast<float>(x)))
 
 CK_TILE_DEVICE
 half_t log(half_t x) { return static_cast<half_t>(__logf(static_cast<float>(x))); };
-
-using fp16_t = half_t;
 
 } // namespace ck_tile

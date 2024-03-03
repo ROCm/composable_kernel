@@ -47,8 +47,8 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
                                         void* p_smem) const
     {
         static_assert(
-            is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
-                is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
+            std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cvref_t<typename BDramBlockWindowTmp::DataType>>,
             "wrong!");
 
         static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&

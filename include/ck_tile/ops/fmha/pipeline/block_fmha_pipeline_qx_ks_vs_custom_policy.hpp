@@ -4,7 +4,11 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_problem.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 // TODO: remove this
 #define K_LDS_LOAD_USE_OFFSET_TRANSFORM 0
@@ -76,24 +80,24 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                                    Problem::BlockFmhaShape::kK0>>;
 
         constexpr auto warp_gemm = []() {
-            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
-                         is_same_v<typename Problem::KDataType, half_t> &&
-                         is_same_v<typename Problem::SaccDataType, float>)
+            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
+                         std::is_same_v<typename Problem::KDataType, half_t> &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
-            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
-                              is_same_v<typename Problem::KDataType, bhalf_t> &&
-                              is_same_v<typename Problem::SaccDataType, float>)
+            else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
             else if constexpr(Problem::kIsFp8)
             {
                 constexpr index_t swizzle_factor = 4; // TODO: hard coded here
-                return warp::WarpGemmImpl<
-                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                return WarpGemmImpl<
+                    WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
                             typename Problem::QDataType,
                             typename Problem::KDataType>,
                         2,
@@ -201,24 +205,24 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                                                    Problem::BlockFmhaShape::kK0>>;
 
         constexpr auto warp_gemm = []() {
-            if constexpr(is_same_v<typename Problem::QDataType, half_t> &&
-                         is_same_v<typename Problem::KDataType, half_t> &&
-                         is_same_v<typename Problem::SaccDataType, float>)
+            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
+                         std::is_same_v<typename Problem::KDataType, half_t> &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
-            else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
-                              is_same_v<typename Problem::KDataType, bhalf_t> &&
-                              is_same_v<typename Problem::SaccDataType, float>)
+            else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
             else if constexpr(Problem::kIsFp8)
             {
                 constexpr index_t swizzle_factor = 4; // TODO: hard coded here
-                return warp::WarpGemmImpl<
-                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                return WarpGemmImpl<
+                    WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
                             typename Problem::QDataType,
                             typename Problem::KDataType>,
                         2,
@@ -337,7 +341,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
-        if constexpr(ck_tile::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t kBlockSize   = Problem::kBlockSize;
             constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
@@ -762,7 +766,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
-        if constexpr(ck_tile::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t N1 = GetAlignmentV<Problem>();
             constexpr index_t N0 = kNPerBlock / N1; // P
@@ -857,7 +861,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // This descriptor only used when V layout is seqlen * hdim
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
-        static_assert(ck_tile::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
@@ -914,15 +918,15 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         auto warp_gemm = [&]() {
             if constexpr(Problem::kIsFp8)
             {
-                return warp::WarpGemmImpl<
-                    warp::WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
-                        warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
+                return WarpGemmImpl<
+                    WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
+                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
                             typename Problem::PDataType,
                             typename Problem::VDataType>,
                         2>>{};
                 // return
-                // warp::WarpGemmImpl<warp::WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
-                //         warp::WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
+                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
                 //         Problem::PDataType, typename Problem::VDataType>>>{};
             }
             else

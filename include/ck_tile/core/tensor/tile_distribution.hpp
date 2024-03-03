@@ -3,12 +3,14 @@
 
 #pragma once
 
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
+#include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -293,7 +295,9 @@ CK_TILE_HOST_DEVICE constexpr auto
                                 &hidden_dim_cnt,
                                 &rh_major_minor_to_hidden_ids,
                                 &rh_major_minor_to_hidden_lengths](auto idim_x) {
-        constexpr auto h_minor_lengths = tuple_element_t<idim_x, HsLengthss>{};
+        // typename HsLengthss::base{}.foo();
+        constexpr auto h_minor_lengths = HsLengthss{}.get(idim_x); //std::tuple_element_t<idim_x, HsLengthss>{};
+        // constexpr auto h_minor_lengths = impl::getv<idim_x>(HsLengthss{});
 
         constexpr index_t ndim_h_minor = h_minor_lengths.size();
 

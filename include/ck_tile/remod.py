@@ -2,9 +2,11 @@ import pathlib
 from pathlib import Path
 import subprocess
 import os
+import copy
 
 NS = 'ck_tile'
 OPS = 'ops'
+OPS_COMMON = 'common' # common header will be duplicated into ops/* other module
 
 HEADER_COMMON = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -54,6 +56,15 @@ class submodule_t:
                     f.write(f'#include \"{header_path}\"\n')
                 f.write('\n')
         # print(self.m)
+        # restructure common
+        for k, v in self.m.items():
+            if k == OPS and OPS_COMMON in v.keys():
+                common_list = copy.deepcopy(v[OPS_COMMON])
+                # v.pop(OPS_COMMON)
+                for km in v.keys():
+                    if km != OPS_COMMON:
+                        v[km].extend(common_list)
+
         for k, v in self.m.items():
             if k == OPS:
                 for km, kv in v.items():

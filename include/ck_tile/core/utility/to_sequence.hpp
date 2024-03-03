@@ -9,12 +9,13 @@
 // clang happen to support this feature (__cpp_generic_lambdas >= 201707) in c++17 mode
 #define TO_SEQUENCE(a, n)                                                                      \
     _Pragma("clang diagnostic push")                                                           \
-        _Pragma("clang diagnostic ignored \"-Wc++20-extensions\"")[a]<ck_tile::index_t... Is>( \
-            ck_tile::sequence<Is...>)                                                          \
+    _Pragma("clang diagnostic ignored \"-Wc++20-extensions\"")                                 \
+        [a]<ck_tile::index_t... IDX_IDX_>(ck_tile::sequence<IDX_IDX_...>)                                  \
     {                                                                                          \
-        return ck_tile::sequence<a.at(ck_tile::number<Is>{})...>{};                            \
+        return ck_tile::sequence<a.at(ck_tile::number<IDX_IDX_>{})...>{};           \
     }                                                                                          \
-    (make_index_sequence<n>{}) _Pragma("clang diagnostic pop")
+    (ck_tile::make_index_sequence<n>{});                                                       \
+    _Pragma("clang diagnostic pop")
 
 #else
 // Macro function

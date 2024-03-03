@@ -11,6 +11,9 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/tensor/tile_window.hpp"
+#include "ck_tile/core/tensor/null_tile_window.hpp"
+#include "ck_tile/core/tensor/null_tensor.hpp"
 
 namespace ck_tile {
 
@@ -65,13 +68,13 @@ CK_TILE_DEVICE auto async_load_fence(index_t cnt = 0)
 }
 
 template <typename WindowLengths>
-CK_TILE_DEVICE auto load_tile(const NullTileWindow<WindowLengths>&)
+CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&)
 {
-    return NullTensor{};
+    return null_tensor{};
 }
 
 template <typename T, typename WindowLengths>
-CK_TILE_DEVICE auto load_tile_raw(T& /*null_tile*/, const NullTileWindow<WindowLengths>&)
+CK_TILE_DEVICE auto load_tile_raw(T& /*null_tile*/, const null_tile_window<WindowLengths>&)
 {
 }
 

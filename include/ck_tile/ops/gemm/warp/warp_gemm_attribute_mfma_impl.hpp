@@ -10,13 +10,13 @@ namespace ck_tile {
 // FP16
 struct WarpGemmAttributeMfmaImplF16F16F32M32N32K8
 {
-    using ADataType = half_t;
-    using BDataType = half_t;
+    using ADataType = fp16_t;
+    using BDataType = fp16_t;
     using CDataType = float;
 
-    using AVecType = typename vector_type<half_t, 4>::type;
-    using BVecType = typename vector_type<half_t, 4>::type;
-    using CVecType = typename vector_type<float, 16>::type;
+    using AVecType = array<fp16_t, 4>;
+    using BVecType = array<fp16_t, 4>;
+    using CVecType = array<float, 16>;
 
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
@@ -36,25 +36,37 @@ struct WarpGemmAttributeMfmaImplF16F16F32M32N32K8
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        c_vec = __builtin_amdgcn_mfma_f32_32x32x8f16(a_vec, b_vec, c_vec, 0, 0, 0);
+        c_vec.template get_as<fp32x16_t>()[number<0>{}] =
+            __builtin_amdgcn_mfma_f32_32x32x8f16(a_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                 b_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                 c_vec.template get_as<fp32x16_t>()[number<0>{}],
+                                                 0,
+                                                 0,
+                                                 0);
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        return __builtin_amdgcn_mfma_f32_32x32x8f16(a_vec, b_vec, CVecType{0.f}, 0, 0, 0);
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_32x32x8f16(a_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                 b_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                 fp32x16_t{0.f},
+                                                 0,
+                                                 0,
+                                                 0));
     }
 };
 
 struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
 {
-    using ADataType = half_t;
-    using BDataType = half_t;
+    using ADataType = fp16_t;
+    using BDataType = fp16_t;
     using CDataType = float;
 
-    using AVecType = typename vector_type<half_t, 4>::type;
-    using BVecType = typename vector_type<half_t, 4>::type;
-    using CVecType = typename vector_type<float, 4>::type;
+    using AVecType = array<fp16_t, 4>;
+    using BVecType = array<fp16_t, 4>;
+    using CVecType = array<float, 4>;
 
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
@@ -74,26 +86,38 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        c_vec = __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec, b_vec, c_vec, 0, 0, 0);
+        c_vec.template get_as<fp32x4_t>()[number<0>{}] =
+            __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                  b_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                  c_vec.template get_as<fp32x4_t>()[number<0>{}],
+                                                  0,
+                                                  0,
+                                                  0);
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        return __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec, b_vec, CVecType{0.f}, 0, 0, 0);
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_16x16x16f16(a_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                  b_vec.template get_as<fp16x4_t>()[number<0>{}],
+                                                  fp32x4_t{0.f},
+                                                  0,
+                                                  0,
+                                                  0));
     }
 };
 
 // Bf16
 struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
 {
-    using ADataType = bhalf_t;
-    using BDataType = bhalf_t;
+    using ADataType = bf16_t;
+    using BDataType = bf16_t;
     using CDataType = float;
 
-    using AVecType = typename vector_type<bhalf_t, 4>::type;
-    using BVecType = typename vector_type<bhalf_t, 4>::type;
-    using CVecType = typename vector_type<float, 16>::type;
+    using AVecType = array<bf16_t, 4>;
+    using BVecType = array<bf16_t, 4>;
+    using CVecType = array<float, 16>;
 
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
@@ -113,25 +137,37 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        c_vec = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(a_vec, b_vec, c_vec, 0, 0, 0);
+        c_vec.template get_as<fp32x16_t>()[number<0>{}] = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
+            a_vec.template get_as<bf16x4_t>()[number<0>{}],
+            b_vec.template get_as<bf16x4_t>()[number<0>{}],
+            c_vec.template get_as<fp32x16_t>()[number<0>{}],
+            0,
+            0,
+            0);
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        return __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(a_vec, b_vec, CVecType{0.f}, 0, 0, 0);
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(a_vec.template get_as<bf16x4_t>()[number<0>{}],
+                                                     b_vec.template get_as<bf16x4_t>()[number<0>{}],
+                                                     fp32x16_t{0.f},
+                                                     0,
+                                                     0,
+                                                     0));
     }
 };
 
 struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
 {
-    using ADataType = bhalf_t;
-    using BDataType = bhalf_t;
+    using ADataType = bf16_t;
+    using BDataType = bf16_t;
     using CDataType = float;
 
-    using AVecType = typename vector_type<bhalf_t, 4>::type;
-    using BVecType = typename vector_type<bhalf_t, 4>::type;
-    using CVecType = typename vector_type<float, 4>::type;
+    using AVecType = array<bf16_t, 4>;
+    using BVecType = array<bf16_t, 4>;
+    using CVecType = array<float, 4>;
 
     static constexpr index_t kM = 16;
     static constexpr index_t kN = 16;
@@ -151,13 +187,25 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16
     CK_TILE_DEVICE void
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        c_vec = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_vec, b_vec, c_vec, 0, 0, 0);
+        c_vec.template get_as<fp32x4_t>()[number<0>{}] = __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
+            a_vec.template get_as<bf16x4_t>()[number<0>{}],
+            b_vec.template get_as<bf16x4_t>()[number<0>{}],
+            c_vec.template get_as<fp32x4_t>()[number<0>{}],
+            0,
+            0,
+            0);
     }
 
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        return __builtin_amdgcn_mfma_f32_16x16x16bf16_1k(a_vec, b_vec, CVecType{0.f}, 0, 0, 0);
+        return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_16x16x16bf16_1k(
+            a_vec.template get_as<bf16x4_t>()[number<0>{}],
+            b_vec.template get_as<bf16x4_t>()[number<0>{}],
+            fp32x4_t{0.f},
+            0,
+            0,
+            0));
     }
 };
 
@@ -169,9 +217,9 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
     using BDataType = BType_;
     using CDataType = float;
 
-    using AVecType = typename vector_type<ADataType, 8>::type;
-    using BVecType = typename vector_type<BDataType, 8>::type;
-    using CVecType = typename vector_type<CDataType, 16>::type;
+    using AVecType = array<ADataType, 8>;
+    using BVecType = array<BDataType, 8>;
+    using CVecType = array<CDataType, 16>;
 
     static constexpr index_t kM = 32;
     static constexpr index_t kN = 32;
@@ -192,27 +240,49 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
     operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-        if constexpr(is_same_v<ADataType, fp8_t> && is_same_v<BDataType, fp8_t>)
-            c_vec = __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
-        else if constexpr(is_same_v<ADataType, fp8_t> && is_same_v<BDataType, bf8_t>)
-            c_vec = __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
-        else if constexpr(is_same_v<ADataType, bf8_t> && is_same_v<BDataType, fp8_t>)
-            c_vec = __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
-        else if constexpr(is_same_v<ADataType, bf8_t> && is_same_v<BDataType, bf8_t>)
-            c_vec = __builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), c_vec, 0, 0, 0);
+        if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            c_vec.template get_as<fp32x16_t>()[number<0>{}] =
+                __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
+                    bit_cast<long>(a_vec),
+                    bit_cast<long>(b_vec),
+                    c_vec.template get_as<fp32x16_t>()[number<0>{}],
+                    0,
+                    0,
+                    0);
+        else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            c_vec.template get_as<fp32x16_t>()[number<0>{}] =
+                __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(
+                    bit_cast<long>(a_vec),
+                    bit_cast<long>(b_vec),
+                    c_vec.template get_as<fp32x16_t>()[number<0>{}],
+                    0,
+                    0,
+                    0);
+        else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            c_vec.template get_as<fp32x16_t>()[number<0>{}] =
+                __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
+                    bit_cast<long>(a_vec),
+                    bit_cast<long>(b_vec),
+                    c_vec.template get_as<fp32x16_t>()[number<0>{}],
+                    0,
+                    0,
+                    0);
+        else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            c_vec.template get_as<fp32x16_t>()[number<0>{}] =
+                __builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(
+                    bit_cast<long>(a_vec),
+                    bit_cast<long>(b_vec),
+                    c_vec.template get_as<fp32x16_t>()[number<0>{}],
+                    0,
+                    0,
+                    0);
 #else
-        vector_type<ADataType, 8> a_(a_vec);
-        vector_type<BDataType, 8> b_(b_vec);
-
         static_for<0, 8, 1>{}([&](auto k) {
-            float a_f32 = type_convert<float>(a_.template AsType<ADataType>()[number<k>{}]);
-            float b_f32 = type_convert<float>(b_.template AsType<BDataType>()[number<k>{}]);
+            float a_f32 = type_convert<float>(a_vec.template get_as<ADataType>()[number<k>{}]);
+            float b_f32 = type_convert<float>(b_vec.template get_as<BDataType>()[number<k>{}]);
 
-            c_vec = __builtin_amdgcn_mfma_f32_32x32x2f32(a_f32, b_f32, c_vec, 0, 0, 0);
+            c_vec.template get_as<fp32x16_t>()[number<0>{}] = __builtin_amdgcn_mfma_f32_32x32x2f32(
+                a_f32, b_f32, c_vec.template get_as<fp32x16_t>()[number<0>{}], 0, 0, 0);
         });
 #endif
     }
@@ -220,18 +290,18 @@ struct WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
-        if constexpr(is_same_v<ADataType, fp8_t> && is_same_v<BDataType, fp8_t>)
-            return __builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0);
-        else if constexpr(is_same_v<ADataType, fp8_t> && is_same_v<BDataType, bf8_t>)
-            return __builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0);
-        else if constexpr(is_same_v<ADataType, bf8_t> && is_same_v<BDataType, fp8_t>)
-            return __builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0);
-        else if constexpr(is_same_v<ADataType, bf8_t> && is_same_v<BDataType, bf8_t>)
-            return __builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(
-                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0);
+        if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, fp8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_32x32x16_fp8_fp8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+        else if constexpr(std::is_same_v<ADataType, fp8_t> && std::is_same_v<BDataType, bf8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_32x32x16_fp8_bf8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+        else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, fp8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_32x32x16_bf8_fp8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
+        else if constexpr(std::is_same_v<ADataType, bf8_t> && std::is_same_v<BDataType, bf8_t>)
+            return bit_cast<CVecType>(__builtin_amdgcn_mfma_f32_32x32x16_bf8_bf8(
+                bit_cast<long>(a_vec), bit_cast<long>(b_vec), CVecType{0.f}, 0, 0, 0));
     }
 };
 

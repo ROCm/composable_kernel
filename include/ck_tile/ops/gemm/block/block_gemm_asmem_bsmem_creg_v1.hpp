@@ -28,9 +28,9 @@ struct BlockGemmASmemBSmemCRegV1
                                    const ABlockWindowTmp& a_block_window_tmp,
                                    const BBlockWindowTmp& b_block_window_tmp) const
     {
-        static_assert(is_same_v<ADataType, typename ABlockWindowTmp::DataType> &&
-                          is_same_v<BDataType, typename BBlockWindowTmp::DataType> &&
-                          is_same_v<CDataType, typename CBlockTensor::DataType>,
+        static_assert(std::is_same_v<ADataType, typename ABlockWindowTmp::DataType> &&
+                          std::is_same_v<BDataType, typename BBlockWindowTmp::DataType> &&
+                          std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                       "wrong!");
 
         constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];

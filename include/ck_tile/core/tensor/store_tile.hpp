@@ -25,7 +25,7 @@ store_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& t
     using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
     using TileDstr = remove_cvref_t<TileDistribution_>;
 
-    static_assert(is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
+    static_assert(std::is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
 
     constexpr auto tile_dstr = TileDstr{};
 
@@ -48,7 +48,7 @@ store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_
     using DataType = remove_cvref_t<typename BottomTensorView_::DataType>;
     using TileDstr = remove_cvref_t<TileDistribution_>;
 
-    static_assert(is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
+    static_assert(std::is_same_v<remove_cvref_t<DataType_>, DataType>, "wrong!");
 
     constexpr auto tile_dstr = TileDstr{};
 

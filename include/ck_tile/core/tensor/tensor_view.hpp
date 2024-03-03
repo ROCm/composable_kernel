@@ -3,12 +3,15 @@
 
 #pragma once
 
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/core/tensor/tensor_descriptor.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -16,15 +19,16 @@ namespace ck_tile {
 template <typename BufferView_, typename TensorDesc_>
 struct tensor_view
 {
-    using BufferView  = remove_reference_t<BufferView_>;
-    using DataType    = typename BufferView::type;
+    using buffer_view = remove_reference_t<BufferView_>;
+    using DataType    = typename buffer_view::type;
     using TensorDesc  = remove_cvref_t<TensorDesc_>;
     using TensorIndex = array<index_t, TensorDesc::get_num_of_top_dimension()>;
     using TensorCoord = decltype(make_tensor_coordinate(TensorDesc{}, TensorIndex{}));
 
     CK_TILE_HOST_DEVICE constexpr tensor_view() = default;
 
-    CK_TILE_HOST_DEVICE constexpr tensor_view(const BufferView& buffer_view, const TensorDesc& desc)
+    CK_TILE_HOST_DEVICE constexpr tensor_view(const buffer_view& buffer_view,
+                                              const TensorDesc& desc)
         : buf_{buffer_view}, desc_{desc}
     {
     }
@@ -58,12 +62,12 @@ struct tensor_view
 #endif
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
-    template <
-        typename X,
-        bool oob_conditional_check          = true,
-        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                bool>::type = false>
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr remove_cvref_t<X>
     get_vectorized_elements(const TensorCoord& coord,
                             bool_constant<oob_conditional_check> = {}) const
@@ -76,12 +80,12 @@ struct tensor_view
 
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
-    template <
-        typename X,
-        bool oob_conditional_check          = true,
-        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                bool>::type = false>
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
     CK_TILE_HOST_DEVICE void
     get_vectorized_elements_raw(remove_cvref_t<X>& dst,
                                 const TensorCoord& coord,
@@ -93,11 +97,11 @@ struct tensor_view
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
     }
 
-    template <
-        typename X,
-        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                bool>::type = false>
+    template <typename X,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void async_get_vectorized_elements(remove_cvref_t<DataType>* smem,
                                                                      const TensorCoord& coord) const
     {
@@ -106,12 +110,12 @@ struct tensor_view
 
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
-    template <
-        typename X,
-        bool oob_conditional_check          = true,
-        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                bool>::type = false>
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void set_vectorized_elements(
         const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
     {
@@ -121,12 +125,12 @@ struct tensor_view
             x);
     }
 
-    template <
-        typename X,
-        bool oob_conditional_check          = true,
-        typename std::enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
-                                          typename scalar_type<remove_cvref_t<DataType>>::type>,
-                                bool>::type = false>
+    template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr void set_vectorized_elements_raw(
         const TensorCoord& coord, const X& x, bool_constant<oob_conditional_check> = {})
     {
@@ -153,7 +157,7 @@ struct tensor_view
     }
 
     // member
-    BufferView buf_;
+    buffer_view buf_;
     TensorDesc desc_;
 };
 
@@ -162,7 +166,7 @@ struct null_tensor_view
 {
 };
 
-template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
+template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           typename DataType,
           typename... Ts>
 CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
@@ -173,7 +177,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_tensor_view(DataType* p,
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
 
-template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
+template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           typename DataType,
           typename... Lengths,
           typename... Strides,
@@ -197,7 +201,7 @@ make_naive_tensor_view(DataType* p,
     return tensor_view<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
 
-template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
+template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           typename DataType,
           typename... Lengths,
           index_t GuaranteedLastDimensionVectorLength = -1>
@@ -228,19 +232,19 @@ CK_TILE_HOST_DEVICE constexpr auto transform_tensor_view(const OldTensorView& ol
                                                 NewLowerDimensionOldVisibleIdss{},
                                                 NewUpperDimensionNewVisibleIdss{});
 
-    return tensor_view<typename OldTensorView::BufferView, remove_cvref_t<decltype(new_desc)>>{
+    return tensor_view<typename OldTensorView::buffer_view, remove_cvref_t<decltype(new_desc)>>{
         old_tensor_view.buf_, new_desc};
 }
 
-template <typename tensor_view,
+template <typename TensorView,
           typename TileLengths, // tuple<...>
           typename DoPads>      // sequence<bool, bool, ...>
 CK_TILE_HOST_DEVICE constexpr auto
-pad_tensor_view(const tensor_view& tensor_view, const TileLengths& tile_lengths, DoPads)
+pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, DoPads)
 {
     constexpr index_t num_dim = DoPads::size();
 
-    static_assert(num_dim == TileLengths::size() && num_dim == tensor_view::get_num_of_dimension(),
+    static_assert(num_dim == TileLengths::size() && num_dim == TensorView::get_num_of_dimension(),
                   "wrong! inconsistent # of dimensions");
 
     // transforms

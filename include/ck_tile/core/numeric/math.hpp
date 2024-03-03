@@ -147,6 +147,9 @@ CK_TILE_HOST_DEVICE constexpr T clamp(const T& x, const T& lowerbound, const T& 
     return min(max(x, lowerbound), upperbound);
 }
 
+CK_TILE_HOST inline int clz(uint32_t x) { return __builtin_clz(x); }
+CK_TILE_DEVICE inline int clz(uint32_t x) { return __clz(x); }
+
 // greatest common divisor, aka highest common factor
 CK_TILE_HOST_DEVICE constexpr index_t gcd(index_t x, index_t y)
 {
@@ -222,7 +225,7 @@ struct less
 CK_TILE_HOST_DEVICE constexpr int32_t next_power_of_two(int32_t x)
 {
     // TODO: x need to be 2 ~ 0x7fffffff. 0, 1, or larger than 0x7fffffff will compile fail
-    return 1 << (32 - __builtin_clz(x - 1));
+    return 1 << (32 - clz(x - 1));
 }
 
 template <index_t X>
@@ -243,7 +246,7 @@ CK_TILE_HOST_DEVICE constexpr int32_t integer_log2_floor(int32_t x)
 {
     // TODO: x need to be 1 ~ 0x7fffffff
     // __builtin_clz will produce unexpected result if x is 0;
-    return 31 - __builtin_clz(x);
+    return 31 - clz(x);
 }
 
 CK_TILE_HOST_DEVICE constexpr bool is_power_of_two_integer(int32_t x)

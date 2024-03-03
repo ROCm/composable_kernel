@@ -20,7 +20,8 @@ enum class bf16_rounding_mode
     truncate,
 };
 
-template <bf16_rounding_mode rounding = CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT>
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding> = {});
 
 CK_TILE_HOST_DEVICE
@@ -41,35 +42,41 @@ struct alignas(2) bfloat16_t
     }
 
     // constructor
-    bfloat16_t() = default;
+    constexpr bfloat16_t() : data() {}
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit bfloat16_t(const float& x) { data = float_to_bf16_raw(x); }
+    explicit constexpr bfloat16_t(const float& x) : data(float_to_bf16_raw(x)) {}
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit bfloat16_t(const int& x) { data = float_to_bf16_raw(static_cast<float>(x)); }
+    explicit constexpr bfloat16_t(const int& x) : data(float_to_bf16_raw(static_cast<float>(x))) {}
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
-    explicit bfloat16_t(const unsigned int& x) { data = float_to_bf16_raw(static_cast<float>(x)); }
+    explicit constexpr bfloat16_t(const unsigned int& x)
+        : data(float_to_bf16_raw(static_cast<float>(x)))
+    {
+    }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit operator float() const { return bf16_to_float_raw(data); }
+    explicit constexpr operator float() const { return bf16_to_float_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
-    explicit operator int() const { return static_cast<int>(bf16_to_float_raw(data)); }
+    explicit constexpr operator int() const { return static_cast<int>(bf16_to_float_raw(data)); }
 
     // internal access
     CK_TILE_HOST_DEVICE
-    raw_type& get() { return data; }
+    constexpr raw_type& get() { return data; }
 
     CK_TILE_HOST_DEVICE
-    raw_type get() const { return data; }
+    constexpr raw_type get() const { return data; }
 };
+
+using bf16_t     = bfloat16_t;
+using bf16_raw_t = typename bf16_t::raw_type;
 
 // round to nearest
 CK_TILE_HOST_DEVICE
@@ -139,8 +146,8 @@ uint16_t float_to_bf16_truc_raw(float f)
     return uint16_t(u.int32 >> 16);
 }
 
-template <bf16_rounding_mode rounding = CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT>
-CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding> = {})
+template <bf16_rounding_mode rounding>
+CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding>)
 {
     if constexpr(rounding == bf16_rounding_mode::standard)
         return float_to_bf16_rtn_raw(f);
@@ -161,8 +168,9 @@ float bf16_to_float_raw(uint16_t x)
     return u.fp32;
 }
 
-template <bf16_rounding_mode rounding = CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT>
-CK_TILE_HOST_DEVICE bfloat16_t float_to_bf16(float f, constant<rounding> = {})
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
+CK_TILE_HOST_DEVICE bfloat16_t float_to_bf16(float f, constant<rounding>)
 {
     return bfloat16_t::bit_cast(float_to_bf16_raw(f, constant<rounding>{}));
 }
@@ -170,14 +178,15 @@ CK_TILE_HOST_DEVICE bfloat16_t float_to_bf16(float f, constant<rounding> = {})
 CK_TILE_HOST_DEVICE
 float bf16_to_float(bfloat16_t x) { return static_cast<float>(x); }
 
-template <bf16_rounding_mode rounding = CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT>
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE bfloat16_t fp16_to_bf16(half_t f, constant<rounding> = {})
 {
     return bfloat16_t::bit_cast(float_to_bf16_raw(static_cast<float>(f), constant<rounding>{}));
 }
 
 CK_TILE_HOST_DEVICE
-float bf16_to_fp16(bfloat16_t x) { return float_to_fp16(static_cast<float>(x)); }
+half_t bf16_to_fp16(bfloat16_t x) { return float_to_fp16(static_cast<float>(x)); }
 
 template <class T>
 struct numeric_limits;
@@ -258,7 +267,5 @@ bfloat16_t exp2(bfloat16_t x) { return static_cast<bfloat16_t>(exp2f(static_cast
 
 CK_TILE_DEVICE
 bfloat16_t log(bfloat16_t x) { return static_cast<bfloat16_t>(__logf(static_cast<float>(x))); };
-
-using bf16_t = bfloat16_t;
 
 } // namespace ck_tile

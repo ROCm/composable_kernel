@@ -468,6 +468,7 @@ CK_TILE_HOST_DEVICE constexpr auto sequence_to_tuple_of_number(sequence<Is...>)
         number<Seq::size()>{});
 }
 
+#if 0
 #define TO_TUPLE_OF_SEQUENCE(a_of_b_impl, a_size, bs_sizes)             \
     [a_of_b_impl, a_size, bs_sizes] {                                   \
         return ck_tile::generate_tuple(                                 \
@@ -479,5 +480,21 @@ CK_TILE_HOST_DEVICE constexpr auto sequence_to_tuple_of_number(sequence<Is...>)
             },                                                          \
             ck_tile::number<a_size>{});                                 \
     }()
+#else
+// constexpr index_t can't be captured "-Wunused-lambda-capture"
+// TODO: this is ugly
+#define TO_TUPLE_OF_SEQUENCE(a_of_b_impl, a_size, bs_sizes)             \
+    [a_of_b_impl, bs_sizes] {                                   \
+        return ck_tile::generate_tuple(                                 \
+            [=](auto i) {                                               \
+                constexpr auto b_impl    = a_of_b_impl[i];              \
+                constexpr index_t b_size = bs_sizes[i];                 \
+                constexpr auto b         = TO_SEQUENCE(b_impl, b_size); \
+                return b;                                               \
+            },                                                          \
+            ck_tile::number<a_size>{});                                 \
+    }()
+#endif
+
 
 } // namespace ck_tile

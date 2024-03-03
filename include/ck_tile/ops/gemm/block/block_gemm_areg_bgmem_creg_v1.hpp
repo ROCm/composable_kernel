@@ -44,9 +44,9 @@ struct BlockGemmARegBGmemCRegV1
                                    void* smem_ptr) const
     {
         static_assert(
-            is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
-                is_same_v<BDataType, remove_cv_t<typename BBlockGmemWindowTmp::DataType>> &&
-                is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockGmemWindowTmp::DataType>> &&
+                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
             "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensor{}.get_lengths()[number<0>{}];
@@ -90,9 +90,10 @@ struct BlockGemmARegBGmemCRegV1
                                    const BBlockGmemWindowTmp& b_block_gmem_window_tmp,
                                    void* smem_ptr) const
     {
-        static_assert(is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
-                          is_same_v<BDataType, remove_cv_t<typename BBlockGmemWindowTmp::DataType>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensor::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockGmemWindowTmp::DataType>>,
+            "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensor{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockGmemWindowTmp{}.get_window_lengths()[number<0>{}];

@@ -7,6 +7,7 @@
 #include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/numeric/arithmetic.hpp"
 #include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/utility/limits.hpp"
 #include <stdint.h>
@@ -75,20 +76,19 @@ struct alignas(1) float8_e4m3_t
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e4m3_t(const float& x) { data = float_to_fp8_raw(x); }
+    explicit constexpr float8_e4m3_t(const float& x) : data(float_to_fp8_raw(x)) {}
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e4m3_t(const int& x)
+    explicit constexpr float8_e4m3_t(const int& x) : data(float_to_fp8_raw(static_cast<float>(x)))
     {
-        data = float_to_fp8_raw(static_cast<float>(x));
     }
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
     explicit constexpr float8_e4m3_t(const unsigned int& x)
+        : data(float_to_fp8_raw(static_cast<float>(x)))
     {
-        data = float_to_fp8_raw(static_cast<float>(x));
     }
 
     // cast to float
@@ -106,6 +106,8 @@ struct alignas(1) float8_e4m3_t
     CK_TILE_HOST_DEVICE
     constexpr raw_type get() const { return data; }
 };
+using fp8_t     = float8_e4m3_t;
+using fp8_raw_t = typename fp8_t::raw_type;
 
 struct alignas(1) float8_e5m2_t
 {
@@ -132,25 +134,24 @@ struct alignas(1) float8_e5m2_t
 
     // construct from float
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e5m2_t(const float& x) { data = float_to_bf8_raw(x); }
+    explicit constexpr float8_e5m2_t(const float& x) : data(float_to_bf8_raw(x)) {}
 
     // construct from int
     CK_TILE_HOST_DEVICE
-    explicit constexpr float8_e5m2_t(const int& x)
+    explicit constexpr float8_e5m2_t(const int& x) : data(float_to_bf8_raw(static_cast<float>(x)))
     {
-        data = float_to_bf8_raw(static_cast<float>(x));
     }
 
     // construct from unsigned int
     CK_TILE_HOST_DEVICE
     explicit constexpr float8_e5m2_t(const unsigned int& x)
+        : data(float_to_bf8_raw(static_cast<float>(x)))
     {
-        data = float_to_bf8_raw(static_cast<float>(x));
     }
 
     // cast to float
     CK_TILE_HOST_DEVICE
-    explicit constexpr constexpr operator float() const { return bf8_to_float_raw(data); }
+    explicit constexpr operator float() const { return bf8_to_float_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
@@ -163,6 +164,8 @@ struct alignas(1) float8_e5m2_t
     CK_TILE_HOST_DEVICE
     constexpr raw_type get() const { return data; }
 };
+using bf8_t     = float8_e5m2_t;
+using bf8_raw_t = typename bf8_t::raw_type;
 
 // below is sw fp8 conversion, not utilizing hw instruction
 namespace impl {
@@ -431,10 +434,10 @@ CK_TILE_HOST_DEVICE Y cast_from_f8(X x)
 }
 } // namespace impl
 
-CK_TILE_HOST_DEVICE uint8_t float_to_fp8_sr_raw(float x)
+CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_sr_raw(float x)
 {
     constexpr int seed = 42;
-    uint32_t rng       = prand_generator<float, seed>{}(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator_t<float, seed>{}(reinterpret_cast<uintptr_t>(&x), x);
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float max_fp8 = 240.0f;
     x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
@@ -453,16 +456,18 @@ CK_TILE_HOST_DEVICE uint8_t float_to_fp8_sr_raw(float x)
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr fp8_rounding_mode rm   = fp8_rounding_mode::stochastic;
-    return impl::
-        cast_to_f8<float, fp8_t, negative_zero_nan, clip, (rm == fp8_rounding_mode::stochastic)>(
-            x, rng);
+    return bit_cast<fp8_raw_t>(impl::cast_to_f8<float,
+                                                fp8_t,
+                                                negative_zero_nan,
+                                                clip,
+                                                (rm == fp8_rounding_mode::stochastic)>(x, rng));
 #endif
 }
 
-CK_TILE_HOST_DEVICE uint8_t float_to_bf8_sr_raw(float x)
+CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_sr_raw(float x)
 {
     constexpr int seed = 42;
-    uint32_t rng       = prand_generator<float, seed>{}(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng       = prand_generator_t<float, seed>{}(reinterpret_cast<uintptr_t>(&x), x);
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     union
     {
@@ -479,13 +484,15 @@ CK_TILE_HOST_DEVICE uint8_t float_to_bf8_sr_raw(float x)
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr fp8_rounding_mode rm   = fp8_rounding_mode::stochastic;
-    return impl::
-        cast_to_f8<float, bf8_t, negative_zero_nan, clip, (rm == fp8_rounding_mode::stochastic)>(
-            x, rng);
+    return bit_cast<bf8_raw_t>(impl::cast_to_f8<float,
+                                                bf8_t,
+                                                negative_zero_nan,
+                                                clip,
+                                                (rm == fp8_rounding_mode::stochastic)>(x, rng));
 #endif
 }
 
-CK_TILE_HOST_DEVICE uint8_t float_to_fp8_rtn_raw(float x)
+CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_rtn_raw(float x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float max_fp8 = 240.0f;
@@ -506,12 +513,14 @@ CK_TILE_HOST_DEVICE uint8_t float_to_fp8_rtn_raw(float x)
     constexpr bool clip              = true;
     constexpr fp8_rounding_mode rm   = fp8_rounding_mode::standard;
     constexpr uint32_t rng           = 0;
-    return impl::
-        cast_to_f8<float, fp8_t, negative_zero_nan, clip, (rm == fp8_rounding_mode::stochastic)>(
-            x, rng);
+    return bit_cast<fp8_raw_t>(impl::cast_to_f8<float,
+                                                fp8_t,
+                                                negative_zero_nan,
+                                                clip,
+                                                (rm == fp8_rounding_mode::stochastic)>(x, rng));
 #endif
 }
-CK_TILE_HOST_DEVICE uint8_t float_to_bf8_rtn_raw(float x)
+CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_rtn_raw(float x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     union
@@ -530,30 +539,32 @@ CK_TILE_HOST_DEVICE uint8_t float_to_bf8_rtn_raw(float x)
     constexpr bool clip              = true;
     constexpr fp8_rounding_mode rm   = fp8_rounding_mode::standard;
     constexpr uint32_t rng           = 0;
-    return impl::
-        cast_to_f8<float, bf8_t, negative_zero_nan, clip, (rm == fp8_rounding_mode::stochastic)>(
-            x, rng);
+    return bit_cast<bf8_raw_t>(impl::cast_to_f8<float,
+                                                bf8_t,
+                                                negative_zero_nan,
+                                                clip,
+                                                (rm == fp8_rounding_mode::stochastic)>(x, rng));
 #endif
 }
 
 // clang-format off
-template<fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE uint8_t float_to_fp8_raw(float x, constant<rounding> = {})
+template<fp8_rounding_mode rounding>
+CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_raw(float x, constant<rounding>)
 {
     if      constexpr (rounding == fp8_rounding_mode::standard)   return float_to_fp8_rtn_raw(x);
     else if constexpr (rounding == fp8_rounding_mode::stochastic) return float_to_fp8_sr_raw(x);
-    else return uint8_t{0};
+    else return fp8_raw_t{0};
 }
 
-template<fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE uint8_t float_to_bf8_raw(float x, constant<rounding> = {})
+template<fp8_rounding_mode rounding>
+CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_raw(float x, constant<rounding>)
 {
     if      constexpr (rounding == fp8_rounding_mode::standard)   return float_to_bf8_rtn_raw(x);
     else if constexpr (rounding == fp8_rounding_mode::stochastic) return float_to_bf8_sr_raw(x);
-    else return uint8_t{0};
+    else return bf8_raw_t{0};
 }
 
-CK_TILE_HOST_DEVICE float fp8_to_float_raw(uint8_t x)
+CK_TILE_HOST_DEVICE float fp8_to_float_raw(fp8_raw_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float fval;
@@ -563,11 +574,11 @@ CK_TILE_HOST_DEVICE float fp8_to_float_raw(uint8_t x)
     return fval;
 #else
     constexpr bool negative_zero_nan = true;
-    return impl::cast_from_f8<fp8_t, float, negative_zero_nan>(x);
+    return impl::cast_from_f8<fp8_t, float, negative_zero_nan>(fp8_t::bit_cast(x));
 #endif
 }
 
-CK_TILE_HOST_DEVICE float bf8_to_float_raw(uint8_t x)
+CK_TILE_HOST_DEVICE float bf8_to_float_raw(bf8_raw_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float fval;
@@ -577,18 +588,18 @@ CK_TILE_HOST_DEVICE float bf8_to_float_raw(uint8_t x)
     return fval;
 #else
     constexpr bool negative_zero_nan = true;
-    return impl::cast_from_f8<bf8_t, float, negative_zero_nan>(x);
+    return impl::cast_from_f8<bf8_t, float, negative_zero_nan>(bf8_t::bit_cast(x));
 #endif
 }
 
-template<fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE float8_e4m3_t float_to_fp8(float x, constant<rounding> = {})
+template<fp8_rounding_mode rounding>
+CK_TILE_HOST_DEVICE float8_e4m3_t float_to_fp8(float x, constant<rounding>)
 {
     return float8_e4m3_t::bit_cast(float_to_fp8_raw(x, constant<rounding>{}));
 }
 
-template<fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE float8_e5m2_t float_to_bf8(float x, constant<rounding> = {})
+template<fp8_rounding_mode rounding>
+CK_TILE_HOST_DEVICE float8_e5m2_t float_to_bf8(float x, constant<rounding>)
 {
     return float8_e5m2_t::bit_cast(float_to_bf8_raw(x, constant<rounding>{}));
 }
@@ -604,8 +615,6 @@ CK_TILE_HOST_DEVICE float bf8_to_float(float8_e5m2_t x)
 }
 
 // clang-format on
-using fp8_t = float8_e4m3_t;
-using bf8_t = float8_e5m2_t;
 
 template <typename T>
 struct numeric_utils;

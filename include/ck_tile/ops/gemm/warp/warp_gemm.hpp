@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_impl.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma.hpp"
 
 namespace ck_tile {
 

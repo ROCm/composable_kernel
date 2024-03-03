@@ -14,9 +14,9 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()
     {
-        if constexpr(is_same_v<typename Problem::ADataType, half_t> &&
-                     is_same_v<typename Problem::BDataType, half_t> &&
-                     is_same_v<typename Problem::CDataType, float>)
+        if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
+                     std::is_same_v<typename Problem::BDataType, half_t> &&
+                     std::is_same_v<typename Problem::CDataType, float>)
         {
 #if 0
             constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -42,9 +42,9 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
             return make_tuple(WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution{}, 4, 1);
 #endif
         }
-        else if constexpr(is_same_v<typename Problem::ADataType, bhalf_t> &&
-                          is_same_v<typename Problem::BDataType, bhalf_t> &&
-                          is_same_v<typename Problem::CDataType, float>)
+        else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
+                          std::is_same_v<typename Problem::BDataType, bf16_t> &&
+                          std::is_same_v<typename Problem::CDataType, float>)
         {
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
         }
