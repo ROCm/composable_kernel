@@ -20,7 +20,9 @@ std::vector<rtc::src_file> get_headers_for_test()
     auto hs = ck::host::GetHeaders();
     std::transform(
         hs.begin(), hs.end(), std::back_inserter(result), [&](const auto& p) -> rtc::src_file {
-            return {p.first, p.second};
+            auto s = p.second;
+            std::string content{s.first, s.second};
+            return {p.first, content};
         });
     return result;
 }
@@ -159,7 +161,10 @@ TEST_CASE(test_problem_kernel)
     auto b = to_gpu(generate_buffer<half>(1024 * 1024, 1));
     auto c = to_gpu(generate_buffer<half>(1024 * 1024, 2));
 
-    for(auto solution : prob.GetSolutions("gfx90a"))
+    std::string epilogue = "";
+    std::string prologue = "";
+
+    for(auto solution : prob.GetSolutions("gfx90a", prologue, epilogue))
     {
         auto src  = ck::host::InterpolateString(gemm_compile_check,
                                                {{"include", prob.GetIncludeHeader()},

@@ -250,78 +250,10 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
         epilogue);
 }
 
+// TODO: reincorporate fusion
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate = R"(
-${Prologue}
-${Epilogue}
 
-using CDEElementOp = Prologue;
 ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>
-
-// GridwiseGemm
-using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
-        ${ADataType},
-        ${BDataType},
-        ${ComputeDataType},
-        ${AccDataType},
-        ${CShuffleDataType},
-        ${DsDataType},
-        ${EDataType},
-        ${AElementwiseOperation},
-        ${BElementwiseOperation},
-        ${CDEElementwiseOperation},
-        InMemoryDataOperationEnum::Set,
-        ${NumGemmkPrefetchStage},
-        ${BlockSize},
-        ${MPerBlock},
-        ${NPerBlock},
-        ${KPerBlock},
-        ${AK1},
-        ${BK1},
-        ${MPerXDL},
-        ${NPerXDL},
-        ${MXdlPerWave},
-        ${NXdlPerWave},
-        ${ABlockTransferThreadClusterLengths_AK0_M_AK1},
-        ${ABlockTransferThreadClusterArrangeOrder},
-        ${ABlockTransferSrcAccessOrder},
-        ${ABlockTransferSrcVectorDim},
-        ${ABlockTransferSrcScalarPerVector},
-        ${ABlockTransferDstScalarPerVector_AK1},
-        false,
-        ${ABlockLdsExtraM},
-        ${BBlockTransferThreadClusterLengths_BK0_N_BK1},
-        ${BBlockTransferThreadClusterArrangeOrder},
-        ${BBlockTransferSrcAccessOrder},
-        ${BBlockTransferSrcVectorDim},
-        ${BBlockTransferSrcScalarPerVector},
-        ${BBlockTransferDstScalarPerVector_BK1},
-        false,
-        ${BBlockLdsExtraN},
-        ${CShuffleMXdlPerWavePerShuffle},
-        ${CShuffleNXdlPerWavePerShuffle},
-        ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock},
-        ${CDEBlockTransferScalarPerVector_NPerBlock},
-        LoopSched = make_default_loop_scheduler(), //will need to replace function
-        PipelineVer = PipelineVersion::v1>;
-
-extern "C" __global__ void run_${name}(void *AGridDesc_AK0_M_AK1, void *BGridDesc_BK0_N_BK1, void *DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock, void *EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock, void *Block2Etile)
-{
-    const auto kernel = kernel_gemm_multiple_d_xdl_cshuffle<
-                    GridwiseGemm,
-                    ${ADataType}, // TODO: distiguish A/B datatype
-                    ${BDataType}, // TODO: distiguish A/B datatype
-                    typename GridwiseGemm::DsGridPointer,
-                    ${EDataType},
-                    ${AElementwiseOperation},
-                    ${BElementwiseOperation},
-                    ${CDEElementwiseOperation},
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
-                    DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    DeviceOp::Block2ETileMap,
-                    has_main_loop>;
-}
 )";
 
 Solution Operation_Xdl_CShuffle::ToSolution() const

@@ -193,7 +193,7 @@ static const char* const Device_ConvTemplate =
 ${Prologue}
 ${Epilogue}
 
-extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}* b, ${EDataType}* c, const std::array<std::size_t, ${NumDim}> in_lengths, std::array<std::size_t, ${NumDim}> in_strides, std::array<std::size_t, ${NumDim}> wei_lengths,std::array<std::size_t, ${NumDim}> wei_strides, std::array<std::size_t, ${NumDim}> out_lengths, std::array<std::size_t, ${NumDim}> out_strides, std::array<std::size_t, ${NumDim}> conv_filter_strides, std::array<std::size_t, ${NumDim}> conv_filter_dilations, std::array<std::size_t, ${NumDim}> input_left_pads, std::array<std::size_t, ${NumDim}> input_right_pads)
+extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}* b, ${EDataType}* c, void* arg)
 {
     using CDEElementOp = Prologue;
 
@@ -256,11 +256,12 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
                     ${AElementwiseOperation},
                     ${BElementwiseOperation},
                     ${CDEElementwiseOperation},
-                    a_grid_desc,
-                    b_grid_desc,
-                    d_grid_desc,
-                    e_grid_desc,
+                    DeviceConv::AGridDesc_AK0_M_AK1,
+                    DeviceConv::BGridDesc_BK0_N_BK1,
+                    DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     Block2ETileMap,
+		    ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                     true,
                     isMultiA,
                     isMultiB>;

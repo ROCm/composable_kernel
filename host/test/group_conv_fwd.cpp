@@ -414,21 +414,11 @@ TEST_CASE(test_problem_kernel)
         using CLayout = ck::tensor_layout::convolution::NHWGK;
 
         k.launch(nullptr, grid_size * block_size, block_size)(
-            arg.p_as_grid_.At(I0), // Pass just A descriptor instead of tuple
-            arg.p_bs_grid_.At(I0), // Pass just B descriptor instead of tuple
-            arg.p_ds_grid_,
-            arg.p_e_grid_,
-            arg.a_element_op_,
-            arg.b_element_op_,
-            arg.cde_element_op_,
-            arg.a_g_n_c_wis_lengths_[0], // Group count
-            arg.a_grid_desc_ak0_m_ak1_,
-            arg.b_grid_desc_bk0_n_bk1_,
-            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            arg.block_2_etile_map_,
-            arg.compute_ptr_offset_of_batch_); // FIXME: my launch will bw different: will need
-                                               // to pass in grid ptrs for run fcns
+            a.data(),
+            b.data(),
+            c.data(),
+            arg); // FIXME: my launch will bw different: will need
+                  // to pass in grid ptrs for run fcns
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }
