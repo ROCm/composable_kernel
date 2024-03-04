@@ -31,7 +31,7 @@ get_slice_tile(const tile_window_with_static_lengths<BottomTensorView_, WindowLe
 
     constexpr auto slice_lengths = slice_ends - slice_begins;
 
-    return make_tile_window(tile.GetBottomTensorView(),
+    return make_tile_window(tile.get_bottom_tensor_view(),
                             sequence_to_tuple_of_number(slice_lengths),
                             to_multi_index(slice_begins));
 }
