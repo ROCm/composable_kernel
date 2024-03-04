@@ -16,13 +16,13 @@ namespace block {
 
 struct BlockDropout
 {
-    __host__ __device__ BlockDropout(const long_index_t& global_idx_,
+    __host__ __device__ BlockDropout(const long_index_t global_idx_,
                                      const float p_dropout_rescale_,
-                                     const uint8_t& p_undrop_in_uint8_t_,
+                                     const uint8_t p_undrop_in_uint8_t_,
                                      const index_t total_n_len_,
-                                     const unsigned long long& seed,
-                                     const unsigned long long& offset,
-                                     const bool& is_store_randval_)
+                                     const unsigned long long seed,
+                                     const unsigned long long offset,
+                                     const bool is_store_randval_)
         : global_idx(global_idx_),
           p_dropout_rescale(p_dropout_rescale_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
