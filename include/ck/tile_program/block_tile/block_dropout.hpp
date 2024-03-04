@@ -34,8 +34,8 @@ struct BlockDropout
 
     template <typename BlockGemm, typename RandValDramBlockWindowTmp>
     __host__ __device__ static constexpr auto
-    MakeRandvalDramWindows(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
-                           index_t seqlen_k_start)
+    MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
+                          index_t seqlen_k_start)
     {
         using Problem        = remove_cvref_t<typename BlockGemm::Problem>;
         constexpr index_t kM = Problem::BlockGemmShape::kM;
