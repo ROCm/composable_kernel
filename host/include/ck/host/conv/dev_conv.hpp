@@ -17,7 +17,7 @@ namespace conv {
 
 struct Problem_Conv
 {
-    std::size_t NumDim               = 0;
+    std::size_t NumDim               = 2;
     std::size_t G                    = 0;
     std::size_t N                    = 0;
     std::size_t C                    = 0;

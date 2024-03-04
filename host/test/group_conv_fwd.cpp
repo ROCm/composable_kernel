@@ -236,7 +236,7 @@ TEST_CASE(test_problem_kernel)
         ck::half_t,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
-        CDEElementOp, // FIXME: replace with prologue
+        CDEElementOp,
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         ck::tensor_operation::device::GemmSpecialization::Default,
         1,
@@ -360,10 +360,11 @@ TEST_CASE(test_problem_kernel)
     */
 
     auto get_num_elems = [](const auto& tensor_lens) {
-      return std::reduce(tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
+        return std::reduce(
+            tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
     };
 
-    auto in_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
+    auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
     auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 0));
     auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 0));
 
