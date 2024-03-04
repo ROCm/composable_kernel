@@ -10,7 +10,7 @@
 namespace ck_tile {
 
 template <typename ADataType, typename CompDataType, typename BDataType>
-void reference_batched_softmax(
+CK_TILE_HOST void reference_batched_softmax(
     const HostTensor<ADataType>& a_b_m_n,
     HostTensor<BDataType>& b_b_m_n,
     std::optional<std::reference_wrapper<HostTensor<CompDataType>>> lse_b_m = std::nullopt)

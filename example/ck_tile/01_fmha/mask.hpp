@@ -51,7 +51,7 @@ struct mask_info
                 printf("not supported value %s, %s\n", v.c_str(), str.c_str());
                 assert(0);
             }
-            tmp.type       = mask_enum::window_generic;
+            tmp.type            = mask_enum::window_generic;
             ck_tile::index_t v0 = atoi(v.substr(0, found_1).c_str());
             ck_tile::index_t v1 = atoi(v.substr(found_1 + 1).c_str());
             // TODO: some validation

@@ -9,13 +9,15 @@
 #endif
 
 #ifdef __HIPCC__
-#define CK_TILE_HOST __host__
-#define CK_TILE_DEVICE __device__
-#define CK_TILE_HOST_DEVICE __host__ __device__
+#define CK_TILE_HOST inline __host__
+#define CK_TILE_DEVICE inline __device__
+#define CK_TILE_HOST_DEVICE inline __host__ __device__
+#define CK_TILE_DEVICE_EXTERN __device__
 #else
 #define CK_TILE_HOST inline
 #define CK_TILE_DEVICE inline
 #define CK_TILE_HOST_DEVICE inline
+#define CK_TILE_DEVICE_EXTERN
 #endif
 
 #define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD 0
@@ -122,7 +124,7 @@
 #endif
 
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
-#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD -1
+#define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0xffffffff
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
     defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||                          \
     defined(__gfx942__) // for GPU code
@@ -131,4 +133,8 @@
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
 #elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
+#endif
+
+#ifndef CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
+#define CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1
 #endif

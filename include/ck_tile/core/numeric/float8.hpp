@@ -184,7 +184,7 @@ CK_TILE_HOST_DEVICE Y run_cast_to_f8(X x, uint32_t rng)
     int exponent, bias;
     uint32_t head, mantissa, sign;
     // nan code is same for float and half
-    constexpr Y nan_code        = 0x80;
+    constexpr Y nan_code        = __builtin_bit_cast(Y, static_cast<uint8_t>(0x80));
     constexpr uint32_t nan_mask = numeric_utils<X>::nan_mask;
 
     // convert to bitwise
@@ -215,7 +215,7 @@ CK_TILE_HOST_DEVICE Y run_cast_to_f8(X x, uint32_t rng)
 
     // check if x is 0.0
     if(x_bitwise == 0)
-        return 0;
+        return __builtin_bit_cast(Y, static_cast<uint8_t>(0));
 
     // First need to check if it is normal or denorm as there is a difference of implict 1
     // Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift
@@ -317,15 +317,18 @@ In this case, the fp16 mantissa should be shift left by 1 */
         }
         else
         {
-            return signed_inf;
+            return __builtin_bit_cast(Y, static_cast<uint8_t>(signed_inf));
         }
     }
 
     // check if x is 0.0 or -0.0
     if(out_exponent == 0 && mantissa == 0)
-        return negative_zero_nan ? 0 : (sign << (out_exp + out_mant));
+        return __builtin_bit_cast(
+            Y, static_cast<uint8_t>(negative_zero_nan ? 0 : (sign << (out_exp + out_mant))));
     mantissa &= (1 << out_mant) - 1;
-    return (sign << (out_exp + out_mant)) | (out_exponent << out_mant) | mantissa;
+    return __builtin_bit_cast(Y,
+                              static_cast<uint8_t>((sign << (out_exp + out_mant)) |
+                                                   (out_exponent << out_mant) | mantissa));
 }
 
 template <typename X, typename Y, bool negative_zero_nan>
@@ -338,9 +341,10 @@ CK_TILE_HOST_DEVICE Y run_cast_from_f8(X x)
     // resulting type exponent/mantissa layout
     constexpr int out_exp  = numeric_utils<Y>::exp;
     constexpr int out_mant = numeric_utils<Y>::mant;
+    uint8_t x_raw          = __builtin_bit_cast(uint8_t, x);
 
     // prepare the codes
-    constexpr X nan_code = 0x80;
+    constexpr uint8_t nan_code = 0x80;
     Y Inf, NegInf, NaN, Neg0;
     using T_bitwise = typename numeric_utils<Y>::bitwise_type;
 
@@ -355,13 +359,13 @@ CK_TILE_HOST_DEVICE Y run_cast_from_f8(X x)
     Neg0   = *(reinterpret_cast<const Y*>(&Neg0_bitwise));
 
     // check if x is 0.0
-    if(x == 0)
+    if(x_raw == 0)
         return static_cast<Y>(0);
 
     // unpack the input
-    uint32_t sign     = x >> (in_exp + in_mant);
-    uint32_t mantissa = x & ((1 << in_mant) - 1);
-    int exponent      = (x & 0x7F) >> in_mant;
+    uint32_t sign     = x_raw >> (in_exp + in_mant);
+    uint32_t mantissa = x_raw & ((1 << in_mant) - 1);
+    int exponent      = (x_raw & 0x7F) >> in_mant;
 
     constexpr int exp_low_cutoff =
         (1 << (out_exp - 1)) - (1 << (in_exp - 1)) + 1 - (negative_zero_nan ? 1 : 0);
@@ -369,12 +373,12 @@ CK_TILE_HOST_DEVICE Y run_cast_from_f8(X x)
 
     if constexpr(negative_zero_nan)
     {
-        if(x == nan_code)
+        if(x_raw == nan_code)
             return NaN;
     }
     else
     {
-        if(x == nan_code)
+        if(x_raw == nan_code)
             return Neg0;
         if(exponent == ((1 << in_exp) - 1))
             return (mantissa == 0) ? (sign ? NegInf : Inf) : NaN;
@@ -382,7 +386,7 @@ CK_TILE_HOST_DEVICE Y run_cast_from_f8(X x)
 
     if((numeric_utils<Y>::mant == 10) && (numeric_utils<X>::mant == 2) && !negative_zero_nan)
     {
-        retval = x;
+        retval = x_raw;
         retval <<= 8;
         return *(reinterpret_cast<const Y*>(&retval));
     }
@@ -700,8 +704,8 @@ struct numeric_limits<bf8_t>
     CK_TILE_HOST_DEVICE static constexpr bf8_t denorm_min() { return bf8_t::bit_cast(0x01); }
 };
 
-CK_TILE_ARITHMETIC_USING_FLOAT(fp8_t)
-CK_TILE_ARITHMETIC_USING_FLOAT(bf8_t)
+CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, fp8_t)
+CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, bf8_t)
 
 // math
 CK_TILE_HOST_DEVICE

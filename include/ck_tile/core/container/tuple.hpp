@@ -139,6 +139,26 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 // {
 //     return {t...};
 // }
+template <typename... Xs>
+CK_TILE_HOST_DEVICE constexpr bool operator==(const tuple<Xs...>& a, const tuple<Xs...>& b)
+{
+    bool same = true;
+
+    static_for<0, sizeof...(Xs), 1>{}([&](auto i) {
+        if(a[i] != b[i])
+        {
+            same = false;
+        }
+    });
+
+    return same;
+}
+
+template <typename... Xs>
+CK_TILE_HOST_DEVICE constexpr bool operator!=(const tuple<Xs...>& a, const tuple<Xs...>& b)
+{
+    return !(a == b);
+}
 
 template <typename... Xs>
 CK_TILE_HOST_DEVICE constexpr auto make_tuple(Xs&&... xs)
@@ -237,21 +257,21 @@ template <typename F, typename X>
 CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x)
 {
     return detail::transform_tuples_impl(
-        f, x, typename arithmetic_sequence_gen<0, X::size()(), 1>::type{});
+        f, x, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
 }
 
 template <typename F, typename X, typename Y>
 CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y)
 {
     return detail::transform_tuples_impl(
-        f, x, y, typename arithmetic_sequence_gen<0, X::size()(), 1>::type{});
+        f, x, y, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
 }
 
 template <typename F, typename X, typename Y, typename Z>
 CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y, const Z& z)
 {
     return detail::transform_tuples_impl(
-        f, x, y, z, typename arithmetic_sequence_gen<0, X::size()(), 1>::type{});
+        f, x, y, z, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
 }
 
 // By default unroll to the flatten
@@ -490,58 +510,58 @@ struct tuple_element<I, const ck_tile::tuple<Ts...>>
 } // namespace std
 
 #if 1
-#define TO_TUPLE_OF_NUMBER(a, n)                                                               \
-    _Pragma("clang diagnostic push")                                                           \
-    _Pragma("clang diagnostic ignored \"-Wc++20-extensions\"")                                 \
-        [a]<ck_tile::index_t... IDX_IDX_>(ck_tile::sequence<IDX_IDX_...>)                     \
-    {                                                                                          \
-        return ck_tile::tuple<ck_tile::number<a[ck_tile::number<IDX_IDX_>{}]>...>{};          \
-    }                                                                                          \
-    (ck_tile::make_index_sequence<n>{})                                                        \
-    _Pragma("clang diagnostic pop")
+#define TO_TUPLE_OF_NUMBER(a, n)                                                             \
+    _Pragma("clang diagnostic push") _Pragma(                                                \
+        "clang diagnostic ignored \"-Wc++20-extensions\"")[a]<ck_tile::index_t... IDX_IDX_>( \
+        ck_tile::sequence<IDX_IDX_...>)                                                      \
+    {                                                                                        \
+        return ck_tile::tuple<ck_tile::number<a[ck_tile::number<IDX_IDX_>{}]>...>{};         \
+    }                                                                                        \
+    (ck_tile::make_index_sequence<n>{}) _Pragma("clang diagnostic pop")
 #else
-#define TO_TUPLE_OF_NUMBER(arr, n_)                                                              \
-    [&arr, n_] {                                                                                \
-        static_assert(arr.size() >= n_, "wrong! out of bound");                                  \
-                                                                                                \
-        static_assert(n_ < 7, "not implemented");                                                \
-                                                                                                \
-        if constexpr(n_ == 0)                                                                    \
-        {                                                                                       \
-            return ck_tile::tuple<>{};                                                               \
-        }                                                                                       \
-        else if constexpr(n_ == 1)                                                               \
-        {                                                                                       \
-        return ck_tile::tuple<number<arr[0]>>{};                                                 \
-        }                                                                                       \
-        else if constexpr(n_ == 2)                                                               \
-        {                                                                                       \
-            return ck_tile::tuple<number<arr[0]>, number<arr[1]>>{};                                 \
-        }                                                                                       \
-        else if constexpr(n_ == 3)                                                               \
-        {                                                                                       \
-            return ck_tile::tuple<number<arr[0]>, number<arr[1]>, number<arr[2]>>{};                 \
-        }                                                                                       \
-        else if constexpr(n_ == 4)                                                               \
-        {                                                                                       \
-            return ck_tile::tuple<number<arr[0]>, number<arr[1]>, number<arr[2]>, number<arr[3]>>{}; \
-        }                                                                                       \
-        else if constexpr(n_ == 5)                                                               \
-        {                                                                                       \
-            return ck_tile::tuple<number<arr[0]>,                                                    \
-                             number<arr[1]>,                                                    \
-                             number<arr[2]>,                                                    \
-                             number<arr[3]>,                                                    \
-                             number<arr[4]>>{};                                                 \
-        }                                                                                       \
-        else if constexpr(n_ == 6)                                                               \
-        {                                                                                       \
-            return ck_tile::tuple<number<arr[0]>,                                                    \
-                             number<arr[1]>,                                                    \
-                             number<arr[2]>,                                                    \
-                             number<arr[3]>,                                                    \
-                             number<arr[4]>,                                                    \
-                             number<arr[5]>>{};                                                 \
-        }                                                                                       \
+#define TO_TUPLE_OF_NUMBER(arr, n_)                                                      \
+    [&arr, n_] {                                                                         \
+        static_assert(arr.size() >= n_, "wrong! out of bound");                          \
+                                                                                         \
+        static_assert(n_ < 7, "not implemented");                                        \
+                                                                                         \
+        if constexpr(n_ == 0)                                                            \
+        {                                                                                \
+            return ck_tile::tuple<>{};                                                   \
+        }                                                                                \
+        else if constexpr(n_ == 1)                                                       \
+        {                                                                                \
+            return ck_tile::tuple<number<arr[0]>>{};                                     \
+        }                                                                                \
+        else if constexpr(n_ == 2)                                                       \
+        {                                                                                \
+            return ck_tile::tuple<number<arr[0]>, number<arr[1]>>{};                     \
+        }                                                                                \
+        else if constexpr(n_ == 3)                                                       \
+        {                                                                                \
+            return ck_tile::tuple<number<arr[0]>, number<arr[1]>, number<arr[2]>>{};     \
+        }                                                                                \
+        else if constexpr(n_ == 4)                                                       \
+        {                                                                                \
+            return ck_tile::                                                             \
+                tuple<number<arr[0]>, number<arr[1]>, number<arr[2]>, number<arr[3]>>{}; \
+        }                                                                                \
+        else if constexpr(n_ == 5)                                                       \
+        {                                                                                \
+            return ck_tile::tuple<number<arr[0]>,                                        \
+                                  number<arr[1]>,                                        \
+                                  number<arr[2]>,                                        \
+                                  number<arr[3]>,                                        \
+                                  number<arr[4]>>{};                                     \
+        }                                                                                \
+        else if constexpr(n_ == 6)                                                       \
+        {                                                                                \
+            return ck_tile::tuple<number<arr[0]>,                                        \
+                                  number<arr[1]>,                                        \
+                                  number<arr[2]>,                                        \
+                                  number<arr[3]>,                                        \
+                                  number<arr[4]>,                                        \
+                                  number<arr[5]>>{};                                     \
+        }                                                                                \
     }()
 #endif

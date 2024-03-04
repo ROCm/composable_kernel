@@ -40,7 +40,7 @@ typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_floating_point_v<ranges::range_value_t<Range>> &&
         !std::is_same_v<ranges::range_value_t<Range>, half_t>,
-    bool>::type
+    bool>::type CK_TILE_HOST
 check_err(const Range& out,
           const RefRange& ref,
           const std::string& msg  = "Error: Incorrect results!",
@@ -98,7 +98,7 @@ template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_same_v<ranges::range_value_t<Range>, bf16_t>,
-    bool>::type
+    bool>::type CK_TILE_HOST
 check_err(const Range& out,
           const RefRange& ref,
           const std::string& msg  = "Error: Incorrect results!",
@@ -157,7 +157,7 @@ template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_same_v<ranges::range_value_t<Range>, half_t>,
-    bool>::type
+    bool>::type CK_TILE_HOST
 check_err(const Range& out,
           const RefRange& ref,
           const std::string& msg  = "Error: Incorrect results!",
@@ -182,7 +182,7 @@ check_err(const Range& out,
     bool res{true};
     int err_count  = 0;
     double err     = 0;
-    double max_err = std::numeric_limits<ranges::range_value_t<Range>>::min();
+    double max_err = static_cast<double>(std::numeric_limits<ranges::range_value_t<Range>>::min());
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
@@ -220,11 +220,11 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
 #endif
                  ,
                  bool>
-check_err(const Range& out,
-          const RefRange& ref,
-          const std::string& msg = "Error: Incorrect results!",
-          double                 = 0,
-          double atol            = 0)
+    CK_TILE_HOST check_err(const Range& out,
+                           const RefRange& ref,
+                           const std::string& msg = "Error: Incorrect results!",
+                           double                 = 0,
+                           double atol            = 0)
 {
     if(out.size() != ref.size())
     {
@@ -270,12 +270,12 @@ template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_same_v<ranges::range_value_t<Range>, fp8_t>),
                  bool>
-check_err(const Range& out,
-          const RefRange& ref,
-          const std::string& msg  = "Error: Incorrect results!",
-          double rtol             = 1e-3,
-          double atol             = 1e-3,
-          bool allow_infinity_ref = false)
+    CK_TILE_HOST check_err(const Range& out,
+                           const RefRange& ref,
+                           const std::string& msg  = "Error: Incorrect results!",
+                           double rtol             = 1e-3,
+                           double atol             = 1e-3,
+                           bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {
@@ -323,12 +323,12 @@ template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_same_v<ranges::range_value_t<Range>, bf8_t>),
                  bool>
-check_err(const Range& out,
-          const RefRange& ref,
-          const std::string& msg  = "Error: Incorrect results!",
-          double rtol             = 1e-3,
-          double atol             = 1e-3,
-          bool allow_infinity_ref = false)
+    CK_TILE_HOST check_err(const Range& out,
+                           const RefRange& ref,
+                           const std::string& msg  = "Error: Incorrect results!",
+                           double rtol             = 1e-3,
+                           double atol             = 1e-3,
+                           bool allow_infinity_ref = false)
 {
     if(out.size() != ref.size())
     {

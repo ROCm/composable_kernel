@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/arithmetic.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/limits.hpp"
 #include <hip/hip_fp16.h>
@@ -16,7 +17,13 @@ CK_TILE_HOST_DEVICE
 float fp16_to_float_hip(const fp16_hip_t& x);
 
 CK_TILE_HOST_DEVICE
+double fp16_to_double_hip(const fp16_hip_t& x);
+
+CK_TILE_HOST_DEVICE
 fp16_hip_t float_to_fp16_hip(const float& x);
+
+CK_TILE_HOST_DEVICE
+fp16_hip_t double_to_fp16_hip(const double& x);
 
 // HIP use fp16_hip_t as interchangable data type for float16
 struct alignas(2) half_t
@@ -46,6 +53,10 @@ struct alignas(2) half_t
     CK_TILE_HOST_DEVICE
     explicit constexpr half_t(const float& x) : half_t(float_to_fp16_hip(x)) {}
 
+    // construct from double
+    CK_TILE_HOST_DEVICE
+    explicit constexpr half_t(const double& x) : half_t(double_to_fp16_hip(x)) {}
+
     // construct from int
     CK_TILE_HOST_DEVICE
     explicit constexpr half_t(const int& x) : half_t(static_cast<fp16_hip_t>(__int2half_rn(x))) {}
@@ -60,6 +71,10 @@ struct alignas(2) half_t
     // cast to float
     CK_TILE_HOST_DEVICE
     explicit constexpr operator float() const { return fp16_to_float_hip(to_fp16()); }
+
+    // cast to double
+    CK_TILE_HOST_DEVICE
+    explicit constexpr operator double() const { return fp16_to_double_hip(to_fp16()); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
@@ -88,7 +103,17 @@ float fp16_to_float_hip(const fp16_hip_t& x)
 }
 
 CK_TILE_HOST_DEVICE
+double fp16_to_double_hip(const fp16_hip_t& x) { return static_cast<double>(fp16_to_float_hip(x)); }
+
+CK_TILE_HOST_DEVICE
 fp16_hip_t float_to_fp16_hip(const float& x)
+{
+    // return __float2half(x);
+    return static_cast<fp16_hip_t>(x);
+}
+
+CK_TILE_HOST_DEVICE
+fp16_hip_t double_to_fp16_hip(const double& x)
 {
     // return __float2half(x);
     return static_cast<fp16_hip_t>(x);
@@ -98,7 +123,13 @@ CK_TILE_HOST_DEVICE
 float fp16_to_float(const half_t& x) { return static_cast<float>(x); }
 
 CK_TILE_HOST_DEVICE
+float fp16_to_double(const half_t& x) { return static_cast<float>(x); }
+
+CK_TILE_HOST_DEVICE
 half_t float_to_fp16(const float& x) { return half_t{x}; }
+
+CK_TILE_HOST_DEVICE
+half_t double_to_fp16(const double& x) { return half_t{x}; }
 
 // limits
 template <class T>
@@ -156,94 +187,94 @@ struct numeric_utils<half_t>
 };
 
 // arithmetic
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 bool operator==(const half_t& x, const half_t& y) { return __heq(x.to_fp16(), y.to_fp16()); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 bool operator!=(const half_t& x, const half_t& y) { return __hne(x.to_fp16(), y.to_fp16()); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 bool operator<(const half_t& x, const half_t& y) { return __hlt(x.to_fp16(), y.to_fp16()); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 bool operator<=(const half_t& x, const half_t& y) { return __hle(x.to_fp16(), y.to_fp16()); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 bool operator>(const half_t& x, const half_t& y) { return __hgt(x.to_fp16(), y.to_fp16()); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 bool operator>=(const half_t& x, const half_t& y) { return __hge(x.to_fp16(), y.to_fp16()); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator+(const half_t& x, const half_t& y)
 {
     return half_t(__hadd(x.to_fp16(), y.to_fp16()));
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator-(const half_t& x) { return half_t(__hneg(x.to_fp16())); }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator-(const half_t& x, const half_t& y)
 {
     return half_t(__hsub(x.to_fp16(), y.to_fp16()));
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator*(const half_t& x, const half_t& y)
 {
     return half_t(__hmul(x.to_fp16(), y.to_fp16()));
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator/(const half_t& x, const half_t& y)
 {
     return half_t(__hdiv(x.to_fp16(), y.to_fp16()));
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t& operator+=(half_t& x, const half_t& y)
 {
     x = half_t(__hadd(x.to_fp16(), y.to_fp16()));
     return x;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t& operator-=(half_t& x, const half_t& y)
 {
     x = half_t(__hsub(x.to_fp16(), y.to_fp16()));
     return x;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t& operator*=(half_t& x, const half_t& y)
 {
     x = half_t(__hmul(x.to_fp16(), y.to_fp16()));
     return x;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t& operator/=(half_t& x, const half_t& y)
 {
     x = half_t(__hdiv(x.to_fp16(), y.to_fp16()));
     return x;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t& operator++(half_t& x)
 {
     x = half_t(__hadd(x.to_fp16(), half_t(1.0f).to_fp16()));
     return x;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t& operator--(half_t& x)
 {
     x = half_t(__hsub(x.to_fp16(), half_t(1.0f).to_fp16()));
     return x;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator++(half_t& x, int)
 {
     half_t y(x);
@@ -251,13 +282,15 @@ half_t operator++(half_t& x, int)
     return y;
 }
 
-CK_TILE_HOST_DEVICE
+CK_TILE_DEVICE
 half_t operator--(half_t& x, int)
 {
     half_t y(x);
     x = half_t(__hsub(x.to_fp16(), half_t(1.0f).to_fp16()));
     return y;
 }
+
+CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST, half_t)
 
 // math
 CK_TILE_HOST_DEVICE

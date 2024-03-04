@@ -296,7 +296,8 @@ CK_TILE_HOST_DEVICE constexpr auto
                                 &rh_major_minor_to_hidden_ids,
                                 &rh_major_minor_to_hidden_lengths](auto idim_x) {
         // typename HsLengthss::base{}.foo();
-        constexpr auto h_minor_lengths = HsLengthss{}.get(idim_x); //std::tuple_element_t<idim_x, HsLengthss>{};
+        constexpr auto h_minor_lengths =
+            HsLengthss{}.get(idim_x); // std::tuple_element_t<idim_x, HsLengthss>{};
         // constexpr auto h_minor_lengths = impl::getv<idim_x>(HsLengthss{});
 
         constexpr index_t ndim_h_minor = h_minor_lengths.size();
@@ -532,7 +533,7 @@ struct reverse_slice_sequence_impl<sequence<x, xs...>,
     using old_scan =
         reverse_slice_sequence_impl<sequence<xs...>, sequence<ms...>, sequence<ids...>, SliceSize>;
 
-    static constexpr auto slice_size = old_scan::remaining_slice_sizes::Front().value;
+    static constexpr auto slice_size = old_scan::remaining_slice_sizes::front().value;
     static constexpr auto slice_length =
         std::conditional_t<m, number<gcd(x, slice_size)>, number<x>>::value;
 
@@ -546,7 +547,7 @@ struct reverse_slice_sequence_impl<sequence<x, xs...>,
 
     // the first idx that sliced length not equal to original length
     static constexpr index_t _flag =
-        slice_length != x && remaining_slice_sizes{}.Front().value == 1;
+        slice_length != x && remaining_slice_sizes{}.front().value == 1;
     static constexpr index_t _split_flag = std::conditional_t<m, number<_flag>, number<0>>::value;
     static constexpr index_t _split_idx =
         std::conditional_t<_split_flag, number<id>, number<0>>::value;
@@ -570,7 +571,7 @@ struct reverse_slice_sequence_impl<sequence<x>, sequence<m>, sequence<id>, Slice
 
     // the first idx that sliced length not equal to original length
     static constexpr index_t _flag =
-        slice_length != x && remaining_slice_sizes{}.Front().value == 1;
+        slice_length != x && remaining_slice_sizes{}.front().value == 1;
     static constexpr index_t split_flag = std::conditional_t<m, number<_flag>, number<0>>::value;
     static constexpr index_t split_idx =
         std::conditional_t<split_flag, number<id>, number<0>>::value;
@@ -613,7 +614,7 @@ constexpr auto reverse_slice_sequence(Seq,
                                     Mask,
                                     typename arithmetic_sequence_gen<0, Seq::size(), 1>::type,
                                     SliceSize>;
-    static_assert(sliced_type::remaining_slice_sizes::Front().value == 1,
+    static_assert(sliced_type::remaining_slice_sizes::front().value == 1,
                   "can not evenly divide this sequence, please check");
     return make_tuple(typename sliced_type::dim_lengths{},
                       typename sliced_type::dim_slices{},

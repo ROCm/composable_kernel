@@ -90,7 +90,7 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
 
     CK_TILE_HOST_DEVICE constexpr auto get_lengths() const
     {
-        return Base::get_top_dimension_length();
+        return Base::get_top_dimension_lengths();
     }
 
     CK_TILE_HOST_DEVICE constexpr auto get_element_space_size() const

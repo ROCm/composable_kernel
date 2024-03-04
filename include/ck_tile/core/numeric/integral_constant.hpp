@@ -14,8 +14,9 @@ struct constant
     using value_type                  = decltype(v);
     using type                        = constant; // using injected-class-name
     static constexpr value_type value = v;
-    constexpr CK_TILE_HOST_DEVICE operator value_type() const noexcept { return value; }
-    constexpr CK_TILE_HOST_DEVICE value_type operator()() const noexcept { return value; }
+    CK_TILE_HOST_DEVICE constexpr operator value_type() const noexcept { return value; }
+    CK_TILE_HOST_DEVICE constexpr value_type operator()() const noexcept { return value; }
+    CK_TILE_HOST_DEVICE static constexpr bool is_static() { return true; }
 };
 
 template <typename T, T v>

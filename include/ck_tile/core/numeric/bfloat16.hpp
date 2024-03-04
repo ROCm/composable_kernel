@@ -24,8 +24,15 @@ template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding> = {});
 
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
+CK_TILE_HOST_DEVICE uint16_t double_to_bf16_raw(double f, constant<rounding> = {});
+
 CK_TILE_HOST_DEVICE
 float bf16_to_float_raw(uint16_t x);
+
+CK_TILE_HOST_DEVICE
+double bf16_to_double_raw(uint16_t x);
 
 // HIP use __hip_bfloat16 as struct
 struct alignas(2) bfloat16_t
@@ -48,6 +55,10 @@ struct alignas(2) bfloat16_t
     CK_TILE_HOST_DEVICE
     explicit constexpr bfloat16_t(const float& x) : data(float_to_bf16_raw(x)) {}
 
+    // construct from double
+    CK_TILE_HOST_DEVICE
+    explicit constexpr bfloat16_t(const double& x) : data(double_to_bf16_raw(x)) {}
+
     // construct from int
     CK_TILE_HOST_DEVICE
     explicit constexpr bfloat16_t(const int& x) : data(float_to_bf16_raw(static_cast<float>(x))) {}
@@ -62,6 +73,10 @@ struct alignas(2) bfloat16_t
     // cast to float
     CK_TILE_HOST_DEVICE
     explicit constexpr operator float() const { return bf16_to_float_raw(data); }
+
+    // cast to float
+    CK_TILE_HOST_DEVICE
+    explicit constexpr operator double() const { return bf16_to_double_raw(data); }
 
     // cast to int
     CK_TILE_HOST_DEVICE
@@ -157,6 +172,12 @@ CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding>)
         return float_to_bf16_truc_raw(f);
 }
 
+template <bf16_rounding_mode rounding>
+CK_TILE_HOST_DEVICE uint16_t double_to_bf16_raw(double f, constant<rounding>)
+{
+    return float_to_bf16_raw(static_cast<float>(f), constant<rounding>{});
+}
+
 CK_TILE_HOST_DEVICE
 float bf16_to_float_raw(uint16_t x)
 {
@@ -168,6 +189,9 @@ float bf16_to_float_raw(uint16_t x)
     return u.fp32;
 }
 
+CK_TILE_HOST_DEVICE
+double bf16_to_double_raw(uint16_t x) { return static_cast<double>(bf16_to_float_raw(x)); }
+
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
 CK_TILE_HOST_DEVICE bfloat16_t float_to_bf16(float f, constant<rounding>)
@@ -175,8 +199,18 @@ CK_TILE_HOST_DEVICE bfloat16_t float_to_bf16(float f, constant<rounding>)
     return bfloat16_t::bit_cast(float_to_bf16_raw(f, constant<rounding>{}));
 }
 
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
+CK_TILE_HOST_DEVICE bfloat16_t double_to_bf16(double f, constant<rounding>)
+{
+    return bfloat16_t::bit_cast(double_to_bf16_raw(f, constant<rounding>{}));
+}
+
 CK_TILE_HOST_DEVICE
 float bf16_to_float(bfloat16_t x) { return static_cast<float>(x); }
+
+CK_TILE_HOST_DEVICE
+double bf16_to_double(bfloat16_t x) { return static_cast<double>(x); }
 
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
@@ -240,7 +274,7 @@ struct numeric_limits<bfloat16_t>
     }
 };
 
-CK_TILE_ARITHMETIC_USING_FLOAT(bfloat16_t)
+CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, bfloat16_t)
 
 // math
 CK_TILE_HOST_DEVICE

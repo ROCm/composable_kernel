@@ -10,7 +10,6 @@
 // ranges implementation are not intented to be used by user
 // TODO: do we need this?
 namespace ck_tile {
-namespace ranges {
 
 template <typename T>
 using iter_value_t = typename std::iterator_traits<remove_cvref_t<T>>::value_type;
@@ -21,8 +20,7 @@ using iter_reference_t = decltype(*std::declval<T&>());
 template <typename T>
 using iter_difference_t = typename std::iterator_traits<remove_cvref_t<T>>::difference_type;
 
-//.........................
-
+namespace ranges {
 template <typename R>
 using iterator_t = decltype(std::begin(std::declval<R&>()));
 

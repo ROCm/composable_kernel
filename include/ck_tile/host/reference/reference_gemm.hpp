@@ -16,12 +16,12 @@ template <typename ADataType,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-void reference_gemm(const HostTensor<ADataType>& a_m_k,
-                    const HostTensor<BDataType>& b_n_k,
-                    HostTensor<CDataType>& c_m_n,
-                    const AElementOp& a_element_op     = {},
-                    const BElementOp& b_element_op     = {},
-                    const ACCElementOp& acc_element_op = {})
+CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
+                                 const HostTensor<BDataType>& b_n_k,
+                                 HostTensor<CDataType>& c_m_n,
+                                 const AElementOp& a_element_op     = {},
+                                 const BElementOp& b_element_op     = {},
+                                 const ACCElementOp& acc_element_op = {})
 {
     const int N = b_n_k.mDesc.get_lengths()[0];
     const int K = b_n_k.mDesc.get_lengths()[1];

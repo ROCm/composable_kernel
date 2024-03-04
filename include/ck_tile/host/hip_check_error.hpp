@@ -3,13 +3,14 @@
 
 #pragma once
 
+#include "ck_tile/core/config.hpp"
 #include <sstream>
 #include <stdexcept>
 #include <hip/hip_runtime.h>
 
 namespace ck_tile {
 // To be removed, which really does not tell the location of failed HIP functional call
-inline void hip_check_error(hipError_t x)
+CK_TILE_HOST void hip_check_error(hipError_t x)
 {
     if(x != hipSuccess)
     {

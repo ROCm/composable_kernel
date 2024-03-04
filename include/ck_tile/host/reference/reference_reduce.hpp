@@ -10,7 +10,7 @@
 namespace ck_tile {
 
 template <typename ADataType, typename AccDataType, typename BDataType>
-void reference_reduce(const HostTensor<ADataType>& a_m_n, HostTensor<BDataType>& b_m)
+CK_TILE_HOST void reference_reduce(const HostTensor<ADataType>& a_m_n, HostTensor<BDataType>& b_m)
 {
     auto f = [&](auto m) {
         const int N = a_m_n.mDesc.get_lengths()[1];

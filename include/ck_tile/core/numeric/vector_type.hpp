@@ -63,12 +63,12 @@ using fp32x32_t = float __attribute__((ext_vector_type(32)));
 using fp32x64_t = float __attribute__((ext_vector_type(64)));
 
 // fp16
-using fp16x2_t  = fp16_raw_t __attribute__((ext_vector_type(2)));
-using fp16x4_t  = fp16_raw_t __attribute__((ext_vector_type(4)));
-using fp16x8_t  = fp16_raw_t __attribute__((ext_vector_type(8)));
-using fp16x16_t = fp16_raw_t __attribute__((ext_vector_type(16)));
-using fp16x32_t = fp16_raw_t __attribute__((ext_vector_type(32)));
-using fp16x64_t = fp16_raw_t __attribute__((ext_vector_type(64)));
+using fp16x2_t  = _Float16 __attribute__((ext_vector_type(2)));
+using fp16x4_t  = _Float16 __attribute__((ext_vector_type(4)));
+using fp16x8_t  = _Float16 __attribute__((ext_vector_type(8)));
+using fp16x16_t = _Float16 __attribute__((ext_vector_type(16)));
+using fp16x32_t = _Float16 __attribute__((ext_vector_type(32)));
+using fp16x64_t = _Float16 __attribute__((ext_vector_type(64)));
 
 // bfp16
 using bf16x2_t  = bf16_raw_t __attribute__((ext_vector_type(2)));
@@ -93,6 +93,14 @@ using int16x8_t  = int16_t __attribute__((ext_vector_type(8)));
 using int16x16_t = int16_t __attribute__((ext_vector_type(16)));
 using int16x32_t = int16_t __attribute__((ext_vector_type(32)));
 using int16x64_t = int16_t __attribute__((ext_vector_type(64)));
+
+// u16
+using uint16x2_t  = uint16_t __attribute__((ext_vector_type(2)));
+using uint16x4_t  = uint16_t __attribute__((ext_vector_type(4)));
+using uint16x8_t  = uint16_t __attribute__((ext_vector_type(8)));
+using uint16x16_t = uint16_t __attribute__((ext_vector_type(16)));
+using uint16x32_t = uint16_t __attribute__((ext_vector_type(32)));
+using uint16x64_t = uint16_t __attribute__((ext_vector_type(64)));
 
 // i8
 using int8x2_t  = int8_t __attribute((ext_vector_type(2)));

@@ -18,11 +18,11 @@
 namespace ck_tile {
 
 template <typename Range>
-std::ostream& LogRange(std::ostream& os,
-                       Range&& range,
-                       std::string delim,
-                       int precision = std::cout.precision(),
-                       int width     = 0)
+CK_TILE_HOST std::ostream& LogRange(std::ostream& os,
+                                    Range&& range,
+                                    std::string delim,
+                                    int precision = std::cout.precision(),
+                                    int width     = 0)
 {
     bool first = true;
     for(auto&& v : range)
@@ -37,11 +37,11 @@ std::ostream& LogRange(std::ostream& os,
 }
 
 template <typename T, typename Range>
-std::ostream& LogRangeAsType(std::ostream& os,
-                             Range&& range,
-                             std::string delim,
-                             int precision = std::cout.precision(),
-                             int width     = 0)
+CK_TILE_HOST std::ostream& LogRangeAsType(std::ostream& os,
+                                          Range&& range,
+                                          std::string delim,
+                                          int precision = std::cout.precision(),
+                                          int width     = 0)
 {
     bool first = true;
     for(auto&& v : range)
@@ -56,13 +56,13 @@ std::ostream& LogRangeAsType(std::ostream& os,
 }
 
 template <typename F, typename T, std::size_t... Is>
-auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
+CK_TILE_HOST auto call_f_unpack_args_impl(F f, T args, std::index_sequence<Is...>)
 {
     return f(std::get<Is>(args)...);
 }
 
 template <typename F, typename T>
-auto call_f_unpack_args(F f, T args)
+CK_TILE_HOST auto call_f_unpack_args(F f, T args)
 {
     constexpr std::size_t N = std::tuple_size<T>{};
 
@@ -70,13 +70,13 @@ auto call_f_unpack_args(F f, T args)
 }
 
 template <typename F, typename T, std::size_t... Is>
-auto construct_f_unpack_args_impl(T args, std::index_sequence<Is...>)
+CK_TILE_HOST auto construct_f_unpack_args_impl(T args, std::index_sequence<Is...>)
 {
     return F(std::get<Is>(args)...);
 }
 
 template <typename F, typename T>
-auto construct_f_unpack_args(F, T args)
+CK_TILE_HOST auto construct_f_unpack_args(F, T args)
 {
     constexpr std::size_t N = std::tuple_size<T>{};
 
@@ -87,7 +87,19 @@ struct HostTensorDescriptor
 {
     HostTensorDescriptor() = default;
 
-    void CalculateStrides();
+    void CalculateStrides()
+    {
+        mStrides.clear();
+        mStrides.resize(mLens.size(), 0);
+        if(mStrides.empty())
+            return;
+
+        mStrides.back() = 1;
+        std::partial_sum(mLens.rbegin(),
+                         mLens.rend() - 1,
+                         mStrides.rbegin() + 1,
+                         std::multiplies<std::size_t>());
+    }
 
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>>
     HostTensorDescriptor(const std::initializer_list<X>& lens) : mLens(lens.begin(), lens.end())
@@ -123,12 +135,28 @@ struct HostTensorDescriptor
     {
     }
 
-    std::size_t get_num_of_dimension() const;
-    std::size_t get_element_size() const;
-    std::size_t get_element_space_size() const;
+    std::size_t get_num_of_dimension() const { return mLens.size(); }
+    std::size_t get_element_size() const
+    {
+        assert(mLens.size() == mStrides.size());
+        return std::accumulate(
+            mLens.begin(), mLens.end(), std::size_t{1}, std::multiplies<std::size_t>());
+    }
+    std::size_t get_element_space_size() const
+    {
+        std::size_t space = 1;
+        for(std::size_t i = 0; i < mLens.size(); ++i)
+        {
+            if(mLens[i] == 0)
+                continue;
 
-    const std::vector<std::size_t>& get_lengths() const;
-    const std::vector<std::size_t>& GetStrides() const;
+            space += (mLens[i] - 1) * mStrides[i];
+        }
+        return space;
+    }
+
+    const std::vector<std::size_t>& get_lengths() const { return mLens; }
+    const std::vector<std::size_t>& GetStrides() const { return mStrides; }
 
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
@@ -151,8 +179,8 @@ struct HostTensorDescriptor
 };
 
 template <typename New2Old>
-HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(const HostTensorDescriptor& a,
-                                                                    const New2Old& new2old)
+CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old(
+    const HostTensorDescriptor& a, const New2Old& new2old)
 {
     std::vector<std::size_t> new_lengths(a.get_num_of_dimension());
     std::vector<std::size_t> new_strides(a.get_num_of_dimension());
@@ -238,7 +266,7 @@ struct ParallelTensorFunctor
 };
 
 template <typename F, typename... Xs>
-auto make_ParallelTensorFunctor(F f, Xs... xs)
+CK_TILE_HOST auto make_ParallelTensorFunctor(F f, Xs... xs)
 {
     return ParallelTensorFunctor<F, Xs...>(f, xs...);
 }

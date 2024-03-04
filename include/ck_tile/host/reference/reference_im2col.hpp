@@ -10,25 +10,25 @@
 namespace ck_tile {
 
 template <typename T>
-void reference_im2col(HostTensor<T>& in_mtx_host_ref,
-                      const HostTensor<T>& in_host,
-                      int /*N*/,
-                      int /*K*/,
-                      int C,
-                      int /*Y*/,
-                      int X,
-                      int Hi,
-                      int Wi,
-                      int Ho,
-                      int Wo,
-                      int ConvStrideH,
-                      int ConvStrideW,
-                      int ConvDilationH,
-                      int ConvDilationW,
-                      int InLeftPadH,
-                      int InLeftPadW,
-                      int /*InRightPadH*/,
-                      int /*InRightPadW*/)
+CK_TILE_HOST void reference_im2col(HostTensor<T>& in_mtx_host_ref,
+                                   const HostTensor<T>& in_host,
+                                   int /*N*/,
+                                   int /*K*/,
+                                   int C,
+                                   int /*Y*/,
+                                   int X,
+                                   int Hi,
+                                   int Wi,
+                                   int Ho,
+                                   int Wo,
+                                   int ConvStrideH,
+                                   int ConvStrideW,
+                                   int ConvDilationH,
+                                   int ConvDilationW,
+                                   int InLeftPadH,
+                                   int InLeftPadW,
+                                   int /*InRightPadH*/,
+                                   int /*InRightPadW*/)
 {
     int GemmM = in_mtx_host_ref.get_lengths()[0];
     int GemmK = in_mtx_host_ref.get_lengths()[1];

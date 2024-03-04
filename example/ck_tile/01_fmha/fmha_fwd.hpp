@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "mask.hpp"
+#include <type_traits>
 
 template <typename DataType>
 struct FmhaFwdTypeConfig;
@@ -19,11 +20,11 @@ struct FmhaFwdTypeConfig<ck_tile::half_t>
     using KDataType           = ck_tile::half_t;
     using VDataType           = ck_tile::half_t;
     using BiasDataType        = ck_tile::half_t;
-    using LSEDataType         = float;      // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;      // data type for first gemm accumulation
-    using SMPLComputeDataType = float;      // data type for reduction, softmax
+    using LSEDataType         = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType        = float; // data type for first gemm accumulation
+    using SMPLComputeDataType = float; // data type for reduction, softmax
     using PDataType           = ck_tile::half_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;      // data type for second gemm accumulation
+    using OaccDataType        = float;           // data type for second gemm accumulation
     using ODataType           = ck_tile::half_t;
 };
 
@@ -34,11 +35,11 @@ struct FmhaFwdTypeConfig<ck_tile::bf16_t>
     using KDataType           = ck_tile::bf16_t;
     using VDataType           = ck_tile::bf16_t;
     using BiasDataType        = ck_tile::bf16_t;
-    using LSEDataType         = float;       // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;       // data type for first gemm accumulation
-    using SMPLComputeDataType = float;       // data type for reduction, softmax
+    using LSEDataType         = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType        = float; // data type for first gemm accumulation
+    using SMPLComputeDataType = float; // data type for reduction, softmax
     using PDataType           = ck_tile::bf16_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;       // data type for second gemm accumulation
+    using OaccDataType        = float;           // data type for second gemm accumulation
     using ODataType           = ck_tile::bf16_t;
 };
 
@@ -48,12 +49,12 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
     using QDataType           = ck_tile::fp8_t;
     using KDataType           = ck_tile::fp8_t;
     using VDataType           = ck_tile::fp8_t;
-    using BiasDataType        = float;    // TODO: fix me
-    using LSEDataType         = float;    // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;    // data type for first gemm accumulation
-    using SMPLComputeDataType = float;    // data type for reduction, softmax
+    using BiasDataType        = float; // TODO: fix me
+    using LSEDataType         = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType        = float; // data type for first gemm accumulation
+    using SMPLComputeDataType = float; // data type for reduction, softmax
     using PDataType           = ck_tile::fp8_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;    // data type for second gemm accumulation
+    using OaccDataType        = float;          // data type for second gemm accumulation
     using ODataType           = ck_tile::fp8_t;
 };
 
@@ -64,11 +65,11 @@ struct FmhaFwdTypeConfig<ck_tile::bf8_t>
     using KDataType           = ck_tile::bf8_t;
     using VDataType           = ck_tile::bf8_t;
     using BiasDataType        = ck_tile::bf8_t;
-    using LSEDataType         = float;     // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType        = float;     // data type for first gemm accumulation
-    using SMPLComputeDataType = float;     // data type for reduction, softmax
+    using LSEDataType         = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType        = float; // data type for first gemm accumulation
+    using SMPLComputeDataType = float; // data type for reduction, softmax
     using PDataType           = ck_tile::bf8_t; // data type for A matrix of second gemm
-    using OaccDataType        = float;     // data type for second gemm accumulation
+    using OaccDataType        = float;          // data type for second gemm accumulation
     using ODataType           = ck_tile::bf8_t;
 };
 
@@ -107,7 +108,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      ck_tile::index_t mask_x)
 {
     constexpr bool is_v_rowmajor =
-        ck_tile::is_same_v<typename FmhaKernel::VLayout, ck_tile::tensor_layout::gemm::RowMajor>;
+        std::is_same_v<typename FmhaKernel::VLayout, ck_tile::tensor_layout::gemm::RowMajor>;
 
     assert(nhead % nhead_k == 0);
     /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
@@ -298,26 +299,26 @@ template <ck_tile::index_t HDim_,
 struct fmha_fwd_traits_
 {
     static constexpr ck_tile::index_t HDim           = HDim_;
-    using DataType                              = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode          = kIsGroupMode_;
+    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode               = kIsGroupMode_;
     static constexpr ck_tile::index_t kM0            = kM0_;
     static constexpr ck_tile::index_t kN0            = kN0_;
     static constexpr ck_tile::index_t kK0            = kK0_;
     static constexpr ck_tile::index_t kN1            = kN1_;
     static constexpr ck_tile::index_t kK1            = kK1_;
     static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
-    static constexpr bool kIsVLayoutRowMajor    = kIsVLayoutRowMajor_;
-    using FmhaMask                              = ck_tile::remove_cvref_t<FmhaMask_>;
-    static constexpr bool kHasBias              = kHasBias_;
-    static constexpr bool kStoreLse             = kStoreLse_;
-    static constexpr bool kPadS                 = kPadS_;
-    static constexpr bool kPadSK                = kPadSK_;
-    static constexpr bool kPadD                 = kPadD_;
-    static constexpr bool kPadDv                = kPadDv_;
+    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
+    using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
+    static constexpr bool kHasBias                   = kHasBias_;
+    static constexpr bool kStoreLse                  = kStoreLse_;
+    static constexpr bool kPadS                      = kPadS_;
+    static constexpr bool kPadSK                     = kPadSK_;
+    static constexpr bool kPadD                      = kPadD_;
+    static constexpr bool kPadDv                     = kPadDv_;
 };
 
 template <typename Traits_>
-float fmha_fwd_(const stream_config&, fmha_fwd_args);
+float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 
 // This is the public API, will be generated by script
 struct fmha_fwd_traits
@@ -332,4 +333,4 @@ struct fmha_fwd_traits
     bool has_lse;
     // TODO: padding check is inside this api
 };
-float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const stream_config&);
+float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);

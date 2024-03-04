@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
+#include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
 
@@ -231,7 +232,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -NumericLimits<SMPLComputeDataType>::Infinity());
+        set_tile(m, -numeric_limits<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
         __builtin_amdgcn_sched_barrier(0);
@@ -251,7 +252,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -NumericLimits<SMPLComputeDataType>::Infinity());
+                    set_tile(lse, -numeric_limits<SMPLComputeDataType>::infinity());
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
@@ -389,12 +390,15 @@ struct BlockFmhaPipelineQRKSVSAsync
                                                            number<kN0>{});
                 if(need_perpixel_check)
                 {
-                    set_tile_if(
-                        s_acc, -NumericLimits<SMPLComputeDataType>::Infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col);
-                        });
+                    set_tile_if(s_acc,
+                                -numeric_limits<SMPLComputeDataType>::infinity(),
+                                [&](auto tile_idx) {
+                                    const auto row =
+                                        q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                    const auto col =
+                                        k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                    return mask.IsOutOfBound(row, col);
+                                });
                 }
             }
 
@@ -403,7 +407,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 s,
                 sequence<1>{},
                 f_max,
-                -NumericLimits<SMPLComputeDataType>::Infinity()); // m_local = rowmax(S{j})
+                -numeric_limits<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
@@ -454,7 +458,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 /// consideration
                 if constexpr(kHasBias || FmhaMask::IsMasking)
                 {
-                    return raw_m == -NumericLimits<SMPLComputeDataType>::Infinity()
+                    return raw_m == -numeric_limits<SMPLComputeDataType>::infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
                                : raw_m;
                 }

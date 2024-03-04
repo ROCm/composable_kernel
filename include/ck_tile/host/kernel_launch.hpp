@@ -20,12 +20,12 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 }
 
 template <typename... Args, typename F>
-float launch_and_time_kernel(const stream_config& s,
-                             F kernel,
-                             dim3 grid_dim,
-                             dim3 block_dim,
-                             std::size_t lds_byte,
-                             Args... args)
+CK_TILE_HOST float launch_and_time_kernel(const stream_config& s,
+                                          F kernel,
+                                          dim3 grid_dim,
+                                          dim3 block_dim,
+                                          std::size_t lds_byte,
+                                          Args... args)
 {
 #if CK_TILE_TIME_KERNEL
     if(s.time_kernel_)
@@ -75,13 +75,13 @@ float launch_and_time_kernel(const stream_config& s,
 }
 
 template <typename... Args, typename F, typename PreProcessFunc>
-float launch_and_time_kernel_with_preprocess(const stream_config& s,
-                                             PreProcessFunc preprocess,
-                                             F kernel,
-                                             dim3 grid_dim,
-                                             dim3 block_dim,
-                                             std::size_t lds_byte,
-                                             Args... args)
+CK_TILE_HOST float launch_and_time_kernel_with_preprocess(const stream_config& s,
+                                                          PreProcessFunc preprocess,
+                                                          F kernel,
+                                                          dim3 grid_dim,
+                                                          dim3 block_dim,
+                                                          std::size_t lds_byte,
+                                                          Args... args)
 {
 #if CK_TILE_TIME_KERNEL
     if(s.time_kernel_)
@@ -151,12 +151,12 @@ template <int MaxThreadPerBlock = CK_TILE_MAX_THREAD_PER_BLOCK,
           int MinBlockPerCu     = CK_TILE_MIN_BLOCK_PER_CU,
           typename KernelImpl,
           typename... Args>
-float launch_kernel(const stream_config& s,
-                    KernelImpl kernel_impl,
-                    dim3 grid_dim,
-                    dim3 block_dim,
-                    std::size_t dynamic_smem_byte,
-                    Args... args)
+CK_TILE_HOST float launch_kernel(const stream_config& s,
+                                 KernelImpl kernel_impl,
+                                 dim3 grid_dim,
+                                 dim3 block_dim,
+                                 std::size_t dynamic_smem_byte,
+                                 Args... args)
 {
     const auto kernel = kentry<MaxThreadPerBlock, MinBlockPerCu, KernelImpl, Args...>;
 

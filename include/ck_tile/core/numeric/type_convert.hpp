@@ -43,11 +43,11 @@ CK_TILE_HOST_DEVICE constexpr Y type_convert(X x)
     return static_cast<Y>(type_convert<non_const_y, non_const_x>(x));
 }
 
-#define CK_TILE_TYPE_CONVERT(dtype_, stype_)                                           \
-    template <>                                                                        \
-    inline CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x) \
-    {                                                                                  \
-        return stype_##_to_##dtype_(x);                                                \
+#define CK_TILE_TYPE_CONVERT(dtype_, stype_)                                    \
+    template <>                                                                 \
+    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x) \
+    {                                                                           \
+        return stype_##_to_##dtype_(x);                                         \
     }
 
 CK_TILE_TYPE_CONVERT(float, fp16_t)

@@ -79,8 +79,8 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
     using InVec  = array<DataType, vec_length_in>;
     using OutVec = array<DataType, vec_length_out>;
 
-    using InVecType  = typename InVec::type;
-    using OutVecType = typename OutVec::type;
+    // using InVec  = typename InVec::type;
+    // using OutVec = typename OutVec::type;
 
     // SFC
     constexpr auto scalars_per_access_arr = generate_array(
@@ -115,9 +115,11 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
                 number<NDimY>{});
 
             constexpr index_t in_offset = y_in_desc.calculate_offset(idx_y_in);
+            static_assert(in_offset % vec_length_in == 0);
 
-            in_vectors(i).template get_as<InVecType>()(I0) =
-                in_tensor.get_thread_buffer().template get_as<InVecType>(number<in_offset>{});
+            in_vectors(i).template get_as<InVec>()(I0) =
+                in_tensor.get_thread_buffer().template get_as<InVec>(
+                    number<in_offset / vec_length_in>{});
         });
 
         // transpose
@@ -133,10 +135,11 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
                 container_reorder_given_new2old(idx_y_out_tmp, y_dim_out_to_in);
 
             constexpr index_t out_offset = y_out_desc.calculate_offset(idx_y_out);
+            static_assert(out_offset % vec_length_out == 0);
 
-            out_tensor.get_thread_buffer().template set_as<OutVecType>(
-                number<out_offset / sizeof(OutVecType)>{},
-                out_vectors[i].template get_as<OutVecType>()[I0]);
+            out_tensor.get_thread_buffer().template set_as<OutVec>(
+                number<out_offset / vec_length_out>{},
+                out_vectors[i].template get_as<OutVec>()[I0]);
         });
     });
 }

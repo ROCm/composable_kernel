@@ -575,9 +575,8 @@ struct FmhaFwdKernel
             make_tile_window(v_dram,
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
-        /// FIXME: Before C++20, capturing structured binding variables is not supported. Remove
-        /// following copy capture of the 'i_nhead'
-        ///        if compiled in C++20
+        /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
+        /// following copy capture of the 'i_nhead' if in C++20
         const auto bias_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto bias_dram_window_lengths =
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});

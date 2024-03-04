@@ -9,6 +9,11 @@
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp"
 
 // TODO: remove this
 #define K_LDS_LOAD_USE_OFFSET_TRANSFORM 0
@@ -97,9 +102,8 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                 constexpr index_t swizzle_factor = 4; // TODO: hard coded here
                 return WarpGemmImpl<
                     WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
-                            typename Problem::QDataType,
-                            typename Problem::KDataType>,
+                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::QDataType,
+                                                                       typename Problem::KDataType>,
                         2,
                         swizzle_factor>>{};
             }
@@ -222,9 +226,8 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                 constexpr index_t swizzle_factor = 4; // TODO: hard coded here
                 return WarpGemmImpl<
                     WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
-                            typename Problem::QDataType,
-                            typename Problem::KDataType>,
+                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::QDataType,
+                                                                       typename Problem::KDataType>,
                         2,
                         swizzle_factor>>{};
             }
@@ -918,12 +921,10 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         auto warp_gemm = [&]() {
             if constexpr(Problem::kIsFp8)
             {
-                return WarpGemmImpl<
-                    WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
-                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<
-                            typename Problem::PDataType,
-                            typename Problem::VDataType>,
-                        2>>{};
+                return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
+                    WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::PDataType,
+                                                                   typename Problem::VDataType>,
+                    2>>{};
                 // return
                 // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
                 //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename

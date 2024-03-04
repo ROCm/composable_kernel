@@ -21,7 +21,12 @@ struct array
 {
     using value_type           = T_;
     static constexpr index_t N = N_;
+    // TODO: do we need this?
+    // using bulk_type = uint8_t __attribute__((ext_vector_type(N * sizeof(value_type))));
+    // union {
     value_type data[N];
+    //     bulk_type __content;
+    //};
     CK_TILE_HOST_DEVICE constexpr array() : data{} {}
     // TODO: will initialize the data[] with the last value repeatedly
     //       behavior different from std
@@ -44,18 +49,24 @@ struct array
             data[i] = vlast;
         }
     }
-    CK_TILE_HOST_DEVICE explicit constexpr array(value_type c)
+    template <typename Y>
+    CK_TILE_HOST_DEVICE explicit constexpr array(Y c)
     {
         for(auto i = 0; i < size(); i++)
-            data[i] = c;
+            data[i] = static_cast<value_type>(c);
     }
-    template <typename ArrayType>
-    CK_TILE_HOST_DEVICE constexpr array(const ArrayType& o)
-    {
-        static_assert(ArrayType::size() == size(), "wrong! size not the same");
-        for(auto i = 0; i < size(); i++)
-            data[i] = o.data[i];
-    }
+    // template <typename Y>
+    // CK_TILE_HOST_DEVICE constexpr array(const array& o)
+    // {
+    //     // static_assert(ArrayType::size() == size(), "wrong! size not the same");
+    //     __content = o.__content;
+    // }
+    // CK_TILE_HOST_DEVICE constexpr array& operator=(const array& o)
+    // {
+    //     // static_assert(ArrayType::size() == size(), "wrong! size not the same");
+    //     __content = o.__content;
+    //     return *this;
+    // }
 
     CK_TILE_HOST_DEVICE static constexpr auto size() { return N; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<value_type>; }
@@ -147,10 +158,10 @@ struct vector_traits<array<T, N>>
 };
 
 template <typename T, typename... Ts>
-CK_TILE_HOST_DEVICE constexpr auto make_array(T&& x, Ts&&... xs)
+CK_TILE_HOST_DEVICE constexpr auto make_array(Ts&&... xs)
 {
     using value_type = remove_cvref_t<T>;
-    return array<value_type, sizeof...(Ts) + 1>{std::forward<T>(x), std::forward<Ts>(xs)...};
+    return array<value_type, sizeof...(Ts)>{std::forward<Ts>(xs)...};
 }
 
 // make empty array

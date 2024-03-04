@@ -58,4 +58,36 @@ CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
 
 CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 
+CK_TILE_DEVICE void block_sync_lds()
+{
+#if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
+    asm volatile("\
+    s_waitcnt lgkmcnt(0) \n \
+    s_barrier \
+    " ::);
+#else
+    __syncthreads();
+#endif
+}
+
+CK_TILE_DEVICE void block_sync_lds_direct_load()
+{
+    asm volatile("\
+    s_waitcnt vmcnt(0) \n \
+    s_waitcnt lgkmcnt(0) \n \
+    s_barrier \
+    " ::);
+}
+
+CK_TILE_DEVICE void s_nop()
+{
+#if 1
+    asm volatile("\
+    s_nop 0 \n \
+    " ::);
+#else
+    __builtin_amdgcn_sched_barrier(0);
+#endif
+}
+
 } // namespace ck_tile

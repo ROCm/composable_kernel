@@ -976,7 +976,7 @@ reduce_on_sequence(Seq, Reduce f, number<Init> /*initial_value*/)
 
     for(index_t i = 0; i < Seq::size(); ++i)
     {
-        result = f(result, Seq::get(i));
+        result = f(result, Seq::at(i));
     }
 
     return result;
@@ -990,7 +990,7 @@ CK_TILE_HOST_DEVICE constexpr bool sequence_any_of(Seq, F f)
 
     for(index_t i = 0; i < Seq::size(); ++i)
     {
-        flag = flag || f(Seq::get(i));
+        flag = flag || f(Seq::at(i));
     }
 
     return flag;
@@ -1004,7 +1004,7 @@ CK_TILE_HOST_DEVICE constexpr bool sequence_all_of(Seq, F f)
 
     for(index_t i = 0; i < Seq::size(); ++i)
     {
-        flag = flag && f(Seq::get(i));
+        flag = flag && f(Seq::at(i));
     }
 
     return flag;
@@ -1039,11 +1039,14 @@ CK_TILE_HOST_DEVICE constexpr auto generate_sequence_v2(F&& f, number<N>)
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 
-// template <index_t... Is>
-// CK_TILE_HOST_DEVICE constexpr auto to_sequence(Tuple<number<Is>...>)
-// {
-//     return sequence<Is...>{};
-// }
+template <class... T>
+struct tuple;
+
+template <index_t... Is>
+CK_TILE_HOST_DEVICE constexpr auto to_sequence(tuple<number<Is>...>)
+{
+    return sequence<Is...>{};
+}
 
 namespace detail {
 template <index_t h_idx, typename SeqSortedSamples, typename SeqRange>

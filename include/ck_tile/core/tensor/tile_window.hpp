@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/arch/utility.hpp"
+#include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/container/sequence.hpp"
