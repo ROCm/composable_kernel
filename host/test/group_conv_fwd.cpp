@@ -309,6 +309,7 @@ TEST_CASE(test_problem_kernel)
     std::array<ck::index_t, 2> input_left_pads       = {1, 1};
     std::array<ck::index_t, 2> input_right_pads      = {1, 1};
 
+    /* TODO: remove
     // tensor descriptors
     auto in_grid_desc =
         HostTensorDescriptor({static_cast<int>(prob.G),
@@ -356,12 +357,21 @@ TEST_CASE(test_problem_kernel)
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
+    */
+
+    auto get_num_elems = [](const auto& tensor_lens) {
+      return std::reduce(tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
+    };
+
+    auto in_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
+    auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 0));
+    auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 0));
 
     // populated arg call
-    auto arg = DeviceConv::Argument(in_device_buf.GetDeviceBuffer(),
-                                    wei_device_buf.GetDeviceBuffer(),
+    auto arg = DeviceConv::Argument(in_dev.data(),
+                                    wei_dev.data(),
                                     std::array<const void*, 0>{},
-                                    out_device_buf.GetDeviceBuffer(),
+                                    out_dev.data(),
                                     in_lengths,
                                     in_strides,
                                     wei_lengths,
