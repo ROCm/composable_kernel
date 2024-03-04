@@ -34,6 +34,10 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
+    if (params.USE_CUSTOM_DOCKER != ""){
+        img = $"{params.USE_CUSTOM_DOCKER}"
+    }
+    else{
     if (params.ROCMVERSION != "6.0.1"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
@@ -61,6 +65,7 @@ def getDockerImageName(){
              img = "${env.CK_DOCKERHUB_PRIVATE}:ck_ub20.04_rocm${params.ROCMVERSION}_${params.COMPILER_VERSION}_${commit}"
           }
        }
+    }
     }
     return img
 }
@@ -669,6 +674,10 @@ pipeline {
             name: "BUILD_DOCKER",
             defaultValue: false,
             description: "Force building docker image (default: false), set to true if docker image needs to be updated.")
+        string(
+            name: 'USE_CUSTOM_DOCKER',
+            defaultValue: '',
+            description: 'If you want to use a custom docker image, please scecify it here (default: OFF).')
         string(
             name: 'ROCMVERSION', 
             defaultValue: '6.0', 
