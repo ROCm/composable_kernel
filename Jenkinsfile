@@ -1,5 +1,5 @@
 def rocmnode(name) {
-    return '(rocmtest || miopen) && ' + name
+    return '(rocmtest || miopen) && (' + name + ')'
 }
 
 def show_node_info() {
@@ -7,6 +7,7 @@ def show_node_info() {
         echo "NODE_NAME = \$NODE_NAME"
         lsb_release -sd
         uname -r
+        cat /sys/module/amdgpu/version
         ls /opt/ -la
     """
 }
@@ -499,7 +500,7 @@ def Build_CK(Map conf=[:]){
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'clinfo | tee clinfo.log'
+                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
                         if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
                             throw new Exception ("GPU not found")
                         }

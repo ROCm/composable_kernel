@@ -7,7 +7,7 @@ ARG compiler_commit=""
 RUN set -xe
 
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
-RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
+#RUN useradd -rm -d /home/jenkins -s /bin/bash -u 1004 jenkins
 # Add rocm repository
 RUN chmod 1777 /tmp
 RUN apt-get update
