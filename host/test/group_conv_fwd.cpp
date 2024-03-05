@@ -401,7 +401,7 @@ TEST_CASE(test_problem_kernel)
 
         std::ofstream ofh("kernel.txt");
         ofh << "##########################################################\n";
-        ofh << solution.ToTemplateString();
+        ofh << src;
         ofh << "##########################################################\n";
         ofh.close();
 
