@@ -73,23 +73,27 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
-__device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
-    AsPointer p_as_grid,
-    BsPointer p_bs_grid,
-    DsPointer p_ds_grid,
-    EDataType* __restrict__ p_e_grid,
-    const AElementwiseOperation a_element_op,
-    const BElementwiseOperation b_element_op,
-    const CDEElementwiseOperation cde_element_op,
-    const index_t batch_count,
-    const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
-    const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
-    const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-        ds_grid_desc_mblock_mperblock_nblock_nperblock,
-    const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-        e_grid_desc_mblock_mperblock_nblock_nperblock_,
-    const Block2ETileMap block_2_ctile_map,
-    const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+__global__ void
+#if CK_USE_LAUNCH_BOUNDS
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+#endif
+        kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
+            AsPointer p_as_grid,
+            BsPointer p_bs_grid,
+            DsPointer p_ds_grid,
+            EDataType* __restrict__ p_e_grid,
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CDEElementwiseOperation cde_element_op,
+            const index_t batch_count,
+            const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
+            const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
+            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            const Block2ETileMap block_2_ctile_map,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -184,7 +188,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
 #endif
 }
 
-template <typename GridwiseGemm,
+/**template <typename GridwiseGemm,
           typename AsPointer, // tuples if multi AB, pointers if no
           typename BsPointer,
           typename DsPointer,
@@ -255,7 +259,7 @@ __global__ void
                   e_grid_desc_mblock_mperblock_nblock_nperblock_,
                   block_2_ctile_map,
                   compute_ptr_offset_of_batch);
-}
+}**/
 
 } // namespace
 

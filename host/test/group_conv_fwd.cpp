@@ -424,6 +424,9 @@ TEST_CASE(test_problem_kernel)
         using BLayout = ck::tensor_layout::convolution::GKYXC;
         using CLayout = ck::tensor_layout::convolution::NHWGK;
 
+        // decltype(arg)::foo = 1;
+        // decltype(arg.a_grid_desc_ak0_m_ak1_)::foo = 1;
+        // DeviceConv::AGridDesc_AK0_M_AK1::foo = 1;
         k.launch(nullptr, grid_size * block_size, block_size)(
             a.data(),
             b.data(),
