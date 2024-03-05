@@ -495,9 +495,9 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
         def video_id
-        echo video = $(sh 'export video_id=$(getent group video | cut -d: -f3)') > video_id
+        echo video_id = $(sh 'export video_id=$(getent group video | cut -d: -f3)')
         def render_id
-        echo render = $(sh 'export render_id=$(getent group render | cut -d: -f3)') > render_id
+        echo render_id = $(sh 'export render_id=$(getent group render | cut -d: -f3)')
         dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
         echo "Docker flags: ${dockerOpts}"
 
