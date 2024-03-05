@@ -266,19 +266,19 @@ def cmake_build(Map conf=[:]){
     }
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
+    def cmd
+    def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
         def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
         def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
-        def execute_cmd = conf.get("execute_cmd", "")
-        def cmd = conf.get("cmd", """
+        cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
             ${execute_cmd}
         """)
     }
     else{
-        def execute_cmd = conf.get("execute_cmd", "")
-        def cmd = conf.get("cmd", """
+        cmd = conf.get("cmd", """
             ${execute_cmd}
         """)
     }
