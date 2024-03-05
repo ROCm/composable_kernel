@@ -248,7 +248,7 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
         LoopSched>;
 
 
-    device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ${ADataType}*,
                     const ${BDataType}*,
