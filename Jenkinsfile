@@ -818,8 +818,8 @@ pipeline {
                                            cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_TARGETS="gfx908;gfx90a"\
-                                           -DCMAKE_CXX_FLAGS=" -O3 " " .. && make -j check"""
+                                           -D GPU_TARGETS="gfx908;gfx90a" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j check"""
                    }
                     steps{
                         Build_CK_and_Reboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
