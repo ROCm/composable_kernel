@@ -509,18 +509,18 @@ def Build_CK(Map conf=[:]){
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        sh 'rocminfo | tee rocminfo.log'
+                        if ( !runShell('grep -n "gfx" rocminfo.log') ){
                             throw new Exception ("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
                         }
-                        if ( runShell('grep -n "gfx1030" clinfo.log') || runShell('grep -n "gfx1101" clinfo.log') ){
+                        if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') ){
                             navi_node = 1
                             echo "This is a Navi node"
                         }
-                        if ( runShell('grep -n "gfx942" clinfo.log') ){
+                        if ( runShell('grep -n "gfx942" rocminfo.log') ){
                             mi300_node = 1
                             echo "This is MI300 node"
                         }
