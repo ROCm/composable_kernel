@@ -494,6 +494,12 @@ def Build_CK(Map conf=[:]){
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
+        def video_id
+        def render_id
+        sh 'export video_id=$(getent group video | cut -d: -f3)'
+        sh 'export render_id=$(getent group render | cut -d: -f3)'
+        dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+        echo "Docker flags: ${dockerOpts}"
 
         def variant = env.STAGE_NAME
         def retimage
