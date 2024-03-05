@@ -667,7 +667,7 @@ pipeline {
         string(
             name: 'USE_CUSTOM_DOCKER',
             defaultValue: '',
-            description: 'If you want to use a custom docker image, please scecify it here (default: OFF).')
+            description: 'If you want to use a custom docker image, please scecify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
             defaultValue: '6.0', 
@@ -712,6 +712,10 @@ pipeline {
             name: "RUN_PERFORMANCE_TESTS",
             defaultValue: false,
             description: "Run the performance tests (default: OFF)")
+        booleanParam(
+            name: "RUN_CODEGEN_TESTS",
+            defaultValue: true,
+            description: "Run the codegen tests (default: ON)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -790,7 +794,34 @@ pipeline {
                 }
             }
         }
-    
+        stage("Run Codegen Tests")
+        {
+            parallel
+            {
+                stage("Run Codegen Tests on MI100/MI200")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CODEGEN_TESTS.toBoolean() }
+                    }
+                    options { retry(2) }
+                    agent{ label rocmnode("gfx908 || gfx90a")}
+                    environment{
+                        setup_args = """ -DGPU_TARGETS="gfx908;gfx90a" -DBUILD_DEV=On """
+                        execute_args = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
+                                           cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                           -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                                           -D CMAKE_BUILD_TYPE=Release \
+                                           -D GPU_TARGETS="gfx908;gfx90a"\
+                                           -DCMAKE_CXX_FLAGS=" -O3 " " .. && make -j check"""
+                   }
+                    steps{
+                        Build_CK_and_Reboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
 		stage("Build CK and run Tests")
         {
             parallel
