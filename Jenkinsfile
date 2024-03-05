@@ -264,18 +264,24 @@ def cmake_build(Map conf=[:]){
             """)
         sh cmd3
     }
-
-    def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
-    def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
-    def execute_cmd = conf.get("execute_cmd", "")
-
-    def cmd = conf.get("cmd", """
+    if(!setup_args.contains("NO_CK_BUILD")){
+        def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
+        def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
+        def execute_cmd = conf.get("execute_cmd", "")
+        def cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
             ${execute_cmd}
         """)
+    }
+    else{
+        def execute_cmd = conf.get("execute_cmd", "")
+        def cmd = conf.get("cmd", """
+            ${execute_cmd}
+        """)
+    }
 
     echo cmd
 
@@ -667,7 +673,7 @@ pipeline {
         string(
             name: 'USE_CUSTOM_DOCKER',
             defaultValue: '',
-            description: 'If you want to use a custom docker image, please scecify it here (default: leave blank).')
+            description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
             defaultValue: '6.0', 
@@ -807,7 +813,7 @@ pipeline {
                     options { retry(2) }
                     agent{ label rocmnode("gfx908 || gfx90a")}
                     environment{
-                        setup_args = """ -DGPU_TARGETS="gfx908;gfx90a" -DBUILD_DEV=On """
+                        setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
                                            cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
@@ -816,7 +822,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " " .. && make -j check"""
                    }
                     steps{
-                        Build_CK_and_Reboot(setup_args:setup_args, config_targets: "check", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        Build_CK_and_Reboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
