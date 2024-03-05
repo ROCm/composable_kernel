@@ -248,7 +248,7 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
         LoopSched>;
 
 
-    const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ${ADataType}*,
                     const ${BDataType}*,
@@ -265,7 +265,7 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
 		    ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                     bool,
                     bool,
-                    bool>;
+                    bool>();
 }
 )";
 

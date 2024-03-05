@@ -177,10 +177,10 @@ const std::string conv_compile_check = R"__ck__(
 // TODO(Amber): fix parameters
 extern "C" __global__ void kernel_group_conv_fwd(const ck::half_t* in, const ck::half_t* w, ck::half_t* out)
 {
-    using CDEElementOp = PassThrough; // TODO(Amber): replace with Prologue
+    using CDEElementOp = ck::tensor_operation::element_wise::PassThrough; // TODO(Amber): replace with Prologue
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-      0, 
+      2, 
       ck::tensor_layout::convolution::NHWGC, 
       ck::tensor_layout::convolution::GKYXC, 
       ck::Tuple<>, ck::tensor_layout::convolution::NHWGK, 
@@ -211,7 +211,7 @@ extern "C" __global__ void kernel_group_conv_fwd(const ck::half_t* in, const ck:
                     DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceConv::Block2ETileMap,
-		                DeviceConv::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
+		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                     true,
                     isMultiA,
                     isMultiB>
@@ -405,10 +405,11 @@ TEST_CASE(test_problem_kernel)
     */
 
     auto get_num_elems = [](const auto& tensor_lens) {
-      return std::reduce(tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
+        return std::reduce(
+            tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
     };
 
-    auto in_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
+    auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
     auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 0));
     auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 0));
 
