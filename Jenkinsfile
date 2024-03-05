@@ -371,8 +371,8 @@ def runCKProfiler(Map conf=[:]){
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
+                        sh 'rocminfo | tee rocminfo.log'
+                        if ( !runShell('grep -n "gfx" rocminfo.log') ){
                             throw new Exception ("GPU not found")
                         }
                         else{
@@ -384,20 +384,6 @@ def runCKProfiler(Map conf=[:]){
             catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
                 echo "The job was cancelled or aborted"
                 throw e
-            }
-            catch(Exception ex) {
-                retimage = docker.build("${image}", dockerArgs + " --no-cache .")
-                withDockerContainer(image: image, args: dockerOpts) {
-                    timeout(time: 5, unit: 'MINUTES'){
-                        sh 'PATH="/opt/rocm/opencl/bin:/opt/rocm/opencl/bin/x86_64:$PATH" clinfo | tee clinfo.log'
-                        if ( runShell('grep -n "Number of devices:.*. 0" clinfo.log') ){
-                            throw new Exception ("GPU not found")
-                        }
-                        else{
-                            echo "GPU is OK"
-                        }
-                    }
-                }
             }
 
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
