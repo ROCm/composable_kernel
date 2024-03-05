@@ -35,7 +35,7 @@ def runShell(String command){
 def getDockerImageName(){
     def img
     if (params.USE_CUSTOM_DOCKER != ""){
-        img = $"{params.USE_CUSTOM_DOCKER}"
+        img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
     if (params.ROCMVERSION != "6.0.1"){
