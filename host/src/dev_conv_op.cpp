@@ -202,7 +202,7 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
     // GridwiseGemm
-    using GridwiseGemm = ck::GridwiseGemmMultipleABD_xdl_cshuffle<
+    using GridwiseGemm = ck::GridwiseGemmMultipleD_xdl_cshuffle<
         ${ADataType},
         ${BDataType},
         ${ComputeDataType},//double-check this assignment for correctness
@@ -261,7 +261,7 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
                     DeviceOp::BGridDesc_BK0_N_BK1,
                     DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    Block2ETileMap,
+                    DeviceOp::Block2ETileMap,
 		    ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                     bool,
                     bool,

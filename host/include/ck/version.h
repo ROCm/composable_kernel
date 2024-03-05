@@ -34,7 +34,7 @@
 #define CK_VERSION_MAJOR 1
 #define CK_VERSION_MINOR 1
 #define CK_VERSION_PATCH 0
-#define CK_COMMIT_ID 
+#define CK_COMMIT_ID
 // clang-format on
 
 #endif
