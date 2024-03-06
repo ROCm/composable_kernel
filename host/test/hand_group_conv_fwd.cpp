@@ -199,7 +199,7 @@ const std::string conv_compile_check = R"__ck__(
       ck::Tuple<>, ck::tensor_layout::convolution::NHWGK, 
       ck::half_t, ck::half_t, float, ck::half_t, ck::Tuple<>, ck::half_t, 
       ck::tensor_operation::element_wise::PassThrough, 
-      ck::tensor_operation::element_wise::PassThrough, ck::Tuple<>, 
+      ck::tensor_operation::element_wise::PassThrough, ck::Tuple<Prologue>, 
       ck::tensor_operation::device::ConvolutionForwardSpecialization::Default, 
       ck::tensor_operation::device::GemmSpecialization::MNPadding, 
       1, 256, 256, 128, 32, 8, 2, 32, 32, 4, 2, 
