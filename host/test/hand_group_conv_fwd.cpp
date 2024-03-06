@@ -199,12 +199,12 @@ const std::string conv_compile_check = R"__ck__(
       ck::Tuple<>, ck::tensor_layout::convolution::NHWGK, 
       ck::half_t, ck::half_t, float, ck::half_t, ck::Tuple<>, ck::half_t, 
       ck::tensor_operation::element_wise::PassThrough, 
-      ck::tensor_operation::element_wise::PassThrough, ck::Tuple<Prologue>, 
+      ck::tensor_operation::element_wise::PassThrough, Prologue, 
       ck::tensor_operation::device::ConvolutionForwardSpecialization::Default, 
-      ck::tensor_operation::device::GemmSpecialization::MNPadding, 
-      1, 256, 256, 128, 32, 8, 2, 32, 32, 4, 2, 
-      ck::Sequence<8, 32, 1>, ck::Sequence<0, 2, 1>, ck::Sequence<0, 2, 1>, 
-      1, 4, 2, 0, ck::Sequence<4, 64, 1>, ck::Sequence<1, 0, 2>, 
+      ck::tensor_operation::device::GemmSpecialization::MNKPadding, 
+      1, 256, 128, 256, 32, 8, 8, 32, 32, 2, 4, 
+      ck::Sequence<4, 64, 1>, ck::Sequence<1, 0, 2>, ck::Sequence<1, 0, 2>, 
+      2, 8, 8, 1, ck::Sequence<4, 64, 1>, ck::Sequence<1, 0, 2>, 
       ck::Sequence<1, 0, 2>, 2, 8, 8, 1, 1, 1, ck::Sequence<1, 32, 1, 8>, 8>;
 
     constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
@@ -283,16 +283,16 @@ extern "C" __global__ void kernel_group_conv_fwd(
 TEST_CASE(test_problem_kernel)
 {
     ck::host::conv::Problem_Conv prob;
-    prob.G  = 4;
-    prob.N  = 64;
-    prob.C  = 32;
-    prob.K  = 32;
+    prob.G  = 1;
+    prob.N  = 128;
+    prob.C  = 192;
+    prob.K  = 256;
     prob.Y  = 3;
     prob.X  = 3;
-    prob.Hi = 32;
-    prob.Wi = 32;
-    prob.Ho = 32;
-    prob.Wo = 32;
+    prob.Hi = 71;
+    prob.Wi = 71;
+    prob.Ho = 71;
+    prob.Wo = 71;
     check_all<half> check;
     auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
     auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
@@ -341,11 +341,11 @@ TEST_CASE(test_problem_kernel)
         ck::tensor_operation::element_wise::PassThrough,
         CDEElementOp, // FIXME: replace with prologue
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
-        ck::tensor_operation::device::GemmSpecialization::Default,
+        ck::tensor_operation::device::GemmSpecialization::MNKPadding,
         1,
         256,
-        256,
         128,
+        256,
         32,
         8,
         8,
@@ -354,10 +354,10 @@ TEST_CASE(test_problem_kernel)
         4,
         2,
         ck::Sequence<4, 64, 1>,
-        ck::Sequence<0, 2, 1>,
-        ck::Sequence<0, 2, 1>,
-        1,
+        ck::Sequence<1, 0, 2>,
+        ck::Sequence<1, 0, 2>,
         2,
+        8,
         8,
         1,
         ck::Sequence<4, 64, 1>,
@@ -492,23 +492,21 @@ TEST_CASE(test_problem_kernel)
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     CDEElementOp{1.0f, 1.0f});
 
-    constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
-    constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    constexpr ck::index_t NumATensor =
+        ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    constexpr ck::index_t NumBTensor =
+        ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
     // Amber: removed const because compiler makes it an r-value
-    auto as_grid_desc_ak0_m_ak1 = generate_tuple(
-        [&](auto) { return arg.a_grid_desc_ak0_m_ak1_; }, ck::Number<NumATensor>{});
-    auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
-        [&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
-
+    auto as_grid_desc_ak0_m_ak1 =
+        generate_tuple([&](auto) { return arg.a_grid_desc_ak0_m_ak1_; }, ck::Number<NumATensor>{});
+    auto bs_grid_desc_bk0_n_bk1 =
+        generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
-        auto src = ck::host::InterpolateString(
-            conv_compile_check,
-            {
-            {"include", prob.GetIncludeHeader()}
-            }); 
+        auto src =
+            ck::host::InterpolateString(conv_compile_check, {{"include", prob.GetIncludeHeader()}});
 
         std::ofstream ofh("kernel.txt");
         ofh << src;
@@ -520,7 +518,8 @@ TEST_CASE(test_problem_kernel)
         options.kernel_name = "f";
         auto k              = rtc::compile_kernel(srcs, options);
 
-        auto grid_size = arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
+        auto grid_size =
+            arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
         auto block_size = 256; // TODO(Amber): pick from DeviceConv template params
 
         // FIXME: how to pass layout?? remove hardcoding
@@ -529,20 +528,20 @@ TEST_CASE(test_problem_kernel)
         using CLayout = ck::tensor_layout::convolution::NHWGK;
 
         k.launch(nullptr, grid_size * block_size, block_size)(
-                        arg.p_as_grid_,
-                        arg.p_bs_grid_,
-                        arg.p_ds_grid_,
-                        arg.p_e_grid_,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.cde_element_op_,
-                        arg.a_g_n_c_wis_lengths_[0], // Group count
-                        as_grid_desc_ak0_m_ak1,
-                        bs_grid_desc_bk0_n_bk1,
-                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.block_2_etile_map_,
-                        arg.compute_ptr_offset_of_batch_);
+            arg.p_as_grid_,
+            arg.p_bs_grid_,
+            arg.p_ds_grid_,
+            arg.p_e_grid_,
+            arg.a_element_op_,
+            arg.b_element_op_,
+            arg.cde_element_op_,
+            arg.a_g_n_c_wis_lengths_[0], // Group count
+            as_grid_desc_ak0_m_ak1,
+            bs_grid_desc_bk0_n_bk1,
+            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg.block_2_etile_map_,
+            arg.compute_ptr_offset_of_batch_);
 
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
