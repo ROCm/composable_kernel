@@ -69,7 +69,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
     static constexpr auto R_LOG2E = 1.0 / log2e_v<SaccDataType>;
 #endif
 
@@ -364,7 +364,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
-#if !CK_FMHA_FWD_FAST_EXP2
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
                         x = scale * x + type_convert<SaccDataType>(bias_element_func(y));
 #else
                         x = scale * x + log2e_v<SaccDataType> *
@@ -376,7 +376,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             else
             {
-#if !CK_FMHA_FWD_FAST_EXP2
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
 #endif
             }
@@ -471,12 +471,12 @@ struct BlockFmhaPipelineQRKSVSAsync
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                 auto row_max = scale * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                     if constexpr(kHasBias)
                     {
                         p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -499,7 +499,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                 const auto tmp = [&]() {
                     if constexpr(kHasBias)
                     {
@@ -607,7 +607,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
             sweep_tile_span(lse_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                 if constexpr(kHasBias)
                 {
                     lse(i_idx) = m_[i_idx] * R_LOG2E + log(l_[i_idx]);

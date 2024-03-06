@@ -305,7 +305,7 @@ struct BlockFmhaPipelineQRKSVSFp8
             {
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
-#if !CK_FMHA_FWD_FAST_EXP2
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
                         x = scale * x + type_convert<SaccDataType>((y));
 #else
                         x = scale * x + log2e_v<SaccDataType> * type_convert<SaccDataType>((y));
@@ -316,7 +316,7 @@ struct BlockFmhaPipelineQRKSVSFp8
             }
             else
             {
-#if !CK_FMHA_FWD_FAST_EXP2
+#if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
 #endif
             }
@@ -375,12 +375,12 @@ struct BlockFmhaPipelineQRKSVSFp8
             constexpr auto p_spans = decltype(p_compute)::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                 auto row_max = scale * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                     if constexpr(kHasBias)
                     {
                         p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -403,7 +403,7 @@ struct BlockFmhaPipelineQRKSVSFp8
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                 const auto tmp = [&]() {
                     if constexpr(kHasBias)
                     {

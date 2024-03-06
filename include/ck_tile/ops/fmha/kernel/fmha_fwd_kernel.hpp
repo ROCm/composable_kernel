@@ -231,7 +231,7 @@ struct FmhaFwdKernel
                      hdim_q,
                      hdim_v,
                      nhead_ratio_qk,
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale * ck_tile::log2e_v<>),
 #else
                      scale,
@@ -320,7 +320,7 @@ struct FmhaFwdKernel
                      hdim_q,
                      hdim_v,
                      nhead_ratio_qk,
-#if CK_FMHA_FWD_FAST_EXP2
+#if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale * ck_tile::log2e_v<>),
 #else
                      scale,

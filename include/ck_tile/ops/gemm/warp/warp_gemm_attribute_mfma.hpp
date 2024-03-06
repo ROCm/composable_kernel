@@ -309,8 +309,8 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
         // swap A and B, value and type
         static_for<0, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   a_vec.template get_as<typename Impl::AVecType>()[iKIter],
-                   b_vec.template get_as<typename Impl::BVecType>()[iKIter]);
+                   b_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   a_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
     }
 
@@ -320,13 +320,13 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
         constexpr auto I0 = number<0>{};
 
         // swap A and B, value and type
-        auto c_vec = Impl{}(a_vec.template get_as<typename Impl::AVecType>()[I0],
-                            b_vec.template get_as<typename Impl::BVecType>()[I0]);
+        auto c_vec = Impl{}(b_vec.template get_as<typename Impl::AVecType>()[I0],
+                            a_vec.template get_as<typename Impl::BVecType>()[I0]);
 
         static_for<1, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   a_vec.template get_as<typename Impl::AVecType>()[iKIter],
-                   b_vec.template get_as<typename Impl::BVecType>()[iKIter]);
+                   b_vec.template get_as<typename Impl::AVecType>()[iKIter],
+                   a_vec.template get_as<typename Impl::BVecType>()[iKIter]);
         });
 
         return c_vec;
