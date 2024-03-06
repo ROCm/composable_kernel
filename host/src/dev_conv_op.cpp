@@ -200,6 +200,8 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
     using CDEElementOp = Prologue;
 
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
+    constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
     // GridwiseGemm
     using GridwiseGemm = ck::GridwiseGemmMultipleD_xdl_cshuffle<
@@ -248,7 +250,7 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
         LoopSched>;
 
 
-    const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    const auto kernel = ck::tensor_operation::device::kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ${ADataType}*,
                     const ${BDataType}*,
@@ -262,10 +264,10 @@ extern "C" __global__ void run_${name}(const ${ADataType}* a, const ${BDataType}
                     DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceOp::Block2ETileMap,
-		    ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
+		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
                     bool,
                     bool,
-                    bool>();
+                    bool>;
 }
 )";
 

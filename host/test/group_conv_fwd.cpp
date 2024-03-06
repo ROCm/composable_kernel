@@ -389,6 +389,9 @@ TEST_CASE(test_problem_kernel)
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     CDEElementOp{1.0f, 1.0f});
 
+    // ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    // ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         auto src = ck::host::InterpolateString(

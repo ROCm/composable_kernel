@@ -195,9 +195,11 @@ extern "C" __global__ void kernel_group_conv_fwd(const ck::half_t* in, const ck:
       ck::Sequence<1, 0, 2>, 2, 8, 8, 1, 1, 1, ck::Sequence<1, 32, 1, 8>, 8>;
 
 
+    constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
     using GridwiseGemm = DeviceConv::GridwiseGemm;
 
-    device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    ck::tensor_operation::device::device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ck::half_t*,
                     const ck::half_t*,
@@ -211,10 +213,10 @@ extern "C" __global__ void kernel_group_conv_fwd(const ck::half_t* in, const ck:
                     DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceConv::Block2ETileMap,
-		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
-                    true,
-                    isMultiA,
-                    isMultiB>
+		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
+                    bool,
+                    bool,
+                    bool>
                     (
 
                     )
