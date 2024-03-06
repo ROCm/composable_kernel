@@ -12,6 +12,7 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
+#include "ck_tile/core/container/rbuffer.hpp"
 
 namespace ck_tile {
 
@@ -71,7 +72,7 @@ struct static_distributed_tensor
         constexpr auto sliced_thread_tensor_desc =
             make_naive_tensor_descriptor_packed(make_tuple(YSliceLengths...));
 
-        array<DataType, sliced_thread_tensor_desc.get_element_space_size()> sliced_thread_data;
+        rbuffer<DataType, sliced_thread_tensor_desc.get_element_space_size()> sliced_thread_data;
 
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
             constexpr auto idx_ys = idx + sequence<YSliceOrigins...>{};
@@ -87,7 +88,7 @@ struct static_distributed_tensor
     CK_TILE_HOST_DEVICE void
     set_y_sliced_thread_data(sequence<YSliceOrigins...>,
                              sequence<YSliceLengths...>,
-                             const array<DataType, NSlicedData>& sliced_thread_data)
+                             const rbuffer<DataType, NSlicedData>& sliced_thread_data)
     {
         static_assert(sizeof...(YSliceOrigins) == StaticTileDistribution::NDimY &&
                           sizeof...(YSliceLengths) == StaticTileDistribution::NDimY,
@@ -129,7 +130,7 @@ struct static_distributed_tensor
     }
 
     //
-    array<DataType, kThreadElementSpaceSize> thread_buf_;
+    rbuffer<DataType, kThreadElementSpaceSize> thread_buf_;
 };
 
 template <typename DataType, typename StaticTileDistribution>

@@ -5,44 +5,15 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
+#include "ck_tile/core/container/tuple_array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 
 namespace ck_tile {
 
 #if CK_TILE_STATICALLY_INDEXED_ARRAY_DEFAULT == CK_TILE_STATICALLY_INDEXED_ARRAY_USE_TUPLE
-namespace detail {
-template <typename X, typename Y>
-struct tuple_concat;
-
-template <typename... Xs, typename... Ys>
-struct tuple_concat<tuple<Xs...>, tuple<Ys...>>
-{
-    using type = tuple<Xs..., Ys...>;
-};
 
 template <typename T, index_t N>
-struct statically_indexed_array_impl
-{
-    using type =
-        typename tuple_concat<typename statically_indexed_array_impl<T, N / 2>::type,
-                              typename statically_indexed_array_impl<T, N - N / 2>::type>::type;
-};
-
-template <typename T>
-struct statically_indexed_array_impl<T, 0>
-{
-    using type = tuple<>;
-};
-
-template <typename T>
-struct statically_indexed_array_impl<T, 1>
-{
-    using type = tuple<T>;
-};
-} // namespace detail
-
-template <typename T, index_t N>
-using statically_indexed_array = typename detail::statically_indexed_array_impl<T, N>::type;
+using statically_indexed_array = tuple_array<T, N>;
 
 #else
 
@@ -53,7 +24,7 @@ using statically_indexed_array = array<T, N>;
 #endif
 
 // consider always use ck_tile::array for this purpose
-
+#if 0
 template <typename X, typename... Xs>
 CK_TILE_HOST_DEVICE constexpr auto make_statically_indexed_array(const X& x, const Xs&... xs)
 {
@@ -66,5 +37,5 @@ CK_TILE_HOST_DEVICE constexpr auto make_statically_indexed_array()
 {
     return statically_indexed_array<X, 0>();
 }
-
+#endif
 } // namespace ck_tile
