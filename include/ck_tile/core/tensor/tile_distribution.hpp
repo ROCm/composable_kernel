@@ -78,9 +78,9 @@ struct tile_distribution
     Ys2DDescriptor ys_to_d_;
 
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_x() { return NDimX; }
-    CK_TILE_HOST_DEVICE static constexpr index_t GetNumOfDimensionY() { return NDimY; }
-    CK_TILE_HOST_DEVICE static constexpr index_t GetNumOfDimensionP() { return NDimP; }
-    CK_TILE_HOST_DEVICE static constexpr index_t GetNumOfDimensionR() { return NDimR; }
+    CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_y() { return NDimY; }
+    CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_p() { return NDimP; }
+    CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_r() { return NDimR; }
 
     CK_TILE_HOST_DEVICE static constexpr auto get_lengths()
     {

@@ -17,8 +17,8 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
     using DstrEncode       = typename Dstr::DstrEncode;
     using DstrEncodeDetail = typename DstrEncode::detail;
 
-    constexpr index_t NDimP = Dstr::GetNumOfDimensionP();
-    constexpr index_t NDimR = Dstr::GetNumOfDimensionR();
+    constexpr index_t NDimP = Dstr::get_num_of_dimension_p();
+    constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
 
     constexpr index_t idim_p_lane = NDimP - 1;
 

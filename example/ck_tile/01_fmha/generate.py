@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional
 from dataclasses import dataclass
 import copy
+import fnmatch
 
 DTYPE_MAP = {
     "fp16": "ck_tile::half_t",
@@ -402,7 +403,7 @@ def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[
     else:
         return None
 
-def get_blobs() -> tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+def get_blobs(kernel_filter : Optional[str]) -> tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines(dtype, hdim) -> List[FmhaFwdPipeline]:
@@ -443,6 +444,9 @@ def get_blobs() -> tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
             hdim = int(hdim_str)
             for pipeline in get_pipelines(dtype, hdim):
                 k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_mode=mode, F_tile=tile, F_pipeline=pipeline)
+                if kernel_filter != None:
+                    if not fnmatch.fnmatch(k.name, kernel_filter):
+                        continue
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -454,24 +458,24 @@ def write_single_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir: Optional[str]) -> None:
+def write_blobs(output_dir : Optional[str], kernel_filter : Optional[str]) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
         output_dir = Path(output_dir) / GEN_DIR
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    api_pool, kernels = get_blobs()
+    api_pool, kernels = get_blobs(kernel_filter)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_api(api_pool, output_dir)
 
 # list all the files that will be generated
-def list_blobs(output_file: Optional[str]) -> None:
+def list_blobs(output_file : Optional[str], kernel_filter : Optional[str]) -> None:
     assert output_file is not None
     file_path = Path(output_file)
     with file_path.open('a') as f:
-        _, kernels = get_blobs()
+        _, kernels = get_blobs(kernel_filter)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
@@ -493,8 +497,15 @@ if __name__ == "__main__":
         required=False,
         help="list all the kernels to a file"
     )
+    # TODO: if using filter, must apply same value to output_dir and list_blobs
+    parser.add_argument(
+        "-f",
+        "--filter",
+        required=False,
+        help="filter out kernels that need to generate, using fnmatch module"
+    )
     args = parser.parse_args()
     if args.list_blobs is not None:
-        list_blobs(args.list_blobs)
+        list_blobs(args.list_blobs, args.filter)
     else:
-        write_blobs(args.output_dir)
+        write_blobs(args.output_dir, args.filter)

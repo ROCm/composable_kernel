@@ -36,8 +36,8 @@ struct tile_window_with_static_distribution
     static constexpr index_t NDimWindowAdaptorTop = WindowAdaptor::get_num_of_top_dimension();
     static constexpr index_t NDimBottomTensor     = BottomTensorDesc::get_num_of_dimension();
 
-    static constexpr index_t NDimP = TileDstr::GetNumOfDimensionP();
-    static constexpr index_t NDimY = TileDstr::GetNumOfDimensionY();
+    static constexpr index_t NDimP = TileDstr::get_num_of_dimension_p();
+    static constexpr index_t NDimY = TileDstr::get_num_of_dimension_y();
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -265,7 +265,7 @@ struct tile_window_with_static_distribution
                 window_adaptor_vector_lengths, window_adaptor_vector_strides);
 
         // [y0, y1, ...]
-        constexpr auto y_dims = typename arithmetic_sequence_gen<TileDstr::GetNumOfDimensionP(),
+        constexpr auto y_dims = typename arithmetic_sequence_gen<TileDstr::get_num_of_dimension_p(),
                                                                  NDimWindowAdaptorTop,
                                                                  1>::type{};
 

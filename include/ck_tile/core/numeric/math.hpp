@@ -87,9 +87,27 @@ CK_TILE_HOST_DEVICE constexpr T max(T x)
 }
 
 template <typename T>
-CK_TILE_HOST_DEVICE constexpr T max(T x, T y)
+CK_TILE_HOST constexpr T max(T x, T y)
 {
     return x > y ? x : y;
+}
+
+template <typename T>
+CK_TILE_DEVICE constexpr T max(T x, T y)
+{
+    return x > y ? x : y;
+}
+
+template <>
+CK_TILE_DEVICE constexpr float max(float x, float y)
+{
+    return __builtin_fmaxf(x, y); // can resultin v_max3_f32
+}
+
+template <>
+CK_TILE_DEVICE constexpr double max(double x, double y)
+{
+    return __builtin_fmax(x, y); // maybe still v_max3_f32
 }
 
 template <index_t X>
@@ -118,9 +136,27 @@ CK_TILE_HOST_DEVICE constexpr T min(T x)
 }
 
 template <typename T>
-CK_TILE_HOST_DEVICE constexpr T min(T x, T y)
+CK_TILE_HOST constexpr T min(T x, T y)
 {
     return x < y ? x : y;
+}
+
+template <typename T>
+CK_TILE_DEVICE constexpr T min(T x, T y)
+{
+    return x < y ? x : y;
+}
+
+template <>
+CK_TILE_DEVICE constexpr float min(float x, float y)
+{
+    return __builtin_fminf(x, y);
+}
+
+template <>
+CK_TILE_DEVICE constexpr double min(double x, double y)
+{
+    return __builtin_fmin(x, y);
 }
 
 template <index_t X>

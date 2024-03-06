@@ -60,7 +60,7 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
     }();
 
     //
-    constexpr index_t NDimY = InTensor::get_tile_distribution().GetNumOfDimensionY();
+    constexpr index_t NDimY = InTensor::get_tile_distribution().get_num_of_dimension_y();
 
     constexpr auto y_lengths = to_sequence(y_in_desc.get_lengths());
 
