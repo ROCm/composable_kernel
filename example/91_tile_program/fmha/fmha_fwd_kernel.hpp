@@ -120,7 +120,7 @@ struct FmhaFwdKernel
 
     struct FmhaFwdDropoutKargs
     {
-        void init_dropout(const float p_drop, const std::tuple<uint64_t, uint64_t>& drop_seeds)
+        void init_dropout(float p_drop, const std::tuple<uint64_t, uint64_t>& drop_seeds)
         {
             float p_undrop = 1.0 - p_drop;
             p_undrop_in_uint8_t =
