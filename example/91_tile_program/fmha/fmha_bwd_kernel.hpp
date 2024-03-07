@@ -994,9 +994,6 @@ struct FmhaBwdOGradDotOKernel
         using namespace ck::tile_program;
         using namespace ck::tile_program::block;
 
-        // allocate LDS
-        // __shared__ char smem_ptr[GetSmemSize()];
-
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = TilePartitioner{}(kargs.seqlen_q);
 

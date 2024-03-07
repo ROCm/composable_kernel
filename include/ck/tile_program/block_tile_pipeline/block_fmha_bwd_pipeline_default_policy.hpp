@@ -719,14 +719,14 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                            Sequence<0, 1>>{});
     }
 
-    template <typename DataType, index_t BlockSize, index_t KPerBlock>
+    template <typename DataType, index_t MPerBlock, index_t KPerBlock>
     __host__ __device__ static constexpr auto MakePreXDramTileDistribution()
     {
         constexpr index_t K1 = 16 / sizeof(DataType);
         constexpr index_t K0 = KPerBlock / K1;
         constexpr index_t M2 = 1;
         constexpr index_t M1 = get_warp_size();
-        constexpr index_t M0 = BlockSize / M1;
+        constexpr index_t M0 = MPerBlock / M1;
 
         return make_static_tile_distribution(
             StaticTileDistributionEncoding<Sequence<1>,

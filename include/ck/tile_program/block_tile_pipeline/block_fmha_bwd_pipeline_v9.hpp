@@ -216,8 +216,8 @@ struct BlockFmhaBwdPipelineV9
                              {0, 0},
                              Policy::template MakeShuffledBiasTileDistribution<Problem>());
 
-        static_assert(sizeof(BiasDataType) == sizeof(BiasGradDataType),
-                      "sizeof BiasDataType and BiasGradDataType is different!");
+        static_assert(std::is_same_v<BiasDataType, BiasGradDataType>,
+                      "BiasDataType and BiasGradDataType should be the same!");
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -245,12 +245,10 @@ struct BlockFmhaBwdPipelineV9
         clear_tile(dv_acc);
         clear_tile(dk_acc);
 
-        auto k_dram_block_window = k_dram_block_window_tmp;
-
         auto k_dram_window = make_tile_window(
-            k_dram_block_window.GetBottomTensorView(),
-            k_dram_block_window.GetWindowLengths(),
-            k_dram_block_window.GetWindowOrigin(),
+            k_dram_block_window_tmp.GetBottomTensorView(),
+            k_dram_block_window_tmp.GetWindowLengths(),
+            k_dram_block_window_tmp.GetWindowOrigin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
 
@@ -704,11 +702,11 @@ struct BlockFmhaBwdPipelineV9
             store_tile(ds_lds_window, dst_gemm);
 
             auto dq_acc = QGradBlockTileType{};
-
             clear_tile(dq_acc); // Initialize QGrad
 
+            block_sync_lds();
+
             static_for<0, k4_loops, 1>{}([&](auto i_k4) {
-                block_sync_lds();
                 gemm_4(dq_acc,
                        get_slice_tile(ds_lds_window,
                                       Sequence<0, i_k4 * kK4>{},
@@ -716,7 +714,6 @@ struct BlockFmhaBwdPipelineV9
                        get_slice_tile(kt_lds_window,
                                       Sequence<0, i_k4 * kK4>{},
                                       Sequence<kQKHeaddim, (i_k4 + 1) * kK4>{}));
-                block_sync_lds();
             });
 
             // QGrad Scale
