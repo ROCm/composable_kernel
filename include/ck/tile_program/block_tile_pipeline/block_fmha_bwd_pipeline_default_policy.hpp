@@ -618,7 +618,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t N0 = kNPerBlock / (N2 * N1);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1, N2>, Sequence<K0, K1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2>>,
                                            Tuple<Sequence<1>, Sequence<2, 0>>,
@@ -649,7 +649,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<M0, M1, M2>, Sequence<K0, K1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2>>,
                                            Tuple<Sequence<1>, Sequence<2, 0>>,
@@ -680,7 +680,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t N0 = kNPerBlock / (N2 * N1);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1, N2>, Sequence<K0, K1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2>>,
                                            Tuple<Sequence<1>, Sequence<2, 0>>,
@@ -711,7 +711,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<M0, M1, M2>, Sequence<K0, K1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2>>,
                                            Tuple<Sequence<1>, Sequence<2, 0>>,
@@ -729,7 +729,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t M0 = MPerBlock / M1;
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<M0, M1, M2>, Sequence<K0, K1>>,
                                            Tuple<Sequence<1>, Sequence<1>>,
                                            Tuple<Sequence<0>, Sequence<1>>,
@@ -770,7 +770,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t M0 = kBlockSize / M1;
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<M0, M1, M2>, Sequence<K0>>,
                                            Tuple<Sequence<1>, Sequence<1>>,
                                            Tuple<Sequence<0>, Sequence<1>>,
@@ -804,7 +804,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static_assert(kKPerBlock == K0 * K1 * K2 * K3);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1>, Sequence<K0, K1, K2, K3>>,
                                            Tuple<Sequence<2>, Sequence<2, 1, 2>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -836,7 +836,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t K0 = kBlockSize / get_warp_size();
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1>, Sequence<K0, K1, K2, K3>>,
                                            Tuple<Sequence<2>, Sequence<2, 1, 2>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -870,7 +870,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static_assert(kKPerBlock == K0 * K1 * K2 * K3);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1>, Sequence<K0, K1, K2, K3>>,
                                            Tuple<Sequence<2>, Sequence<2, 1, 2>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -902,7 +902,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t K0 = kBlockSize / get_warp_size();
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1>, Sequence<K0, K1, K2, K3>>,
                                            Tuple<Sequence<2>, Sequence<2, 1, 2>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -936,7 +936,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static_assert(kKPerBlock == K0 * K1 * K2 * K3);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1>, Sequence<K0, K1, K2, K3>>,
                                            Tuple<Sequence<2>, Sequence<2, 1, 2>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -968,7 +968,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t K0 = kBlockSize / get_warp_size();
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<N0, N1>, Sequence<K0, K1, K2, K3>>,
                                            Tuple<Sequence<2>, Sequence<2, 1, 2>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -997,7 +997,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static_assert(kMPerBlock == M0 * M1 * M2 * M3);
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<M0, M1, M2, M3>, Sequence<N0, N1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2, 1>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
@@ -1024,7 +1024,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t M0 = kBlockSize / get_warp_size();
 
         return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<1>,
+            StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<M0, M1, M2, M3>, Sequence<N0, N1>>,
                                            Tuple<Sequence<1>, Sequence<1, 2, 1>>,
                                            Tuple<Sequence<0>, Sequence<1, 0, 2>>,
