@@ -36,7 +36,7 @@ What is inside the image?
 
 The docker images have everything you need for running CK including:
 
-* `ROCm <https://www.amd.com/en/graphics/servers-solutions-rocm>`_
+* `ROCm <https://rocm.docs.amd.com/en/latest/index.html>`_
 * `CMake <https://cmake.org/getting-started/>`_
 * `Compiler <https://github.com/ROCm/llvm-project>`_
 * `Composable Kernel library <https://github.com/ROCm/composable_kernel>`_
