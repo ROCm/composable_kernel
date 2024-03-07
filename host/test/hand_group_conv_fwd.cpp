@@ -157,15 +157,15 @@ struct Prologue
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
-    template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+    template <typename E, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const D& d) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
-        ck::half_t& e, const float& c, const ck::half_t& d) const
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t>(ck::half_t& e,
+                                                                          const ck::half_t& d) const
     {
-        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
-    };
+        e = ck::type_convert<ck::half_t>(alpha_ * e + beta_ * ck::type_convert<float>(d));
+    }
 
     float alpha_;
     float beta_;
@@ -179,15 +179,15 @@ const std::string conv_compile_check = R"__ck__(
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
-    template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+    template <typename E, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const D& d) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
-        ck::half_t& e, const float& c, const ck::half_t& d) const
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t>(
+        ck::half_t& e, const ck::half_t& d) const
     {
-        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
-    };
+        e = ck::type_convert<ck::half_t>(alpha_ * e + beta_ * ck::type_convert<float>(d));
+    }
 
     float alpha_;
     float beta_;
@@ -247,7 +247,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
                     ck::half_t,
                     ck::tensor_operation::element_wise::PassThrough,
                     ck::tensor_operation::element_wise::PassThrough,
-                    ck::tensor_operation::element_wise::PassThrough,
+                    Prologue,
                     DeviceConv::AGridDesc_AK0_M_AK1,
                     DeviceConv::BGridDesc_BK0_N_BK1,
                     DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
