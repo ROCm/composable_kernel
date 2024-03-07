@@ -285,7 +285,11 @@ struct BlockFmhaBwdPipelineV9
 
         auto kt_block_tile = load_tile(kt_dram_window);
 
-        store_tile(kt_lds_window, kt_block_tile); // persistent K^T in LDS
+        auto kt_shuffle_tmp = make_static_distributed_tensor<KDataType>(
+            Policy::template MakeShuffledKTRegBlockDescriptor<Problem>());
+        shuffle_distributed_tensor(kt_shuffle_tmp, kt_block_tile);
+
+        store_tile(kt_lds_window, kt_shuffle_tmp); // persistent K^T in LDS
 
         auto q_dram_block_window = make_tile_window(q_dram_block_window_tmp.GetBottomTensorView(),
                                                     q_dram_block_window_tmp.GetWindowLengths(),
