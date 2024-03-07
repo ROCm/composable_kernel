@@ -176,7 +176,7 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
             x.gemm_specialization =
                 GetGemmSpec(prob.G, // TODO: check the input going into this is correct
                             prob.N,
-                            prob.C,
+                            prob.Hi,
                             x.tile_desc.m_per_block,
                             x.tile_desc.n_per_block,
                             x.tile_desc.k_per_block);

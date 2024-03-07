@@ -421,8 +421,8 @@ TEST_CASE(test_problem_kernel)
         auto k              = rtc::compile_kernel(srcs, options);
         auto grid_size =
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
-        // auto block_size  = 256;
-        auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        auto block_size = 256;
+        // auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
         auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
         auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
         auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
