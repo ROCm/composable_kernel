@@ -907,8 +907,10 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                        Sequence<7>{}));
 
         auto p_workspace_grid = reinterpret_cast<AccDataType*>(p_workspace);
-        auto w_grid_buf       = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_workspace_grid, workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
+        auto w_grid_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::GLC>(
+                p_workspace_grid,
+                workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
 
         constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
             BlockwiseGemmT::GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -1070,7 +1072,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                 make_multi_index(n_thread_data_on_block));
 
         auto p_workspace_grid = reinterpret_cast<AccDataType*>(p_workspace);
-        auto w_grid_buf       = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto w_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global AmdBufferCoherenceEnum::GLC>(
             p_workspace_grid, workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
 
         auto acc_load = ThreadwiseTensorSliceTransfer_v2<
@@ -1103,7 +1105,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         // We do not need to read this workgroup partial results since they're
         // already in c_thread_buff
-        for(uint32_t i_t = 1; i_t <= reduce_count; ++i_t)
+        for(uint32_t i_t = 1; i_t < reduce_count; ++i_t)
         {
             acc_buf.Clear();
             acc_load.Run(workspace_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
