@@ -199,7 +199,7 @@ const std::string conv_compile_check = R"__ck__(
       ck::Tuple<>, ck::tensor_layout::convolution::GNHWK, 
       ck::half_t, ck::half_t, float, ck::half_t, ck::Tuple<>, ck::half_t, 
       ck::tensor_operation::element_wise::PassThrough, 
-      ck::tensor_operation::element_wise::PassThrough, ck::tensor_operation::element_wise::PassThrough, 
+      ck::tensor_operation::element_wise::PassThrough, Prologue, 
       ck::tensor_operation::device::ConvolutionForwardSpecialization::Default, 
       ck::tensor_operation::device::GemmSpecialization::MNKPadding, 
       1, 256, 128, 256, 32, 8, 8, 32, 32, 2, 4, 
@@ -223,7 +223,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
     //
     const ck::tensor_operation::element_wise::PassThrough a_element_op,
     const ck::tensor_operation::element_wise::PassThrough b_element_op,
-    const ck::tensor_operation::element_wise::PassThrough cde_element_op,
+    const Prologue cde_element_op,
     const ck::index_t batch_count,
     const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
     const DeviceConv::BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
@@ -234,7 +234,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
     const DeviceConv::Block2ETileMap block_2_ctile_map,
 		const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch) {
 
-    using CDEElementOp = ck::tensor_operation::element_wise::PassThrough; // TODO(Amber): replace with Prologue
+    using CDEElementOp = Prologue; // TODO(Amber): replace with Prologue
 
 
     using GridwiseGemm = DeviceConv::GridwiseGemm;
@@ -323,7 +323,7 @@ TEST_CASE(test_problem_kernel)
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
 
-    // using CDEElementOp = Prologue;
+    using CDEElementOp = Prologue;
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         2,
@@ -339,7 +339,7 @@ TEST_CASE(test_problem_kernel)
         ck::half_t,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough, // FIXME: replace with prologue
+        CDEElementOp,
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         ck::tensor_operation::device::GemmSpecialization::MNKPadding,
         1,
@@ -440,8 +440,7 @@ TEST_CASE(test_problem_kernel)
                                     input_right_pads,
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     ck::tensor_operation::element_wise::PassThrough{},
-                                    // CDEElementOp{1.0f, 1.0f}
-                                    ck::tensor_operation::element_wise::PassThrough{});
+                                    CDEElementOp{1.0f, 1.0f});
 
     constexpr ck::index_t NumATensor =
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
