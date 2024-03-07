@@ -221,7 +221,7 @@ struct BlockFmhaBwdPipelineV13
             v_dram_block_window_tmp.GetBottomTensorView(),
             v_dram_block_window_tmp.GetWindowLengths(),
             v_dram_block_window_tmp.GetWindowOrigin(),
-            Policy::template MakeVDramRegStatTileDistribution<Problem, decltype(gemm_2)>());
+            Policy::template MakeVInRegDramTileDistribution<Problem, decltype(gemm_2)>());
 
         auto v = load_tile(v_dram_window); // persistent V register tile
 

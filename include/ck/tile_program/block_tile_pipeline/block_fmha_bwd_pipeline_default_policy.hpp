@@ -110,7 +110,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem, typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeVDramRegStatTileDistribution()
+    __host__ __device__ static constexpr auto MakeVInRegDramTileDistribution()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddim;
@@ -425,8 +425,14 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeQT()
     {
-        constexpr index_t smem_size_qt = sizeof(typename Problem::QDataType) *
-                                         MakeQTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        constexpr index_t smem_size_qt = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kQLoadOnce &&
+                         !Problem::BlockFmhaShape::kQTLoadOnce)
+                return 0;
+            else
+                return sizeof(typename Problem::QDataType) *
+                       MakeQTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        }();
         return smem_size_qt;
     }
 
@@ -441,16 +447,27 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeKT()
     {
-        constexpr index_t smem_size_kt = sizeof(typename Problem::KDataType) *
-                                         MakeKTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        constexpr index_t smem_size_kt = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kKLoadOnce &&
+                         !Problem::BlockFmhaShape::kKTLoadOnce)
+                return 0;
+            else
+                return sizeof(typename Problem::KDataType) *
+                       MakeKTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        }();
         return smem_size_kt;
     }
 
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeV()
     {
-        constexpr index_t smem_size_v = sizeof(typename Problem::VDataType) *
-                                        MakeVLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        constexpr index_t smem_size_v = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kVLoadOnce)
+                return 0;
+            else
+                return sizeof(typename Problem::VDataType) *
+                       MakeVLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        }();
         return smem_size_v;
     }
 
@@ -466,9 +483,14 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeOGradT()
     {
-        constexpr index_t smem_size_dot =
-            sizeof(typename Problem::OGradDataType) *
-            MakeOGradTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        constexpr index_t smem_size_dot = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kOGradLoadOnce &&
+                         !Problem::BlockFmhaShape::kOGradTLoadOnce)
+                return 0;
+            else
+                return sizeof(typename Problem::OGradDataType) *
+                       MakeOGradTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        }();
         return smem_size_dot;
     }
 
@@ -484,56 +506,28 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSizeBias()
     {
-        constexpr index_t smem_size_bias =
-            sizeof(typename Problem::BiasDataType) *
-            MakeBiasTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+        constexpr index_t smem_size_bias = [&]() {
+            if constexpr(Problem::kHasBias)
+                return sizeof(typename Problem::BiasDataType) *
+                       MakeBiasTLdsBlockDescriptor<Problem>().GetElementSpaceSize();
+            else
+                return 0;
+        }();
         return smem_size_bias;
     }
 
     template <typename Problem>
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
-        constexpr index_t smem_size_q  = GetSmemSizeQ<Problem>();
-        constexpr index_t smem_size_qt = [&]() {
-            if constexpr(Problem::BlockFmhaShape::kQLoadOnce &&
-                         !Problem::BlockFmhaShape::kQTLoadOnce)
-                return 0;
-            else
-                return GetSmemSizeQT<Problem>();
-        }();
-
-        constexpr index_t smem_size_k  = GetSmemSizeK<Problem>();
-        constexpr index_t smem_size_kt = [&]() {
-            if constexpr(Problem::BlockFmhaShape::kKLoadOnce &&
-                         !Problem::BlockFmhaShape::kKTLoadOnce)
-                return 0;
-            else
-                return GetSmemSizeKT<Problem>();
-        }();
-
-        constexpr index_t smem_size_v = [&]() {
-            if constexpr(Problem::BlockFmhaShape::kVLoadOnce)
-                return 0;
-            else
-                return GetSmemSizeV<Problem>();
-        }();
-
-        constexpr index_t smem_size_do  = GetSmemSizeOGrad<Problem>();
-        constexpr index_t smem_size_dot = [&]() {
-            if constexpr(Problem::BlockFmhaShape::kOGradLoadOnce &&
-                         !Problem::BlockFmhaShape::kOGradTLoadOnce)
-                return 0;
-            else
-                return GetSmemSizeOGradT<Problem>();
-        }();
-
-        constexpr index_t smem_size_ds   = GetSmemSizeSGrad<Problem>();
-        constexpr index_t smem_size_bias = [&]() {
-            if constexpr(Problem::kHasBias)
-                return GetSmemSizeBias<Problem>();
-            else
-                return 0;
-        }();
+        constexpr index_t smem_size_q         = GetSmemSizeQ<Problem>();
+        constexpr index_t smem_size_qt        = GetSmemSizeQT<Problem>();
+        constexpr index_t smem_size_k         = GetSmemSizeK<Problem>();
+        constexpr index_t smem_size_kt        = GetSmemSizeKT<Problem>();
+        constexpr index_t smem_size_v         = GetSmemSizeV<Problem>();
+        constexpr index_t smem_size_do        = GetSmemSizeOGrad<Problem>();
+        constexpr index_t smem_size_dot       = GetSmemSizeOGradT<Problem>();
+        constexpr index_t smem_size_ds        = GetSmemSizeSGrad<Problem>();
+        constexpr index_t smem_size_bias      = GetSmemSizeBias<Problem>();
         constexpr index_t smem_size_transpose = math::max(smem_size_ds, smem_size_bias);
 
         index_t smem_size = 0;
@@ -601,7 +595,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr auto MakeVDramRegTempTileDistribution()
+    __host__ __device__ static constexpr auto MakeVDramTileDistribution()
     {
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
 
