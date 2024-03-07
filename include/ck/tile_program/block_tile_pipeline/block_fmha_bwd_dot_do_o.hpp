@@ -82,9 +82,6 @@ struct BlockFmhaBwdOGradDotO
 
         auto d = make_static_distributed_tensor<DDataType>(d_dstr);
 
-        // auto d = make_static_distributed_tensor<DDataType>(
-        //     Policy::template MakePreDDramTileDistribution<Problem>());
-
         clear_tile(d); // Initialize D
 
         constexpr auto o_spans = decltype(o)::GetDistributedSpans();

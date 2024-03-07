@@ -760,25 +760,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr auto MakePreDDramTileDistribution()
-    {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-
-        constexpr index_t K0 = 1;
-        constexpr index_t M2 = 1;
-        constexpr index_t M1 = get_warp_size();
-        constexpr index_t M0 = kBlockSize / M1;
-
-        return make_static_tile_distribution(
-            StaticTileDistributionEncoding<Sequence<>,
-                                           Tuple<Sequence<M0, M1, M2>, Sequence<K0>>,
-                                           Tuple<Sequence<1>, Sequence<1>>,
-                                           Tuple<Sequence<0>, Sequence<1>>,
-                                           Sequence<1, 2>,
-                                           Sequence<2, 0>>{});
-    }
-
-    template <typename Problem>
     __device__ static constexpr auto MakeQTDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
