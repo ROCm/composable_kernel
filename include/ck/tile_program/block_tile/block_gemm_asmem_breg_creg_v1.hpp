@@ -13,7 +13,7 @@
 #include "ck/tile_program/tile/tile_elementwise.hpp"
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile/block_gemm_asmem_breg_creg_problem.hpp"
+#include "ck/tile_program/block_tile/block_gemm_problem.hpp"
 #include "ck/tile_program/block_tile/block_gemm_asmem_breg_creg_v1_default_policy.hpp"
 
 namespace ck {
