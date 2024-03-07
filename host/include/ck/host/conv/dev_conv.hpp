@@ -42,7 +42,7 @@ struct Problem_Conv
     std::vector<DataType> DsDataType = {};
     std::string AElementOp           = "ck::tensor_operation::element_wise::PassThrough";
     std::string BElementOp           = "ck::tensor_operation::element_wise::PassThrough";
-    std::string CDEElementOp         = "ck::Tuple<>";
+    std::string CDEElementOp         = "ck::tensor_operation::element_wise::PassThrough";
 
     std::string GetIncludeHeader() const;
 

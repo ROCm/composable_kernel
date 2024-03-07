@@ -30,7 +30,7 @@ struct Operation_Conv
     TensorDesc E{};
     std::string a_elem_op   = PassThrough;
     std::string b_elem_op   = PassThrough;
-    std::string cde_elem_op = Bilinear;
+    std::string cde_elem_op = PassThrough;
     std::string prologue    = "";
     std::string epilogue    = "";
     std::string conv_specialization =

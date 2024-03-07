@@ -51,9 +51,10 @@ enum class Layout
     GNCHW,
     GNKHW,
     GKCYX,
+    GKYXC,
+    GNHWK,
     GNHWC,
     NHWGC,
-    GKYXC,
     NHWGK
 };
 

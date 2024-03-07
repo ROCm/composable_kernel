@@ -181,23 +181,23 @@ ${template};
 TEST_CASE(test_problem_kernel)
 {
     ck::host::conv::Problem_Conv prob;
-    prob.G  = 4;
-    prob.N  = 64;
-    prob.C  = 32;
-    prob.K  = 32;
+    prob.G  = 1;
+    prob.N  = 128;
+    prob.C  = 192;
+    prob.K  = 256;
     prob.Y  = 3;
     prob.X  = 3;
-    prob.Hi = 32;
-    prob.Wi = 32;
-    prob.Ho = 32;
-    prob.Wo = 32;
+    prob.Hi = 71;
+    prob.Wi = 71;
+    prob.Ho = 71;
+    prob.Wo = 71;
     check_all<half> check;
-    auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
-    auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
-    auto c               = to_gpu(generate_buffer<half>(64 * 64, 2));
-    std::string prologue = R"(struct Prologue
+    auto a = to_gpu(generate_buffer<half>(64 * 64, 0));
+    auto b = to_gpu(generate_buffer<half>(64 * 64, 1));
+    auto c = to_gpu(generate_buffer<half>(64 * 64, 2));
+    /**std::string epilogue = R"(struct Epilogue
 {
-    Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    Epilogue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
     template <typename E, typename C, typename D>
     __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
@@ -212,22 +212,23 @@ TEST_CASE(test_problem_kernel)
     float alpha_;
     float beta_;
 };
-)";
+)";**/
     std::string epilogue = "";
+    std::string prologue = "";
 
     static constexpr auto I0 = ck::Number<0>{};
     static constexpr auto I1 = ck::Number<1>{};
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
 
-    using CDEElementOp = Prologue;
+    // using CDEElementOp = Epilogue;
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         2,
-        ck::tensor_layout::convolution::NHWGC,
+        ck::tensor_layout::convolution::GNHWC,
         ck::tensor_layout::convolution::GKYXC,
         ck::Tuple<>,
-        ck::tensor_layout::convolution::NHWGK,
+        ck::tensor_layout::convolution::GNHWK,
         ck::half_t,
         ck::half_t,
         float,
@@ -236,13 +237,13 @@ TEST_CASE(test_problem_kernel)
         ck::half_t,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
-        CDEElementOp,
+        ck::tensor_operation::element_wise::PassThrough, // FIXME: replace with prologue
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
-        ck::tensor_operation::device::GemmSpecialization::Default,
+        ck::tensor_operation::device::GemmSpecialization::MNKPadding,
         1,
         256,
-        256,
         128,
+        256,
         32,
         8,
         8,
@@ -251,10 +252,10 @@ TEST_CASE(test_problem_kernel)
         4,
         2,
         ck::Sequence<4, 64, 1>,
-        ck::Sequence<0, 2, 1>,
-        ck::Sequence<0, 2, 1>,
-        1,
+        ck::Sequence<1, 0, 2>,
+        ck::Sequence<1, 0, 2>,
         2,
+        8,
         8,
         1,
         ck::Sequence<4, 64, 1>,
@@ -387,20 +388,24 @@ TEST_CASE(test_problem_kernel)
                                     input_right_pads,
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     ck::tensor_operation::element_wise::PassThrough{},
-                                    CDEElementOp{1.0f, 1.0f});
+                                    // CDEElementOp{1.0f, 1.0f}
+                                    ck::tensor_operation::element_wise::PassThrough{});
 
-    // ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
-    // ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    constexpr ck::index_t NumATensor =
+        ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    constexpr ck::index_t NumBTensor =
+        ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    auto as_grid_desc_ak0_m_ak1 =
+        generate_tuple([&](auto) { return arg.a_grid_desc_ak0_m_ak1_; }, ck::Number<NumATensor>{});
+    auto bs_grid_desc_bk0_n_bk1 =
+        generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include", prob.GetIncludeHeader()},
-             {"template", solution.ToTemplateString()},
-             {"m", std::to_string(prob.G)},
-             {"n", std::to_string(prob.N)},
-             {"k", std::to_string(prob.C)}}); // FIXME: pass in the right dims
+             {"template", solution.ToTemplateString()}}); // FIXME: pass in the right dims
 
         std::ofstream ofh("kernel.txt");
         ofh << "##########################################################\n";
@@ -411,16 +416,18 @@ TEST_CASE(test_problem_kernel)
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
-        options.kernel_name = "f";
+        auto name           = solution.GetTemplateParameter<std::string>("name");
+        options.kernel_name = "run_" + name;
         auto k              = rtc::compile_kernel(srcs, options);
-        auto block_size     = solution.GetTemplateParameter<std::size_t>("BlockSize");
-        auto m_per_block    = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
-        auto n_per_block    = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
-        auto k_per_block    = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
+        auto grid_size =
+            arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
+        // auto block_size  = 256;
+        auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
+        auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
+        auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
         // auto a_layout       =
         // solution.GetTemplateParameter<ck::tensor_layout::convolution::NHWGC>("ALayout");
-        auto grid_size = ck::host::integer_divide_ceil(prob.G, m_per_block) *
-                         ck::host::integer_divide_ceil(prob.N, n_per_block); // FIXME
 
         // FIXME: how to pass layout?? remove hardcoding
         using ALayout = ck::tensor_layout::convolution::NHWGC;
@@ -431,11 +438,21 @@ TEST_CASE(test_problem_kernel)
         // decltype(arg.a_grid_desc_ak0_m_ak1_)::foo = 1;
         // DeviceConv::AGridDesc_AK0_M_AK1::foo = 1;
         k.launch(nullptr, grid_size * block_size, block_size)(
-            a.data(),
-            b.data(),
-            c.data(),
-            arg); // FIXME: my launch will bw different: will need
-                  // to pass in grid ptrs for run fcns
+            arg.p_as_grid_,
+            arg.p_bs_grid_,
+            arg.p_ds_grid_,
+            arg.p_e_grid_,
+            arg.a_element_op_,
+            arg.b_element_op_,
+            arg.cde_element_op_,
+            arg.a_g_n_c_wis_lengths_[0], // Group count
+            as_grid_desc_ak0_m_ak1,
+            bs_grid_desc_bk0_n_bk1,
+            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg.block_2_etile_map_,
+            arg.compute_ptr_offset_of_batch_); // FIXME: my launch will bw different: will need
+                                               // to pass in grid ptrs for run fcns
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }

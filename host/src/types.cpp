@@ -52,9 +52,10 @@ std::string ToString(Layout dl)
     case Layout::GNCHW: return "ck::tensor_layout::convolution::GNCHW";
     case Layout::GNKHW: return "ck::tensor_layout::convolution::GNKHW";
     case Layout::GKCYX: return "ck::tensor_layout::convolution::GKCYX";
+    case Layout::GKYXC: return "ck::tensor_layout::convolution::GKYXC";
+    case Layout::GNHWK: return "ck::tensor_layout::convolution::GNHWK";
     case Layout::GNHWC: return "ck::tensor_layout::convolution::GNHWC";
     case Layout::NHWGC: return "ck::tensor_layout::convolution::NHWGC";
-    case Layout::GKYXC: return "ck::tensor_layout::convolution::GKYXC";
     case Layout::NHWGK: return "ck::tensor_layout::convolution::NHWGK";
     }
     throw std::runtime_error("Incorrect layout");
