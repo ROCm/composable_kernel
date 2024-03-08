@@ -531,12 +531,20 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         // tail
         if constexpr(TailNum == TailNumber::Odd)
         {
+            if(get_thread_global_1d_id() == 0)
+            {
+                printf("Tail: Odd\n");
+            }
             ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
             ReadCompFunc(I0, I0, I1, I1);
             CompFunc(I0);
         }
         else if constexpr(TailNum == TailNumber::Even)
         {
+            if(get_thread_global_1d_id() == 0)
+            {
+                printf("Tail: Even\n");
+            }
             ReadWriteCompFunc(I1, I1, I0, I0, I0, I1);
             ReadWriteCompFunc(I0, I0, I1, I1, I1, I1);
             ReadCompFunc(I1, I1, I0, I1);
