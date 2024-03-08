@@ -301,6 +301,28 @@ using DeviceMHAFactory =
             S<2, 16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
             // CShuffleBlockTransfer MN
             1, 1, S<1, 128, 1, 2>, 8,             
+            MaskingSpec>,
+        ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle<
+            NumDimG, NumDimM, NumDimN, NumDimK, NumDimO,
+            ADataType, B0DataType, B1DataType, CDataType, Acc0BiasDataType, Acc0DataType, Acc1BiasDataType, Acc1DataType, CShuffleDataType,
+            AElementOp, B0ElementOp, Acc0ElementOp, B1ElementOp, CElementOp,
+            GemmSpec, TensorSpecA, TensorSpecB0, TensorSpecB1, TensorSpecC, 1,
+            256,
+            //      Gemm 0
+            128, 64, 48, 8,4,   
+            //      Gemm 1
+                 48, 64, 8,  
+            16, 16, 16, 
+            // Per repeat = wave_m = wave_num, wave_n = 1
+            1, 4, 3,
+            // ABlockTransfer MK -> K0 M K1
+            S<2, 128, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, true,
+            // B0BlockTransfer LK -> K0 L K1
+            S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 4, 4, true,
+            // B1BlockTransfer NL -> L0 N L1
+            S<2, 16, 8>, S<0, 2, 1>, S<0, 2, 1>, 1, 1, 1, false,
+            // CShuffleBlockTransfer MN
+            1, 1, S<1, 128, 1, 2>, 8,             
             MaskingSpec>
 #endif
     >;

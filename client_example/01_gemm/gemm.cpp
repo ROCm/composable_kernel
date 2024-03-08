@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iomanip>
 #include <vector>
@@ -83,7 +83,7 @@ int main(int argc, char* argv[])
         [](std::size_t nRow, std::size_t nCol, std::size_t stride, auto layout) {
             using Layout = decltype(layout);
 
-            if constexpr(std::is_same<Layout, ck::tensor_layout::gemm::RowMajor>::value)
+            if constexpr(std::is_same<Layout, Row>::value)
             {
                 return (nRow - 1) * stride + nCol;
             }
