@@ -21,7 +21,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputeTypeA = CDataType,
+          typename ComputeTypeA = ADataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
