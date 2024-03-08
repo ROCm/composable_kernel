@@ -56,8 +56,7 @@ __global__ void
                                                        bool input_permute,
                                                        bool output_permute)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
-    defined(__gfx1102__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
 
     // clang-format off
 // ***************************************************
@@ -162,7 +161,7 @@ __global__ void
     ignore = G1;
     ignore = input_permute;
     ignore = output_permute;
-#endif // end of if (defined(__gfx1100__))
+#endif // end of if (defined(__gfx11__))
 }
 
 // Self-Attention
@@ -188,8 +187,7 @@ __global__ void
                                            index_t head_size,
                                            float alpha)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
-    defined(__gfx1102__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
 
     // clang-format off
 // ***************************************************
@@ -294,7 +292,7 @@ __global__ void
     ignore = head_count;
     ignore = head_size;
     ignore = alpha;
-#endif // end of if (defined(__gfx1100__))
+#endif // end of if (defined(__gfx11__))
 }
 // Cross-Attention
 // Self-Attention
@@ -323,8 +321,7 @@ __global__ void
                                             index_t head_size,
                                             float alpha)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
-    defined(__gfx1102__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
 
     // clang-format off
 // ***************************************************
@@ -435,7 +432,7 @@ __global__ void
     ignore = head_count;
     ignore = head_size;
     ignore = alpha;
-#endif // end of if (defined(__gfx1100__))
+#endif // end of if (defined(__gfx11__))
 }
 // Computes C = A  * B0 * B1
 //         MN = MK * KL * LN
@@ -861,8 +858,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
 
     static bool IsSupportedArgument(const RawArg& arg)
     {
-        if(ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102")
+        if(ck::is_navi3_supported())
         {
             if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
             {
@@ -1439,8 +1435,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
 #if 0
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::get_device_name() == "gfx1100" || ck::get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102")
+        if(ck::is_navi3_supported())
         {
             if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
             {
