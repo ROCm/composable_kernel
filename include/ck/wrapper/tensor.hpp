@@ -400,6 +400,8 @@ struct Tensor
     }
 
     private:
+    // Disable from doxygen docs generation
+    /// @cond INTERNAL
     using DynamicBufferType = DynamicBuffer<BufferAddressSpace,
                                             ElementType,
                                             ElementSpaceSize,
@@ -434,6 +436,7 @@ struct Tensor
     // tensor descriptor (thus all it's transforms) and is linear (1D).
     // We store base_offset_ to avoid multiple recalculations.
     index_t base_offset_;
+    /// @endcond
 };
 
 } // namespace wrapper
