@@ -64,7 +64,7 @@ Advanced examples:
 Layout
 -------------------------------------
 
-.. doxygenstruct:: ck::wrapper::Layout
+.. doxygenfile:: layout.hpp
 
 -------------------------------------
 Layout helpers
@@ -76,7 +76,7 @@ Layout helpers
 Tensor
 -------------------------------------
 
-.. doxygenstruct:: ck::wrapper::Tensor
+.. doxygenfile:: tensor.hpp
 
 -------------------------------------
 Tensor helpers

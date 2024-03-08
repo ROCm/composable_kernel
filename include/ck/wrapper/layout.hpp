@@ -5,8 +5,11 @@
 
 #include "ck/wrapper/utils/layout_utils.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Layout wrapper that performs the tensor descriptor logic.
