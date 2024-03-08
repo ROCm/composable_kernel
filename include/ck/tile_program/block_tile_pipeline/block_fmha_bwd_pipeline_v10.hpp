@@ -312,11 +312,11 @@ struct BlockFmhaBwdPipelineV10
                              bias_dram_block_window.GetWindowOrigin(),
                              Policy::template MakeBiasTileDistribution<Problem>());
 
-        auto biast_lds_window = make_tile_window(
-            biast_lds_shuffle_window.GetBottomTensorView(),
-            biast_lds_shuffle_window.GetWindowLengths(),
-            biast_lds_shuffle_window.GetWindowOrigin(),
-            Policy::template MakeBiasTTileDistribution<Problem, decltype(gemm_0)>());
+        auto biast_lds_window =
+            make_tile_window(biast_lds_shuffle_window.GetBottomTensorView(),
+                             biast_lds_shuffle_window.GetWindowLengths(),
+                             biast_lds_shuffle_window.GetWindowOrigin(),
+                             Policy::template MakeBiasTTileDistribution<decltype(gemm_0)>());
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
