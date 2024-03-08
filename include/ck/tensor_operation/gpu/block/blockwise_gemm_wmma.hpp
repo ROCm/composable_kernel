@@ -66,10 +66,15 @@ struct BlockwiseGemmWMMA
     // When use LDS, each Row(16 consecutive lanes) read whole data from source buffer
     // When not use LDS, each Row read half of whole data from source buffer, exchange the data via
     // permutation
+#ifdef __gfx12__
     static constexpr index_t A_KRow = 2;
     static constexpr index_t B_KRow = 2;
-    static constexpr index_t A_K1   = ABlockDesc{}.GetLength(I5);
-    static constexpr index_t B_K1   = BBlockDesc{}.GetLength(I5);
+#else
+    static constexpr index_t A_KRow = 1;
+    static constexpr index_t B_KRow = 1;
+#endif
+    static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I5);
+    static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I5);
 
     static constexpr auto wmma_gemm =
         WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
@@ -108,7 +113,11 @@ struct BlockwiseGemmWMMA
             const auto WMMA_a_idx = wmma_gemm.CalculateAThreadOriginDataIndex();
 
             //  |KRepeat   |MRepeat|MWave    |KRow  |MLane  |KPack
+#ifdef __gfx12__
             return make_tuple(0, 0, waveId_m, wmma_gemm.GetSubGroupId(), WMMA_a_idx, 0);
+#else
+            return make_tuple(0, 0, waveId_m, 0, WMMA_a_idx, 0);
+#endif
         }
         else
         {
@@ -125,7 +134,11 @@ struct BlockwiseGemmWMMA
             const auto WMMA_b_idx = wmma_gemm.CalculateBThreadOriginDataIndex();
 
             //  |KRepeat   |NRepeat|Nwave     |KRow  |NLane  |KPack
+#ifdef __gfx12__
             return make_tuple(0, 0, waveId_n, wmma_gemm.GetSubGroupId(), WMMA_b_idx, 0);
+#else
+            return make_tuple(0, 0, waveId_n, 0, WMMA_b_idx, 0);
+#endif
         }
         else
         {
@@ -213,20 +226,19 @@ struct BlockwiseGemmWMMA
         constexpr auto c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens =
             wmma_gemm.GetCMSubGroupNThreadPerSubGroupMAccVgprsThreadBlkLengths();
 
-        constexpr auto MSubGroup          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I0];
-        constexpr auto NThreadPerSubGroup = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I1];
-        constexpr auto MAccVgprs          = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
-
-        return make_naive_tensor_descriptor_packed(
+        constexpr auto MAccVgprs = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I2];
+        constexpr auto AccStride = c_msubgroup_nthreadpersubgroup_maccvgprs_tblk_lens[I3];
+        return make_naive_tensor_descriptor(
             //        |MRepeat           |MWave |MSubGroup |NRepeat           |NWave
             //        |NThreadPerSubGroup |MAccVgprs
-            make_tuple(Number<MRepeat>{},
-                       I1,
-                       MSubGroup,
-                       Number<NRepeat>{},
-                       I1,
-                       NThreadPerSubGroup,
-                       MAccVgprs));
+            make_tuple(Number<MRepeat>{}, I1, I1, Number<NRepeat>{}, I1, I1, MAccVgprs),
+            make_tuple(Number<NRepeat>{} * MAccVgprs * AccStride,
+                       Number<NRepeat>{} * MAccVgprs * AccStride,
+                       Number<NRepeat>{} * MAccVgprs * AccStride,
+                       MAccVgprs * AccStride,
+                       MAccVgprs * AccStride,
+                       MAccVgprs * AccStride,
+                       AccStride));
     }
 
     template <typename CGridDesc_M_N>
@@ -290,6 +302,7 @@ struct BlockwiseGemmWMMA
     static constexpr ABlockDesc a_block_desc_k0_m0_m1_m2_k1;
     static constexpr BBlockDesc b_block_desc_k0_n0_n1_n2_k1;
 
+#ifdef __gfx12__
     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
     __device__ void Run(const ABlockBuffer& a_block_buf,
                         const BBlockBuffer& b_block_buf,
@@ -414,6 +427,140 @@ struct BlockwiseGemmWMMA
             });
         }
     }
+#else
+    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
+    __device__ void Run(const ABlockBuffer& a_block_buf,
+                        const BBlockBuffer& b_block_buf,
+                        CThreadBuffer& c_thread_buf) const
+    {
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
+            a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
+            b_thread_desc_.GetElementSpaceSize());
+
+        // basic intrinsic to determine loopover direction
+        if constexpr(MRepeat < NRepeat)
+        {
+            static_for<0, KPerBlock / KPack, 1>{}(
+                [&](auto k) { // k=0,1,2 instead of k=0,kpack*1, ...
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        // read A
+                        a_thread_copy_.Run(
+                            a_block_desc_k0_m0_m1_m2_k1,
+                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(I0, m0, I0, I0, I0, I0),
+                            a_thread_buf);
+
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            // read B
+                            b_thread_copy_.Run(
+                                b_block_desc_k0_n0_n1_n2_k1,
+                                make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                                b_block_buf,
+                                b_thread_desc_,
+                                make_tuple(I0, n0, I0, I0, I0, I0),
+                                b_thread_buf);
+
+                            vector_type<FloatA, KPack> a_thread_vec;
+                            vector_type<FloatB, KPack> b_thread_vec;
+
+                            static_for<0, KPack, 1>{}([&](auto i) {
+                                a_thread_vec.template AsType<FloatA>()(i) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple(i / A_K1 / A_KRow,
+                                                   m0,
+                                                   0,
+                                                   (i / A_K1) % A_KRow,
+                                                   0,
+                                                   i % A_K1))>{}];
+                                b_thread_vec.template AsType<FloatB>()(i) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(i / B_K1 / B_KRow,
+                                                   n0,
+                                                   0,
+                                                   (i / B_K1) % B_KRow,
+                                                   0,
+                                                   i % B_K1))>{}];
+                            });
+
+                            using wmma_input_type_a = typename vector_type<FloatA, WmmaK>::type;
+                            using wmma_input_type_b = typename vector_type<FloatB, WmmaK>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            wmma_gemm.template Run(
+                                a_thread_vec.template AsType<wmma_input_type_a>(),
+                                b_thread_vec.template AsType<wmma_input_type_b>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        });
+                    });
+                });
+        }
+        else
+        {
+            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    static_for<0, KPerBlock / KPack, 1>{}([&](auto k) { // k=0,1,2 instead of
+                                                                        // k=0,kpack*1, ..
+                        // read B
+                        b_thread_copy_.Run(
+                            b_block_desc_k0_n0_n1_n2_k1,
+                            make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                            b_block_buf,
+                            b_thread_desc_,
+                            make_tuple(I0, n0, I0, I0, I0, I0),
+                            b_thread_buf);
+                        // read A
+                        a_thread_copy_.Run(
+                            a_block_desc_k0_m0_m1_m2_k1,
+                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                            a_block_buf,
+                            a_thread_desc_,
+                            make_tuple(I0, m0, I0, I0, I0, I0),
+                            a_thread_buf);
+
+                        vector_type<FloatA, KPack> a_thread_vec;
+                        vector_type<FloatB, KPack> b_thread_vec;
+
+                        static_for<0, KPack, 1>{}([&](auto i) {
+                            b_thread_vec.template AsType<FloatB>()(i) =
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                    make_tuple(i / B_K1 / B_KRow,
+                                               n0,
+                                               0,
+                                               (i / B_K1) % B_KRow,
+                                               0,
+                                               i % B_K1))>{}];
+                            a_thread_vec.template AsType<FloatA>()(i) =
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(i / A_K1 / A_KRow,
+                                               m0,
+                                               0,
+                                               (i / A_K1) % A_KRow,
+                                               0,
+                                               i % A_K1))>{}];
+                        });
+
+                        using wmma_input_type_a = typename vector_type<FloatA, WmmaK>::type;
+                        using wmma_input_type_b = typename vector_type<FloatB, WmmaK>::type;
+
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        wmma_gemm.template Run(
+                            a_thread_vec.template AsType<wmma_input_type_a>(),
+                            b_thread_vec.template AsType<wmma_input_type_b>(),
+                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    });
+                });
+            });
+        }
+    }
+
+#endif
 
     protected:
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
@@ -449,7 +596,11 @@ struct BlockwiseGemmWMMA
                                              FloatA,
                                              decltype(a_block_desc_k0_m0_m1_m2_k1),
                                              decltype(a_thread_desc_),
+#ifdef __gfx12__
                                              Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
+#else
+                                             Sequence<KPack / A_K1 / A_KRow, 1, 1, A_KRow, 1, A_K1>,
+#endif
                                              Sequence<0, 1, 2, 3, 4, 5>,
                                              5,
                                              A_K1,
@@ -484,7 +635,11 @@ struct BlockwiseGemmWMMA
                                              FloatB,
                                              decltype(b_block_desc_k0_n0_n1_n2_k1),
                                              decltype(b_thread_desc_),
+#ifdef __gfx12__
                                              Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
+#else
+                                             Sequence<KPack / B_K1 / B_KRow, 1, 1, B_KRow, 1, B_K1>,
+#endif
                                              Sequence<0, 1, 2, 3, 4, 5>,
                                              5,
                                              B_K1,
