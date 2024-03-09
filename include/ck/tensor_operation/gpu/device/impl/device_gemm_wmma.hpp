@@ -94,13 +94,16 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         (MWaves == 1 && is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value) ? false : true;
 
     // If true, LDS is used unconditionally
+#ifdef __gfx12__
+    static constexpr auto AEnableLds_manu = true;
+    static constexpr auto BEnableLds_manu = true;
+#else
     static constexpr auto AEnableLds_manu = false;
     static constexpr auto BEnableLds_manu = false;
+#endif
 
-    static constexpr auto AEnableLds =
-        false; // AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
-    static constexpr auto BEnableLds =
-        true; // BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
