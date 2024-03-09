@@ -607,7 +607,6 @@ struct BlockwiseGemmWMMA
                                              A_K1>;
     };
 
-#if 0
     template <>
     struct AThreadCopySelector<false>
     {
@@ -622,7 +621,6 @@ struct BlockwiseGemmWMMA
             5,
             A_K1>;
     };
-#endif
 
     template <bool EnableLds>
     struct BThreadCopySelector;
@@ -646,7 +644,6 @@ struct BlockwiseGemmWMMA
                                              B_K1>;
     };
 
-#if 0
     template <>
     struct BThreadCopySelector<false>
     {
@@ -661,7 +658,6 @@ struct BlockwiseGemmWMMA
             5,
             B_K1>;
     };
-#endif
 
     typename AThreadCopySelector<AEnableLds>::type a_thread_copy_;
     typename BThreadCopySelector<BEnableLds>::type b_thread_copy_;

@@ -98,7 +98,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto BEnableLds_manu = false;
 
     static constexpr auto AEnableLds =
-        true; // AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
+        false; // AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
     static constexpr auto BEnableLds =
         true; // BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
 
