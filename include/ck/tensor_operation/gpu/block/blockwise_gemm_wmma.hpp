@@ -73,6 +73,7 @@ struct BlockwiseGemmWMMA
     static constexpr index_t A_KRow = 1;
     static constexpr index_t B_KRow = 1;
 #endif
+
     static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I5);
     static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I5);
 
