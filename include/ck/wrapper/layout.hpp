@@ -5,8 +5,11 @@
 
 #include "ck/wrapper/utils/layout_utils.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Layout wrapper that performs the tensor descriptor logic.
@@ -19,6 +22,8 @@ namespace wrapper {
 template <typename Shape, typename UnrolledDescriptorType>
 struct Layout
 {
+    // Disable from doxygen docs generation
+    /// @cond INTERNAL
     private:
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -246,6 +251,7 @@ struct Layout
     using Descriptor1dType =
         remove_cvref_t<decltype(MakeMerge1d(Shape{}, UnrolledDescriptorType{}))>;
     using DefaultIdxsTupleType = remove_cvref_t<decltype(GenerateDefaultIdxsTuple(Shape{}))>;
+    /// @endcond
 
     public:
     using LayoutShape                  = Shape;
@@ -457,6 +463,8 @@ struct Layout
         return unrolled_descriptor_;
     }
 
+    // Disable from doxygen docs generation
+    /// @cond INTERNAL
     private:
     // All dimensions are unrolled
     UnrolledDescriptorType unrolled_descriptor_;
@@ -469,6 +477,7 @@ struct Layout
     // Descriptor1dType lengths: (8)
     // MergedNestsDescriptorType lengths: (4, 2)
     const Shape shape_;
+    /// @endcond
 };
 
 } // namespace wrapper

@@ -45,3 +45,5 @@ for sphinx_var in ROCmDocs.SPHINX_VARS:
 
 extensions += ['sphinxcontrib.bibtex']
 bibtex_bibfiles = ['refs.bib']
+
+cpp_id_attributes = ["__global__", "__device__", "__host__"]

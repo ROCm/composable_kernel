@@ -64,31 +64,31 @@ Advanced examples:
 Layout
 -------------------------------------
 
-.. doxygenstruct:: ck::wrapper::Layout
+.. doxygenstruct:: Layout
 
 -------------------------------------
 Layout helpers
 -------------------------------------
 
-.. doxygenfile:: layout_utils.hpp
+.. doxygenfile:: include/ck/wrapper/utils/layout_utils.hpp
 
 -------------------------------------
 Tensor
 -------------------------------------
 
-.. doxygenstruct:: ck::wrapper::Tensor
+.. doxygenstruct:: Tensor
 
 -------------------------------------
 Tensor helpers
 -------------------------------------
 
-.. doxygenfile:: tensor_utils.hpp
+.. doxygenfile:: include/ck/wrapper/utils/tensor_utils.hpp
 
-.. doxygenfile:: tensor_partition.hpp
+.. doxygenfile:: include/ck/wrapper/utils/tensor_partition.hpp
 
 -------------------------------------
 Operations
 -------------------------------------
 
-.. doxygenfile:: copy.hpp
-.. doxygenfile:: gemm.hpp
+.. doxygenfile:: include/ck/wrapper/operations/copy.hpp
+.. doxygenfile:: include/ck/wrapper/operations/gemm.hpp
