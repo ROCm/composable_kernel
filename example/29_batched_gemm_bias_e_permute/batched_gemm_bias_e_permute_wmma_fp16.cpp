@@ -43,9 +43,10 @@ using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CDEElementOp = ck::tensor_operation::element_wise::Add;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-static constexpr auto ABSpec = ck::tensor_operation::device::TensorSpecialization::Packed;
+static constexpr auto ASpec  = ck::tensor_operation::device::TensorSpecialization::Default;
+static constexpr auto BSpec  = ck::tensor_operation::device::TensorSpecialization::Default;
 static constexpr auto DESpec = ck::tensor_operation::device::TensorSpecialization::Default;
 
 using DeviceOpInstanceKKNN =
@@ -55,43 +56,44 @@ using DeviceOpInstanceKKNN =
                                                                                   NumDimK,
                                                                                   ADataType,
                                                                                   BDataType,
-                                                                                  DsDataType,
-                                                                                  EDataType,
                                                                                   AccDataType,
                                                                                   CShuffleDataType,
+                                                                                  DsDataType,
+                                                                                  EDataType,
                                                                                   AElementOp,
                                                                                   BElementOp,
                                                                                   CDEElementOp,
                                                                                   GemmSpec,
-                                                                                  ABSpec,
-                                                                                  ABSpec,
+                                                                                  ASpec,
+                                                                                  BSpec,
                                                                                   DESpec,
-                                                                                  256,
+                                                                                  1,
                                                                                   128,
-                                                                                  256,
-                                                                                  8,
-                                                                                  8,
+                                                                                  64,
+                                                                                  64,
+                                                                                  64,
+                                                                                  4,
                                                                                   16,
                                                                                   16,
+                                                                                  1,
                                                                                   4,
-                                                                                  4,
-                                                                                  S<4, 64, 1>,
+                                                                                  S<4, 32, 1>,
                                                                                   S<1, 0, 2>,
                                                                                   S<1, 0, 2>,
                                                                                   2,
-                                                                                  8,
-                                                                                  8,
+                                                                                  4,
+                                                                                  4,
                                                                                   true,
-                                                                                  S<4, 64, 1>,
+                                                                                  S<4, 32, 1>,
                                                                                   S<1, 0, 2>,
                                                                                   S<1, 0, 2>,
                                                                                   2,
-                                                                                  8,
-                                                                                  8,
+                                                                                  4,
+                                                                                  4,
                                                                                   true,
                                                                                   1,
                                                                                   1,
-                                                                                  S<1, 32, 1, 8>,
+                                                                                  S<1, 64, 1, 2>,
                                                                                   8>;
 
 using DeviceOpInstance = DeviceOpInstanceKKNN;
@@ -251,6 +253,38 @@ int main(int argc, char* argv[])
 
     ck::index_t K0 = 2048;
 
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 4)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+    }
+    else if(argc == 11)
+    {
+        do_verification = std::stoi(argv[1]);
+        init_method     = std::stoi(argv[2]);
+        time_kernel     = std::stoi(argv[3]);
+        G0              = std::stoi(argv[4]);
+        G1              = std::stoi(argv[5]);
+        M0              = std::stoi(argv[6]);
+        M1              = std::stoi(argv[7]);
+        N0              = std::stoi(argv[8]);
+        N1              = std::stoi(argv[9]);
+        K0              = std::stoi(argv[10]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
+        printf("arg4-10: G0, G1, M0, M1, N0, N1, K0\n");
+        exit(0);
+    }
+
     // A[G0, G1, M0, M1, K0]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M0, M1, K0};
     std::vector<ck::index_t> a_gs_ms_ks_strides{G1 * M0 * M1 * K0, M0 * M1 * K0, M1 * K0, K0, 1};
@@ -266,23 +300,6 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> e_gs_ms_ns_strides{
         G1 * M0 * N0 * M1 * N1, M0 * N0 * M1 * N1, N0 * M1 * N1, N1, M1 * N1, 1};
 
-    if(argc == 1)
-    {
-        // use default case
-    }
-    else if(argc == 4)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-    }
-    else
-    {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
-        exit(0);
-    }
     Tensor<ADataType> a_gs_ms_ks(a_gs_ms_ks_lengths, a_gs_ms_ks_strides);
     Tensor<BDataType> b_gs_ns_ks(b_gs_ns_ks_lengths, b_gs_ns_ks_strides);
     Tensor<DDataType> d_gs_ms_ns(d_gs_ms_ns_lengths, d_gs_ms_ns_strides);

@@ -55,7 +55,7 @@ using DDataType        = I8;
 using EDataType        = I8;
 
 using ALayout = Row;
-using BLayout = Row;
+using BLayout = Col;
 using DLayout = Row;
 using ELayout = Row;
 
@@ -65,48 +65,49 @@ using CDEElementOp = AlphaBetaAdd;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
-using DeviceOpInstance =
-    ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_CShuffle<ALayout,
-                                                                    BLayout,
-                                                                    ck::Tuple<DLayout>,
-                                                                    ELayout,
-                                                                    ADataType,
-                                                                    BDataType,
-                                                                    ck::Tuple<DDataType>,
-                                                                    EDataType,
-                                                                    AccDataType,
-                                                                    CShuffleDataType,
-                                                                    AElementOp,
-                                                                    BElementOp,
-                                                                    CDEElementOp,
-                                                                    GemmSpec,
-                                                                    32,
-                                                                    16,
-                                                                    16,
-                                                                    4,
-                                                                    16,
-                                                                    16,
-                                                                    16,
-                                                                    1,
-                                                                    1,
-                                                                    S<2, 16, 1>,
-                                                                    S<1, 0, 2>,
-                                                                    S<1, 0, 2>,
-                                                                    2,
-                                                                    16,
-                                                                    16,
-                                                                    1,
-                                                                    S<4, 1, 8>,
-                                                                    S<0, 2, 1>,
-                                                                    S<0, 2, 1>,
-                                                                    1,
-                                                                    16,
-                                                                    2,
-                                                                    1,
-                                                                    1,
-                                                                    1,
-                                                                    S<1, 16, 1, 2>,
-                                                                    8>;
+using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Wmma_CShuffle<
+    ALayout,
+    BLayout,
+    ck::Tuple<DLayout>,
+    ELayout,
+    ADataType,
+    BDataType,
+    AccDataType,
+    CShuffleDataType,
+    ck::Tuple<DDataType>,
+    EDataType,
+    AElementOp,
+    BElementOp,
+    CDEElementOp,
+    GemmSpec,
+    2,   // Prefetch stage
+    128, // BlockSize
+    128, // MPerBlock
+    64,  // NPerBlock
+    64,  // KPerBlock
+    8,   // K1
+    16,  // MPerWmma
+    16,  // NPerWmma
+    4,   // M-Repeat // M-PerWmma / M-Repeat = M-Wave
+    2,   // N-Repeat // N-PerWmma / N-Repeat = N-Wave
+    S<4, 32, 1>,
+    S<1, 0, 2>,
+    S<1, 0, 2>,
+    2,
+    8,
+    8,
+    true,
+    S<4, 32, 1>,
+    S<1, 0, 2>,
+    S<1, 0, 2>,
+    2,
+    8,
+    8,
+    true,
+    1, // C shuffle (M Repeat) Per store
+    1, // C shuffle (N Repeat) Per store
+    S<1, 32, 1, 4>,
+    8>;
 
 int main(int argc, char* argv[])
 {
