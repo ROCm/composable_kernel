@@ -111,6 +111,12 @@ list(APPEND GEMM_INSTANCES
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_kn_mn_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_nk_mn_instance.cpp)
 
+list(APPEND GEMM_INSTANCES
+    device_gemm_wmma_f16_f16_f16_mk_kn_mn_instance.cpp
+    device_gemm_wmma_f16_f16_f16_mk_nk_mn_instance.cpp
+    device_gemm_wmma_f16_f16_f16_km_kn_mn_instance.cpp
+    device_gemm_wmma_f16_f16_f16_km_nk_mn_instance.cpp)
+
 add_instance_library(device_gemm_instance ${GEMM_INSTANCES})
 
 set(ENABLE_PIPELINE_V2_OPT)

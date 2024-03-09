@@ -99,6 +99,63 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
     return type_convert<bhalf_t>(x_fp32);
 }
 
+// Convert X to Y
+template <typename Y, typename X>
+__host__ __device__ constexpr Y type_convert_sp(X x)
+{
+    static_assert(!std::is_reference_v<Y> && !std::is_reference_v<X>);
+
+    return static_cast<Y>(x);
+}
+
+template <>
+inline __host__ __device__ constexpr int type_convert_sp<int, float>(float x)
+{
+    union
+    {
+        float fp32;
+        int int32;
+    } u = {x};
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr float type_convert_sp<float, int>(int x)
+{
+    union
+    {
+        int int32;
+        float fp32;
+    } u = {x};
+
+    return u.fp32;
+}
+
+template <>
+inline __host__ __device__ constexpr int type_convert_sp<int, half_t>(half_t x)
+{
+    union
+    {
+        half_t fp16;
+        int int32;
+    } u = {x};
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
+{
+    union
+    {
+        int int32;
+        half_t fp16;
+    } u = {x};
+
+    return u.fp16;
+}
+
 // Declare a template function for fp8 conversion using SR
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
