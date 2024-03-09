@@ -10,8 +10,11 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_v7.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Perform generic copy between two tensors partitions (threadwise copy).

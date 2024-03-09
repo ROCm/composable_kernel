@@ -12,8 +12,11 @@
 #include "ck/utility/amd_address_space.hpp"
 #include "ck/utility/multi_index.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Memory type, allowed members:
@@ -26,7 +29,7 @@ namespace wrapper {
 using MemoryTypeEnum = AddressSpaceEnum;
 
 // Disable from doxygen docs generation
-/// @cond
+/// @cond INTERNAL
 // forward declarations
 template <typename Shape, typename UnrolledDescriptorType>
 struct Layout;

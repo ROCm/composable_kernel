@@ -16,11 +16,14 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 // Disable from doxygen docs generation
-/// @cond
+/// @cond INTERNAL
 // forward declaration
 template <typename Shape, typename UnrolledDescriptorType>
 struct Layout;

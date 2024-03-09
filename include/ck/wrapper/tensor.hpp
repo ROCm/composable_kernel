@@ -7,9 +7,15 @@
 #include "utils/tensor_partition.hpp"
 #include "utils/layout_utils.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
+namespace {
 namespace detail {
 namespace {
 /**
@@ -188,7 +194,11 @@ __host__ __device__ constexpr auto GenerateSlicedDescriptor(const Tuple<Ts...>& 
     return transform_tensor_descriptor(flatten_desc, transforms, lower_dims, upper_dims);
 }
 } // namespace
+<<<<<<< HEAD
 } // namespace detail
+=======
+/// @endcond
+>>>>>>> 42fc8eddd (Fix warnings during wrapper docs generation (#1192))
 
 /**
  * \brief Tensor wrapper that performs static and dynamic buffer logic.
@@ -391,6 +401,8 @@ struct Tensor
     }
 
     private:
+    // Disable from doxygen docs generation
+    /// @cond INTERNAL
     using DynamicBufferType = DynamicBuffer<BufferAddressSpace,
                                             ElementType,
                                             ElementSpaceSize,
@@ -417,6 +429,7 @@ struct Tensor
     // tensor descriptor (thus all it's transforms) and is linear (1D).
     // We store base_offset_ to avoid multiple recalculations.
     index_t base_offset_;
+    /// @endcond
 };
 
 } // namespace wrapper
