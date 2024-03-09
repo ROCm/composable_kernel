@@ -326,7 +326,7 @@ struct BlockwiseGemmWMMA
                         // read A
                         a_thread_copy_.Run(
                             a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_KRow>{}, m0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / A_K1>{}, m0, I0, I0, I0, I0),
                             a_block_buf,
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
@@ -336,7 +336,7 @@ struct BlockwiseGemmWMMA
                             // read B
                             b_thread_copy_.Run(
                                 b_block_desc_k0_n0_n1_n2_k1,
-                                make_tuple(Number<k * KPack / B_KRow>{}, n0, I0, I0, I0, I0),
+                                make_tuple(Number<k * KPack / B_K1>{}, n0, I0, I0, I0, I0),
                                 b_block_buf,
                                 b_thread_desc_,
                                 make_tuple(I0, n0, I0, I0, I0, I0),
@@ -560,7 +560,6 @@ struct BlockwiseGemmWMMA
             });
         }
     }
-
 #endif
 
     protected:
