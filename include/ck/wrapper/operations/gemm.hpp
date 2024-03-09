@@ -9,9 +9,14 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_xdlops.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace {
 namespace detail {
 /**
@@ -45,6 +50,7 @@ __device__ constexpr auto GetBlockDescriptor()
 
 } // namespace detail
 } // namespace
+/// @endcond
 
 /**
  * \brief Perform blockwise gemm xdl on tensors stored in lds. Result will be
