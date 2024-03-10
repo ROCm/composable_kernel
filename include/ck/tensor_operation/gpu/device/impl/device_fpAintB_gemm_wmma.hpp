@@ -509,7 +509,7 @@ struct DeviceFpAintBGemm_Wmma_CShuffle : public DeviceGemm_dequantB<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::is_navi3_supported())
+        if(ck::is_navi3_supported() || ck::is_navi4_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, ck::half_t> ||
                            is_same_v<AccDataType, int32_t>))
