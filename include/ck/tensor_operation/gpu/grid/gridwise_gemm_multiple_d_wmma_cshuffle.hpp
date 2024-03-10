@@ -54,7 +54,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -147,7 +147,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const Block2CTileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     // printf("entry kernel launch");
     __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
@@ -237,7 +237,7 @@ __global__ void
             const CDEElementwiseOperation cde_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -340,8 +340,7 @@ struct GridwiseGemmMultipleD_Wmma
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    // static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
-    static constexpr auto WmmaK = 16;
+    static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -572,15 +571,12 @@ struct GridwiseGemmMultipleD_Wmma
     // *Caution Here repeat is shuffle repeat
     GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerWmma);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerWmma);
-
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1,
-                           Number<CShuffleMRepeatPerShuffle * MWave * MPerWmma>{},
+                           Number<CShuffleMRepeatPerShuffle * MWaves * MPerWmma>{},
                            I1,
-                           Number<CShuffleNRepeatPerShuffle * NWave * NPerWmma>{}));
+                           Number<CShuffleNRepeatPerShuffle * NWaves * NPerWmma>{}));
 
         return c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat;
     }
@@ -800,8 +796,9 @@ struct GridwiseGemmMultipleD_Wmma
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
 
-        const auto MBlock                                        = M / MPerBlock;
-        const auto NBlock                                        = N / NPerBlock;
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
