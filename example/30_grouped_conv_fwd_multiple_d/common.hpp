@@ -90,10 +90,10 @@ struct ExecutionConfig final
     bool time_kernel     = true;
 };
 
-#define DefaultConvParam                                                       \
-    ck::utils::conv::ConvParam                                                 \
-    {                                                                          \
-        2, 32, 2, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, { 1, 1 } \
+#define DefaultConvParam                                                     \
+    ck::utils::conv::ConvParam                                               \
+    {                                                                        \
+        2, 32, 2, 32, 32, {3, 3}, {14, 14}, {2, 2}, {1, 1}, {1, 1}, { 1, 1 } \
     }
 
 inline void print_help_msg()
