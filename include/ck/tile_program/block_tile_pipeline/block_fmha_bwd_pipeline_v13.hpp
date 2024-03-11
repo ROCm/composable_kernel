@@ -515,10 +515,10 @@ struct BlockFmhaBwdPipelineV13
             });
 
             // STAGE 3, P^T@OGrad^T Gemm1
+            auto dot_shuffle_tmp = make_static_distributed_tensor<OGradDataType>(
+                Policy::template MakeShuffledOGradTRegBlockDescriptor<Problem>());
             block_sync_lds();
             {
-                auto dot_shuffle_tmp = make_static_distributed_tensor<OGradDataType>(
-                    Policy::template MakeShuffledOGradTRegBlockDescriptor<Problem>());
                 shuffle_distributed_tensor(dot_shuffle_tmp, dot_prefetch);
                 store_tile(dot_lds_window,
                            dot_shuffle_tmp); // store the prefetch
@@ -538,8 +538,6 @@ struct BlockFmhaBwdPipelineV13
                                           Sequence<(i_k1 + 1) * kK1, kN0>{}),
                            dot_lds_window);
                     block_sync_lds();
-                    auto dot_shuffle_tmp = make_static_distributed_tensor<OGradDataType>(
-                        Policy::template MakeShuffledOGradTRegBlockDescriptor<Problem>());
                     shuffle_distributed_tensor(dot_shuffle_tmp, dot);
                     store_tile(dot_lds_window,
                                dot_shuffle_tmp); // store the prefetch
@@ -634,10 +632,10 @@ struct BlockFmhaBwdPipelineV13
             }
 
             // STAGE 6, SGrad^T@Q^T Gemm3
+            auto qt_shuffle_tmp = make_static_distributed_tensor<QDataType>(
+                Policy::template MakeShuffledQTRegBlockDescriptor<Problem>());
             block_sync_lds();
             {
-                auto qt_shuffle_tmp = make_static_distributed_tensor<QDataType>(
-                    Policy::template MakeShuffledQTRegBlockDescriptor<Problem>());
                 shuffle_distributed_tensor(qt_shuffle_tmp, qt_prefetch);
                 store_tile(qt_lds_window,
                            qt_shuffle_tmp); // store the prefetch
@@ -657,8 +655,6 @@ struct BlockFmhaBwdPipelineV13
                                           Sequence<(i_k3 + 1) * kK3, kN0>{}),
                            qt_lds_window);
                     block_sync_lds();
-                    auto qt_shuffle_tmp = make_static_distributed_tensor<QDataType>(
-                        Policy::template MakeShuffledQTRegBlockDescriptor<Problem>());
                     shuffle_distributed_tensor(qt_shuffle_tmp, qt);
                     store_tile(qt_lds_window,
                                qt_shuffle_tmp); // store the prefetch
