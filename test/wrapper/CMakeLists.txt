@@ -14,7 +14,7 @@ target_link_libraries(test_wrapper_partition PRIVATE utility)
 add_dependencies(test_wrapper test_wrapper_partition)
 if(GPU_TARGETS MATCHES "gfx908" OR GPU_TARGETS MATCHES "gfx90a" OR
    GPU_TARGETS MATCHES "gfx940" OR GPU_TARGETS MATCHES "gfx941" OR
-   GPU_TARGETS MATCHES "gfx942")
+   GPU_TARGETS MATCHES "gfx942" OR GPU_TARGETS MATCHES "gfx950")
     add_gtest_executable(test_wrapper_gemm test_wrapper_gemm.cpp)
     target_link_libraries(test_wrapper_gemm PRIVATE utility)
     add_dependencies(test_wrapper test_wrapper_gemm)

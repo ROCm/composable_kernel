@@ -12,8 +12,11 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_description/tensor_space_filling_curve.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Perform optimized copy between two tensors partitions (threadwise copy).
