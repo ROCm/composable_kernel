@@ -44,7 +44,6 @@ ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     build-essential \
     cmake \
-    ccache \
     git \
     hip-rocclr \
     iputils-ping \
@@ -73,6 +72,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+#Install latest ccache
+RUN git clone https://github.com/ccache/ccache.git && \
+    cd ccache && mkdir build && cd build && cmake .. && make install
 
 #Install ninja build tracing tools
 RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releases/latest/download/ninja-linux.zip
@@ -111,7 +114,7 @@ ENV LANG=C.UTF-8
 RUN groupadd -f render
 
 # Install the new rocm-cmake version
-RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && \
+RUN git clone -b master https://github.com/ROCm/rocm-cmake.git  && \
   cd rocm-cmake && mkdir build && cd build && \
   cmake  .. && cmake --build . && cmake --build . --target install
 
@@ -123,7 +126,7 @@ RUN sh -c "echo compiler version = '$compiler_version'"
 RUN sh -c "echo compiler commit = '$compiler_commit'"
 
 RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd-mainline-open" ] ) && [ "$compiler_commit" = "" ]; then \
-        git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
+        git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_ENABLE_RUNTIMES="compiler-rt" ../llvm && \
         make -j 8 ; \
@@ -131,7 +134,7 @@ RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd
     fi
 
 RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd-mainline-open" ] ) && [ "$compiler_commit" != "" ]; then \
-        git clone -b "$compiler_version" https://github.com/RadeonOpenCompute/llvm-project.git && \
+        git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
         cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
         cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_ENABLE_RUNTIMES="compiler-rt" ../llvm && \
         make -j 8 ; \
