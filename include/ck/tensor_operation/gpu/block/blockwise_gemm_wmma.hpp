@@ -537,9 +537,8 @@ struct BlockwiseGemmWMMA
     // permutation
     static constexpr index_t A_KRow = AEnableLds ? 1 : 2;
     static constexpr index_t B_KRow = BEnableLds ? 1 : 2;
-
-    static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I5);
-    static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I5);
+    static constexpr index_t A_K1   = ABlockDesc{}.GetLength(I5);
+    static constexpr index_t B_K1   = BBlockDesc{}.GetLength(I5);
 
     static constexpr auto wmma_gemm =
         WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
