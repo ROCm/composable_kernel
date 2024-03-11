@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_scale_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"

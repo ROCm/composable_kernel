@@ -9,18 +9,20 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using UnaryScaleSquare = element_wise::UnaryScaleSquare;
+
 void add_device_permute_scale_5d_f16_instances(
     std::vector<std::unique_ptr<
-        DeviceElementwise<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 5>>>& instances)
+        DeviceElementwise<ck::Tuple<F16>, ck::Tuple<F16>, UnaryScaleSquare, 5>>>& instances)
 {
-    add_device_operation_instances(instances, device_permute_scale_f16_instances<5>{});
+    add_device_operation_instances(instances, device_permute_scale_f16_instances<5, UnaryScaleSquare>{});
 }
 
 void add_device_permute_scale_5d_f32_instances(
     std::vector<std::unique_ptr<
-        DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, Pass, UnaryOp, Scale, 5>>>& instances)
+        DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, UnaryScaleSquare, 5>>>& instances)
 {
-    add_device_operation_instances(instances, device_permute_scale_f32_instances<5>{});
+    add_device_operation_instances(instances, device_permute_scale_f32_instances<5, UnaryScaleSquare>{});
 }
 
 } // namespace instance

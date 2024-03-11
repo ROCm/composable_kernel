@@ -7,7 +7,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_scale.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -20,118 +20,88 @@ namespace instance {
 // void add_device_permute_scale_1d_f16_instances(
 //     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
 //                                                   ck::Tuple<F16>,
-//                                                   PassThrough,
-//                                                   element_wise::UnarySquare,
-//                                                   Scale,
+//                                                   element_wise::UnaryScaleSquare,
 //                                                   1>>>&);
 
 // void add_device_permute_scale_1d_f32_instances(
 //     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
 //                                                   ck::Tuple<F32>,
-//                                                   PassThrough,
-//                                                   element_wise::UnarySquare,
-//                                                   Scale,
+//                                                   element_wise::UnaryScaleSquare,
 //                                                   1>>>&);
 
 // void add_device_permute_scale_2d_f16_instances(
 //     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
 //                                                   ck::Tuple<F16>,
-//                                                   PassThrough,
-//                                                   element_wise::UnarySquare,
-//                                                   Scale,
+//                                                   element_wise::UnaryScaleSquare,
 //                                                   2>>>&);
 
 // void add_device_permute_scale_2d_f32_instances(
 //     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
 //                                                   ck::Tuple<F32>,
-//                                                   PassThrough,
-//                                                   element_wise::UnarySquare,
-//                                                   Scale,
+//                                                   element_wise::UnaryScaleSquare,
 //                                                   2>>>&);
 
 void add_device_permute_scale_3d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   3>>>&);
 
 void add_device_permute_scale_3d_f32_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
                                                   ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   3>>>&);
 
 void add_device_permute_scale_4d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   4>>>&);
 
 void add_device_permute_scale_4d_f32_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
                                                   ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   4>>>&);
 
 void add_device_permute_scale_5d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   5>>>&);
 
 void add_device_permute_scale_5d_f32_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
                                                   ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   5>>>&);
 
 void add_device_permute_scale_6d_f16_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F16>,
                                                   ck::Tuple<F16>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   6>>>&);
 
 void add_device_permute_scale_6d_f32_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>,
                                                   ck::Tuple<F32>,
-                                                  PassThrough,
-                                                  element_wise::UnarySquare,
-                                                  Scale,
+                                                  element_wise::UnaryScaleSquare,
                                                   6>>>&);
 
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
-          typename UnaryOperation,
-          typename Scale,
           index_t NumDim>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceElementwise<InDataTypeTuple,
                                                     OutDataTypeTuple,
                                                     ElementwiseOperation,
-                                                    UnaryOperation,
-                                                    Scale,
                                                     NumDim>>
 {
     using DeviceOp = DeviceElementwise<InDataTypeTuple,
                                        OutDataTypeTuple,
                                        ElementwiseOperation,
-                                       UnaryOperation,
-                                       Scale,
                                        NumDim>;
 
     static auto GetInstances()

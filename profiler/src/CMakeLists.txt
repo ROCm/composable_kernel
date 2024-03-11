@@ -30,7 +30,7 @@ set(PROFILER_SOURCES
     # profile_batchnorm_bwd.cpp
     # profile_batchnorm_infer.cpp
     # profile_grouped_conv_bwd_data.cpp
-    # profile_conv_tensor_rearrange.cpp
+    profile_conv_tensor_rearrange.cpp
     # profile_transpose.cpp
     profile_permute_scale.cpp
 )
@@ -97,8 +97,8 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_max_pool_bwd_instance)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_data_instance)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_data_instance)
-# target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
-# target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
 # target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_permute_scale_instance)
 

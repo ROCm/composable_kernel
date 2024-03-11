@@ -11,7 +11,6 @@
 #include "ck/tensor_operation/gpu/device/device_elementwise_scale.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d_scale.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/stream_utility.hpp"
@@ -20,18 +19,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <index_t BlockSize,
-          index_t M0PerBlock,
-          index_t M1PerBlock,
-          typename InDataTypeTuple,
+template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
           typename UnaryOperation,
           typename Scale,
           index_t NumDim,
-          index_t M0PerThread,
-          index_t M1PerThread,
-          typename ThreadClusterArrangeOrder,
+          index_t MPerThread,
           typename InScalarPerVectorSeq,
           typename OutScalarPerVectorSeq>
 struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
@@ -43,9 +37,6 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
 {
     static constexpr int NumInput  = InDataTypeTuple::Size();
     static constexpr int NumOutput = OutDataTypeTuple::Size();
-    // static constexpr index_t BlockSize = 128;
-    // static constexpr index_t threadx1 = 8;
-    // static constexpr index_t threadx0 = 16;
 
     static_assert(NumInput == InScalarPerVectorSeq::Size() &&
                       NumOutput == OutScalarPerVectorSeq::Size(),
@@ -76,156 +67,79 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
     using InDataTypePointerTuple  = decltype(GenerateInDataTypePointerTuple());
     using OutDataTypePointerTuple = decltype(GenerateOutDataTypePointerTuple());
 
-    template <typename InOutDescriptor>
-    static auto PadInputOutputDescriptor(const InOutDescriptor &desc)
+    template <typename Desc_M>
+    static auto PadDescriptor_M_1d(Desc_M desc_m, index_t gridSize, index_t blockSize)
     {
         constexpr auto I0 = Number<0>{};
-        constexpr auto I1 = Number<1>{};
 
-        const auto M0 = desc.GetLength(I0);
-        const auto M1 = desc.GetLength(I1);
-        const auto pad_M0 = math::integer_divide_ceil(M0, M0PerThread) * M0PerThread - M0;
-        const auto pad_M1 = math::integer_divide_ceil(M1, M1PerThread) * M1PerThread - M1;
-
-        const auto padded_desc =
-            transform_tensor_descriptor(desc,
-                                        make_tuple(
-                                                   make_right_pad_transform(M0, pad_M0),
-                                                   make_right_pad_transform(M1, pad_M1)),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-
-        return padded_desc;
+        const auto m            = desc_m.GetLength(I0);
+        const index_t loop_step = gridSize * blockSize * MPerThread;
+        const auto pad          = math::integer_least_multiple(m, loop_step) - m;
+        const auto desc_m_pad =
+            transform_tensor_descriptor(desc_m,
+                                        make_tuple(make_right_pad_transform(m, pad)),
+                                        make_tuple(Sequence<0>{}),
+                                        make_tuple(Sequence<0>{}));
+        return desc_m_pad;
     }
 
-    static index_t GetMostContinousDim(const std::array<index_t, NumDim>& strides) {
-        index_t most_continous_dim = NumDim - 1;
-        index_t most_continous_dim_stride = strides[most_continous_dim];
-        for (index_t dim = 0; dim < NumDim; dim++) {
-            if(strides[dim] < most_continous_dim_stride) {
-                most_continous_dim_stride = strides[dim];
-                most_continous_dim = dim;
-            }
-        }
-        return most_continous_dim;
-    }
-
-    static auto GenerateBatchDimsSizesTuple(const std::array<index_t, NumDim>& lengths, const index_t M0_dim, const index_t M1_dim) {
-        std::array<index_t, NumDim - 1> batch_dims;
-        index_t batch_dim = 0;
-        for (index_t i = 0; i < NumDim; i++) {
-            if (i != M0_dim && i != M1_dim) {
-                batch_dims[batch_dim] = lengths[i];
-                batch_dim++;
-            }
-        }
-        batch_dims[NumDim - 2] = 1;
-        return generate_tuple([&](auto I) { return batch_dims[I]; }, Number<NumDim - 1>{});
-    }
-
-    static auto GenerateBatchDimsSizesTuple(const std::array<index_t, NumDim>& lengths, const index_t M1_dim) {
-        std::array<index_t, NumDim - 1> batch_dims;
-        index_t batch_dim = 0;
-        for (index_t i = 0; i < NumDim; i++) {
-            if (i != M1_dim) {
-                batch_dims[batch_dim] = lengths[i];
-                batch_dim++;
-            }
-        }
-        return generate_tuple([&](auto I) { return batch_dims[I]; }, Number<NumDim - 1>{});
-    }
-
-    static auto MakeInputOutputDescriptor(const std::array<index_t, NumDim>& lengths,
-                                 const std::array<index_t, NumDim>& in_strides,
-                                 const std::array<index_t, NumDim>& out_strides,
-                                 const std::array<index_t, NumDim>& desc_strides)
-{
-        const auto M0_dim = GetMostContinousDim(out_strides);
-        const auto M1_dim = GetMostContinousDim(in_strides);
-
-        const auto M0 = M0_dim == M1_dim ? 1 : lengths[M0_dim];
-        const auto M1 = lengths[M1_dim];
-        const auto M0_stride = M0_dim == M1_dim ? 1 : desc_strides[M0_dim];
-        const auto M1_stride = desc_strides[M1_dim];
-
-        const auto batch_dims_lenghts = M0_dim == M1_dim ? 
-                    GenerateBatchDimsSizesTuple(lengths, M1_dim) :
-                    GenerateBatchDimsSizesTuple(lengths, M0_dim, M1_dim);
-        const auto batch_dims_strides = M0_dim == M1_dim ? 
-         GenerateBatchDimsSizesTuple(desc_strides, M1_dim) :
-          GenerateBatchDimsSizesTuple(desc_strides, M0_dim, M1_dim);
-
-        const auto desc = make_naive_tensor_descriptor(concat_tuple(batch_dims_lenghts, make_tuple(M0), make_tuple(M1)), concat_tuple(batch_dims_strides, make_tuple(M0_stride), make_tuple(M1_stride)));
-
-        const auto transforms = make_tuple(
-            make_merge_transform(concat_tuple(batch_dims_lenghts, make_tuple(M0))),
-            make_pass_through_transform(M1)
-        );
-
-        using BatchElemsSequence = typename arithmetic_sequence_gen<0, decltype(batch_dims_lenghts)::Size() + 1, 1>::type;
-        const auto lower_dims = make_tuple(BatchElemsSequence{}, Sequence<NumDim>{});
-        const auto upper_dims = make_tuple(Sequence<1>{}, Sequence<0>{});
-
-        // desc: (merged_dims, b_vector_dim, a_vector_dim)
-        auto merged_desc = transform_tensor_descriptor(desc, transforms, lower_dims, upper_dims);
-        return PadInputOutputDescriptor(merged_desc);
-    }
-
-    template<index_t NumTensors>
-    static auto GenerateInOutGridDescTuple()
+    static auto MakeDescriptor_M(const std::array<index_t, NumDim>& lengths,
+                                 const std::array<index_t, NumDim>& stride,
+                                 index_t gridSize,
+                                 index_t blockSize)
     {
-        std::array<index_t, NumDim> ones;
-        for (index_t d = 0; d < NumDim; d++) {
-            ones[d] = 1;
-        }
+        auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<NumDim>{});
+        auto tupleOfStride = generate_tuple([&](auto I) { return stride[I]; }, Number<NumDim>{});
 
+        // nd desc - [s0, s1, s2, ...]
+        const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+
+        // merge nd to 1d desc - [s0 * s1 * ...]
+        if constexpr(NumDim > 1)
+        {
+            const auto desc_m = transform_tensor_descriptor(
+                desc,
+                make_tuple(make_merge_transform(tupleOfShape)),
+                make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<NumDim>{})),
+                make_tuple(Sequence<0>{}));
+
+            return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
+        }
+        else
+            return PadDescriptor_M_1d(desc, gridSize, blockSize);
+    }
+
+    template <index_t TupleSize>
+    static auto GenerateInOutGrid1dDescTuple(Number<TupleSize>)
+    {
         return generate_tuple(
             [&](auto) {
-                return MakeInputOutputDescriptor(ones, ones, ones, ones);
+                if constexpr(NumDim > 1)
+                {
+                    return MakeDescriptor_M({1, 1}, {1, 1}, 1, 1);
+                }
+                else
+                {
+                    return MakeDescriptor_M({1}, {1}, 1, 1);
+                };
             },
-            Number<NumTensors>{});
+            Number<TupleSize>{});
     };
 
-    using InGridDescTuple  = decltype(GenerateInOutGridDescTuple<NumInput>());
-    using OutGridDescTuple = decltype(GenerateInOutGridDescTuple<NumOutput>());
+    using InGrid1dDescTuple  = decltype(GenerateInOutGrid1dDescTuple(Number<NumInput>{}));
+    using OutGrid1dDescTuple = decltype(GenerateInOutGrid1dDescTuple(Number<NumOutput>{}));
 
-    using Block2TileMap = BlockToCTileMap_M00_N0_M01Adapt<M0PerThread * M0PerBlock, M1PerThread * M1PerBlock>;
-
-    using GridwiseElementwise = GridwiseElementwise_1D<InGridDescTuple,
-                                                       OutGridDescTuple,
+    using GridwiseElementwise = GridwiseElementwise_1D<InGrid1dDescTuple,
+                                                       OutGrid1dDescTuple,
                                                        InDataTypePointerTuple,
                                                        OutDataTypePointerTuple,
-                                                       Block2TileMap,
                                                        ElementwiseOperation,
                                                        UnaryOperation,
                                                        Scale,
-                                                       M0PerThread,
-                                                       M1PerThread,
-                                                       ThreadClusterArrangeOrder,
+                                                       MPerThread,
                                                        InScalarPerVectorSeq,
-                                                       OutScalarPerVectorSeq,
-                                                       BlockSize,
-                                                       M0PerBlock,
-                                                       M1PerBlock,
-                                                       false>;
+                                                       OutScalarPerVectorSeq>;
 
-    using GridwiseElementwiseSameInOutVectorDim = GridwiseElementwise_1D<InGridDescTuple,
-                                                       OutGridDescTuple,
-                                                       InDataTypePointerTuple,
-                                                       OutDataTypePointerTuple,
-                                                       Block2TileMap,
-                                                       ElementwiseOperation,
-                                                       UnaryOperation,
-                                                       Scale,
-                                                       M0PerThread,
-                                                       M1PerThread,
-                                                       ThreadClusterArrangeOrder,
-                                                       InScalarPerVectorSeq,
-                                                       OutScalarPerVectorSeq,
-                                                       BlockSize,
-                                                       M0PerBlock,
-                                                       M1PerBlock,
-                                                       true>;
     struct Argument : public BaseArgument
     {
         Argument(const std::array<index_t, NumDim> lengths,
@@ -242,7 +156,8 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
               outStridesArray_(outStridesArray),
               elementwise_op_(elementwise_op),
               unary_op_(unary_op),
-              scale_op_(scale_op)
+              scale_op_(scale_op),
+              blockSize_(256)
         {
             in_dev_buffers_ = generate_tuple(
                 [&](auto I) {
@@ -269,72 +184,50 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
         ElementwiseOperation elementwise_op_;
         UnaryOperation unary_op_;
         Scale scale_op_;
+        index_t blockSize_;
     };
 
     struct Invoker : public BaseInvoker
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            auto in_grid_desc_tuple = generate_tuple(
-                [&](auto) {
-                    return MakeInputOutputDescriptor(
-                        arg.lengths_, arg.inStridesArray_[0], arg.outStridesArray_[0], arg.inStridesArray_[0]);
+            index_t gridSize = getAvailableComputeUnitCount(stream_config);
+
+            auto in_grid_1d_desc_tuple = generate_tuple(
+                [&](auto I) {
+                    return MakeDescriptor_M(
+                        arg.lengths_, arg.inStridesArray_[I.value], gridSize, arg.blockSize_);
                 },
                 Number<NumInput>{});
 
-            auto out_grid_desc_tuple = generate_tuple(
-                [&](auto) {
-                    return MakeInputOutputDescriptor(
-                        arg.lengths_, arg.inStridesArray_[0], arg.outStridesArray_[0], arg.outStridesArray_[0]);
+            auto out_grid_1d_desc_tuple = generate_tuple(
+                [&](auto I) {
+                    return MakeDescriptor_M(
+                        arg.lengths_, arg.outStridesArray_[I.value], gridSize, arg.blockSize_);
                 },
                 Number<NumOutput>{});
 
-
-            const index_t batch_size = in_grid_desc_tuple.At(Number<0>{}).GetLength(Number<0>{});
-            const index_t M0 = in_grid_desc_tuple.At(Number<0>{}).GetLength(Number<0>{});
-            const index_t M1 = in_grid_desc_tuple.At(Number<0>{}).GetLength(Number<1>{});
-            const auto block_2_tile_map =
-                Block2TileMap(M0, M1);
-
-            const index_t grid_size =
-                block_2_tile_map.CalculateGridSize(M0, M1);
-                // (batch_size) * block_2_tile_map.CalculateGridSize(M0, M1);
-            
-            const bool in_out_same_vector_dim = GetMostContinousDim(arg.inStridesArray_[0]) == GetMostContinousDim(arg.outStridesArray_[0]);
-
-            const auto kernel = in_out_same_vector_dim ? kernel_elementwise_1d<GridwiseElementwiseSameInOutVectorDim,
-                                                                    InGridDescTuple,
-                                                                    OutGridDescTuple,
-                                                                    InDataTypePointerTuple,
-                                                                    OutDataTypePointerTuple,
-                                                                    Block2TileMap,
-                                                                    ElementwiseOperation,
-                                                                    UnaryOperation,
-                                                                    Scale> :
-                                                            kernel_elementwise_1d<GridwiseElementwise,
-                                                                    InGridDescTuple,
-                                                                    OutGridDescTuple,
-                                                                    InDataTypePointerTuple,
-                                                                    OutDataTypePointerTuple,
-                                                                    Block2TileMap,
-                                                                    ElementwiseOperation,
-                                                                    UnaryOperation,
-                                                                    Scale>;
+            const auto kernel = kernel_elementwise_1d<GridwiseElementwise,
+                                                      InGrid1dDescTuple,
+                                                      OutGrid1dDescTuple,
+                                                      InDataTypePointerTuple,
+                                                      OutDataTypePointerTuple,
+                                                      ElementwiseOperation,
+                                                      UnaryOperation,
+                                                      Scale>;
 
             float elapsed_time = launch_and_time_kernel(stream_config,
                                                         kernel,
-                                                        dim3(grid_size),
-                                                        dim3(BlockSize),
+                                                        dim3(gridSize),
+                                                        dim3(arg.blockSize_),
                                                         0,
-                                                        in_grid_desc_tuple,
-                                                        out_grid_desc_tuple,
+                                                        in_grid_1d_desc_tuple,
+                                                        out_grid_1d_desc_tuple,
                                                         arg.in_dev_buffers_,
                                                         arg.out_dev_buffers_,
-                                                        block_2_tile_map,
                                                         arg.elementwise_op_,
                                                         arg.unary_op_,
-                                                        arg.scale_op_,
-                                                        batch_size);
+                                                        arg.scale_op_);
             return elapsed_time;
         }
 
@@ -348,20 +241,18 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        // if(arg.lengths_.back() % MPerThread != 0)
-        //     return false;
+        if(arg.lengths_.back() % MPerThread != 0)
+            return false;
 
         auto IsScalarPerVectorValid = [&](const std::array<index_t, NumDim>& lengths,
                                           const std::array<index_t, NumDim>& strides,
                                           index_t scalarPerVector) {
-            if (scalarPerVector == 1) {
+            if(strides.back() == 1 && lengths.back() % scalarPerVector == 0)
                 return true;
-            }
-            for (index_t d = 0; d < NumDim; d++) {
-                if(strides[d] == 1 && lengths[d] % scalarPerVector == 0) {
-                    return true;
-                }
-            }
+
+            if(strides.back() != 1 && scalarPerVector == 1)
+                return true;
+
             return false;
         };
 
@@ -439,8 +330,7 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
         // clang-format off
         str << "DeviceElementwiseNormalizationImpl<";
         str << NumDim << ", ";
-        str << M0PerThread << ", ";
-        str << M1PerThread << ">";
+        str << MPerThread << ">";
         // clang-format on
 
         return str.str();
