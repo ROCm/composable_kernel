@@ -1156,8 +1156,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::f8_t> &&
                          is_same_v<OutDataType, ck::f8_t> && is_same_v<ComputeType, ck::f8_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_instances(
-                    op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_instances(op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_FP16
