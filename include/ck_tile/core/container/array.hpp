@@ -157,19 +157,47 @@ struct vector_traits<array<T, N>>
     static constexpr index_t vector_size = N;
 };
 
-template <typename T, typename... Ts>
-CK_TILE_HOST_DEVICE constexpr auto make_array(Ts&&... xs)
+namespace details {
+template <class>
+struct is_ref_wrapper : std::false_type
 {
-    using value_type = remove_cvref_t<T>;
-    return array<value_type, sizeof...(Ts)>{std::forward<Ts>(xs)...};
+};
+template <class T>
+struct is_ref_wrapper<std::reference_wrapper<T>> : std::true_type
+{
+};
+
+template <class T>
+using not_ref_wrapper = std::negation<is_ref_wrapper<std::decay_t<T>>>;
+
+template <class D, class...>
+struct return_type_helper
+{
+    using type = D;
+};
+template <class... Ts>
+struct return_type_helper<void, Ts...> : std::common_type<Ts...>
+{
+    static_assert(std::conjunction_v<not_ref_wrapper<Ts>...>,
+                  "Ts cannot contain reference_wrappers when D is void");
+};
+
+template <class D, class... Ts>
+using return_type = array<typename return_type_helper<D, Ts...>::type, sizeof...(Ts)>;
+} // namespace details
+
+template <typename D = void, typename... Ts>
+CK_TILE_HOST_DEVICE constexpr details::return_type<D, Ts...> make_array(Ts&&... ts)
+{
+    return {std::forward<Ts>(ts)...};
 }
 
-// make empty array
-template <typename T>
-CK_TILE_HOST_DEVICE constexpr auto make_array()
-{
-    return array<T, 0>{};
-}
+// // make empty array
+// template <typename T>
+// CK_TILE_HOST_DEVICE constexpr auto make_array()
+// {
+//     return array<T, 0>{};
+// }
 
 // compatible with old ck's initializer, make an array and fill it withe the last element from
 // initializer_list

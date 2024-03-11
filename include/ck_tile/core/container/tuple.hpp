@@ -12,7 +12,19 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include <utility>
 
+#ifndef CK_TILE_TUPLE_IMPL
+#define CK_TILE_TUPLE_IMPL 1
+#endif
+
 namespace ck_tile {
+
+namespace impl {
+template <typename T, index_t N>
+struct tuple_array_impl;
+}
+
+template <typename T, index_t N>
+using tuple_array = typename impl::tuple_array_impl<T, N>::type;
 
 namespace impl {
 
@@ -26,37 +38,77 @@ template <index_t idx, typename T>
 struct tuple_object<idx, T, true>
 {
     CK_TILE_HOST_DEVICE constexpr tuple_object() {}
-    CK_TILE_HOST_DEVICE constexpr tuple_object(const T&) {}
+#if CK_TILE_TUPLE_IMPL == 0
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(U&&)
+    {
+    }
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(const U&)
+    {
+    }
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(U&)
+    {
+    }
+#elif CK_TILE_TUPLE_IMPL == 1
+    template <typename U,
+              typename std::enable_if<!std::is_same<remove_cvref_t<U>, tuple_object>::value,
+                                      bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(U&&)
+    {
+    }
+#endif
 };
 
 template <index_t idx, typename T>
 struct tuple_object<idx, T, false>
 {
     CK_TILE_HOST_DEVICE constexpr tuple_object() : element{} {}
-    CK_TILE_HOST_DEVICE constexpr tuple_object(const T& e) : element(e) {}
+#if CK_TILE_TUPLE_IMPL == 0
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(U&& e) : element(std::forward<U>(e))
+    {
+    }
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(const U& e) : element(e)
+    {
+    }
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(U& e) : element(e)
+    {
+    }
+#elif CK_TILE_TUPLE_IMPL == 1
+    template <typename U,
+              typename std::enable_if<!std::is_same<remove_cvref_t<U>, tuple_object>::value,
+                                      bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr tuple_object(U&& e) : element(std::forward<U>(e))
+    {
+    }
+#endif
     T element;
 };
 
 // NOTE: we return a instance(not a reference) if content is empty
-template <std::size_t I, class T>
+template <index_t I, class T>
 CK_TILE_HOST_DEVICE constexpr T getv(const tuple_object<I, T, true>&)
 {
     return {};
 }
 
-template <std::size_t I, class T>
+template <index_t I, class T>
 CK_TILE_HOST_DEVICE constexpr const T& getv(const tuple_object<I, T, false>& x)
 {
     return x.element;
 }
 
-template <std::size_t I, class T>
+template <index_t I, class T>
 CK_TILE_HOST_DEVICE constexpr T& getv(tuple_object<I, T, false>& x)
 {
     return x.element;
 }
 
-template <std::size_t I, class T>
+template <index_t I, class T>
 CK_TILE_HOST_DEVICE constexpr T&& getv(tuple_object<I, T, false>&& x)
 {
     return static_cast<T&&>(x.element);
@@ -68,10 +120,27 @@ struct tuple_base;
 template <index_t... I, typename... T>
 struct tuple_base<sequence<I...>, T...> : tuple_object<I, T>...
 {
-    CK_TILE_HOST_DEVICE constexpr tuple_base() {}
+    CK_TILE_HOST_DEVICE constexpr tuple_base() = default;
+#if CK_TILE_TUPLE_IMPL == 0
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr explicit tuple_base(U&&... u)
+        : tuple_object<I, T>(std::forward<U>(u))...
+    {
+    }
 
     template <class... U>
     CK_TILE_HOST_DEVICE constexpr explicit tuple_base(const U&... u) : tuple_object<I, T>(u)...
+    {
+    }
+
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr explicit tuple_base(U&... u) : tuple_object<I, T>(u)...
+    {
+    }
+
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr tuple_base(tuple_base<sequence<I...>, U...>&& u)
+        : tuple_object<I, T>(getv(static_cast<tuple_object<I, U>&&>(u)))...
     {
     }
 
@@ -80,6 +149,29 @@ struct tuple_base<sequence<I...>, T...> : tuple_object<I, T>...
         : tuple_object<I, T>(getv(static_cast<const tuple_object<I, U>&>(u)))...
     {
     }
+
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr tuple_base(tuple_base<sequence<I...>, U...>& u)
+        : tuple_object<I, T>(getv(static_cast<tuple_object<I, U>&>(u)))...
+    {
+    }
+#elif CK_TILE_TUPLE_IMPL == 1
+    template <class U,
+              typename std::enable_if<sizeof...(I) == 1 && sizeof...(T) == 1 &&
+                                          !std::is_same<remove_cvref_t<U>, tuple_base>::value,
+                                      bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr tuple_base(U&& u) : tuple_object<I, T>(std::forward<U>(u))...
+    {
+    }
+
+    template <typename... U, typename std::enable_if<sizeof...(U) >= 2, bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr tuple_base(U&&... u) : tuple_object<I, T>(std::forward<U>(u))...
+    {
+        static_assert(sizeof...(I) == sizeof...(T) && sizeof...(I) == sizeof...(U),
+                      "wrong! inconsistent size");
+    }
+
+#endif
 };
 } // namespace impl
 
@@ -89,10 +181,26 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     CK_TILE_HOST_DEVICE
     static constexpr auto size() { return sizeof...(T); }
     using base = impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>;
-    CK_TILE_HOST_DEVICE constexpr tuple() {}
+    CK_TILE_HOST_DEVICE constexpr tuple() = default;
+#if CK_TILE_TUPLE_IMPL == 0
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr tuple(U&&... u) : base(std::forward<U>(u)...)
+    {
+    }
 
     template <class... U>
     CK_TILE_HOST_DEVICE constexpr tuple(const U&... u) : base(u...)
+    {
+    }
+
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr tuple(U&... u) : base(u...)
+    {
+    }
+
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr tuple(tuple<U...>&& u)
+        : base(static_cast<impl::tuple_base<make_index_sequence<sizeof...(U)>, U...>&&>(u))
     {
     }
 
@@ -102,6 +210,27 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     {
     }
 
+    template <class... U>
+    CK_TILE_HOST_DEVICE constexpr tuple(tuple<U...>& u)
+        : base(static_cast<impl::tuple_base<make_index_sequence<sizeof...(U)>, U...>&>(u))
+    {
+    }
+#elif CK_TILE_TUPLE_IMPL == 1
+    template <
+        typename U,
+        typename std::enable_if<sizeof...(T) == 1 && !std::is_same<remove_cvref_t<U>, tuple>::value,
+                                bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr tuple(U&& u) : base(std::forward<U>(u))
+    {
+    }
+
+    template <typename... U,
+              typename std::enable_if<sizeof...(U) == sizeof...(T) && sizeof...(U) >= 2,
+                                      bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr tuple(U&&... u) : base(std::forward<U>(u)...)
+    {
+    }
+#endif
     CK_TILE_HOST_DEVICE static constexpr bool is_static()
     {
         bool flag = true;
@@ -128,6 +257,19 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator[](number<I>)             { TP_COM_(); return get<I>(); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator[](number<I>) const { TP_COM_(); return get<I>(); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(number<I>)             { TP_COM_(); return get<I>(); }  // TODO: compatible
+
+    // below function should be used under tuple_array<> type, no extra check will perform here
+    template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as()                            { return reinterpret_cast<tuple_array<Tx, size()>&>(*this); }
+    template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as() const                      { return reinterpret_cast<const tuple_array<Tx, size()>&>(*this); }
+    // below index is for index *AFTER* type convert, not before
+    //template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(index_t i)                   { TP_COM_(); return reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(i); }
+    //template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(index_t i) const             { TP_COM_(); return reinterpret_cast<const tuple_array<Tx, size()>&>(*this).at(i); }
+    template <typename Tx, index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(number<I>)        { TP_COM_(); return reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(number<I>{}); }
+    template <typename Tx, index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as(number<I>) const  { TP_COM_(); return reinterpret_cast<const tuple_array<Tx, size()>&>(*this).at(number<I>{}); }
+    
+    // template <typename Tx> CK_TILE_HOST_DEVICE constexpr void set_as(index_t i, const Tx & x)               { TP_COM_(); reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(i) = x; }
+    template <typename Tx, index_t I> CK_TILE_HOST_DEVICE constexpr void set_as(number<I>, const Tx & x)    { TP_COM_(); reinterpret_cast<tuple_array<Tx, size()>&>(*this).at(number<I>{}) = x; }
+
     // clang-format on
 #undef TP_COM_
 };
@@ -163,6 +305,15 @@ CK_TILE_HOST_DEVICE constexpr bool operator!=(const tuple<Xs...>& a, const tuple
 template <typename... Xs>
 CK_TILE_HOST_DEVICE constexpr auto make_tuple(Xs&&... xs)
 {
+    // here xs is always a lvalue as function arg
+    // Xs may deduced as (e.g try to pass in a integer in following cases)
+    //  1). if pass in a rvalue (like function return or int{}) -> Xs is "int"
+    //  2). if pass in a const lvalue -> Xs is "const int &"
+    //  3). if pass in a non-const lvalue -> Xs is "int &"
+    // so the return type of std::forward will dependes on Xs
+    //  1). std::forward -> int&&
+    //  2). std::forward -> const int&
+    //  3). std::forward -> int&
     return tuple<remove_cvref_t<Xs>...>(std::forward<Xs>(xs)...);
 }
 
@@ -181,6 +332,38 @@ struct tuple_concat<tuple<Xs...>, tuple<Ys...>>
 {
     using type = tuple<Xs..., Ys...>;
 };
+
+namespace impl {
+// be very careful using this type (because we want the internal type)
+// template deduction will fail if infering the inner type
+// e.g.
+// template<typename T, index_t N> using some_wrapper = typename tuple_array_impl<T, N>::type;
+// template<typename T, index_t N> void foo(const some_wrapper<T, N>&) {}
+//   -> compiler will fail to deduce this type, because this is under non-deduced context
+//   (https://en.cppreference.com/w/cpp/language/template_argument_deduction, "Non-deduced
+//   contexts")
+//
+// -> use this instead
+// template<typename Tup> void foo(const Tup&) {}
+template <typename T, index_t N>
+struct tuple_array_impl
+{
+    using type = typename tuple_concat<typename tuple_array_impl<T, N / 2>::type,
+                                       typename tuple_array_impl<T, N - N / 2>::type>::type;
+};
+
+template <typename T>
+struct tuple_array_impl<T, 0>
+{
+    using type = tuple<>;
+};
+
+template <typename T>
+struct tuple_array_impl<T, 1>
+{
+    using type = tuple<T>;
+};
+} // namespace impl
 
 template <typename F, index_t N>
 CK_TILE_HOST_DEVICE constexpr auto generate_tuple(F&& f, number<N>)

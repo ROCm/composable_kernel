@@ -38,11 +38,7 @@ struct Default2DEpilogue
         // TODO: this is ugly
         if constexpr(kPadM || kPadN)
         {
-            // o_dram_window_tmp.foo();
-            // ODataType{}.foo();
-            // o_acc_tile.foo();
-            auto x = cast_tile<ODataType>(o_acc_tile);
-            store_tile_raw(o_dram_window_tmp, x);
+            store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_acc_tile));
             buffer_store_fence();
         }
         else
