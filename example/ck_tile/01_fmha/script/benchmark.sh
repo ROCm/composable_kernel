@@ -1,7 +1,7 @@
 #!/bin/sh
 # TODO: run this script from CK root
 BUILD=build
-EXE=$BUILD/bin/example_fmha_fwd
+EXE=$BUILD/bin/tile_example_fmha_fwd
 VALID=0
 
 for prec in "fp16" "bf16" ; do
