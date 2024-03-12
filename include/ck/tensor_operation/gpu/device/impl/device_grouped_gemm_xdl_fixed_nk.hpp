@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -50,7 +50,7 @@ __global__ void
                                          const CDEElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -650,22 +650,9 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             constexpr auto AtomicAdd = InMemoryDataOperationEnum::AtomicAdd;
             constexpr auto Set       = InMemoryDataOperationEnum::Set;
 
-            if(arg.k_batch_ > 1)
-            {
-                if(has_main_k_block_loop)
-                {
-                    ave_time =
-                        launch_kernel(integral_constant<bool, true>{},
-                                      integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
-                }
-                else
-                {
-                    ave_time =
-                        launch_kernel(integral_constant<bool, false>{},
-                                      integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
-                }
-            }
-            else
+            // For bf16 datatype only kbatch = 1 scenario is supported. This condition is enforced
+            // in IsSupportedArgument function
+            if constexpr(std::is_same<ADataType, ck::bhalf_t>::value)
             {
                 if(has_main_k_block_loop)
                 {
@@ -676,6 +663,39 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 {
                     ave_time = launch_kernel(integral_constant<bool, false>{},
                                              integral_constant<InMemoryDataOperationEnum, Set>{});
+                }
+            }
+            else
+            {
+                if(arg.k_batch_ > 1)
+                {
+                    if(has_main_k_block_loop)
+                    {
+                        ave_time = launch_kernel(
+                            integral_constant<bool, true>{},
+                            integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
+                    }
+                    else
+                    {
+                        ave_time = launch_kernel(
+                            integral_constant<bool, false>{},
+                            integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
+                    }
+                }
+                else
+                {
+                    if(has_main_k_block_loop)
+                    {
+                        ave_time =
+                            launch_kernel(integral_constant<bool, true>{},
+                                          integral_constant<InMemoryDataOperationEnum, Set>{});
+                    }
+                    else
+                    {
+                        ave_time =
+                            launch_kernel(integral_constant<bool, false>{},
+                                          integral_constant<InMemoryDataOperationEnum, Set>{});
+                    }
                 }
             }
 
@@ -716,6 +736,13 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
                 supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
             }
+        }
+
+        // For bf16 datatype only kbatch = 1 is supported since there is no AtomicAdd
+        // instruction that supports bf16 and we cannot use splitk because of that
+        if constexpr(std::is_same<ADataType, ck::bhalf_t>::value)
+        {
+            supported = supported & (arg.k_batch_ == 1);
         }
 
         return supported;

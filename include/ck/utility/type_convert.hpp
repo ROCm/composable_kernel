@@ -8,6 +8,10 @@
 #include "ck/utility/random_gen.hpp"
 
 namespace ck {
+// Define the common macro for MI300 models
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#define __gfx94__
+#endif
 
 // Convert X to Y, both X and Y are non-const data types.
 template <typename Y,
@@ -103,21 +107,24 @@ __host__ __device__ constexpr Y f8_convert_sr(X x);
 template <>
 inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
 {
-    constexpr int seed = 42;
+    constexpr int seed = 1254739;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-    float max_fp8 = 240.0f;
-    x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
+#if defined(__gfx94__)
     union
     {
         float fval;
         uint32_t i32val;
         uint8_t i8val[4]; // not endian independent
     } val;
-    val.fval      = x;
-    uint32_t ival = 0;
-    ival          = __builtin_amdgcn_cvt_sr_fp8_f32(val.fval, rng, ival, 0); // 0 pos
-    val.i32val    = ival;
+    val.fval            = x;
+    uint32_t ival       = 0;
+    const float max_fp8 = 240.0f;
+    // if x is not +/- infinity or nan
+    if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+        // clip float value
+        val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
+    ival       = __builtin_amdgcn_cvt_sr_fp8_f32(val.fval, rng, ival, 0); // 0 pos
+    val.i32val = ival;
     return val.i8val[0]; // little endian
 #else
     constexpr bool negative_zero_nan = true;
@@ -133,14 +140,14 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, float>(float x)
 template <>
 inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // convert to float and use native converion
     return f8_convert_sr<f8_t>(type_convert<float>(x));
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
-    constexpr int seed               = 42;
+    constexpr int seed               = 1254739;
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
     return utils::
         cast_to_f8<half_t, f8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
@@ -152,19 +159,24 @@ inline __host__ __device__ f8_t f8_convert_sr<f8_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
 {
-    constexpr int seed = 42;
+    constexpr int seed = 1254739;
     uint32_t rng       = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     union
     {
         float fval;
         uint32_t i32val;
         uint8_t i8val[4]; // not endian independent
     } val;
-    val.fval      = x;
-    uint32_t ival = 0;
-    ival          = __builtin_amdgcn_cvt_sr_bf8_f32(val.fval, rng, ival, 0); // 0 pos
-    val.i32val    = ival;
+    val.fval            = x;
+    uint32_t ival       = 0;
+    const float max_bf8 = 57344.0f;
+    // if x is not +/- infinity or nan
+    if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+        // clip float value
+        val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
+    ival       = __builtin_amdgcn_cvt_sr_bf8_f32(val.fval, rng, ival, 0); // 0 pos
+    val.i32val = ival;
     return val.i8val[0]; // little endian
 #else
     constexpr bool negative_zero_nan = true;
@@ -180,14 +192,14 @@ inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, float>(float x)
 template <>
 inline __host__ __device__ bf8_t f8_convert_sr<bf8_t, half_t>(half_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // convert to float and use native converion
     return f8_convert_sr<bf8_t>(type_convert<float>(x));
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
     constexpr f8_rounding_mode rm    = f8_rounding_mode::stochastic;
-    constexpr int seed               = 42;
+    constexpr int seed               = 1254739;
     uint32_t rng = prand_generator<half_t, seed>(reinterpret_cast<uintptr_t>(&x), x);
     return utils::
         cast_to_f8<half_t, bf8_t, negative_zero_nan, clip, (rm == f8_rounding_mode::stochastic)>(
@@ -203,17 +215,20 @@ __host__ __device__ constexpr Y f8_convert_rne(X x);
 template <>
 inline __host__ __device__ f8_t f8_convert_rne<f8_t, float>(float x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-    float max_fp8 = 240.0f;
-    x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
+#if defined(__gfx94__)
     union
     {
         float fval;
         uint32_t i32val;
         uint8_t i8val[4]; // not endian independent
     } val;
-    val.fval      = x;
-    uint32_t ival = 0;
+    val.fval            = x;
+    uint32_t ival       = 0;
+    const float max_fp8 = 240.0f;
+    // if x is not +/- infinity or nan
+    if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+        // clip float value
+        val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
     ival       = __builtin_amdgcn_cvt_pk_fp8_f32(val.fval, val.fval, ival, false); // false -> WORD0
     val.i32val = ival;
     return val.i8val[0];
@@ -232,7 +247,7 @@ inline __host__ __device__ f8_t f8_convert_rne<f8_t, float>(float x)
 template <>
 inline __host__ __device__ f8_t f8_convert_rne<f8_t, half_t>(half_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // convert to float and use native converion
     return f8_convert_rne<f8_t>(type_convert<float>(x));
 #else
@@ -250,15 +265,20 @@ inline __host__ __device__ f8_t f8_convert_rne<f8_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ bf8_t f8_convert_rne<bf8_t, float>(float x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     union
     {
         float fval;
         uint32_t i32val;
         uint8_t i8val[4]; // not endian independent
     } val;
-    val.fval      = x;
-    uint32_t ival = 0;
+    val.fval            = x;
+    uint32_t ival       = 0;
+    const float max_bf8 = 57344.0f;
+    // if x is not +/- infinity or nan
+    if((val.i32val & NumericUtils<float>::nan_mask) != NumericUtils<float>::Inf)
+        // clip float value
+        val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
     ival       = __builtin_amdgcn_cvt_pk_bf8_f32(val.fval, val.fval, ival, false); // false -> WORD0
     val.i32val = ival;
     return val.i8val[0];
@@ -277,7 +297,7 @@ inline __host__ __device__ bf8_t f8_convert_rne<bf8_t, float>(float x)
 template <>
 inline __host__ __device__ bf8_t f8_convert_rne<bf8_t, half_t>(half_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // convert to float and use native converion
     return f8_convert_rne<bf8_t>(type_convert<float>(x));
 #else
@@ -306,7 +326,7 @@ inline __host__ __device__ f8_t type_convert<f8_t, float>(float x)
 template <>
 inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     float fval;
     uint32_t i32val = static_cast<uint32_t>(x);
     fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
@@ -321,7 +341,7 @@ inline __host__ __device__ float type_convert<float, f8_t>(f8_t x)
 template <>
 inline __host__ __device__ float2_t type_convert<float2_t, f8x2_t>(f8x2_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     const auto i16val = bit_cast<uint16_t>(x);
     return __builtin_amdgcn_cvt_pk_f32_fp8(i16val, 0);
 #else
@@ -363,7 +383,7 @@ inline __host__ __device__ f8_t type_convert<f8_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ half_t type_convert<half_t, f8_t>(f8_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // use native conversion to float and convert to fp16
     return type_convert<half_t>(type_convert<float>(x));
 #else
@@ -387,7 +407,7 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, float>(float x)
 template <>
 inline __host__ __device__ float type_convert<float, bf8_t>(bf8_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     float fval;
     uint32_t i32val = static_cast<uint32_t>(x);
     fval            = __builtin_amdgcn_cvt_f32_bf8(i32val, 0);
@@ -414,7 +434,7 @@ inline __host__ __device__ bf8_t type_convert<bf8_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // use native conversion to float and convert to fp16
     return type_convert<half_t>(type_convert<float>(x));
 #else

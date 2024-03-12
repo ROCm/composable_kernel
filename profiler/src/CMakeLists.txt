@@ -32,6 +32,7 @@ set(PROFILER_SOURCES
     profile_grouped_conv_bwd_data.cpp
     profile_conv_tensor_rearrange.cpp
     profile_transpose.cpp
+    profile_permute_scale.cpp
 )
 
 if(DL_KERNELS)
@@ -43,11 +44,15 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   list(APPEND PROFILER_SOURCES profile_gemm_fastgelu.cpp)
   list(APPEND PROFILER_SOURCES profile_gemm_streamk.cpp)
   list(APPEND PROFILER_SOURCES profile_gemm_bilinear.cpp)
+  list(APPEND PROFILER_SOURCES profile_gemm_add.cpp) 
   list(APPEND PROFILER_SOURCES profile_gemm_add_fastgelu.cpp)
+  list(APPEND PROFILER_SOURCES profile_gemm_add_relu.cpp)
+  list(APPEND PROFILER_SOURCES profile_gemm_add_silu.cpp)
   list(APPEND PROFILER_SOURCES profile_gemm_add_add_fastgelu.cpp)
   list(APPEND PROFILER_SOURCES profile_gemm_add_relu_add_layernorm.cpp)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_add_relu_gemm_add.cpp)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm.cpp)
+  list(APPEND PROFILER_SOURCES profile_grouped_gemm_fixed_nk.cpp)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm_fastgelu.cpp)
 endif()
 
@@ -96,6 +101,7 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_d
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_permute_scale_instance)
 
 if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
@@ -109,7 +115,10 @@ if(DL_KERNELS)
 endif()
 
 if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_fastgelu_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_relu_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_silu_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_relu_add_layernorm_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_bilinear_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_add_fastgelu_instance)
@@ -118,6 +127,7 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_gemm_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_add_relu_gemm_add_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fixed_nk_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_gemm_fastgelu_instance)
 endif()
 
