@@ -108,8 +108,6 @@ if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
 endif()
 
-
-
 if(DL_KERNELS)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
 endif()
