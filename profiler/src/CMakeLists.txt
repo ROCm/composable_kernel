@@ -68,7 +68,6 @@ target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
-
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_splitk_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_multiply_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_multiply_add_instance)

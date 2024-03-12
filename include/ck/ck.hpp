@@ -58,7 +58,7 @@
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
 #define __gfx11__
 #endif
-#if defined(__gfx1200__)
+#if defined(__gfx1200__) || defined(__gfx1201__)
 #define __gfx12__
 #endif
 
@@ -107,7 +107,7 @@
 // WMMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_WMMA
-#elif defined(__gfx11__) // for GPU code
+#elif defined(__gfx11__) || defined(__gfx12__) // for GPU code
 #define CK_USE_AMD_WMMA
 #endif
 
