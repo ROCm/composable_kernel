@@ -24,12 +24,13 @@
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/ranges.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
+//#include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -60,9 +61,10 @@ template <class T>
 rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
 {
     rtc::buffer<T> result(n);
-    std::mt19937 gen(seed);
+    /**std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
-    std::generate(result.begin(), result.end(), [&] { return dis(gen); });
+    std::generate(result.begin(), result.end(), [&] { return dis(gen); });**/
+    std::fill(result.begin(), result.end(), 1);
     return result;
 }
 
@@ -293,10 +295,7 @@ TEST_CASE(test_problem_kernel)
     prob.Wi = 71;
     prob.Ho = 71;
     prob.Wo = 71;
-    check_all<half> check;
-    auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
-    auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
-    auto c               = to_gpu(generate_buffer<half>(64 * 64, 2));
+    check_all<ck::half_t> check;
     std::string prologue = R"(
     struct Prologue
 {
@@ -399,6 +398,7 @@ TEST_CASE(test_problem_kernel)
                                            static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
                                            1,
                                            static_cast<int>(prob.Wo * prob.G * prob.K),
+
                                            static_cast<int>(prob.G * prob.K)};
     std::array<ck::index_t, 5> wei_strides{static_cast<int>(prob.K * prob.Y * prob.X * prob.C),
                                            static_cast<int>(prob.Y * prob.X * prob.C),
@@ -407,19 +407,48 @@ TEST_CASE(test_problem_kernel)
                                            static_cast<int>(prob.C)};
     std::array<ck::index_t, 5> d_strides = {};
 
-    std::array<ck::index_t, 2> conv_filter_strides   = {2, 2};
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
+
+    std::array<ck::index_t, 2> conv_filter_strides = {2, 2};
+    std::vector<ck::index_t> conv_filter_strides_  = {2, 2};
+    // copy(conv_filter_strides, conv_filter_strides_);
     std::array<ck::index_t, 2> conv_filter_dilations = {1, 1};
+    std::vector<ck::index_t> conv_filter_dilations_  = {1, 1};
     std::array<ck::index_t, 2> input_left_pads       = {1, 1};
+    std::vector<ck::index_t> input_left_pads_        = {1, 1};
     std::array<ck::index_t, 2> input_right_pads      = {1, 1};
+    std::vector<ck::index_t> input_right_pads_       = {1, 1};
 
     auto get_num_elems = [](const auto& tensor_lens) {
         return std::reduce(
             tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
     };
 
+    auto in_tmp = get_num_elems(in_lengths);
+    std::cout << std::to_string(in_tmp) << std::endl;
+    // decltype(in)::foo = 1;
+
     auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
-    auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 0));
-    auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 0));
+    auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
+    auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));
+
+    std::ofstream data("data.txt");
+    /** for(int i = 0; i < out_dev.size(); i++)
+               {
+                           auto tmp = out_dev[i];
+                                       data << std::to_string(static_cast<int>(tmp));
+               }**/
+    // data << "wei: " << wei_dev << std::endl;
+    // data << "out: " << out_dev << std::endl;
+    data.close();
+
+    auto out = generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2);
+    auto in  = generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0);
+    auto wei = generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1);
+    std::cout << "buf sizes" << std::endl;
+    std::cout << out.size() << std::endl;
+    std::cout << in.size() << std::endl;
+    std::cout << wei.size() << std::endl;
 
     // populated arg call
     auto arg = DeviceConv::Argument(in_dev.data(),
@@ -488,7 +517,49 @@ TEST_CASE(test_problem_kernel)
             arg.block_2_etile_map_,
             arg.compute_ptr_offset_of_batch_);
 
-        CHECK(report(solution, check(rtc::from_gpu(c))));
+        Tensor<ck::half_t> in_host(in_lengths);
+        in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+        Tensor<ck::half_t> wei_host(wei_lengths);
+        wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+        Tensor<ck::half_t> out_host(out_lengths);
+        out_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
+            2,
+            ck::half_t,
+            ck::half_t,
+            ck::half_t,
+            ck::tensor_operation::element_wise::PassThrough,
+            ck::tensor_operation::element_wise::PassThrough,
+            CDEElementOp>();
+
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei_host,
+                                                  out_host,
+                                                  conv_filter_strides_,
+                                                  conv_filter_dilations_,
+                                                  input_left_pads_,
+                                                  input_right_pads_,
+                                                  ck::tensor_operation::element_wise::PassThrough{},
+                                                  ck::tensor_operation::element_wise::PassThrough{},
+                                                  CDEElementOp{1.0f, 1.0f});
+
+        ref_invoker.Run(ref_argument);
+
+        bool pass = true;
+        auto res  = rtc::from_gpu(out_dev);
+        std::ofstream ofh2("res.txt");
+        pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
+        ofh2 << "Check: " << pass << std::endl;
+        ofh2 << res.size();
+        for(int i = 0; i < res.size(); i++)
+        {
+            auto tmp = (res.data())[i];
+            ofh2 << std::to_string(static_cast<int>(tmp));
+        }
+        ofh2.close();
+        CHECK(report(solution, check(res)));
     }
 }
 
