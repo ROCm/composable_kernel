@@ -12,10 +12,6 @@ Wrapper
 Description
 -------------------------------------
 
-.. note::
-
-    The wrapper is under development and its functionality is limited.
-
 
 The CK library provides a lightweight wrapper for more complex operations implemented in 
 the library.
@@ -54,39 +50,45 @@ Output::
     2 6 10 14 18 22 26 30 
 
 
+Tutorials:
+
+* `GEMM tutorial <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/README.md>`_
+
 Advanced examples:
 
 * `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_
+* `Basic gemm <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp>`_
+* `Optimized gemm <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp>`_
 
 -------------------------------------
 Layout
 -------------------------------------
 
-.. doxygenstruct:: ck::wrapper::Layout
+.. doxygenstruct:: Layout
 
 -------------------------------------
 Layout helpers
 -------------------------------------
 
-.. doxygenfile:: layout_utils.hpp
+.. doxygenfile:: include/ck/wrapper/utils/layout_utils.hpp
 
 -------------------------------------
 Tensor
 -------------------------------------
 
-.. doxygenstruct:: ck::wrapper::Tensor
+.. doxygenstruct:: Tensor
 
 -------------------------------------
 Tensor helpers
 -------------------------------------
 
-.. doxygenfile:: tensor_utils.hpp
+.. doxygenfile:: include/ck/wrapper/utils/tensor_utils.hpp
 
-.. doxygenfile:: tensor_partition.hpp
+.. doxygenfile:: include/ck/wrapper/utils/tensor_partition.hpp
 
 -------------------------------------
 Operations
 -------------------------------------
 
-.. doxygenfile:: copy.hpp
-.. doxygenfile:: gemm.hpp
+.. doxygenfile:: include/ck/wrapper/operations/copy.hpp
+.. doxygenfile:: include/ck/wrapper/operations/gemm.hpp
