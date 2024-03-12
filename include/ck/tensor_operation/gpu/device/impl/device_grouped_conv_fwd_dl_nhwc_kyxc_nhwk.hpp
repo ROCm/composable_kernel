@@ -107,7 +107,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx103__) || \
-    defined(__gfx11__))
+    defined(__gfx11__) || defined(__gfx12__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -602,7 +602,7 @@ struct DeviceGroupedConvFwdDl_NHWC_KYXC_NHWK : public DeviceGroupedConvFwd<NDimS
 
         // check device
         if(!(ck::get_device_name() == "gfx906" || ck::is_navi2_supported() ||
-             ck::is_navi3_supported()))
+             ck::is_navi3_supported() || ck::is_navi4_supported()))
         {
             return false;
         }

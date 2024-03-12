@@ -104,13 +104,6 @@
 #define CK_USE_AMD_MFMA_GFX940
 #endif
 
-// WMMA instruction
-#ifndef __HIP_DEVICE_COMPILE__ // for host code
-#define CK_USE_AMD_WMMA
-#elif defined(__gfx11__) || defined(__gfx12__) // for GPU code
-#define CK_USE_AMD_WMMA
-#endif
-
 // buffer load
 #define CK_USE_AMD_BUFFER_LOAD 1
 
