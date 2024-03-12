@@ -235,6 +235,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
+        // asm volatile("s_endpgm");
 
         // Global prefetch 2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
