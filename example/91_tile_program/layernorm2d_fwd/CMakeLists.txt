@@ -1,1 +1,2 @@
 add_example_executable(example_layernorm2d_fwd layernorm2d_fwd.cpp)
+target_compile_options(example_layernorm2d_fwd PRIVATE -DSAVE_MEAN_INV_STD)

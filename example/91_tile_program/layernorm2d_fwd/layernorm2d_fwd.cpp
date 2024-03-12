@@ -18,19 +18,24 @@
 
 int main(int argc, char* argv[])
 {
-    using XDataType       = ck::half_t;
-    using YDataType       = ck::half_t;
-    using GammaDataType   = ck::half_t;
-    using BetaDataType    = ck::half_t;
-    using MeanDataType    = ck::null_type;
-    using InvStdDataType  = ck::null_type;
+    using XDataType     = ck::half_t;
+    using YDataType     = ck::half_t;
+    using GammaDataType = ck::half_t;
+    using BetaDataType  = ck::half_t;
+#ifdef SAVE_MEAN_INV_STD
+    using MeanDataType   = ck::half_t;
+    using InvStdDataType = ck::half_t;
+#else
+    using MeanDataType   = ck::null_type;
+    using InvStdDataType = ck::null_type;
+#endif
     using ComputeDataType = float;
 
-    constexpr ck::index_t kMPerBlock = 128;
-    constexpr ck::index_t kNPerBlock = 128;
-    constexpr ck::index_t kBlockSize = 256;
+    using thread_tile = ck::Sequence<4, 4>;
+    using warp_tile   = ck::Sequence<8, 128>;
+    using block_tile  = ck::Sequence<32, 128>;
 
-    using Shape = ck::tile_program::TileLayernorm2dShape<kMPerBlock, kNPerBlock>;
+    using Shape = ck::tile_program::TileLayernorm2dShape<thread_tile, warp_tile, block_tile>;
 
     using PipelineProblem = ck::tile_program::block::BlockLayernorm2dFwdProblem<XDataType,
                                                                                 GammaDataType,
@@ -39,7 +44,6 @@ int main(int argc, char* argv[])
                                                                                 YDataType,
                                                                                 MeanDataType,
                                                                                 InvStdDataType,
-                                                                                kBlockSize,
                                                                                 Shape>;
 
     using Kernel = Layernorm2dFwd<PipelineProblem>;
@@ -61,10 +65,14 @@ int main(int argc, char* argv[])
 
     Tensor<YDataType> y_host_ref({M, N});
     Tensor<YDataType> y_host_dev({M, N});
+
     Tensor<MeanDataType> mean_host_ref({M});
-    Tensor<MeanDataType> mean_host_dev({M});
     Tensor<InvStdDataType> invStd_host_ref({M});
+
+#ifdef SAVE_MEAN_INV_STD
+    Tensor<MeanDataType> mean_host_dev({M});
     Tensor<InvStdDataType> invStd_host_dev({M});
+#endif
 
     ck::utils::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
     ck::utils::FillUniformDistribution<GammaDataType>{-5.f, 5.f}(gamma_host);
@@ -74,8 +82,11 @@ int main(int argc, char* argv[])
     DeviceMem gamma_buf(gamma_host.GetElementSpaceSizeInBytes());
     DeviceMem beta_buf(beta_host.GetElementSpaceSizeInBytes());
     DeviceMem y_buf(y_host_dev.GetElementSpaceSizeInBytes());
+
+#ifdef SAVE_MEAN_INV_STD
     DeviceMem mean_buf(mean_host_dev.GetElementSpaceSizeInBytes());
     DeviceMem invStd_buf(invStd_host_dev.GetElementSpaceSizeInBytes());
+#endif
 
     x_buf.ToDevice(x_host.data());
     gamma_buf.ToDevice(gamma_host.data());
@@ -85,8 +96,13 @@ int main(int argc, char* argv[])
                                    gamma_buf.GetDeviceBuffer(),
                                    beta_buf.GetDeviceBuffer(),
                                    y_buf.GetDeviceBuffer(),
+#ifdef SAVE_MEAN_INV_STD
                                    mean_buf.GetDeviceBuffer(),
                                    invStd_buf.GetDeviceBuffer(),
+#else
+                                   nullptr,
+                                   nullptr,
+#endif
                                    epsilon,
                                    M,
                                    N);
@@ -115,6 +131,7 @@ int main(int argc, char* argv[])
 
     bool pass = ck::utils::check_err(y_host_dev, y_host_ref);
 
+#ifdef SAVE_MEAN_INV_STD
     if constexpr(!ck::is_same_v<MeanDataType, ck::null_type>)
     {
         mean_buf.FromDevice(mean_host_dev.data());
@@ -126,6 +143,7 @@ int main(int argc, char* argv[])
         invStd_buf.FromDevice(invStd_host_dev.data());
         pass &= ck::utils::check_err(invStd_host_dev, invStd_host_ref);
     }
+#endif
 
     return !pass;
 }

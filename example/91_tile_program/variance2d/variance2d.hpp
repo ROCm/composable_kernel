@@ -114,10 +114,11 @@ struct Variance2d
         ThreadWelford<ComputeDataType, XDataType> thread_welford{
             type_convert<int>(NPerThread * N / kNPerBlock)};
 
-        auto mean_var_compute_block_tensor_tuple =
-            decltype(thread_welford(load_tile(x_block_window))){};
-        auto mean_compute_block_tensor = mean_var_compute_block_tensor_tuple.At(Number<0>{});
-        auto var_compute_block_tensor  = mean_var_compute_block_tensor_tuple.At(Number<1>{});
+        using XTensorType = decltype(load_tile(x_block_window));
+        auto mean_compute_block_tensor =
+            thread_welford.template MakeInitialMeanVarDistributedTensor<XTensorType>();
+        auto var_compute_block_tensor =
+            thread_welford.template MakeInitialMeanVarDistributedTensor<XTensorType>();
 
         clear_tile(mean_compute_block_tensor);
         clear_tile(var_compute_block_tensor);

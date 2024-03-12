@@ -72,22 +72,28 @@ struct ThreadWelford
     }
 
     template <typename XDistributedTensor_>
-    __device__ auto operator()(const XDistributedTensor_& x_tensor)
+    __device__ static auto MakeInitialMeanVarDistributedTensor()
     {
         static_assert(is_same_v<XDataType, typename XDistributedTensor_::DataType>, "wrong!");
 
         constexpr auto reduce_dims = Sequence<1>{};
 
-        constexpr auto mean_var_dstr = make_static_tile_distribution(
+        constexpr auto dstr = make_static_tile_distribution(
             ck::tile_program::detail::make_reduce_tile_distribution_encoding(
                 XDistributedTensor_::GetTileDistribution().GetStaticTileDistributionEncoding(),
                 reduce_dims));
 
-        auto mean_tensor = make_static_distributed_tensor<ComputeDataType>(mean_var_dstr);
-        auto var_tensor  = make_static_distributed_tensor<ComputeDataType>(mean_var_dstr);
+        auto tensor = make_static_distributed_tensor<ComputeDataType>(dstr);
+        clear_tile(tensor);
 
-        clear_tile(mean_tensor);
-        clear_tile(var_tensor);
+        return tensor;
+    }
+
+    template <typename XDistributedTensor_>
+    __device__ auto operator()(const XDistributedTensor_& x_tensor)
+    {
+        auto mean_tensor = MakeInitialMeanVarDistributedTensor<XDistributedTensor_>();
+        auto var_tensor  = MakeInitialMeanVarDistributedTensor<XDistributedTensor_>();
 
         (*this)(x_tensor, mean_tensor, var_tensor);
 
