@@ -16,6 +16,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -33,13 +34,14 @@ template <typename ALayout,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
           GemmSpecialization GemmSpec,
+          ck::index_t NumPrefetch,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
+          ck::index_t KPerBlock,
           ck::index_t K1,
-          ck::index_t MPerWMMA,
-          ck::index_t NPerWMMA,
+          ck::index_t MPerWmma,
+          ck::index_t NPerWmma,
           ck::index_t MRepeat,
           ck::index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -60,7 +62,6 @@ template <typename ALayout,
           index_t CShuffleNRepeatPerShuffle,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
-          ck::index_t NumPrefetch         = 1,
           ck::LoopScheduler LoopSched     = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
@@ -76,68 +77,138 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
     // K1 = Max Vector Access Pixels
     static constexpr auto K1Number = Number<K1>{};
 
-    static constexpr auto matrix_padder =
-        MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, K0PerBlock* K1};
+    static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
+    static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
+    static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
 
-    static auto MakeAGridDescriptor_K0_M_K1(index_t MRaw, index_t KRaw, index_t StrideA)
+    static constexpr auto AEnableLds_auto =
+        (NWaves == 1 && is_same<tensor_layout::gemm::RowMajor, ALayout>::value) ? false : true;
+    static constexpr auto BEnableLds_auto =
+        (MWaves == 1 && is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value) ? false : true;
+
+    // If true, LDS is used unconditionally
+    static constexpr auto AEnableLds_manu = false;
+    static constexpr auto BEnableLds_manu = false;
+
+    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
+    static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
+
+    static constexpr auto matrix_padder =
+        MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
+    // Describe how data read from Global memory
+    static auto MakeAGridDescriptor(index_t MRaw, index_t KRaw, index_t StrideA)
     {
-        const auto a_grid_desc_mraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+        const auto a_grid_desc_m_k = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(StrideA, I1));
+                const auto a_grid_desc_mraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(MRaw, KRaw), make_tuple(StrideA, I1));
+
+                return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
             }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ALayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(I1, StrideA));
+                const auto a_grid_desc_mraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(MRaw, KRaw), make_tuple(I1, StrideA));
+
+                return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
             }
         }();
 
-        const auto a_grid_desc_m_k = matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
-        const auto M               = a_grid_desc_m_k.GetLength(I0);
-        const auto K               = a_grid_desc_m_k.GetLength(I1);
+        const auto M = a_grid_desc_m_k.GetLength(I0);
+        const auto K = a_grid_desc_m_k.GetLength(I1);
         assert(K % K1 == 0);
-        const index_t K0 = K / K1;
 
-        return transform_tensor_descriptor(
-            a_grid_desc_m_k,
-            make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                       make_pass_through_transform(M)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        if constexpr(AEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto A_KRow      = 2;
+            constexpr auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
+            const auto A_KWmma         = K / WmmaK;
+
+            const auto M0 = M / MPerBlock;
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
+            return transform_tensor_descriptor(
+                a_grid_desc_m_k,
+                make_tuple(make_unmerge_transform(make_tuple(
+                               A_KWmma, Number<A_K0PerWmma>{}, Number<A_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(M0 * MRepeat, Number<MWaves>{}, Number<MPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+        }
     }
 
-    static auto MakeBGridDescriptor_K0_N_K1(index_t KRaw, index_t NRaw, index_t StrideB)
+    static auto MakeBGridDescriptor(index_t KRaw, index_t NRaw, index_t StrideB)
     {
-        const auto b_grid_desc_nraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+        const auto b_grid_desc_n_k = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
             {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(I1, StrideB));
+                const auto b_grid_desc_nraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(I1, StrideB));
+
+                return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideB, I1));
+                const auto b_grid_desc_nraw_kraw =
+                    make_naive_tensor_descriptor(make_tuple(NRaw, KRaw), make_tuple(StrideB, I1));
+
+                return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
             }
         }();
 
-        const auto b_grid_desc_n_k = matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
-        const auto N               = b_grid_desc_n_k.GetLength(I0);
-        const auto K               = b_grid_desc_n_k.GetLength(I1);
+        const auto N = b_grid_desc_n_k.GetLength(I0);
+        const auto K = b_grid_desc_n_k.GetLength(I1);
         assert(K % K1 == 0);
-        const index_t K0 = K / K1;
 
-        return transform_tensor_descriptor(
-            b_grid_desc_n_k,
-            make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
-                       make_pass_through_transform(N)),
-            make_tuple(Sequence<1>{}, Sequence<0>{}),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        if constexpr(BEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto B_KRow      = 2;
+            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma         = K / WmmaK;
+
+            const auto N0 = N / NPerBlock;
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
+            return transform_tensor_descriptor(
+                b_grid_desc_n_k,
+                make_tuple(make_unmerge_transform(make_tuple(
+                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+        }
     }
 
     static auto MakeCGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideC)
@@ -159,56 +230,58 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     }
 
     // Gridwise descriptor, mapping to whole given provblem.
-    using AGridDesc_K0_M_K1 = decltype(MakeAGridDescriptor_K0_M_K1(1, 1, 1));
-    using BGridDesc_K0_N_K1 = decltype(MakeBGridDescriptor_K0_N_K1(1, 1, 1));
-    using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
+    using AGridDesc     = decltype(MakeAGridDescriptor(1, 1, 1));
+    using BGridDesc     = decltype(MakeBGridDescriptor(1, 1, 1));
+    using CGridDesc_M_N = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_wmma<
-        BlockSize,
-        ADataType,
-        BDataType,
-        AccDataType,
-        CShuffleDataType,
-        CDataType,
-        InMemoryDataOperationEnum::Set,
-        AGridDesc_K0_M_K1,
-        BGridDesc_K0_N_K1,
-        CGridDesc_M_N,
-        AElementwiseOperation,
-        BElementwiseOperation,
-        CElementwiseOperation,
-        MPerBlock,
-        NPerBlock,
-        K0PerBlock,
-        MPerWMMA,
-        NPerWMMA,
-        K1,
-        MRepeat,
-        NRepeat,
-        ABlockTransferThreadClusterLengths_K0_M_K1,
-        ABlockTransferThreadClusterArrangeOrder,
-        ABlockTransferSrcAccessOrder,
-        ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
-        ABlockTransferDstScalarPerVector_K1,
-        false, // AThreadTransferSrcResetCoordinateAfterRun,
-        ABlockLdsAddExtraM,
-        BBlockTransferThreadClusterLengths_K0_N_K1,
-        BBlockTransferThreadClusterArrangeOrder,
-        BBlockTransferSrcAccessOrder,
-        BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
-        BBlockTransferDstScalarPerVector_K1,
-        false, // BThreadTransferSrcResetCoordinateAfterRun,
-        BBlockLdsAddExtraN,
-        CShuffleMRepeatPerShuffle,
-        CShuffleNRepeatPerShuffle,
-        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
-        NumPrefetch,
-        LoopSched,
-        PipelineVer>;
+    using GridwiseGemm =
+        GridwiseGemm_Wmma<BlockSize,
+                          ADataType,
+                          BDataType,
+                          AccDataType,
+                          CShuffleDataType,
+                          CDataType,
+                          InMemoryDataOperationEnum::Set,
+                          AGridDesc,
+                          BGridDesc,
+                          CGridDesc_M_N,
+                          AElementwiseOperation,
+                          BElementwiseOperation,
+                          CElementwiseOperation,
+                          MPerBlock,
+                          NPerBlock,
+                          KPerBlock,
+                          MPerWmma,
+                          NPerWmma,
+                          K1,
+                          MRepeat,
+                          NRepeat,
+                          ABlockTransferThreadClusterLengths_K0_M_K1,
+                          ABlockTransferThreadClusterArrangeOrder,
+                          ABlockTransferSrcAccessOrder,
+                          ABlockTransferSrcVectorDim,
+                          ABlockTransferSrcScalarPerVector,
+                          ABlockTransferDstScalarPerVector_K1,
+                          false, // AThreadTransferSrcResetCoordinateAfterRun,
+                          AEnableLds,
+                          ABlockLdsAddExtraM,
+                          BBlockTransferThreadClusterLengths_K0_N_K1,
+                          BBlockTransferThreadClusterArrangeOrder,
+                          BBlockTransferSrcAccessOrder,
+                          BBlockTransferSrcVectorDim,
+                          BBlockTransferSrcScalarPerVector,
+                          BBlockTransferDstScalarPerVector_K1,
+                          false, // BThreadTransferSrcResetCoordinateAfterRun,
+                          BEnableLds,
+                          BBlockLdsAddExtraN,
+                          CShuffleMRepeatPerShuffle,
+                          CShuffleNRepeatPerShuffle,
+                          CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+                          CShuffleBlockTransferScalarPerVector_NPerBlock,
+                          NumPrefetch,
+                          LoopSched,
+                          PipelineVer>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -230,7 +303,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             : p_a_grid_{p_a_grid},
               p_b_grid_{p_b_grid},
               p_c_grid_{p_c_grid},
-              a_grid_desc_k0_m_k1_{},
+              a_grid_desc_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
               c_grid_desc_mblock_mperblock_nblock_nperblock{},
@@ -244,19 +317,15 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
               NRaw_{N},
               KRaw_{K}
         {
-            a_grid_desc_k0_m_k1_ =
-                DeviceGemmWmma_CShuffle::MakeAGridDescriptor_K0_M_K1(M, K, StrideA);
-            b_grid_desc_k0_n_k1_ =
-                DeviceGemmWmma_CShuffle::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
-            c_grid_desc_m_n_ = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
+            a_grid_desc_         = DeviceGemmWmma_CShuffle::MakeAGridDescriptor(M, K, StrideA);
+            b_grid_desc_k0_n_k1_ = DeviceGemmWmma_CShuffle::MakeBGridDescriptor(K, N, StrideB);
+            c_grid_desc_m_n_     = DeviceGemmWmma_CShuffle::MakeCGridDescriptor_M_N(M, N, StrideC);
 
             block_2_ctile_map_ =
                 GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
 
-            if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
-                                           b_grid_desc_k0_n_k1_,
-                                           c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
+            if(GridwiseGemm::CheckValidity(
+                   a_grid_desc_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -268,8 +337,8 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
-        AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
-        BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
+        AGridDesc a_grid_desc_;
+        BGridDesc b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -292,23 +361,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if 0
-            {
-                std::cout << "arg.a_grid_desc_k0_m_k1_{" << arg.a_grid_desc_k0_m_k1_.GetLength(I0)
-                          << ", " << arg.a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.a_grid_desc_k0_m_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.b_grid_desc_k0_n_k1_{" << arg.b_grid_desc_k0_n_k1_.GetLength(I0)
-                          << ", " << arg.b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.b_grid_desc_k0_n_k1_.GetLength(I2) << "}" << std::endl;
-
-                std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) 
-                          << ", " << arg.c_grid_desc_m_n_.GetLength(I1) << ", "
-                          << arg.c_grid_desc_m_n_.GetLength(I2) << "}" << std::endl;
-            }
-#endif
-
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_,
                                             arg.b_grid_desc_k0_n_k1_,
                                             arg.c_grid_desc_m_n_,
                                             arg.block_2_ctile_map_))
@@ -320,79 +373,58 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             const index_t grid_size =
                 arg.block_2_ctile_map_.CalculateGridSize(arg.c_grid_desc_m_n_);
 
-            const auto K =
-                arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
+            const auto K = [&]() {
+                if constexpr(AEnableLds)
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I2);
+                }
+                else
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I3) *
+                           arg.a_grid_desc_.GetLength(I4) * arg.a_grid_desc_.GetLength(I6);
+                }
+            }();
+            auto launch_kernel = [&](auto has_main_k_block_loop) {
+                const auto kernel = kernel_gemm_wmma<
+                    GridwiseGemm,
+                    ADataType,
+                    BDataType,
+                    CDataType,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc>,
+                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc>,
+                    remove_reference_t<
+                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
+                    AElementwiseOperation,
+                    BElementwiseOperation,
+                    CElementwiseOperation,
+                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
+                    has_main_k_block_loop>;
 
-            float ave_time = 0;
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              arg.p_a_grid_,
+                                              arg.p_b_grid_,
+                                              arg.p_c_grid_,
+                                              arg.a_grid_desc_,
+                                              arg.b_grid_desc_k0_n_k1_,
+                                              arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                              arg.a_element_op_,
+                                              arg.b_element_op_,
+                                              arg.c_element_op_,
+                                              arg.block_2_ctile_map_);
+            };
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
-                const auto kernel = kernel_gemm_wmma<
-                    GridwiseGemm,
-                    ADataType,
-                    BDataType,
-                    CDataType,
-                    remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
-                    remove_reference_t<
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    true>; // Last Option is W/O
-
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                return launch_kernel(integral_constant<bool, true>{});
             }
             else
             {
-                const auto kernel = kernel_gemm_wmma<
-                    GridwiseGemm,
-                    ADataType,
-                    BDataType,
-                    CDataType,
-                    remove_reference_t<DeviceGemmWmma_CShuffle::AGridDesc_K0_M_K1>,
-                    remove_reference_t<DeviceGemmWmma_CShuffle::BGridDesc_K0_N_K1>,
-                    remove_reference_t<
-                        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock>,
-                    AElementwiseOperation,
-                    BElementwiseOperation,
-                    CElementwiseOperation,
-                    remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    false>;
-
-                ave_time = launch_and_time_kernel(stream_config,
-                                                  kernel,
-                                                  dim3(grid_size),
-                                                  dim3(BlockSize),
-                                                  0,
-                                                  arg.p_a_grid_,
-                                                  arg.p_b_grid_,
-                                                  arg.p_c_grid_,
-                                                  arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_n_k1_,
-                                                  arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  arg.a_element_op_,
-                                                  arg.b_element_op_,
-                                                  arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                return launch_kernel(integral_constant<bool, false>{});
             }
-
-            return ave_time;
         }
 
         // polymorphic
@@ -413,13 +445,16 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     {
         if(ck::is_navi3_supported())
         {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, ck::half_t> ||
+                           is_same_v<AccDataType, int32_t>))
             {
+                printf("DeviceOp err: AccDataType");
                 return false;
             }
         }
         else
         {
+            printf("DeviceOp err: Arch");
             return false;
         }
 
@@ -485,7 +520,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             }
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+        return GridwiseGemm::CheckValidity(arg.a_grid_desc_,
                                            arg.b_grid_desc_k0_n_k1_,
                                            arg.c_grid_desc_m_n_,
                                            arg.block_2_ctile_map_);
@@ -581,14 +616,18 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
-            << K0PerBlock << ", "
+            << KPerBlock << ", "
             << K1 << ", "
-            << MPerWMMA << ", "
-            << NPerWMMA << ", "
+            << MPerWmma << ", "
+            << NPerWmma << ", "
             << MRepeat << ", "
             << NRepeat
             << ">"
-            << " NumPrefetch: "
+            << " AEnableLds: "
+            << AEnableLds << ", "
+            << "BEnableLds: "
+            << BEnableLds << ", "
+            << "NumPrefetch: "
             << NumPrefetch << ", "
             << "LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
