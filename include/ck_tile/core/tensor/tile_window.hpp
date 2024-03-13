@@ -91,7 +91,7 @@ struct tile_window_with_static_distribution
 
         // using vector_type_t = vector_type_maker_t<DataType, ScalarPerVector>;
         // using vector_t      = typename vector_type_t::type;
-        using vector_t = array<DataType, ScalarPerVector>;
+        using vector_t = thread_buffer<DataType, ScalarPerVector>;
 
         private:
         static constexpr auto scalars_per_access_ = [] {

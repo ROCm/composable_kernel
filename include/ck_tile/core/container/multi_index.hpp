@@ -11,7 +11,8 @@
 
 namespace ck_tile {
 
-// deprecated, always use array instead
+// Don't use tihs directly. This is for old CK's internal usage,
+// in the future always use array instead
 template <index_t N>
 using multi_index = array<index_t, N>;
 

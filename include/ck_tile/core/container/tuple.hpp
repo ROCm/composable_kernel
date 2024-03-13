@@ -11,6 +11,7 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include <utility>
+#include <initializer_list>
 
 #ifndef CK_TILE_TUPLE_IMPL
 #define CK_TILE_TUPLE_IMPL 1
@@ -121,6 +122,17 @@ template <index_t... I, typename... T>
 struct tuple_base<sequence<I...>, T...> : tuple_object<I, T>...
 {
     CK_TILE_HOST_DEVICE constexpr tuple_base() = default;
+
+#if CK_TILE_TUPLE_CTOR_WITH_INITIALIZER_LIST
+#define _ILE() (std::initializer_list<U>{}.size() - 1)
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple_base(std::initializer_list<U> us)
+        : tuple_object<I, T>(static_cast<T>(*(us.begin() + (I >= _ILE() ? _ILE() : I))))...
+    {
+    }
+#undef _ILE
+#endif
+
 #if CK_TILE_TUPLE_IMPL == 0
     template <class... U>
     CK_TILE_HOST_DEVICE constexpr explicit tuple_base(U&&... u)
@@ -182,6 +194,14 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     static constexpr auto size() { return sizeof...(T); }
     using base = impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>;
     CK_TILE_HOST_DEVICE constexpr tuple() = default;
+
+#if CK_TILE_TUPLE_CTOR_WITH_INITIALIZER_LIST
+    template <typename U>
+    CK_TILE_HOST_DEVICE constexpr tuple(std::initializer_list<U> us) : base(us)
+    {
+    }
+#endif
+
 #if CK_TILE_TUPLE_IMPL == 0
     template <class... U>
     CK_TILE_HOST_DEVICE constexpr tuple(U&&... u) : base(std::forward<U>(u)...)

@@ -49,6 +49,16 @@
 #define CK_TILE_THREAD_BUFFER_DEFAULT CK_TILE_THREAD_BUFFER_USE_ARRAY
 #endif
 
+#ifndef CK_TILE_TUPLE_CTOR_WITH_INITIALIZER_LIST
+#if CK_TILE_THREAD_BUFFER_DEFAULT == CK_TILE_THREAD_BUFFER_USE_TUPLE
+// if using tuple-array as thread_buffer implementation, need to support {} brace init
+// ... with similiar behavior as array
+#define CK_TILE_TUPLE_CTOR_WITH_INITIALIZER_LIST 1
+#else
+#define CK_TILE_TUPLE_CTOR_WITH_INITIALIZER_LIST 0
+#endif
+#endif
+
 #ifndef CK_TILE_USE_LAUNCH_BOUNDS
 #define CK_TILE_USE_LAUNCH_BOUNDS 1
 #endif
