@@ -85,16 +85,16 @@ struct array
     template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get(number<I>)             { return data[I]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& get(number<I>) const { return data[I]; }
 
-    CK_TILE_HOST_DEVICE constexpr auto& at(index_t i)                                   { return data[i]; }
-    CK_TILE_HOST_DEVICE constexpr const auto& at(index_t i) const                       { return data[i]; }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at()                       { return data[I]; }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return data[I]; }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return data[I]; }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return data[I]; }
+    CK_TILE_HOST_DEVICE constexpr auto& at(index_t i)                                   { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr const auto& at(index_t i) const                       { return get(i); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at()                       { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return get(I); }
 
-    CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const { return data[i]; }
-    CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i)             { return data[i]; }
-    CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i)             { return data[i]; }     // TODO: compatible
+    CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i)             { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i)             { return get(i); }     // TODO: compatible
 #if 0
     template <typename ArrayType>
     CK_TILE_HOST_DEVICE constexpr auto operator=(const ArrayType& a)
