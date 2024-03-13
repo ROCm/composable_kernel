@@ -1562,25 +1562,25 @@ CK_TILE_HOST_DEVICE constexpr auto
 make_pad_transform(const LowLength& low_length,
                    const LeftPad& left_pad,
                    const RightPad& right_pad,
-                   integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
+                   bool_constant<SkipIsValidCheck> = bool_constant<false>{})
 {
     return pad<LowLength, LeftPad, RightPad, SkipIsValidCheck>{low_length, left_pad, right_pad};
 }
 
 template <typename LowLength, typename LeftPadLength, bool SkipIsValidCheck = false>
-CK_TILE_HOST_DEVICE constexpr auto make_left_pad_transform(
-    const LowLength& low_length,
-    const LeftPadLength& left_pad_,
-    integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
+CK_TILE_HOST_DEVICE constexpr auto
+make_left_pad_transform(const LowLength& low_length,
+                        const LeftPadLength& left_pad_,
+                        bool_constant<SkipIsValidCheck> = bool_constant<false>{})
 {
     return left_pad<LowLength, LeftPadLength, SkipIsValidCheck>{low_length, left_pad_};
 }
 
 template <typename LowLength, typename RightPadLength, bool SkipIsValidCheck = false>
-CK_TILE_HOST_DEVICE constexpr auto make_right_pad_transform(
-    const LowLength& low_length,
-    const RightPadLength& right_pad_,
-    integral_constant<bool, SkipIsValidCheck> = integral_constant<bool, false>{})
+CK_TILE_HOST_DEVICE constexpr auto
+make_right_pad_transform(const LowLength& low_length,
+                         const RightPadLength& right_pad_,
+                         bool_constant<SkipIsValidCheck> = bool_constant<false>{})
 {
     return right_pad<LowLength, RightPadLength, SkipIsValidCheck>{low_length, right_pad_};
 }
@@ -1615,9 +1615,9 @@ CK_TILE_HOST_DEVICE constexpr auto make_merge_transform(const LowLengths& low_le
 }
 
 template <typename UpLengths, bool Use24BitIntegerCalculation = false>
-CK_TILE_HOST_DEVICE constexpr auto make_unmerge_transform(
-    const UpLengths& up_lengths,
-    integral_constant<bool, Use24BitIntegerCalculation> = integral_constant<bool, false>{})
+CK_TILE_HOST_DEVICE constexpr auto
+make_unmerge_transform(const UpLengths& up_lengths,
+                       bool_constant<Use24BitIntegerCalculation> = bool_constant<false>{})
 {
     return unmerge<UpLengths, Use24BitIntegerCalculation>{up_lengths};
 }

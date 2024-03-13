@@ -60,7 +60,7 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto get()
     {
         static_assert(I < size(), "wrong! I too large");
-        return number<impl::at_index_t<I, integral_constant<value_type, Is>...>{}>{};
+        return number<impl::at_index_t<I, constant<Is>...>{}>{};
     }
 
     template <index_t I>
@@ -81,7 +81,7 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto at()
     {
         static_assert(I < size(), "wrong! I too large");
-        return number<impl::at_index_t<I, integral_constant<value_type, Is>...>{}>{};
+        return number<impl::at_index_t<I, constant<Is>...>{}>{};
     }
 
     template <index_t I>
@@ -384,7 +384,7 @@ template <index_t... Ids, index_t... Ns>
 struct seq_reverse<sequence<Ids...>, Ns...>
 {
     template <index_t I>
-    using element = impl::at_index_t<I, integral_constant<index_t, Ns>...>;
+    using element = impl::at_index_t<I, constant<Ns>...>;
     using type    = sequence<element<(sizeof...(Ns) - 1 - Ids)>::value...>;
 };
 } // namespace impl

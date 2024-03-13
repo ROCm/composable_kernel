@@ -274,6 +274,17 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 #undef TP_COM_
 };
 
+template <typename>
+struct vector_traits;
+
+// specialization for array
+template <typename... T>
+struct vector_traits<tuple<T...>>
+{
+    using scalar_type                    = __type_pack_element<0, T...>;
+    static constexpr index_t vector_size = sizeof...(T);
+};
+
 // template <class... T>
 // CK_TILE_HOST_DEVICE constexpr
 // tuple<T...>
