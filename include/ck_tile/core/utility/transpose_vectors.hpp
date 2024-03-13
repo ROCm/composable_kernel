@@ -26,7 +26,8 @@ struct transpose_vectors
     using VX = array<S, s_per_x>;
     using VY = array<S, s_per_y>;
 
-    CK_TILE_DEVICE void operator()(const thread_buffer<VX, NX>& vx_tuple, thread_buffer<VY, NY>& vy_tuple)
+    CK_TILE_DEVICE void operator()(const thread_buffer<VX, NX>& vx_tuple,
+                                   thread_buffer<VY, NY>& vy_tuple)
     {
         constexpr auto I1 = number<1>{};
         constexpr auto I2 = number<2>{};
