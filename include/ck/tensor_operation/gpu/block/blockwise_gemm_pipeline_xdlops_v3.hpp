@@ -149,6 +149,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+        // TODO: A/B split schedule
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;

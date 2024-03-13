@@ -157,6 +157,8 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     template <typename ScheduleGroup>
     __device__ static constexpr void HotLoopScheduler(ScheduleGroup schedule_group)
     {
+#if 0
+        // sanity issue, when ds_write < buffer_load
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
@@ -192,6 +194,103 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
                                                      num_dswrite_per_issue,
                                                  schedule_group); // MFMA
         });
+#elif 0
+        // schedule
+        constexpr auto num_ds_read_inst =
+            HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
+        constexpr auto num_ds_write_inst =
+            HotLoopInstList::A_LDS_Write_Inst_Num + HotLoopInstList::B_LDS_Write_Inst_Num;
+
+        constexpr auto num_buffer_load_inst =
+            HotLoopInstList::A_Buffer_Load_Inst_Num + HotLoopInstList::B_Buffer_Load_Inst_Num;
+
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+
+        constexpr auto num_issue = num_buffer_load_inst;
+        constexpr auto num_dsread_per_issue =
+            (num_ds_read_inst + num_buffer_load_inst - 1) / num_buffer_load_inst;
+        constexpr auto num_dswrite_per_issue =
+            (num_ds_write_inst + num_buffer_load_inst - 1) / num_buffer_load_inst;
+        constexpr auto num_mfma_per_issue =
+            (num_mfma_inst + num_buffer_load_inst - 1) / num_buffer_load_inst;
+
+        static_for<0, num_issue, 1>{}([&](auto i) {
+            ignore = i;
+            static_for<0, num_dsread_per_issue, 1>{}([&](auto idsread) {
+                ignore = idsread;
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, schedule_group); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, schedule_group); // MFMA
+            });
+            static_for<0, num_dswrite_per_issue, 1>{}([&](auto idswrite) {
+                ignore = idswrite;
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, schedule_group); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, schedule_group); // MFMA
+            });
+
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, schedule_group); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008,
+                                                 num_mfma_per_issue - num_dsread_per_issue -
+                                                     num_dswrite_per_issue,
+                                                 schedule_group); // MFMA
+        });
+#elif 1
+        // A-B splited schedule
+        constexpr auto num_issue_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
+        constexpr auto num_dswrite_per_issue_a =
+            (HotLoopInstList::A_LDS_Write_Inst_Num + num_issue_a - 1) / num_issue_a;
+        constexpr auto num_dsread_per_issue_a = HotLoopInstList::A_LDS_Read_Inst_Num / num_issue_a;
+
+        constexpr auto num_issue_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_dswrite_per_issue_b =
+            (HotLoopInstList::B_LDS_Write_Inst_Num + num_issue_b - 1) / num_issue_b;
+        constexpr auto num_dsread_per_issue_b = HotLoopInstList::B_LDS_Read_Inst_Num / num_issue_b;
+
+        constexpr auto num_mfma_per_issue =
+            HotLoopInstList::C_MFMA_Inst_Num / (num_issue_a + num_issue_b);
+
+        static_for<0, num_issue_a, 1>{}([&](auto i) {
+            ignore = i;
+            static_for<0, num_dsread_per_issue_a, 1>{}([&](auto idsread) {
+                ignore = idsread;
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, schedule_group); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, schedule_group); // MFMA
+            });
+
+            static_for<0, num_dswrite_per_issue_a, 1>{}([&](auto idswrite) {
+                ignore = idswrite;
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, schedule_group); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, schedule_group); // MFMA
+            });
+
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, schedule_group); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008,
+                                                 num_mfma_per_issue - num_dsread_per_issue_a -
+                                                     num_dswrite_per_issue_a,
+                                                 schedule_group); // MFMA
+        });
+
+        static_for<0, num_issue_b, 1>{}([&](auto i) {
+            ignore = i;
+            static_for<0, num_dsread_per_issue_b, 1>{}([&](auto idsread) {
+                ignore = idsread;
+                __builtin_amdgcn_sched_group_barrier(0x100, 1, schedule_group); // DS read
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, schedule_group); // MFMA
+            });
+
+            static_for<0, num_dswrite_per_issue_b, 1>{}([&](auto idswrite) {
+                ignore = idswrite;
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, schedule_group); // DS write
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, schedule_group); // MFMA
+            });
+
+            __builtin_amdgcn_sched_group_barrier(0x020, 1, schedule_group); // VMEM read
+            __builtin_amdgcn_sched_group_barrier(0x008,
+                                                 num_mfma_per_issue - num_dsread_per_issue_a -
+                                                     num_dswrite_per_issue_b,
+                                                 schedule_group); // MFMA
+        });
+#endif
+        __builtin_amdgcn_sched_barrier(0);
     }
 
     template <bool HasMainLoop,

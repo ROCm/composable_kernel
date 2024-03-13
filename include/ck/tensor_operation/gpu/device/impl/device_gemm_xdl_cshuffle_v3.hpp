@@ -429,7 +429,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                 GridwiseGemm,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
-                                minimum_occupancy>;
+                                minimum_occupancy,
+                                TailNumber::Odd>;
                             Run(kernel);
                         }
                         else
@@ -451,7 +452,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                 kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
                                                                  true,
                                                                  InMemoryDataOperationEnum::Set,
-                                                                 minimum_occupancy>;
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd>;
                             Run(kernel);
                         }
                         else

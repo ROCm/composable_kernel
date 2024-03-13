@@ -169,11 +169,12 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
 
         constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
 
-        constexpr auto num_dsread_stage1     = num_ds_read_inst / KRepeat * (KRepeat - 1);
-        constexpr auto num_dsread_stage3     = num_ds_read_inst / KRepeat;
-        constexpr auto num_mfma_stage2       = num_mfma_inst - num_ds_read_inst;
-        constexpr auto num_mfma_per_issue    = num_mfma_stage2 / num_buffer_load_inst;
-        constexpr auto num_dswrite_per_issue = num_ds_write_inst / num_buffer_load_inst;
+        constexpr auto num_dsread_stage1  = num_ds_read_inst / KRepeat * (KRepeat - 1);
+        constexpr auto num_dsread_stage3  = num_ds_read_inst / KRepeat;
+        constexpr auto num_mfma_stage2    = num_mfma_inst - num_ds_read_inst;
+        constexpr auto num_mfma_per_issue = num_mfma_stage2 / num_buffer_load_inst;
+        constexpr auto num_dswrite_per_issue =
+            (num_ds_write_inst + num_buffer_load_inst - 1) / num_buffer_load_inst;
         constexpr auto num_issue_more = num_mfma_stage2 - num_mfma_per_issue * num_buffer_load_inst;
         constexpr auto num_issue_less = num_buffer_load_inst - num_issue_more;
 
