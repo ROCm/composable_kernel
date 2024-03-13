@@ -695,7 +695,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
 // construct constexpr tensor_adaptor from constexpr encoding
 // encoded_tensor_adaptor are Tuple of following objects:
 //    1. encoded transforms (array of fixed size). Each encoded transform is a Tuple of following:
-//           1.1 name (cood_transform_enum)
+//           1.1 name (coord_transform_enum)
 //           1.2 meta data for constructor of the transform
 //           1.3 num of lower dimension (index_t)
 //           1.4 lower dimension Ids (array of fixed size)
@@ -725,22 +725,22 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();          \
                     constexpr auto num_up_dim  = encoded_transforms[i].template at<4>();          \
                                                                                                   \
-                    STATIC_ASSERT(name == cood_transform_enum::pass_through ||                    \
-                                      name == cood_transform_enum::pad ||                         \
-                                      name == cood_transform_enum::embed ||                       \
-                                      name == cood_transform_enum::merge ||                       \
-                                      name == cood_transform_enum::unmerge ||                     \
-                                      name == cood_transform_enum::replicate,                     \
+                    STATIC_ASSERT(name == coord_transform_enum::pass_through ||                   \
+                                      name == coord_transform_enum::pad ||                        \
+                                      name == coord_transform_enum::embed ||                      \
+                                      name == coord_transform_enum::merge ||                      \
+                                      name == coord_transform_enum::unmerge ||                    \
+                                      name == coord_transform_enum::replicate,                    \
                                   "");                                                            \
                                                                                                   \
-                    if constexpr(name == cood_transform_enum::pass_through)                       \
+                    if constexpr(name == coord_transform_enum::pass_through)                      \
                     {                                                                             \
                         index_t pos  = 0;                                                         \
                         auto low_len = meta_data.template pop<index_t>(pos);                      \
                                                                                                   \
                         return make_pass_through_transform(low_len);                              \
                     }                                                                             \
-                    else if constexpr(name == cood_transform_enum::pad)                           \
+                    else if constexpr(name == coord_transform_enum::pad)                          \
                     {                                                                             \
                         index_t pos    = 0;                                                       \
                         auto low_len   = meta_data.template pop<index_t>(pos);                    \
@@ -749,7 +749,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                                                                                                   \
                         return make_pad_transform(low_len, left_pad, right_pad);                  \
                     }                                                                             \
-                    else if constexpr(name == cood_transform_enum::embed)                         \
+                    else if constexpr(name == coord_transform_enum::embed)                        \
                     {                                                                             \
                         index_t pos  = 0;                                                         \
                         auto up_lens = meta_data.template pop<array<index_t, num_up_dim>>(pos);   \
@@ -758,21 +758,21 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                                                                                                   \
                         return make_embed_transform(up_lens, coefficients);                       \
                     }                                                                             \
-                    else if constexpr(name == cood_transform_enum::merge)                         \
+                    else if constexpr(name == coord_transform_enum::merge)                        \
                     {                                                                             \
                         index_t pos   = 0;                                                        \
                         auto low_lens = meta_data.template pop<array<index_t, num_low_dim>>(pos); \
                                                                                                   \
                         return make_merge_transform(low_lens);                                    \
                     }                                                                             \
-                    else if constexpr(name == cood_transform_enum::unmerge)                       \
+                    else if constexpr(name == coord_transform_enum::unmerge)                      \
                     {                                                                             \
                         index_t pos  = 0;                                                         \
                         auto up_lens = meta_data.template pop<array<index_t, num_up_dim>>(pos);   \
                                                                                                   \
                         return make_unmerge_transform(up_lens);                                   \
                     }                                                                             \
-                    else if constexpr(name == cood_transform_enum::replicate)                     \
+                    else if constexpr(name == coord_transform_enum::replicate)                    \
                     {                                                                             \
                         index_t pos  = 0;                                                         \
                         auto up_lens = meta_data.template pop<array<index_t, num_up_dim>>(pos);   \
@@ -819,7 +819,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
 // construct static tensor_adaptor from constexpr encoding
 // encoded_tensor_adaptor are Tuple of following objects:
 //    1. encoded transforms (array of fixed size). Each encoded transform is a Tuple of following:
-//           1.1 name (cood_transform_enum)
+//           1.1 name (coord_transform_enum)
 //           1.2 meta data for constructor of the transform
 //           1.3 num of lower dimension (index_t)
 //           1.4 lower dimension Ids (array of fixed size)
@@ -849,21 +849,21 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();           \
                     constexpr auto num_up_dim  = encoded_transforms[i].template at<4>();           \
                                                                                                    \
-                    STATIC_ASSERT(name == cood_transform_enum::pass_through ||                     \
-                                      name == cood_transform_enum::pad ||                          \
-                                      name == cood_transform_enum::embed ||                        \
-                                      name == cood_transform_enum::merge ||                        \
-                                      name == cood_transform_enum::unmerge ||                      \
-                                      name == cood_transform_enum::replicate,                      \
+                    STATIC_ASSERT(name == coord_transform_enum::pass_through ||                    \
+                                      name == coord_transform_enum::pad ||                         \
+                                      name == coord_transform_enum::embed ||                       \
+                                      name == coord_transform_enum::merge ||                       \
+                                      name == coord_transform_enum::unmerge ||                     \
+                                      name == coord_transform_enum::replicate,                     \
                                   "");                                                             \
                                                                                                    \
-                    if constexpr(name == cood_transform_enum::pass_through)                        \
+                    if constexpr(name == coord_transform_enum::pass_through)                       \
                     {                                                                              \
                         constexpr index_t low_len = meta_data.template get<index_t>(0);            \
                                                                                                    \
                         return make_pass_through_transform(number<low_len>{});                     \
                     }                                                                              \
-                    else if constexpr(name == cood_transform_enum::pad)                            \
+                    else if constexpr(name == coord_transform_enum::pad)                           \
                     {                                                                              \
                         constexpr index_t low_len = meta_data.template get<index_t>(0);            \
                                                                                                    \
@@ -876,7 +876,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                         return make_pad_transform(                                                 \
                             number<low_len>{}, number<left_pad>{}, number<right_pad>{});           \
                     }                                                                              \
-                    else if constexpr(name == cood_transform_enum::embed)                          \
+                    else if constexpr(name == coord_transform_enum::embed)                         \
                     {                                                                              \
                         constexpr auto up_lens =                                                   \
                             meta_data.template get<array<index_t, num_up_dim>>(0);                 \
@@ -887,21 +887,21 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                         return make_embed_transform(TO_TUPLE_OF_NUMBER(up_lens, num_up_dim),       \
                                                     TO_TUPLE_OF_NUMBER(coefficients, num_up_dim)); \
                     }                                                                              \
-                    else if constexpr(name == cood_transform_enum::merge)                          \
+                    else if constexpr(name == coord_transform_enum::merge)                         \
                     {                                                                              \
                         constexpr auto low_lens =                                                  \
                             meta_data.template get<array<index_t, num_low_dim>>(0);                \
                                                                                                    \
                         return make_merge_transform(TO_TUPLE_OF_NUMBER(low_lens, num_low_dim));    \
                     }                                                                              \
-                    else if constexpr(name == cood_transform_enum::unmerge)                        \
+                    else if constexpr(name == coord_transform_enum::unmerge)                       \
                     {                                                                              \
                         constexpr auto up_lens =                                                   \
                             meta_data.template get<array<index_t, num_up_dim>>(0);                 \
                                                                                                    \
                         return make_unmerge_transform(TO_TUPLE_OF_NUMBER(up_lens, num_up_dim));    \
                     }                                                                              \
-                    else if constexpr(name == cood_transform_enum::replicate)                      \
+                    else if constexpr(name == coord_transform_enum::replicate)                     \
                     {                                                                              \
                         constexpr auto up_lens =                                                   \
                             meta_data.template get<array<index_t, num_up_dim>>(0);                 \

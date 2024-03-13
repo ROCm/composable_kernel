@@ -246,7 +246,7 @@ CK_TILE_HOST_DEVICE constexpr auto
     constexpr index_t kMaxMetaDataSize  = 128;
     constexpr index_t kMaxNumDim        = 10;
 
-    using Name     = cood_transform_enum;
+    using Name     = coord_transform_enum;
     using MetaData = meta_data_buffer<kMaxMetaDataSize>;
     using NumDim   = index_t;
     using Dims     = array<index_t, kMaxNumDim>;
@@ -273,7 +273,7 @@ CK_TILE_HOST_DEVICE constexpr auto
         constexpr auto r_minor_lengths = RsLengths{};
 
         trans(num_tran++) = {
-            cood_transform_enum::replicate,
+            coord_transform_enum::replicate,
             MetaData{to_array<index_t, ndim_r_minor>(r_minor_lengths)},
             NumDim{0},
             Dims{},
@@ -303,7 +303,7 @@ CK_TILE_HOST_DEVICE constexpr auto
         constexpr index_t ndim_h_minor = h_minor_lengths.size();
 
         trans(num_tran++) = {
-            cood_transform_enum::unmerge,
+            coord_transform_enum::unmerge,
             MetaData{to_array<index_t, ndim_h_minor>(h_minor_lengths)},
             NumDim{1},
             Dims{idim_x},
@@ -348,7 +348,7 @@ CK_TILE_HOST_DEVICE constexpr auto
             low_lengths(i)   = rh_major_minor_to_hidden_lengths[rh_major][rh_minor];
         }
 
-        trans(num_tran++) = {cood_transform_enum::merge,
+        trans(num_tran++) = {coord_transform_enum::merge,
                              MetaData{to_array<index_t, ndim_low>(low_lengths)},
                              NumDim{ndim_low},
                              low_dims,
@@ -394,7 +394,7 @@ CK_TILE_HOST_DEVICE constexpr auto
         d_length *= y_length;
     }
 
-    auto tran = make_tuple(cood_transform_enum::unmerge,
+    auto tran = make_tuple(coord_transform_enum::unmerge,
                            MetaData{to_array<index_t, ndim_y>(y_lengths)},
                            NumDim{1},
                            Dims{0},

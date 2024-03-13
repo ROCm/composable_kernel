@@ -12,7 +12,7 @@
 
 namespace ck_tile {
 
-enum struct cood_transform_enum
+enum struct coord_transform_enum
 {
     undefined,
     pass_through,
@@ -30,7 +30,7 @@ struct base_transform
 {
     CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
     {
-        return cood_transform_enum::undefined;
+        return coord_transform_enum::undefined;
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_lower_dimension() { return NDimLow; }
@@ -62,7 +62,7 @@ struct base_transform
 template <typename LowLength>
 struct pass_through : public base_transform<1, 1>
 {
-    static constexpr auto type_enum = cood_transform_enum::pass_through;
+    static constexpr auto type_enum = coord_transform_enum::pass_through;
 
     using LowerIndex = multi_index<1>;
     using UpperIndex = multi_index<1>;
@@ -80,7 +80,7 @@ struct pass_through : public base_transform<1, 1>
 
     CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
     {
-        return cood_transform_enum::pass_through;
+        return coord_transform_enum::pass_through;
     }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
@@ -474,7 +474,10 @@ struct embed : public base_transform<1, UpLengths::size()>
     {
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum() { return cood_transform_enum::embed; }
+    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
+    {
+        return coord_transform_enum::embed;
+    }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
 
@@ -602,7 +605,10 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
         static_assert(LowerIndex::size() == NDimLow, "wrong!");
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum() { return cood_transform_enum::merge; }
+    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
+    {
+        return coord_transform_enum::merge;
+    }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
 
@@ -870,7 +876,7 @@ struct unmerge : public base_transform<1, UpLengths::size()>
 
     CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
     {
-        return cood_transform_enum::unmerge;
+        return coord_transform_enum::unmerge;
     }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
@@ -1338,7 +1344,7 @@ struct modulo : public base_transform<1, 1>
 template <typename LowLengths, typename RightShift>
 struct xor_t : public base_transform<2, 2>
 {
-    static constexpr auto type_enum = cood_transform_enum::xor_t;
+    static constexpr auto type_enum = coord_transform_enum::xor_t;
 
     using LowerIndex = multi_index<2>;
     using UpperIndex = multi_index<2>;
@@ -1356,7 +1362,10 @@ struct xor_t : public base_transform<2, 2>
     {
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum() { return cood_transform_enum::xor_t; }
+    CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
+    {
+        return coord_transform_enum::xor_t;
+    }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
 
@@ -1472,7 +1481,7 @@ struct offset : public base_transform<1, 1>
 
     CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
     {
-        return cood_transform_enum::offset;
+        return coord_transform_enum::offset;
     }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_upper_lengths() const { return up_lengths_; }
