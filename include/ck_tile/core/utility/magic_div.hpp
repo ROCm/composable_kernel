@@ -44,10 +44,8 @@ struct magic_division32_bit_range
         return make_tuple(multiplier_u32, shift_u32);
     }
 
-    // integral_constant<uint32_t, .>
-    template <uint32_t Divisor, typename = std::enable_if_t<(0 < Divisor)>>
-    CK_TILE_HOST_DEVICE static constexpr auto
-        calculate_magic_numbers(integral_constant<uint32_t, Divisor>)
+    template <auto Divisor, typename = std::enable_if_t<(0 < Divisor)>>
+    CK_TILE_HOST_DEVICE static constexpr auto calculate_magic_numbers(constant<Divisor>)
     {
         constexpr auto tmp = calculate_magic_numbers(uint32_t{Divisor});
 
@@ -56,14 +54,6 @@ struct magic_division32_bit_range
 
         return make_tuple(integral_constant<uint32_t, multiplier>{},
                           integral_constant<uint32_t, shift>{});
-    }
-
-    // integral_constant<int32_t, .>
-    template <int32_t Divisor>
-    CK_TILE_HOST_DEVICE static constexpr auto
-        calculate_magic_numbers(integral_constant<int32_t, Divisor>)
-    {
-        return calculate_magic_numbers(integral_constant<uint32_t, Divisor>{});
     }
 
     // magic division for uint32_t
