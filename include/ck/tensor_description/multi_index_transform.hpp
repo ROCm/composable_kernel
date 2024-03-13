@@ -8,52 +8,6 @@
 
 namespace ck {
 
-enum struct IndexTransformEnum
-{
-    Undefined,
-    PassThrough,
-    Pad,
-    Embed,
-    Merge,
-    UnMerge,
-    Replicate,
-    Xor,
-    Offset,
-};
-
-template <index_t NDimLow, index_t NDimUp>
-struct BaseTransform
-{
-    __host__ __device__ static constexpr auto GetTypeEnum()
-    {
-        return IndexTransformEnum::Undefined;
-    }
-
-    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return NDimLow; }
-
-    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return NDimUp; }
-
-    // return safe value for vector length/stride, based on compile-time known only
-    // variables
-    // MUST be static function
-    template <typename LowVectorLengths, typename LowVectorStrides>
-    __host__ __device__ static constexpr auto
-    CalculateUpperDimensionSafeVectorLengthStrides(const LowVectorLengths&, const LowVectorStrides&)
-    {
-        if constexpr(NDimUp > 0)
-        {
-            Array<index_t, NDimUp> up_vector_lengths{-1};
-            Array<index_t, NDimUp> up_vector_strides{-1};
-
-            return make_tuple(up_vector_lengths, up_vector_strides);
-        }
-        else
-        {
-            return make_tuple(Array<index_t, 0>{}, Array<index_t, 0>{});
-        }
-    }
-};
-
 template <typename LowLength>
 struct PassThrough
 {
@@ -1999,10 +1953,8 @@ struct Modulo
 };
 
 template <typename LowLengths>
-struct Xor : public BaseTransform<2, 2>
+struct Xor
 {
-    static constexpr auto type_enum = IndexTransformEnum::Xor;
-
     using LowerIndex = MultiIndex<2>;
     using UpperIndex = MultiIndex<2>;
 
@@ -2014,7 +1966,9 @@ struct Xor : public BaseTransform<2, 2>
 
     __host__ __device__ constexpr Xor(const LowLengths& low_lengths) : up_lengths_{low_lengths} {}
 
-    __host__ __device__ static constexpr auto GetTypeEnum() { return IndexTransformEnum::Xor; }
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return 2; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 2; }
 
     __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
 
@@ -2027,12 +1981,6 @@ struct Xor : public BaseTransform<2, 2>
 
         idx_low(Number<0>{}) = idx_up[Number<0>{}];
 
-        // lower to upper ->
-        // idx_up = <idx_low[0], idx_low[0]^(idx_low[1]%RightShift)>
-        // idx_up[1] = idx_low[1]^(idx_low[0]%RightShift)
-        // idx_up[1]^(idx_up[0]%RightShift) = idx_low[1]
-
-        // K0                  // K0                M/N
         idx_low(Number<1>{}) =
             idx_up[Number<1>{}] ^ (idx_up[Number<0>{}] % up_lengths_[Number<1>{}]);
     }
@@ -2074,18 +2022,6 @@ struct Xor : public BaseTransform<2, 2>
     __host__ __device__ static constexpr bool IsKnownAtCompileTime()
     {
         return is_known_at_compile_time<UpLengths>::value;
-    }
-
-    // MUST be static function
-    template <typename LowVectorLengths, typename LowVectorStrides>
-    __host__ __device__ constexpr auto
-    CalculateUpperDimensionSafeVectorLengthStrides(const LowVectorLengths& low_vector_lengths,
-                                                   const LowVectorStrides& low_vector_strides) const
-    {
-        Array<index_t, 2> up_vector_lengths = low_vector_lengths;
-        Array<index_t, 2> up_vector_strides = low_vector_strides;
-
-        return make_tuple(up_vector_lengths, up_vector_strides);
     }
 
     __host__ __device__ void Print() const
