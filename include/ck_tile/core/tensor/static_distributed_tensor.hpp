@@ -12,7 +12,7 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
-#include "ck_tile/core/container/rbuffer.hpp"
+#include "ck_tile/core/container/thread_buffer.hpp"
 
 namespace ck_tile {
 
@@ -72,7 +72,8 @@ struct static_distributed_tensor
         constexpr auto sliced_thread_tensor_desc =
             make_naive_tensor_descriptor_packed(make_tuple(YSliceLengths...));
 
-        rbuffer<DataType, sliced_thread_tensor_desc.get_element_space_size()> sliced_thread_data;
+        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size()>
+            sliced_thread_data;
 
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
             constexpr auto idx_ys = idx + sequence<YSliceOrigins...>{};
@@ -84,11 +85,10 @@ struct static_distributed_tensor
         return sliced_thread_data;
     }
 
-    template <index_t... YSliceOrigins, index_t... YSliceLengths, index_t NSlicedData>
-    CK_TILE_HOST_DEVICE void
-    set_y_sliced_thread_data(sequence<YSliceOrigins...>,
-                             sequence<YSliceLengths...>,
-                             const rbuffer<DataType, NSlicedData>& sliced_thread_data)
+    template <index_t... YSliceOrigins, index_t... YSliceLengths, typename SlicedThreadData>
+    CK_TILE_HOST_DEVICE void set_y_sliced_thread_data(sequence<YSliceOrigins...>,
+                                                      sequence<YSliceLengths...>,
+                                                      const SlicedThreadData& sliced_thread_data)
     {
         static_assert(sizeof...(YSliceOrigins) == StaticTileDistribution::NDimY &&
                           sizeof...(YSliceLengths) == StaticTileDistribution::NDimY,
@@ -130,7 +130,7 @@ struct static_distributed_tensor
     }
 
     //
-    rbuffer<DataType, kThreadElementSpaceSize> thread_buf_;
+    thread_buffer<DataType, kThreadElementSpaceSize> thread_buf_;
 };
 
 template <typename DataType, typename StaticTileDistribution>
@@ -138,6 +138,14 @@ CK_TILE_HOST_DEVICE constexpr auto make_static_distributed_tensor(const StaticTi
 {
     return static_distributed_tensor<remove_cvref_t<DataType>,
                                      remove_cvref_t<StaticTileDistribution>>{};
+}
+
+template <typename DataType, typename StaticTileDistribution, typename ThreadBuffer>
+CK_TILE_HOST_DEVICE constexpr auto make_static_distributed_tensor(const StaticTileDistribution&,
+                                                                  ThreadBuffer&& thread_buffer_)
+{
+    return static_distributed_tensor<remove_cvref_t<DataType>,
+                                     remove_cvref_t<StaticTileDistribution>>{thread_buffer_};
 }
 
 // get X indices from tuple of tile_distributed_index<>

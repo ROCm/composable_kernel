@@ -7,6 +7,7 @@
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
+#include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
@@ -1475,7 +1476,7 @@ template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
           bool oob_conditional_check          = true>
-CK_TILE_DEVICE void amd_buffer_store_raw_impl(const array<T, N>& dst_thread_data,
+CK_TILE_DEVICE void amd_buffer_store_raw_impl(const thread_buffer<T, N>& dst_thread_data,
                                               int32x4_t dst_wave_buffer_resource,
                                               index_t dst_thread_addr_offset,
                                               index_t dst_wave_addr_offset,
@@ -1889,7 +1890,7 @@ template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
           bool oob_conditional_check          = true>
-CK_TILE_DEVICE void amd_buffer_store_raw(const array<T, N>& src_thread_data,
+CK_TILE_DEVICE void amd_buffer_store_raw(const thread_buffer<T, N>& src_thread_data,
                                          T* p_dst_wave,
                                          const index_t dst_thread_element_offset,
                                          const bool dst_thread_element_valid,

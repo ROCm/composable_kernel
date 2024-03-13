@@ -43,7 +43,7 @@ struct alignas(2) half_t
     constexpr fp16_hip_t to_fp16() const { return ck_tile::bit_cast<fp16_hip_t>(data); }
 
     // constructor
-    constexpr half_t() : data() {}
+    constexpr half_t() : data{} {}
 
     // construct from HIP half
     CK_TILE_HOST_DEVICE
