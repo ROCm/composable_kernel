@@ -49,12 +49,16 @@ struct array
             data[i] = vlast;
         }
     }
-    template <typename Y>
+
+    template <typename Y,
+              typename = std::enable_if_t<std::is_convertible_v<Y, value_type> ||
+                                          std::is_constructible_v<Y, value_type>>>
     CK_TILE_HOST_DEVICE explicit constexpr array(Y c)
     {
         for(auto i = 0; i < size(); i++)
             data[i] = static_cast<value_type>(c);
     }
+
     // template <typename Y>
     // CK_TILE_HOST_DEVICE constexpr array(const array& o)
     // {
