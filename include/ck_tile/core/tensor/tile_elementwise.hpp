@@ -156,6 +156,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8x4(const InTensor& in_dstr_tensors)
 #endif
 }
 
+#if CK_TILE_USE_SUBDWORD_TILE_CAST
 // this function assume either src or dst (or both) date type is under 1 dword
 // we pack subdword value into 1 dword to avoid compiler's default subdword behavior(which is buggy)
 template <typename OutDataType, typename InTensor>
@@ -192,18 +193,18 @@ CK_TILE_DEVICE auto cast_tile_opt_subdword(const InTensor& in_dstr_tensors)
         } o_bulk;
 
         // TODO: should use below function, but somehow will result in spill (same as c-forloop)
-        // static_for<0, bulk_size, 1>{}([&o_bulk, &in_dstr_tensors, &i](auto ib){
-        //     o_bulk.data[ib.value] =
-        //     static_cast<o_type>(in_dstr_tensors.get_thread_buffer().template
-        //                         get_as<i_type>()[number<bulk_size * i.value + ib.value>{}]);
-        // });
+        static_for<0, bulk_size, 1>{}([&o_bulk, &in_dstr_tensors, &i](auto ib) {
+            o_bulk.data[ib.value] = static_cast<o_type>(
+                in_dstr_tensors.get_thread_buffer()
+                    .template get_as<i_type>()[number<bulk_size * i.value + ib.value>{}]);
+        });
 
         // TODO: fixme, should use above!
-        static_assert(sizeof(i_type) / sizeof(o_type) == 2);
-        o_bulk.data[0] = static_cast<o_type>(
-            in_dstr_tensors.get_thread_buffer().template get_as<i_type>()[number<2 * i + 0>{}]);
-        o_bulk.data[1] = static_cast<o_type>(
-            in_dstr_tensors.get_thread_buffer().template get_as<i_type>()[number<2 * i + 1>{}]);
+        // static_assert(sizeof(i_type) / sizeof(o_type) == 2);
+        // o_bulk.data[0] = static_cast<o_type>(
+        //     in_dstr_tensors.get_thread_buffer().template get_as<i_type>()[number<2 * i + 0>{}]);
+        // o_bulk.data[1] = static_cast<o_type>(
+        //     in_dstr_tensors.get_thread_buffer().template get_as<i_type>()[number<2 * i + 1>{}]);
 
         out_dstr_tensor.get_thread_buffer().template set_as<o_bulk_type>(i, o_bulk.bulk);
     });
@@ -217,6 +218,7 @@ CK_TILE_DEVICE auto cast_tile_opt_subdword(const InTensor& in_dstr_tensors)
 
     return out_dstr_tensor;
 }
+#endif
 } // namespace impl
 
 template <typename DstType, typename SrcTensor>
@@ -229,10 +231,12 @@ CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
     {
         return impl::cast_tile_pk_fp8x4<DstType, SrcTensor>(src_tensor);
     }
+#if CK_TILE_USE_SUBDWORD_TILE_CAST
     else if constexpr(sizeof(DstType) < 4 || sizeof(typename SrcTensor::DataType) < 4)
     {
         return impl::cast_tile_opt_subdword<DstType, SrcTensor>(src_tensor);
     }
+#endif
     else
         return tile_elementwise_in(type_convert<DstType, typename SrcTensor::DataType>, src_tensor);
 }

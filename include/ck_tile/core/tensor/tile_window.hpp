@@ -534,9 +534,7 @@ struct tile_window_with_static_distribution
     {
         using Traits = load_store_traits;
 
-        // using vector_type_t = typename Traits::vector_type_t;
-        // using vector_t = typename Traits::vector_t;
-        using vector_t = thread_buffer<DataType, Traits::ScalarPerVector>;
+        using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr                    = TileDstr{};
@@ -554,10 +552,7 @@ struct tile_window_with_static_distribution
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                // TODO: below code may result in spill(?)
-#if 0
                 // read from distributed tensor
-                // vector_type_t vec;
                 vector_t vec_value;
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
                     constexpr auto idx_ys = generate_array(
@@ -572,22 +567,11 @@ struct tile_window_with_static_distribution
                         dstr_tensor.get_thread_buffer().template at<d>();
                 });
 
-                // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
-
                 // write into bottom tensor
                 get_bottom_tensor_view()
                     .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
                         bottom_tensor_thread_coord, vec_value);
-#else
-                (void)tile_dstr;
-                (void)idx_ys_start;
 
-                get_bottom_tensor_view()
-                    .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
-                        bottom_tensor_thread_coord,
-                        dstr_tensor.get_thread_buffer().template get_as<vector_t>(
-                            number<iCoord * NumAccessPerCoord + iCoordAccess>{}));
-#endif
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {
