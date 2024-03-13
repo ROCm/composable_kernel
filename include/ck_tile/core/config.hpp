@@ -35,14 +35,6 @@
 #define CK_TILE_FLOAT_TO_FP8_DEFAULT CK_TILE_FLOAT_TO_FP8_STANDARD
 #endif
 
-#ifndef STATIC_ASSERT
-#ifndef NDEBUG
-#define STATIC_ASSERT(...) static_assert(__VA_ARGS__)
-#else
-#define STATIC_ASSERT(...)
-#endif
-#endif // #ifndef STATIC_ASSERT
-
 // in the old rocm period, we have to use tuple array implementation to implement this
 // so turn on the _USE_TUPLE if meet compiler error, otherwise _USE_ARRAY by default.
 #define CK_TILE_STATICALLY_INDEXED_ARRAY_USE_ARRAY 0

@@ -725,7 +725,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();          \
                     constexpr auto num_up_dim  = encoded_transforms[i].template at<4>();          \
                                                                                                   \
-                    STATIC_ASSERT(name == coord_transform_enum::pass_through ||                   \
+                    static_assert(name == coord_transform_enum::pass_through ||                   \
                                       name == coord_transform_enum::pad ||                        \
                                       name == coord_transform_enum::embed ||                      \
                                       name == coord_transform_enum::merge ||                      \
@@ -849,7 +849,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const X& x, const Xs&..
                     constexpr auto num_low_dim = encoded_transforms[i].template at<2>();           \
                     constexpr auto num_up_dim  = encoded_transforms[i].template at<4>();           \
                                                                                                    \
-                    STATIC_ASSERT(name == coord_transform_enum::pass_through ||                    \
+                    static_assert(name == coord_transform_enum::pass_through ||                    \
                                       name == coord_transform_enum::pad ||                         \
                                       name == coord_transform_enum::embed ||                       \
                                       name == coord_transform_enum::merge ||                       \

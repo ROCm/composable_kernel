@@ -24,7 +24,8 @@ struct ext_vector
 {
     static constexpr index_t N = N_;
     using value_type           = T_;
-    using type                 = value_type __attribute__((ext_vector_type(N))); // this is danguous
+    static_assert(!std::is_class_v<value_type>);
+    using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
 } // namespace impl
 

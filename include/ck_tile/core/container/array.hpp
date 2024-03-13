@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <initializer_list>
+
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
@@ -96,13 +98,13 @@ struct array
     CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i)             { return get(i); }
     CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i)             { return get(i); }     // TODO: compatible
 #if 0
-    template <typename ArrayType>
-    CK_TILE_HOST_DEVICE constexpr auto operator=(const ArrayType& a)
+    template <typename ArrayLike>
+    CK_TILE_HOST_DEVICE constexpr auto operator=(const ArrayLike& arr)
     {
-        static_assert(ArrayType::size() == size(), "wrong! size not the same");
+        static_assert(ArrayLike::size() == size(), "wrong! size not the same");
         for(index_t i = 0; i < size(); ++i)
         {
-            data[i] = a[i];
+            data[i] = arr[i];
         }
         return *this;
     }
@@ -205,31 +207,10 @@ CK_TILE_HOST_DEVICE constexpr details::return_type<D, Ts...> make_array(Ts&&... 
 
 // compatible with old ck's initializer, make an array and fill it withe the last element from
 // initializer_list
-#include <initializer_list>
 template <typename T, index_t Size>
 CK_TILE_HOST_DEVICE constexpr auto make_array_with(std::initializer_list<T> ilist)
 {
-    constexpr index_t list_size = std::initializer_list<T>{}.size();
-
-    static_assert(list_size <= Size, "out of bound");
-
-    index_t i = 0;
-    T vlast   = T{};
-    array<T, Size> arr;
-
-    for(const T& val : ilist)
-    {
-        arr.data[i] = val;
-        vlast       = val;
-        ++i;
-    }
-
-    for(; i < Size; ++i)
-    {
-        arr.data[i] = vlast;
-    }
-
-    return arr;
+    return array<T, Size>(ilist);
 }
 
 template <typename T, index_t Size>
@@ -258,7 +239,7 @@ CK_TILE_HOST_DEVICE constexpr bool operator!=(const array<T, Size>& a, const arr
 template <typename T, index_t N, typename X>
 CK_TILE_HOST_DEVICE constexpr auto to_array(const X& x)
 {
-    STATIC_ASSERT(N <= X::size(), "");
+    static_assert(N <= X::size(), "");
 
     array<T, N> arr;
 

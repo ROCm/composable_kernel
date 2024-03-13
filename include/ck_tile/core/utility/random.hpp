@@ -15,13 +15,7 @@ namespace ck_tile {
 template <typename T, uint32_t seed_>
 struct prand_generator_t
 {
-    CK_TILE_HOST_DEVICE uint32_t operator()(int id, T val, uint32_t seed = seed_)
-    {
-        std::ignore = id;
-        std::ignore = val;
-        std::ignore = seed;
-        return 0;
-    }
+    CK_TILE_HOST_DEVICE uint32_t operator()(int, T, uint32_t = seed_) { return 0; }
 };
 
 // version for fp32

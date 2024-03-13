@@ -104,7 +104,7 @@ CK_TILE_HOST_DEVICE constexpr void move_tensor_adaptor_coordinate(const Adaptor&
     //  constexpr index_t ndim_bottom = Adaptor::get_num_of_bottom_dimension();
     constexpr index_t ntransform = Adaptor::get_num_of_transform();
 
-    //  STATIC_ASSERT(TopIndex::size() == ndim_top && BottomIndex::size() == ndim_bottom, "");
+    //  static_assert(TopIndex::size() == ndim_top && BottomIndex::size() == ndim_bottom, "");
 
     // judge whether calculation of lower diff is needed for each transform
     // use index_t for boolean type
