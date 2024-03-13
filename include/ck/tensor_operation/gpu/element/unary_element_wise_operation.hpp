@@ -310,6 +310,12 @@ struct Scale
         y = scale_ * x;
     };
 
+    template <>
+    __host__ __device__ void operator()<int8_t, int8_t>(int8_t& y, const int8_t& x) const
+    {
+        y = ck::type_convert<int8_t>(scale_ * ck::type_convert<float>(x));
+    };
+
     float scale_;
 };
 
