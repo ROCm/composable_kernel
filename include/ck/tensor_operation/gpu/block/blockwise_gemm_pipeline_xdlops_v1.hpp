@@ -21,6 +21,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename BTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -40,6 +42,8 @@ template <index_t BlockSize,
           typename BTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -58,6 +62,8 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                        BTileDesc,
                                        AMmaTileDesc,
                                        BMmaTileDesc,
+                                       ABlockTransferSrcScalarPerVector,
+                                       BBlockTransferSrcScalarPerVector,
                                        MPerBlock,
                                        NPerBlock,
                                        KPerBlock,
@@ -65,21 +71,24 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                        NPerXDL,
                                        MRepeat,
                                        NRepeat,
-                                       KPack> : BlockwiseGemmXdlops_pipeline_base<BlockSize,
-                                                                                  FloatAB,
-                                                                                  FloatAcc,
-                                                                                  ATileDesc,
-                                                                                  BTileDesc,
-                                                                                  AMmaTileDesc,
-                                                                                  BMmaTileDesc,
-                                                                                  MPerBlock,
-                                                                                  NPerBlock,
-                                                                                  KPerBlock,
-                                                                                  MPerXDL,
-                                                                                  NPerXDL,
-                                                                                  MRepeat,
-                                                                                  NRepeat,
-                                                                                  KPack>
+                                       KPack>
+    : BlockwiseGemmXdlops_pipeline_base<BlockSize,
+                                        FloatAB,
+                                        FloatAcc,
+                                        ATileDesc,
+                                        BTileDesc,
+                                        AMmaTileDesc,
+                                        BMmaTileDesc,
+                                        ABlockTransferSrcScalarPerVector,
+                                        BBlockTransferSrcScalarPerVector,
+                                        MPerBlock,
+                                        NPerBlock,
+                                        KPerBlock,
+                                        MPerXDL,
+                                        NPerXDL,
+                                        MRepeat,
+                                        NRepeat,
+                                        KPack>
 
 {
     using Base = BlockwiseGemmXdlops_pipeline_base<BlockSize,
@@ -89,6 +98,8 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                                    BTileDesc,
                                                    AMmaTileDesc,
                                                    BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
                                                    MPerBlock,
                                                    NPerBlock,
                                                    KPerBlock,
@@ -119,7 +130,9 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     using Base::AMmaKStride;
     using Base::BMmaKStride;
 
-    static constexpr index_t PrefetchStages = 1;
+    static constexpr index_t PrefetchStages  = 1;
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = 1;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -129,7 +142,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         ignore = num_loop;
-        return TailNumber::Odd;
+        return TailNumber::Full;
     }
 
     template <bool HasMainLoop,
@@ -320,6 +333,8 @@ template <index_t BlockSize,
           typename BTileDesc,
           typename AMmaTileDesc,
           typename BMmaTileDesc,
+          index_t ABlockTransferSrcScalarPerVector,
+          index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -338,6 +353,8 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                        BTileDesc,
                                        AMmaTileDesc,
                                        BMmaTileDesc,
+                                       ABlockTransferSrcScalarPerVector,
+                                       BBlockTransferSrcScalarPerVector,
                                        MPerBlock,
                                        NPerBlock,
                                        KPerBlock,
@@ -345,21 +362,24 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                        NPerXDL,
                                        MRepeat,
                                        NRepeat,
-                                       KPack> : BlockwiseGemmXdlops_pipeline_base<BlockSize,
-                                                                                  FloatAB,
-                                                                                  FloatAcc,
-                                                                                  ATileDesc,
-                                                                                  BTileDesc,
-                                                                                  AMmaTileDesc,
-                                                                                  BMmaTileDesc,
-                                                                                  MPerBlock,
-                                                                                  NPerBlock,
-                                                                                  KPerBlock,
-                                                                                  MPerXDL,
-                                                                                  NPerXDL,
-                                                                                  MRepeat,
-                                                                                  NRepeat,
-                                                                                  KPack>
+                                       KPack>
+    : BlockwiseGemmXdlops_pipeline_base<BlockSize,
+                                        FloatAB,
+                                        FloatAcc,
+                                        ATileDesc,
+                                        BTileDesc,
+                                        AMmaTileDesc,
+                                        BMmaTileDesc,
+                                        ABlockTransferSrcScalarPerVector,
+                                        BBlockTransferSrcScalarPerVector,
+                                        MPerBlock,
+                                        NPerBlock,
+                                        KPerBlock,
+                                        MPerXDL,
+                                        NPerXDL,
+                                        MRepeat,
+                                        NRepeat,
+                                        KPack>
 
 {
     using Base = BlockwiseGemmXdlops_pipeline_base<BlockSize,
@@ -369,6 +389,8 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                                    BTileDesc,
                                                    AMmaTileDesc,
                                                    BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
                                                    MPerBlock,
                                                    NPerBlock,
                                                    KPerBlock,
@@ -399,10 +421,12 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     using Base::a_block_desc_m0_m1_m2_k;
     using Base::b_block_desc_n0_n1_n2_k;
 
-    static constexpr index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
-    static constexpr index_t KPerInnerLoop  = math::max(KPerThread / NumMacClusters, KPack);
-    static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
-    static constexpr index_t PrefetchStages = 1;
+    static constexpr index_t NumMacClusters  = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
+    static constexpr index_t KPerInnerLoop   = math::max(KPerThread / NumMacClusters, KPack);
+    static constexpr index_t KRepeat         = KPerThread / KPerInnerLoop;
+    static constexpr index_t PrefetchStages  = 1;
+    static constexpr index_t PrefillStages   = 1;
+    static constexpr index_t GlobalBufferNum = 1;
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
@@ -567,7 +591,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
         }
 
         // tail
-        if constexpr(TailNum == TailNumber::Odd)
+        if constexpr(TailNum == TailNumber::Full)
         {
             block_sync_lds();
             static_for<0, KRepeat, 1>{}([&](auto k0) {
