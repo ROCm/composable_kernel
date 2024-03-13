@@ -12,23 +12,26 @@ The Composable Kernel (CK) library provides a programming model for writing perf
 
 The CK documentation is structured as follows:
 
-.. card:: Installation
+.. grid:: 2
+  :gutter: 3
 
-  * :ref:`docker-hub`
+  .. grid-item-card:: Installation
 
-.. card:: Conceptual
+    * :ref:`docker-hub`
 
-  * :ref:`what-is-ck`
+  .. grid-item-card:: Conceptual
 
-.. card:: API reference
+    * :ref:`what-is-ck`
 
-  * :ref:`supported-primitives`
-  * :ref:`api-reference`
-  * :ref:`wrapper`
+  .. grid-item-card:: API reference
 
-.. card:: Tutorial
+    * :ref:`supported-primitives`
+    * :ref:`api-reference`
+    * :ref:`wrapper`
 
-  * :ref:`hello-world`
+  .. grid-item-card:: Tutorial
+
+    * :ref:`hello-world`
 
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/index.html>`_.
 

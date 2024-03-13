@@ -2,7 +2,9 @@ defaults:
   numbered: False
 root: index
 subtrees:
-- entries:
+
+- caption: Conceptual
+  entries:
   - file: conceptual/what-is-ck.rst
     title: What is Composable Kernel?
 
