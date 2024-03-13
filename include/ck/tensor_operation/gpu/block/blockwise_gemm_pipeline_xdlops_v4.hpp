@@ -235,12 +235,14 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         });
 #elif 1
         // A-B splited schedule
-        constexpr auto num_issue_a          = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_dswrite_per_issue_a = (HotLoopInstList::A_LDS_Write_Inst_Num+num_issue_a-1) / num_issue_a;
+        constexpr auto num_issue_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
+        constexpr auto num_dswrite_per_issue_a =
+            (HotLoopInstList::A_LDS_Write_Inst_Num + num_issue_a - 1) / num_issue_a;
         constexpr auto num_dsread_per_issue_a = HotLoopInstList::A_LDS_Read_Inst_Num / num_issue_a;
 
-        constexpr auto num_issue_b          = HotLoopInstList::B_Buffer_Load_Inst_Num;
-        constexpr auto num_dswrite_per_issue_b = (HotLoopInstList::B_LDS_Write_Inst_Num+num_issue_b-1) / num_issue_b;
+        constexpr auto num_issue_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
+        constexpr auto num_dswrite_per_issue_b =
+            (HotLoopInstList::B_LDS_Write_Inst_Num + num_issue_b - 1) / num_issue_b;
         constexpr auto num_dsread_per_issue_b = HotLoopInstList::B_LDS_Read_Inst_Num / num_issue_b;
 
         constexpr auto num_mfma_per_issue =
@@ -262,7 +264,8 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
             __builtin_amdgcn_sched_group_barrier(0x020, 1, schedule_group); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008,
-                                                 num_mfma_per_issue - num_dsread_per_issue_a - num_dswrite_per_issue_a,
+                                                 num_mfma_per_issue - num_dsread_per_issue_a -
+                                                     num_dswrite_per_issue_a,
                                                  schedule_group); // MFMA
         });
 
@@ -282,7 +285,8 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
 
             __builtin_amdgcn_sched_group_barrier(0x020, 1, schedule_group); // VMEM read
             __builtin_amdgcn_sched_group_barrier(0x008,
-                                                 num_mfma_per_issue - num_dsread_per_issue_a - num_dswrite_per_issue_b,
+                                                 num_mfma_per_issue - num_dsread_per_issue_a -
+                                                     num_dswrite_per_issue_b,
                                                  schedule_group); // MFMA
         });
 #endif
