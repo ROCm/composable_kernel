@@ -78,25 +78,33 @@ struct Layernorm2dFwd
     {
         using namespace ck;
         using namespace ck::tile_program;
+        using S = typename Problem::BlockShape;
 
-        constexpr ck::index_t kMPerThread = Problem::BlockShape::kMPerThread;
-        constexpr ck::index_t kNPerThread = Problem::BlockShape::kNPerThread;
-
-        constexpr ck::index_t kMThreadPerWarp = Problem::BlockShape::kMThreadPerWarp;
-
-        constexpr index_t kMWarpPerBlock = Problem::BlockShape::kMWarpPerBlock;
-        constexpr index_t kNWarpPerBlock = Problem::BlockShape::kNWarpPerBlock;
-
-        // 4x1 wave
         return make_static_tile_distribution(
             StaticTileDistributionEncoding<
                 Sequence<>,
-                Tuple<Sequence<kMWarpPerBlock, kMThreadPerWarp, kMPerThread>,
-                      Sequence<kNWarpPerBlock, kNThreadPerWarp, kNPerThread>>,
+                Tuple<Sequence<S::kMWarpPerBlock, S::kMThreadPerWarp, S::kMPerThread>,
+                      Sequence<S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
                 Tuple<Sequence<1, 2>, Sequence<1, 2>>,
                 Tuple<Sequence<0, 0>, Sequence<1, 1>>,
                 Sequence<1, 2>,
                 Sequence<2, 2>>{});
+    }
+
+    __device__ static constexpr auto MakeGammaBetaBlockTileDistribution()
+    {
+        using namespace ck;
+        using namespace ck::tile_program;
+        using S = typename Problem::BlockShape;
+
+        return make_static_tile_distribution(
+            StaticTileDistributionEncoding<
+                Sequence<S::kMWarpPerBlock, S::kMThreadPerWarp>,
+                Tuple<Sequence<S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
+                Tuple<Sequence<0, 1>, Sequence<0, 1>>,
+                Tuple<Sequence<0, 0>, Sequence<1, 1>>,
+                Sequence<1>,
+                Sequence<2>>{});
     }
 
     template <typename Dstr>
@@ -155,11 +163,11 @@ struct Layernorm2dFwd
         const auto x_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
             p_x, make_tuple(M, N), make_tuple(N, 1), Number<32>{}, Number<1>{});
 
-        const auto gamma_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
-            p_gamma, make_tuple(M, N), make_tuple(0, 1), Number<32>{}, Number<1>{});
+        const auto gamma_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_gamma, make_tuple(N), make_tuple(1), Number<32>{}, Number<1>{});
 
-        const auto beta_m_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
-            p_beta, make_tuple(M, N), make_tuple(0, 1), Number<32>{}, Number<1>{});
+        const auto beta_n = make_naive_tensor_view<AddressSpaceEnum::Global>(
+            p_beta, make_tuple(N), make_tuple(1), Number<32>{}, Number<1>{});
 
         const auto iM = get_block_id() * kMPerBlock;
 
@@ -226,22 +234,22 @@ struct Layernorm2dFwd
         auto y_block_window = make_tile_window(
             y_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0});
 
-        constexpr auto gammaDstr = MakeXBlockTileDistribution();
+        constexpr auto gammaDstr = MakeGammaBetaBlockTileDistribution();
         constexpr auto betaDstr  = gammaDstr;
 
-        auto gamma_block_window = make_tile_window(
-            gamma_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, gammaDstr);
+        auto gamma_block_window =
+            make_tile_window(gamma_n, make_tuple(Number<kNPerBlock>{}), {0}, gammaDstr);
 
         auto beta_block_window = make_tile_window(
-            beta_m_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {iM, 0}, betaDstr);
+            beta_n, make_tuple(Number<kMPerBlock>{}, Number<kNPerBlock>{}), {0}, betaDstr);
 
         // reverse read x to reuse cache
-        ck::index_t window_tail = N - kNPerBlock;
+        ck::index_t stride_to_right_most_window = N - kNPerBlock;
 
         move_tile_window(x_block_window, {0, -kNPerBlock});
-        move_tile_window(gamma_block_window, {0, window_tail});
-        move_tile_window(beta_block_window, {0, window_tail});
-        move_tile_window(y_block_window, {0, window_tail});
+        move_tile_window(gamma_block_window, {stride_to_right_most_window});
+        move_tile_window(beta_block_window, {stride_to_right_most_window});
+        move_tile_window(y_block_window, {0, stride_to_right_most_window});
 
         // Normalization
         for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
@@ -255,19 +263,20 @@ struct Layernorm2dFwd
             auto y_block_tensor =
                 make_static_distributed_tensor<YDataType>(x_block_tensor.GetTileDistribution());
 
-            sweep_tile_span(x_spans[I0], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
+            sweep_tile_span(x_spans[I1], [&](auto idx1) {
+                constexpr auto j_idx = make_tuple(idx1);
+                const auto gamma     = type_convert<ComputeDataType>(gamma_block_tensor[j_idx]);
+                const auto beta      = type_convert<ComputeDataType>(beta_block_tensor[j_idx]);
 
-                const auto mean    = mean_compute_block_tensor[i_idx];
-                const auto inv_std = inv_std_compute_block_tensor[i_idx];
-
-                sweep_tile_span(x_spans[I1], [&](auto idx1) {
+                sweep_tile_span(x_spans[I0], [&](auto idx0) {
+                    constexpr auto i_idx   = make_tuple(idx0);
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                    const auto x     = type_convert<ComputeDataType>(x_block_tensor[i_j_idx]);
-                    const auto gamma = type_convert<ComputeDataType>(gamma_block_tensor[i_j_idx]);
-                    const auto beta  = type_convert<ComputeDataType>(beta_block_tensor[i_j_idx]);
-                    auto y           = (x - mean) * inv_std * gamma + beta;
+                    const auto mean    = mean_compute_block_tensor[i_idx];
+                    const auto inv_std = inv_std_compute_block_tensor[i_idx];
+
+                    const auto x = type_convert<ComputeDataType>(x_block_tensor[i_j_idx]);
+                    auto y       = (x - mean) * inv_std * gamma + beta;
 
                     y_block_tensor(i_j_idx) = type_convert<YDataType>(y);
                 });
@@ -276,8 +285,8 @@ struct Layernorm2dFwd
             store_tile(y_block_window, y_block_tensor);
 
             move_tile_window(x_block_window, {0, -kNPerBlock});
-            move_tile_window(gamma_block_window, {0, -kNPerBlock});
-            move_tile_window(beta_block_window, {0, -kNPerBlock});
+            move_tile_window(gamma_block_window, {-kNPerBlock});
+            move_tile_window(beta_block_window, {-kNPerBlock});
             move_tile_window(y_block_window, {0, -kNPerBlock});
         }
     }
