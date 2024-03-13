@@ -52,22 +52,23 @@ template <index_t NDimSpatial,
           typename ELayout,
           typename ADataType,
           typename BDataType,
-          typename DsDataType,
-          typename EDataType,
           typename AccDataType,
           typename CShuffleDataType,
+          typename DsDataType,
+          typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           ConvolutionForwardSpecialization ConvForwardSpecialization,
           GemmSpecialization GemmSpec,
+          index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
-          ck::index_t K0PerBlock,
+          ck::index_t KPerBlock,
           ck::index_t K1,
-          ck::index_t MPerWMMA,
-          ck::index_t NPerWMMA,
+          ck::index_t MPerWmma,
+          ck::index_t NPerWmma,
           ck::index_t MRepeat,
           ck::index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
@@ -88,7 +89,6 @@ template <index_t NDimSpatial,
           index_t CShuffleNRepeatPerShuffle,
           typename CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-          index_t NumGemmKPrefetchStage   = 1,
           LoopScheduler LoopSched         = make_default_loop_scheduler(),
           ck::PipelineVersion PipelineVer = ck::PipelineVersion::v1>
 struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
@@ -109,11 +109,31 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    static constexpr auto I0           = Number<0>{};
-    static constexpr auto I1           = Number<1>{};
-    static constexpr auto I2           = Number<2>{};
-    static constexpr auto I3           = Number<3>{};
-    static constexpr index_t KPerBlock = K0PerBlock * K1;
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
+    // K1 = Max Vector Access Pixels
+    static constexpr auto K1Number = Number<K1>{};
+
+    static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
+    static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
+    static constexpr auto WmmaK  = 16;
+
+    static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
+    static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
+
+    // If true, LDS is used unconditionally
+    static constexpr auto AEnableLds_manu = true;
+    static constexpr auto BEnableLds_manu = true;
+
+    static constexpr auto AEnableLds =
+        AEnableLds_auto || AEnableLds_manu || (NumGemmKPrefetchStage > 1);
+    static constexpr auto BEnableLds =
+        BEnableLds_auto || BEnableLds_manu || (NumGemmKPrefetchStage > 1);
 
     static constexpr auto conv_to_gemm_transformer =
         TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>{};
@@ -122,17 +142,16 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     template <typename ALay>
-    static auto
-    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                            const std::array<index_t, NDimSpatial>& input_left_pads,
-                            const std::array<index_t, NDimSpatial>& input_right_pads)
+    static auto MakeAGridDescriptor(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                                    const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                                    const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                                    const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                                    const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                                    const std::array<index_t, NDimSpatial>& input_left_pads,
+                                    const std::array<index_t, NDimSpatial>& input_right_pads)
     {
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
@@ -149,13 +168,44 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
-        return in_gemmm_gemmk_desc;
+        const auto M = in_gemmm_gemmk_desc.GetLength(I0);
+        const auto K = in_gemmm_gemmk_desc.GetLength(I1);
+        assert(K % K1 == 0);
+
+        if constexpr(AEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                in_gemmm_gemmk_desc,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(M)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto A_KRow      = 2;
+            constexpr auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
+            const auto A_KWmma         = K / WmmaK;
+
+            const auto M0 = M / MPerBlock;
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
+            return transform_tensor_descriptor(
+                in_gemmm_gemmk_desc,
+                make_tuple(make_unmerge_transform(make_tuple(
+                               A_KWmma, Number<A_K0PerWmma>{}, Number<A_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(M0 * MRepeat, Number<MWaves>{}, Number<MPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+        }
     }
 
     template <typename BLay>
-    static auto
-    MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    static auto MakeBGridDescriptor(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>(b_g_k_c_xs_lengths,
@@ -164,7 +214,39 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
 
-        return wei_gemmn_gemmk_desc;
+        const auto N = wei_gemmn_gemmk_desc.GetLength(I0);
+        const auto K = wei_gemmn_gemmk_desc.GetLength(I1);
+        assert(K % K1 == 0);
+
+        if constexpr(BEnableLds)
+        {
+            const index_t K0 = K / K1;
+
+            return transform_tensor_descriptor(
+                wei_gemmn_gemmk_desc,
+                make_tuple(make_unmerge_transform(make_tuple(K0, K1Number)),
+                           make_pass_through_transform(N)),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+        }
+        else
+        {
+            constexpr auto B_KRow      = 2;
+            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma         = K / WmmaK;
+
+            const auto N0 = N / NPerBlock;
+            // 0   1     0         1                2        3             4        5          6
+            // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
+            return transform_tensor_descriptor(
+                wei_gemmn_gemmk_desc,
+                make_tuple(make_unmerge_transform(make_tuple(
+                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
+                           make_unmerge_transform(
+                               make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
+                make_tuple(Sequence<1>{}, Sequence<0>{}),
+                make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
+        }
     }
 
     template <typename ELay>
@@ -197,53 +279,14 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     }
 
     // desc for problem definition
-    using AGridDesc_M_K  = remove_cvref_t<decltype(MakeAGridDescriptor_M_K<ALayout>(
-        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
-    using BGridDesc_N_K  = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
+    using AGridDesc =
+        decltype(DeviceOp::MakeAGridDescriptor<ALayout>({}, {}, {}, {}, {}, {}, {}, {}, {}, {}));
+    using BGridDesc      = decltype(DeviceOp::MakeBGridDescriptor<BLayout>({}, {}));
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
     using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
 
-    // A desc for source in blockwise copy
-    template <typename AGridDesc_M_K>
-    __host__ __device__ static constexpr auto
-    MakeAGridDescriptor_AK0_M_AK1(const AGridDesc_M_K& a_grid_desc_m_k)
-    {
-        const auto M = a_grid_desc_m_k.GetLength(I0);
-        const auto K = a_grid_desc_m_k.GetLength(I1);
-
-        const auto AK1 = K1;
-        const auto AK0 = K / AK1;
-
-        return transform_tensor_descriptor(a_grid_desc_m_k,
-                                           make_tuple(make_unmerge_transform(make_tuple(AK0, AK1)),
-                                                      make_pass_through_transform(M)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-    }
-
-    // B desc for source in blockwise copy
-    template <typename BGridDesc_N_K>
-    __host__ __device__ static constexpr auto
-    MakeBGridDescriptor_BK0_N_BK1(const BGridDesc_N_K& b_grid_desc_n_k)
-    {
-        const auto N = b_grid_desc_n_k.GetLength(I0);
-        const auto K = b_grid_desc_n_k.GetLength(I1);
-
-        const auto BK1 = K1;
-        const auto BK0 = K / BK1;
-
-        return transform_tensor_descriptor(b_grid_desc_n_k,
-                                           make_tuple(make_unmerge_transform(make_tuple(BK0, BK1)),
-                                                      make_pass_through_transform(N)),
-                                           make_tuple(Sequence<1>{}, Sequence<0>{}),
-                                           make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-    }
-
-    using AGridDesc_AK0_M_AK1 = decltype(DeviceOp::MakeAGridDescriptor_AK0_M_AK1(AGridDesc_M_K{}));
-    using BGridDesc_BK0_N_BK1 = decltype(DeviceOp::MakeBGridDescriptor_BK0_N_BK1(BGridDesc_N_K{}));
-
     // GridwiseOp
-    using GridwiseOp = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
+    using GridwiseOp = GridwiseGemmMultipleD_Wmma<
         // DataType Family
         ADataType,
         BDataType,
@@ -252,8 +295,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         DsDataType,
         EDataType,
         // InMemory Data Descriptor
-        AGridDesc_AK0_M_AK1,
-        BGridDesc_BK0_N_BK1,
+        AGridDesc,
+        BGridDesc,
         DsGridDesc_M_N,
         EGridDesc_M_N,
         // ElementwiseOp Family
@@ -264,9 +307,9 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         // Tiling Family
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
-        MPerWMMA,
-        NPerWMMA,
+        KPerBlock,
+        MPerWmma,
+        NPerWmma,
         K1,
         MRepeat,
         NRepeat,
@@ -279,6 +322,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_AK1,
         false,
+        AEnableLds,
         ABlockLdsExtraM,
         BBlockTransferThreadClusterLengths_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
@@ -287,6 +331,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_BK1,
         false,
+        BEnableLds,
         BBlockLdsExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
@@ -327,23 +372,21 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
               num_group_{a_g_n_c_wis_lengths[0]},
-              a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K<ALayout>(a_g_n_c_wis_lengths,
-                                                                          a_g_n_c_wis_strides,
-                                                                          b_g_k_c_xs_lengths,
-                                                                          b_g_k_c_xs_strides,
-                                                                          e_g_n_k_wos_lengths,
-                                                                          e_g_n_k_wos_strides,
-                                                                          conv_filter_strides,
-                                                                          conv_filter_dilations,
-                                                                          input_left_pads,
-                                                                          input_right_pads)},
-              b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K<BLayout>(b_g_k_c_xs_lengths,
-                                                                          b_g_k_c_xs_strides)},
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
                                                                           e_g_n_k_wos_strides)},
-              a_grid_desc_ak0_m_ak1_{DeviceOp::MakeAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
-              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+              a_grid_desc_{DeviceOp::MakeAGridDescriptor<ALayout>(a_g_n_c_wis_lengths,
+                                                                  a_g_n_c_wis_strides,
+                                                                  b_g_k_c_xs_lengths,
+                                                                  b_g_k_c_xs_strides,
+                                                                  e_g_n_k_wos_lengths,
+                                                                  e_g_n_k_wos_strides,
+                                                                  conv_filter_strides,
+                                                                  conv_filter_dilations,
+                                                                  input_left_pads,
+                                                                  input_right_pads)},
+              b_grid_desc_{
+                  DeviceOp::MakeBGridDescriptor<BLayout>(b_g_k_c_xs_lengths, b_g_k_c_xs_strides)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseOp::MakeDefaultBlock2CTileMap(e_grid_desc_m_n_, M01, N01)},
@@ -395,8 +438,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
         void Print() const
         {
-            std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
-            std::cout << "B[N, K]: " << b_grid_desc_n_k_ << std::endl;
+            std::cout << "A[M, K]: " << a_grid_desc_ << std::endl;
+            std::cout << "B[N, K]: " << b_grid_desc_ << std::endl;
             static_for<0, NumDTensor, 1>{}(
                 [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
             std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
@@ -411,14 +454,12 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
         // tensor descriptors for problem definiton
         index_t num_group_;
-        AGridDesc_M_K a_grid_desc_m_k_;
-        BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
         EGridDesc_M_N e_grid_desc_m_n_;
 
         // tensor descriptors for block/thread-wise copy
-        AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
-        BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        AGridDesc a_grid_desc_;
+        BGridDesc b_grid_desc_;
         typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
         typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -465,8 +506,17 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             const index_t grid_size =
                 arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
 
-            const auto K =
-                arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
+            const auto K = [&]() {
+                if constexpr(AEnableLds)
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I2);
+                }
+                else
+                {
+                    return arg.a_grid_desc_.GetLength(I0) * arg.a_grid_desc_.GetLength(I3) *
+                           arg.a_grid_desc_.GetLength(I4) * arg.a_grid_desc_.GetLength(I6);
+                }
+            }();
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
@@ -480,8 +530,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CDEElementwiseOperation,
-                    DeviceOp::AGridDesc_AK0_M_AK1,
-                    DeviceOp::BGridDesc_BK0_N_BK1,
+                    DeviceOp::AGridDesc,
+                    DeviceOp::BGridDesc,
                     typename GridwiseOp::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     typename GridwiseOp::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseOp::DefaultBlock2CTileMap>,
@@ -501,8 +551,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                               arg.b_element_op_,
                                               arg.cde_element_op_,
                                               arg.a_g_n_c_wis_lengths_[0], // Group count
-                                              arg.a_grid_desc_ak0_m_ak1_,
-                                              arg.b_grid_desc_bk0_n_bk1_,
+                                              arg.a_grid_desc_,
+                                              arg.b_grid_desc_,
                                               arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                                               arg.block_2_etile_map_,
@@ -670,8 +720,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         }
 
         // check Gridwise GEMM
-        return GridwiseOp::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                         arg.b_grid_desc_bk0_n_bk1_,
+        return GridwiseOp::CheckValidity(arg.a_grid_desc_,
+                                         arg.b_grid_desc_,
                                          arg.ds_grid_desc_m_n_,
                                          arg.e_grid_desc_m_n_,
                                          arg.block_2_etile_map_);
@@ -790,9 +840,19 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             << KPerBlock << ", "
             << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
             << K1 << ", "
+            << MPerWmma << ", "
+            << NPerWmma << ", "
+            << MRepeat << ", "
+            << NRepeat
+            << ">"
+            << " AEnableLds: "
+            << AEnableLds << ", "
+            << "BEnableLds: "
+            << BEnableLds << ", "
+            << "ABlockTransferSrcScalarPerVector: "
             << ABlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferSrcScalarPerVector
-            << ">";
+            << "BBlockTransferSrcScalarPerVector: "
+            << BBlockTransferSrcScalarPerVector;
         // clang-format on
 
         return str.str();
