@@ -5,6 +5,7 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
+#include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 
@@ -25,7 +26,7 @@ struct transpose_vectors
     using VX = array<S, s_per_x>;
     using VY = array<S, s_per_y>;
 
-    CK_TILE_DEVICE void operator()(const array<VX, NX>& vx_tuple, array<VY, NY>& vy_tuple)
+    CK_TILE_DEVICE void operator()(const thread_buffer<VX, NX>& vx_tuple, thread_buffer<VY, NY>& vy_tuple)
     {
         constexpr auto I1 = number<1>{};
         constexpr auto I2 = number<2>{};

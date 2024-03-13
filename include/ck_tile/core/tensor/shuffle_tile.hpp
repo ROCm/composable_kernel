@@ -10,6 +10,7 @@
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
+#include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
@@ -98,8 +99,8 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
     static_assert(num_access > 0, "wrong! num_access should be larger than 0");
 
     // in/out vectors to be transposed
-    statically_indexed_array<InVec, num_vec_in> in_vectors;
-    statically_indexed_array<OutVec, num_vec_out> out_vectors;
+    thread_buffer<InVec, num_vec_in> in_vectors;
+    thread_buffer<OutVec, num_vec_out> out_vectors;
 
     // loop over SFC and do transpose
     static_for<0, num_access, 1>{}([&](auto iAccess) {

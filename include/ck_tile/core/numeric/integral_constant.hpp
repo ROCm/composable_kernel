@@ -33,7 +33,7 @@ template <index_t v>
 using number = constant<v>;
 
 template <long_index_t v>
-using long_number = integral_constant<long_index_t, v>;
+using long_number = constant<v>;
 
 template <bool b>
 using bool_constant = constant<b>;
