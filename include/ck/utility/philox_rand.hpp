@@ -5,37 +5,16 @@
 
 namespace ck {
 
+// Reference: https://github.com/Dao-AILab/flash-attention/blob/main/csrc/flash_attn/src/philox.cuh
 class philox
 {
     public:
-    __host__ __device__ inline philox(unsigned long long seed,
-                                      unsigned long long subsequence,
-                                      unsigned long long offset)
-        : h_seed(reinterpret_cast<const uint2&>(seed))
+    __host__ __device__ inline philox(unsigned long long seed_, unsigned long long offset_)
+        : seed(reinterpret_cast<const uint2&>(seed_))
     {
 
         ull2* tmp = reinterpret_cast<ull2*>(&counter);
-        tmp->x    = offset / 4;
-        tmp->y    = subsequence;
-    }
-
-    __host__ __device__ inline uint4 get_philox_4x32()
-    {
-
-        uint4 counter_ = counter;
-        uint2 key_     = h_seed;
-// 7-round philox
-#pragma unroll
-        for(int i = 0; i < 6; i++)
-        {
-            counter_ = single_loop(counter_, key_);
-            key_.x += kPhilox10A;
-            key_.y += kPhilox10B;
-        }
-        uint4 output = single_loop(counter_, key_);
-        incr();
-
-        return output;
+        tmp->x    = offset_;
     }
 
     __host__ __device__ inline uint4 get_philox_4x32(const unsigned long long subsequence) const
@@ -45,44 +24,17 @@ class philox
         ull2* tmp      = reinterpret_cast<ull2*>(&counter_);
         tmp->y         = subsequence;
 
-        uint2 key_ = h_seed;
+        uint2 key_ = seed;
 // 7-round philox
 #pragma unroll
         for(int i = 0; i < 6; i++)
         {
-            counter_ = single_loop(counter_, key_);
+            counter_ = philox_single_round(counter_, key_);
             key_.x += kPhilox10A;
             key_.y += kPhilox10B;
         }
-        uint4 output = single_loop(counter_, key_);
+        uint4 output = philox_single_round(counter_, key_);
         return output;
-    }
-
-    __host__ __device__ void get_random_8x16(ushort* out)
-    {
-        uint4 tmp_ph;
-        tmp_ph = get_philox_4x32();
-
-        uint32_t* out_tmp = reinterpret_cast<uint32_t*>(&out[0]);
-
-        out_tmp[0] = tmp_ph.x;
-        out_tmp[1] = tmp_ph.y;
-        out_tmp[2] = tmp_ph.z;
-        out_tmp[3] = tmp_ph.w;
-    }
-
-    __host__ __device__ void get_random_8x16(ushort* out,
-                                             const unsigned long long subsequence) const
-    {
-        uint4 tmp_ph;
-        tmp_ph = get_philox_4x32(subsequence);
-
-        uint32_t* out_tmp = reinterpret_cast<uint32_t*>(&out[0]);
-
-        out_tmp[0] = tmp_ph.x;
-        out_tmp[1] = tmp_ph.y;
-        out_tmp[2] = tmp_ph.z;
-        out_tmp[3] = tmp_ph.w;
     }
 
     __host__ __device__ void get_random_16x8(uint8_t* out,
@@ -99,18 +51,6 @@ class philox
         out_tmp[3] = tmp_ph.w;
     }
 
-    __host__ __device__ void get_random_4x16(ushort* out,
-                                             const unsigned long long subsequence) const
-    {
-        uint4 tmp_ph;
-        tmp_ph = get_philox_4x32(subsequence);
-
-        out[0] = static_cast<ushort>(tmp_ph.x);
-        out[1] = static_cast<ushort>(tmp_ph.y);
-        out[2] = static_cast<ushort>(tmp_ph.z);
-        out[3] = static_cast<ushort>(tmp_ph.w);
-    }
-
     private:
     struct ull2
     {
@@ -118,22 +58,9 @@ class philox
         uint64_t y;
     };
     uint4 counter;
-    const uint2 h_seed;
+    const uint2 seed;
 
-    __host__ __device__ uint4 incr(uint4 ctr)
-    {
-
-        uint4 res;
-        res.x = ctr.x + 1;
-        res.y = ctr.y;
-        res.z = ctr.z;
-        res.w = ctr.w;
-        return res;
-    }
-
-    __host__ __device__ inline void incr() { counter = incr(counter); }
-
-    __host__ __device__ uint2 u32_high_low_multi(const unsigned int a, const unsigned int b) const
+    __host__ __device__ uint2 mulhilo32(const unsigned int a, const unsigned int b) const
     {
         uint2* res;
         unsigned long long tmp;
@@ -142,12 +69,12 @@ class philox
         return *res;
     }
 
-    __host__ __device__ inline uint4 single_loop(const uint4 ctr, const uint2 i_key) const
+    __host__ __device__ inline uint4 philox_single_round(const uint4 ctr, const uint2 key) const
     {
 
-        uint2 res0 = u32_high_low_multi(kPhiloxSA, ctr.x);
-        uint2 res1 = u32_high_low_multi(kPhiloxSB, ctr.z);
-        uint4 ret  = {res1.y ^ ctr.y ^ i_key.x, res1.x, res0.y ^ ctr.w ^ i_key.y, res0.x};
+        uint2 res0 = mulhilo32(kPhiloxSA, ctr.x);
+        uint2 res1 = mulhilo32(kPhiloxSB, ctr.z);
+        uint4 ret  = {res1.y ^ ctr.y ^ key.x, res1.x, res0.y ^ ctr.w ^ key.y, res0.x};
         return ret;
     }
 

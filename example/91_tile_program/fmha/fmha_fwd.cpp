@@ -75,9 +75,8 @@ auto create_args(int argc, char* argv[])
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed")
         .insert("p_drop", "0", "0~1 probability of dropout")
-        .insert("s_randval", "0", "0 will not save rand value of dropout, 1 save")
-        .insert("drop_seed", "1", "seed for random number maker")
-        .insert("drop_offset", "0", "offset for random number maker");
+        .insert("drop_seed", "1", "seed for random number generator")
+        .insert("drop_offset", "0", "offset for random number generator");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -151,13 +150,18 @@ bool run(const ArgParser& arg_parser)
     bool use_bias        = arg_parser.get_bool("bias");
     bool lse             = arg_parser.get_bool("lse");
     float p_drop         = arg_parser.get_float("p_drop");
-    bool s_randval       = arg_parser.get_bool("s_randval");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
         return false;
+    }
+
+    bool s_randval = false;
+    if(p_drop > 0.0f && do_validation)
+    {
+        s_randval = true;
     }
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
@@ -295,7 +299,6 @@ bool run(const ArgParser& arg_parser)
     DeviceMem o_buf(o_host.GetElementSpaceSizeInBytes());
     DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
-
     DeviceMem randval_buf(randval_host.GetElementSpaceSizeInBytes());
 
     q_buf.ToDevice(q_host.data());

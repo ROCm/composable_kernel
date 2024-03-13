@@ -21,7 +21,7 @@ void reference_batched_dropout(Tensor<DataType>& in_out_b_m_n,
             float tmp                 = ck::type_convert<float>(in_out_b_m_n(batch, m, n)) * scale;
             in_out_b_m_n(batch, m, n) = randval_b_m_n(batch, m, n) <= p_undrop_in_uint8_t
                                                  ? ck::type_convert<DataType>(tmp)
-                                                 : float(0);
+                                                 : DataType(0);
         }
     };
 

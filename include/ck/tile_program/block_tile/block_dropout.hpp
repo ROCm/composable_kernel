@@ -16,18 +16,17 @@ namespace block {
 
 struct BlockDropout
 {
-    __host__ __device__ BlockDropout(long_index_t global_idx_,
-                                     float p_dropout_rescale_,
-                                     uint8_t p_undrop_in_uint8_t_,
-                                     index_t total_n_len_,
+    __host__ __device__ BlockDropout(index_t i_batch,
+                                     index_t i_head,
+                                     index_t nheads,
                                      unsigned long long seed,
                                      unsigned long long offset,
+                                     float p_dropout_scale_,
+                                     uint8_t p_undrop_in_uint8_t_,
                                      bool is_store_randval_)
-        : global_idx(global_idx_),
-          p_dropout_rescale(p_dropout_rescale_),
+        : ph(seed, offset + (i_batch * nheads + i_head) * get_warp_size() + get_lane_id()),
+          p_dropout_scale(p_dropout_scale_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
-          total_n_len(total_n_len_),
-          ph(seed, 0, offset),
           is_store_randval(is_store_randval_)
     {
     }
@@ -37,18 +36,18 @@ struct BlockDropout
     MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                           index_t seqlen_k_start)
     {
-        using Problem        = remove_cvref_t<typename BlockGemm::Problem>;
-        constexpr index_t kM = Problem::BlockGemmShape::kM;
+        constexpr auto config =
+            BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
+        using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
+        constexpr index_t MWarp     = config.template At<1>();
+        constexpr index_t kMPerStep = MWarp * WG::kM;
+        constexpr index_t kNPerStep = WG::kN;
 
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
-
-        const auto block_origin  = randval_dram_block_window_tmp.GetWindowOrigin();
-        auto randval_dram_window = make_tile_window(
-            randval_dram_block_window_tmp.GetBottomTensorView(),
-            make_tuple(Number<kM>{}, Number<WG::kN>{}),
-            {block_origin.At(Number<0>{}), seqlen_k_start}, // M/N
-            BlockDropout::template MakeRandValSramPartTileDistribution<BlockGemm>());
+        const auto block_origin = randval_dram_block_window_tmp.GetWindowOrigin();
+        auto randval_dram_window =
+            make_tile_window(randval_dram_block_window_tmp.GetBottomTensorView(),
+                             make_tuple(Number<kMPerStep>{}, Number<kNPerStep>{}),
+                             {block_origin.At(Number<0>{}), seqlen_k_start}); // M/N
 
         return randval_dram_window;
     }
@@ -56,28 +55,24 @@ struct BlockDropout
     template <typename BlockGemm>
     __host__ __device__ static constexpr auto MakeRandValLdsBlockDescriptor()
     {
-        using Problem                = remove_cvref_t<typename BlockGemm::Problem>;
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
-
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
-
+        constexpr auto config =
+            BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
+        using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
+        constexpr index_t MWarp     = config.template At<1>();
+        constexpr index_t kMPerStep = MWarp * WG::kM;
         constexpr index_t kNPerStep = WG::kN;
         constexpr index_t kN1       = 8;
         constexpr index_t kN0       = kNPerStep / kN1;
-        static_assert(kNPerBlock % kNPerStep == 0,
-                      "kNPerStep must be evenly divided by kNPerBlock");
 
         constexpr auto randval_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(Number<kN0>{}, Number<kMPerBlock>{}, Number<kN1>{}),
-            make_tuple(Number<(kMPerBlock + 1) * kN1>{}, Number<kN1>{}, Number<1>{}),
+            make_tuple(Number<kN0>{}, Number<kMPerStep>{}, Number<kN1>{}),
+            make_tuple(Number<(kMPerStep + 1) * kN1>{}, Number<kN1>{}, Number<1>{}),
             Number<kN1>{},
             Number<1>{});
 
         constexpr auto randval_lds_block_desc = transform_tensor_descriptor(
             randval_lds_block_desc_0,
-            make_tuple(make_pass_through_transform(Number<kMPerBlock>{}),
+            make_tuple(make_pass_through_transform(Number<kMPerStep>{}),
                        make_merge_transform(make_tuple(Number<kN0>{}, Number<kN1>{}))),
             make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
             make_tuple(Sequence<0>{}, Sequence<1>{}));
@@ -86,28 +81,23 @@ struct BlockDropout
     }
 
     template <typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeRandValSramTileDistribution()
+    __host__ __device__ static constexpr auto MakeRandValTileDistribution()
     {
-        using Problem               = remove_cvref_t<typename BlockGemm::Problem>;
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-
-        using WG = remove_cvref_t<decltype(config.template At<0>())>;
-
+        constexpr auto config =
+            BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
+        using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
+        constexpr index_t MWarp     = config.template At<1>();
         constexpr index_t kNPerStep = WG::kN;
-        constexpr index_t kN1       = 1;
-        constexpr index_t kN0       = kNPerStep / kN1;
 
+        constexpr index_t kN1 = 1;
+        constexpr index_t kN0 = kNPerStep / kN1;
         constexpr index_t kM3 = 8;
         constexpr index_t kM2 = get_warp_size() / kN0;
         constexpr index_t kM1 = 2;
-        constexpr index_t kM0 = MPerBlock / (kM1 * kM2 * kM3);
+        constexpr index_t kM0 = MWarp;
+        static_assert(kM1 * kM2 * kM3 == WG::kM, "kM1 * kM2 * kM3 must equal to WG::kM");
 
-        static_assert(NPerBlock % kNPerStep == 0, "kNPerStep must be evenly divided by NPerBlock");
-
-        // Construct Drop-Block-Tensor
+        // construct randval tile, distribution like bwd.
         constexpr auto randval_block_dstr_encoding =
             StaticTileDistributionEncoding<Sequence<>,
                                            Tuple<Sequence<kM0, kM1, kM2, kM3>, Sequence<kN0, kN1>>,
@@ -123,17 +113,16 @@ struct BlockDropout
     }
 
     template <typename BlockGemm>
-    __host__ __device__ static constexpr auto MakeRandValSramPartTileDistribution()
+    __host__ __device__ static constexpr auto MakeRandValLdsShuffleTileDistribution()
     {
         constexpr auto config =
             BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
-
         using WG                = remove_cvref_t<decltype(config.template At<0>())>;
         constexpr index_t MWarp = config.template At<1>();
         constexpr index_t NWarp = config.template At<2>();
 
-        constexpr index_t MIterPerWarp = BlockGemm::BlockGemmShape::kM / (MWarp * WG::kM);
-        constexpr index_t NIterPerWarp = 1; // only a part s_acc distribution
+        constexpr index_t MIterPerWarp = 1;
+        constexpr index_t NIterPerWarp = 1;
 
         constexpr auto randval_block_outer_part_dstr_encoding = StaticTileDistributionEncoding<
             Sequence<>,
@@ -151,6 +140,7 @@ struct BlockDropout
     }
 
     template <typename BlockGemm,
+              typename PComputeDataType,
               typename RandValOutputDataType,
               typename PComputeWindow,
               typename RandValDramWindow>
@@ -159,15 +149,17 @@ struct BlockDropout
                                  PComputeWindow& p_compute,
                                  RandValDramWindow& randval_dram_window) const
     {
-        using Problem               = remove_cvref_t<typename BlockGemm::Problem>;
-        using BlockGemmShape        = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
-        static constexpr index_t kN = BlockGemmShape::kN;
+        constexpr auto config =
+            BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
+        using WG                     = remove_cvref_t<decltype(config.template At<0>())>;
+        constexpr index_t MWarp      = config.template At<1>();
+        using BlockGemmShape         = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
+        constexpr index_t kMPerBlock = BlockGemmShape::kM;
+        constexpr index_t kNPerBlock = BlockGemmShape::kN;
+        constexpr index_t kMPerStep  = MWarp * WG::kM;
+        constexpr index_t kNPerStep  = WG::kN;
 
-        // Block GEMM
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
-
-        // rand val tile in LDS
+        // randval tile in LDS
         auto randval_lds = make_tensor_view<AddressSpaceEnum::Lds>(
             reinterpret_cast<uint8_t*>(randval_ptr), MakeRandValLdsBlockDescriptor<BlockGemm>());
 
@@ -175,72 +167,77 @@ struct BlockDropout
             randval_lds, MakeRandValLdsBlockDescriptor<BlockGemm>().GetLengths(), {0, 0});
 
         // register distribute
-        auto randval_distr_generated =
-            make_static_distributed_tensor<uint8_t>(MakeRandValSramTileDistribution<BlockGemm>());
+        auto randval_dist_generated =
+            make_static_distributed_tensor<uint8_t>(MakeRandValTileDistribution<BlockGemm>());
 
         auto randval_lds_read_window =
             make_tile_window(randval_lds_window.GetBottomTensorView(),
                              randval_lds_window.GetWindowLengths(),
                              randval_lds_window.GetWindowOrigin(),
-                             MakeRandValSramPartTileDistribution<BlockGemm>());
+                             MakeRandValLdsShuffleTileDistribution<BlockGemm>());
 
-        constexpr index_t kNPerStep = WG::kN;
-        static_for<0, kN / kNPerStep, 1>{}([&](auto i_n0) {
-            auto warp_id  = get_warp_id();
-            auto lane_idx = get_lane_id();
-            auto idx_n    = lane_idx % kNPerStep + i_n0 * kNPerStep + start_n0_idx;
-            auto idx_m    = (lane_idx / kNPerStep) * 8 + warp_id * WG::kM;
-            const uint64_t element_global_1d_id = idx_m * total_n_len + idx_n + global_idx;
+        const int start_m0_idx = randval_dram_window.GetWindowOrigin().At(Number<0>{});
+        static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
+            static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
+                int block_row_start = (start_m0_idx / WG::kM) + (i_m0 * MWarp) + get_warp_id();
+                int block_col_start = (start_n0_idx / WG::kN) + i_n0;
+                uint2 rowcol        = make_uint2(block_row_start, block_col_start);
 
-            // generate random number
-            uint8_t tmp[16];
-            ph.get_random_16x8(tmp, element_global_1d_id);
+                // generate random number
+                uint8_t random_uint8_t[16];
+                ph.get_random_16x8(random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol));
 
-            static_assert(randval_distr_generated.kThreadElementSpaceSize == 16, "Wrong!");
-            constexpr auto randval_distr_generated_spans =
-                decltype(randval_distr_generated)::GetDistributedSpans();
-            int i_random_idx = 0;
-            sweep_tile_span(randval_distr_generated_spans[Number<0>{}], [&](auto idx0) {
-                sweep_tile_span(randval_distr_generated_spans[Number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx           = make_tuple(idx0, idx1);
-                    randval_distr_generated(i_j_idx) = type_convert<uint8_t>(tmp[i_random_idx++]);
+                static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
+                constexpr auto randval_dist_generated_spans =
+                    decltype(randval_dist_generated)::GetDistributedSpans();
+                int i_random_idx = 0;
+                sweep_tile_span(randval_dist_generated_spans[Number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(randval_dist_generated_spans[Number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx          = make_tuple(idx0, idx1);
+                        randval_dist_generated(i_j_idx) = random_uint8_t[i_random_idx++];
+                    });
                 });
-            });
-            // save to LDS
-            store_tile(randval_lds_window, randval_distr_generated);
-            block_sync_lds(); // wait data save to LDS
-            // read form LDS to register
-            auto randval_for_dropping = load_tile(randval_lds_read_window);
-            constexpr auto randval_for_dropping_spans =
-                decltype(randval_for_dropping)::GetDistributedSpans();
-            sweep_tile_span(randval_for_dropping_spans[Number<0>{}], [&](auto idx0) {
-                sweep_tile_span(randval_for_dropping_spans[Number<1>{}], [&](auto idx1) {
-                    constexpr auto second_ =
-                        TileDistributedIndex<i_n0, idx1.impl_.At(1), idx1.impl_.At(2)>{};
-                    constexpr auto p_idx = make_tuple(idx0, second_);
-                    constexpr auto d_idx = make_tuple(idx0, idx1);
-                    p_compute(p_idx)     = randval_for_dropping[d_idx] <= p_undrop_in_uint8_t
-                                               ? p_compute[p_idx] * p_dropout_rescale
-                                               : float(0);
+                // save to LDS
+                store_tile(randval_lds_window, randval_dist_generated);
+                block_sync_lds();
+                // read from LDS to register
+                auto randval                 = load_tile(randval_lds_read_window);
+                constexpr auto randval_spans = decltype(randval)::GetDistributedSpans();
+                sweep_tile_span(randval_spans[Number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(randval_spans[Number<1>{}], [&](auto idx1) {
+                        constexpr auto p_idx0 = TileDistributedIndex<i_m0>{};
+                        constexpr auto p_idx1 =
+                            TileDistributedIndex<i_n0, idx1.impl_.At(1), idx1.impl_.At(2)>{};
+                        constexpr auto p_idx = make_tuple(p_idx0, p_idx1);
+                        constexpr auto r_idx = make_tuple(idx0, idx1);
+                        p_compute(p_idx)     = randval[r_idx] <= p_undrop_in_uint8_t
+                                                   ? p_compute[p_idx] * p_dropout_scale
+                                                   : PComputeDataType(0);
+                    });
                 });
+                // save to Global
+                if(is_store_randval)
+                {
+                    const auto randval_store = cast_tile<RandValOutputDataType>(randval);
+                    store_tile(randval_dram_window, randval_store);
+                    move_tile_window(randval_dram_window, {0, kNPerStep});
+                }
             });
-            // save to Global
             if(is_store_randval)
             {
-                const auto randval_store = cast_tile<RandValOutputDataType>(randval_for_dropping);
-                store_tile(randval_dram_window, randval_store);
-                __builtin_amdgcn_sched_barrier(0);
-                move_tile_window(randval_dram_window, {0, WG::kN});
+                move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
             }
         });
+        if(is_store_randval)
+        {
+            move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
+        }
     }
 
-    long_index_t global_idx;
-    float p_dropout_rescale;
-    uint8_t p_undrop_in_uint8_t;
-    index_t total_n_len;
     ck::philox ph;
-    bool is_store_randval = false;
+    const float p_dropout_scale;
+    const uint8_t p_undrop_in_uint8_t;
+    const bool is_store_randval;
 };
 
 } // namespace block

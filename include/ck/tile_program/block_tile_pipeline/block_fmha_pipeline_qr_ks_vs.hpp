@@ -418,7 +418,7 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
-                dropout.Run<decltype(gemm_0), RandValOutputDataType>(
+                dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window);
             }
 

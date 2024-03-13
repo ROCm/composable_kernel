@@ -126,7 +126,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      ck::index_t mask_x,
                                      float p_drop,
                                      bool s_randval,
-                                     std::tuple<uint64_t, uint64_t>& drop_seeds)
+                                     std::tuple<uint64_t, uint64_t>& drop_seed_offset)
 {
     constexpr bool is_v_rowmajor =
         ck::is_same_v<typename FmhaKernel::VLayout, ck::tensor_layout::gemm::RowMajor>;
@@ -183,9 +183,9 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          seqstart_q_ptr,
                                          seqstart_k_ptr,
                                          seqlen_k_ptr,
-                                         batch,
                                          hdim_q,
                                          hdim_v,
+                                         nhead,
                                          nhead / nhead_k,
                                          scale,
                                          stride_q,
@@ -207,7 +207,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          descale_sv,
                                          p_drop,
                                          s_randval,
-                                         drop_seeds);
+                                         drop_seed_offset);
         }
         else
         { // create batch mode kernel arguments
@@ -251,7 +251,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          descale_sv,
                                          p_drop,
                                          s_randval,
-                                         drop_seeds);
+                                         drop_seed_offset);
         }
     }();
 
@@ -290,7 +290,7 @@ struct fmha_fwd_args
     ck::index_t mask_x;
     float p_drop;
     bool s_randval;
-    std::tuple<uint64_t, uint64_t> drop_seeds;
+    std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
 
 template <typename FmhaKernel>
@@ -324,7 +324,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                                        args.mask_x,
                                                        args.p_drop,
                                                        args.s_randval,
-                                                       args.drop_seeds);
+                                                       args.drop_seed_offset);
 }
 
 // this is internal API, will be generated across different files to speedup compile
@@ -361,6 +361,6 @@ struct fmha_fwd_traits
     mask_enum mask_type;
     bool has_bias;
     bool has_lse;
-    bool has_drop;
+    bool has_dropout;
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const StreamConfig&);

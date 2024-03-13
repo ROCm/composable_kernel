@@ -78,18 +78,18 @@ struct BlockFmhaPipelineQRKSVSFp8
               typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp>
     __host__ __device__ auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
-               LSEDramBlockWindowTmp& /*lse_dram_window_tmp*/,           // not supported
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,           // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,           // N0*K0 tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,           // N1*K1 tile
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,     // M0*N0 tile
+               RandValDramBlockWindowTmp& /*randval_dram_block_window_tmp*/, // not supported
+               LSEDramBlockWindowTmp& /*lse_dram_window_tmp*/,               // not supported
                FmhaMask mask,
                float scale,
                float descale_qk,
                float descale_sv,
                void* smem_ptr,
-               BlockDropout& dropout) const
+               BlockDropout& /*dropout*/) const // not supported
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -184,9 +184,6 @@ struct BlockFmhaPipelineQRKSVSFp8
             bias_dram_block_window_tmp.GetWindowLengths(),
             {bias_origin.At(Number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
-
-        auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.GetBottomTensorView(),
@@ -399,12 +396,6 @@ struct BlockFmhaPipelineQRKSVSFp8
                     o_acc(i_j_idx) *= tmp;
                 });
             });
-
-            if constexpr(kHasDropout)
-            {
-                dropout.Run<decltype(gemm_0), RandValOutputDataType>(
-                    smem_ptr, i_total_loops * kN0, p_compute, randval_dram_window);
-            }
 
             block_sync_lds();
             if constexpr(ck::is_same_v<VLayout, ck::tensor_layout::gemm::RowMajor>)
