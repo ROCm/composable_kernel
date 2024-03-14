@@ -1,4 +1,3 @@
-#ONLY XDL_INSTANCES
 add_instance_library(device_grouped_gemm_multiple_d_instance
    device_grouped_gemm_multiple_d_splitk_xdl_cshuffle_f16_f16_f16_mk_nk_mn_irregular_instance.cpp
    device_grouped_gemm_multiple_d_splitk_xdl_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instance.cpp

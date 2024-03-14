@@ -7,7 +7,6 @@
 #include <sstream>
 #include <tuple>
 
-#include "ck/ck.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
@@ -129,7 +128,8 @@ __global__ void
         const auto StrideA = gemm_desc_ptr[group_id].StrideA;
         const auto StrideB = gemm_desc_ptr[group_id].StrideB;
 
-        auto& results_buffer = gridwise_gemm.GetCThreadBuffer();
+        using VGPRBufferT   = remove_cvref_t<decltype(GridwiseGemm::GetCThreadBuffer())>;
+        auto results_buffer = VGPRBufferT{};
         b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
         results_buffer.Clear();
 
@@ -150,7 +150,8 @@ __global__ void
                                                               StrideA,
                                                               StrideB,
                                                               k_batch,
-                                                              b2c_tile_map);
+                                                              b2c_tile_map,
+                                                              results_buffer);
 
         } while(work_scheduler.GetNextTile() && b2c_tile_map.GetNextKTileIdx());
 
@@ -161,7 +162,7 @@ __global__ void
         // if (changed group_id || next [M,N] tile)
         if(!b2c_tile_map.IsFirstKSplitBlock())
         {
-            gridwise_gemm.StorePartials(p_workspace);
+            gridwise_gemm.StorePartials(p_workspace, results_buffer);
         }
 
         work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
@@ -176,7 +177,7 @@ __global__ void
             // Accumulate only when there is at least two workgroups processing splitk data-tiles
             // across same MN-output tile.
             if(neighbour_count > 1)
-                gridwise_gemm.AccumulatePartials(p_workspace, neighbour_count);
+                gridwise_gemm.AccumulatePartials(p_workspace, results_buffer, neighbour_count);
 
             // Signal waiting blocks that they can start use their workspace.
             work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
@@ -203,7 +204,8 @@ __global__ void
                                             stride_ds,
                                             stride_e,
                                             cde_element_op,
-                                            b2c_tile_map);
+                                            b2c_tile_map,
+                                            results_buffer);
         }
         else if(work_scheduler.HasTile())
         {
