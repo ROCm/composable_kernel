@@ -117,7 +117,9 @@ def getDockerImage(Map conf=[:]){
     {
         echo "Pulling down image: ${image}"
         retimage = docker.image("${image}")
-        retimage.pull()
+        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+            retimage.pull()
+        }
     }
     catch(Exception ex)
     {
