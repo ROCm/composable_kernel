@@ -41,6 +41,7 @@ chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache
 ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
 
 # Install dependencies
+# hipTensor requires rocm-llvm-dev for rocm versions > 6.0.1
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     build-essential \
     cmake \
@@ -60,6 +61,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-dev \
     python3-pip \
     redis \
+    rocm-llvm-dev \
     sshpass \
     stunnel \
     software-properties-common \
@@ -73,6 +75,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Update the cmake to version 3.27.5
+RUN pip install --upgrade cmake==3.27.5
+
 #Install latest ccache
 RUN git clone https://github.com/ccache/ccache.git && \
     cd ccache && mkdir build && cd build && cmake .. && make install
@@ -82,8 +87,6 @@ RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releas
 RUN gunzip /usr/local/bin/ninja.gz
 RUN chmod a+x /usr/local/bin/ninja
 RUN git clone https://github.com/nico/ninjatracing.git
-# Update the cmake to the latest version
-RUN pip install --upgrade cmake==3.27.5
 
 #Install latest cppcheck
 RUN git clone https://github.com/danmar/cppcheck.git && \
