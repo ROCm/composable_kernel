@@ -396,6 +396,7 @@ TEST_CASE(test_problem_kernel)
                                           static_cast<int>(prob.G * prob.C)};
     std::array<ck::index_t, 5> out_strides{static_cast<int>(prob.K),
                                            static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
+
                                            1,
                                            static_cast<int>(prob.Wo * prob.G * prob.K),
 
@@ -445,6 +446,8 @@ TEST_CASE(test_problem_kernel)
     auto out = generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2);
     auto in  = generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0);
     auto wei = generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1);
+    std::cout << "Sizes: " << get_num_elems(in_lengths) << ", " << get_num_elems(wei_lengths)
+              << ", " << get_num_elems(out_lengths) << std::endl;
     std::cout << "buf sizes" << std::endl;
     std::cout << out.size() << std::endl;
     std::cout << in.size() << std::endl;
@@ -501,6 +504,10 @@ TEST_CASE(test_problem_kernel)
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
         auto block_size = 256; // TODO(Amber): pick from DeviceConv template params
 
+        // print arg kernels - host_side
+        arg.Print();
+        // DeviceConv.Print(arg);
+
         k.launch(nullptr, grid_size * block_size, block_size)(
             arg.p_as_grid_,
             arg.p_bs_grid_,
@@ -544,11 +551,14 @@ TEST_CASE(test_problem_kernel)
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   CDEElementOp{1.0f, 1.0f});
+        std::cout << "Ref args" << std::endl;
+        ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
         bool pass = true;
         auto res  = rtc::from_gpu(out_dev);
+        // LogRangeAsType<float>(std::cout << "out  : ", out_host.mData, ",") << std::endl;
         std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
         ofh2 << "Check: " << pass << std::endl;
@@ -559,7 +569,9 @@ TEST_CASE(test_problem_kernel)
             ofh2 << std::to_string(static_cast<int>(tmp));
         }
         ofh2.close();
-        CHECK(report(solution, check(res)));
+        assert(pass);
+
+        // CHECK(report(solution, check(res)));
     }
 }
 

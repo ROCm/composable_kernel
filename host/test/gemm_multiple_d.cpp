@@ -189,6 +189,7 @@ TEST_CASE(test_problem_kernel)
         auto grid_size      = ck::host::integer_divide_ceil(prob.M, m_per_block) *
                          ck::host::integer_divide_ceil(prob.N, n_per_block);
         k.launch(nullptr, grid_size * block_size, block_size)(a.data(), b.data(), c.data());
+
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }

@@ -30,6 +30,7 @@ struct PassThroughPack2
 
 struct PassThrough
 {
+    __host__ __device__ const char* type_name() const { return "PassThrough"; }
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 

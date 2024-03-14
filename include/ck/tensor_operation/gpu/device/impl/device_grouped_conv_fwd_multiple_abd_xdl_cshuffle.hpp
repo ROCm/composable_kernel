@@ -112,6 +112,11 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
+    /**size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+    if(i < static_cast<int>(*(p_e_grid))){
+        p_e_grid[i] = 3;
+    }**/
+
     if constexpr(isMultiA || isMultiB)
     {
         AsPointer p_as_grid_grp;
@@ -685,14 +690,37 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 }
             }
         }
+        template <typename T>
+        std::string type()
+        {
+            return typeid(T).name();
+        }
 
         void Print() const
         {
+            std::cout << "A ptr: " << std::to_string(static_cast<int>(*(p_as_grid_[I0])))
+                      << std::endl;
+            std::cout << "B ptr: " << std::to_string(static_cast<int>(*(p_bs_grid_[I0])))
+                      << std::endl;
+            std::cout << "Ds ptr: " << p_ds_grid_.Size() << std::endl;
+            std::cout << "E ptr: " << std::to_string(static_cast<int>(*(p_e_grid_))) << std::endl;
             std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
+            std::cout << "A[M, K0]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
             std::cout << "B[N, K]: " << b_grid_desc_n_k_ << std::endl;
+            std::cout << "B[N, K0]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
             static_for<0, NumDTensor, 1>{}(
                 [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                std::cout << "Ds[MBlock]: " << ds_grid_desc_mblock_mperblock_nblock_nperblock_[i]
+                          << std::endl;
+            });
             std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
+            std::cout << "E[MBlock]: " << e_grid_desc_mblock_mperblock_nblock_nperblock_
+                      << std::endl;
+            std::cout << "Batcn num: " << std::to_string(num_group_) << std::endl;
+            std::cout << "A_op: " << typeid(decltype(a_element_op_)).name() << std::endl;
+            std::cout << "B_op: " << typeid(decltype(b_element_op_)).name() << std::endl;
+            std::cout << "CDE_op: " << typeid(decltype(cde_element_op_)).name() << std::endl;
         }
 
         //  private:
