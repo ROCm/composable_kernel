@@ -231,7 +231,7 @@ def main():
     sql_hostname = '127.0.0.1'
     sql_username = os.environ["dbuser"]
     sql_password = os.environ["dbpassword"]
-    sql_main_database = 'ck_perf'
+    sql_main_database = os.environ["ck_perf_db"]
     sql_port = 3306
     ssh_host = os.environ["dbsship"]
     ssh_user = os.environ["dbsshuser"]
