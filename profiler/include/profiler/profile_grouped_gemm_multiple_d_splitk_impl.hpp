@@ -303,8 +303,9 @@ bool profile_ggemm_multid_splitk(int do_verification,
                         }
                     }
 
-                    std::cout << "Instance: " << gemm_name << " verification "
-                              << (instance_pass ? "SUCCEED" : "FAILED") << std::endl;
+                    std::cout << "Instance: " << gemm_name << " kbatch: " << kbatch_curr
+                              << " verification " << (instance_pass ? "SUCCEED" : "FAILED")
+                              << std::endl;
 
                     pass = pass && instance_pass;
                     // std::cout << ">>>>>CPU verification end!" << std::endl;
