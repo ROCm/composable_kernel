@@ -362,6 +362,26 @@ struct UnarySquare
     };
 };
 
+struct UnaryScaleSquare
+{
+    __host__ __device__ UnaryScaleSquare(float scale = 1.f) : scale_(scale) {}
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same_v<T, float> || is_same_v<T, half_t> || is_same_v<T, double> ||
+                          is_same_v<T, int32_t> || is_same_v<T, int8_t>
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+                          || is_same_v<T, int4_t>
+#endif
+                      ,
+                      "Data type is not supported by this operation!");
+        y = type_convert<T>(scale_ * type_convert<float>(x * x));
+    };
+
+    float scale_;
+};
+
 struct UnaryAbs
 {
     template <typename T>
