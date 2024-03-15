@@ -2,18 +2,25 @@
 
 Full documentation for Composable Kernel is not yet available.
 
-## (Unreleased) CK
+## CK for ROCm 6.1.0
 
 ### Fixes
-None
+* Reduced the build time for most GPU architectures (#1084)
+* Fixed some conversion issues for fp8 data type (#1099)
 
 ### Optimizations
-None
+* New performance optimizations for gemm operations on MI200 and MI300 architectures (#1135)
 
 ### Additions
+* Added generir instances for gemm xdl operations (#1161)
+* Added gamma and beta parameters for the layernorm and groupnorm bwd operations (#1133)
 * Introduced wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126)
+* Added an option to vary the number of warm-up cycles and iterations for ckProfiler (#1124)
 
 ### Changes
+None
+
+### Known issues 
 None
 
 ## CK for ROCm 6.0.0
