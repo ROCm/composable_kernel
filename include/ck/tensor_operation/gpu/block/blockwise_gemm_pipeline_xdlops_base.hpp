@@ -65,8 +65,8 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                       KPerBlock,
                                                       ABlockTransferSrcScalarPerVector,
                                                       BBlockTransferSrcScalarPerVector,
-                                                      KPack,
-                                                      KPack,
+                                                      A_K1,
+                                                      B_K1,
                                                       KPack,
                                                       KPack,
                                                       MRepeat,
@@ -334,8 +334,8 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         A_K1,
-                                                         A_K1>;
+                                                         KPack,
+                                                         KPack>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
                                                          FloatAB,
@@ -344,8 +344,8 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         B_K1,
-                                                         B_K1>;
+                                                         KPack,
+                                                         KPack>;
 
     AThreadCopy a_thread_copy_;
     BThreadCopy b_thread_copy_;
