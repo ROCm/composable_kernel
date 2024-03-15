@@ -494,9 +494,6 @@ def Build_CK(Map conf=[:]){
 
         def variant = env.STAGE_NAME
         def retimage
-        def navi_node = 0
-        def mi300_node = 0
-
         gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
@@ -509,14 +506,6 @@ def Build_CK(Map conf=[:]){
                         else{
                             echo "GPU is OK"
                         }
-                        if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') ){
-                            navi_node = 1
-                            echo "This is a Navi node"
-                        }
-                        if ( runShell('grep -n "gfx942" rocminfo.log') ){
-                            mi300_node = 1
-                            echo "This is MI300 node"
-                        }
                     }
                 }
             }
@@ -527,15 +516,27 @@ def Build_CK(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
+                    //check whether running on Navi or MI300 node
+                    def navi_node = 0
+                    def mi300_node = 0
+                    sh 'rocminfo | tee rocminfo.log'
+                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') ){
+                        navi_node = 1
+                        echo "This is a Navi node"
+                    }
+                    if ( runShell('grep -n "gfx942" rocminfo.log') ){
+                        mi300_node = 1
+                        echo "This is MI300 node"
+                    }
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
                         sh 'make -j check'
-                        if (navi_node == 0 ){
+                        if (params.RUN_PERFORMANCE_TESTS && navi_node == 0 && mi300_node == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                            //do not stash profiler on Navi nodes
+                            //do not stash profiler on Navi or MI300 nodes
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
-                           stash "ckProfiler.tar.gz"
+                           stash name: "ckProfiler.tar.gz"
                         }
                         if (params.RUN_FULL_QA && mi300_node == 0 ){
                            // build deb packages for all MI100/200/300 targets and prepare to export
@@ -543,7 +544,7 @@ def Build_CK(Map conf=[:]){
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
                            sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                           stash "ckprofiler_0.2.0_amd64.deb"
+                           stash name: "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
                     if (params.hipTensor_test && navi_node == 0 ){
