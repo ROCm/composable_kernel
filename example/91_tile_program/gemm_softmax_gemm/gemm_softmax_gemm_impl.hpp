@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,7 +14,7 @@
 #include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_problem.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
-#include "ck/tile_program/block_tile/block_gemm_areg_bgmem_creg_problem.hpp"
+#include "ck/tile_program/block_tile/block_gemm_problem.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bgmem_creg_v1.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v1_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
@@ -49,7 +49,7 @@ struct GemmSoftmaxGemmImpl
 
     // block gemm1
     using BlockGemm1 = ck::tile_program::block::BlockGemmARegBGmemCRegV1<
-        ck::tile_program::block::BlockGemmARegBGmemCRegProblem<
+        ck::tile_program::block::BlockGemmProblem<
             PDataType,
             VDataType,
             OaccDataType,

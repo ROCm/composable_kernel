@@ -9,7 +9,9 @@
 
 namespace ck {
 
-template <typename BufferView_, typename TensorDesc_>
+template <typename BufferView_,
+          typename TensorDesc_,
+          InMemoryDataOperationEnum DstInMemOp_ = InMemoryDataOperationEnum::Set>
 struct TensorView
 {
     using BufferView  = remove_reference_t<BufferView_>;
@@ -17,6 +19,7 @@ struct TensorView
     using TensorDesc  = remove_cvref_t<TensorDesc_>;
     using TensorIndex = Array<index_t, TensorDesc::GetNumOfTopDimension()>;
     using TensorCoord = decltype(make_tensor_coordinate(TensorDesc{}, TensorIndex{}));
+    static constexpr auto DstInMemOp = DstInMemOp_;
 
     __host__ __device__ constexpr TensorView() = default;
 
@@ -125,6 +128,21 @@ struct TensorView
             x);
     }
 
+    // X is vector of DataType.
+    // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
+    template <typename X,
+              typename enable_if<is_same_v<typename scalar_type<remove_cvref_t<X>>::type,
+                                           typename scalar_type<remove_cvref_t<DataType>>::type>,
+                                 bool>::type = false>
+    __host__ __device__ constexpr void UpdateVectorizedElements(const TensorCoord& coord,
+                                                                const X& x)
+    {
+        buf_.template Update<DstInMemOp, X>(
+            coord.GetOffset(),
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            x);
+    }
+
     __host__ __device__ void Print() const
     {
         printf("TensorView{");
@@ -162,7 +180,8 @@ __host__ __device__ constexpr auto make_tensor_view(DataType* p,
     return TensorView<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
 }
 
-template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
+template <AddressSpaceEnum BufferAddressSpace  = AddressSpaceEnum::Generic,
+          InMemoryDataOperationEnum DstInMemOp = InMemoryDataOperationEnum::Set,
           typename DataType,
           typename... Lengths,
           typename... Strides,
@@ -183,7 +202,7 @@ make_naive_tensor_view(DataType* p,
 
     auto buffer_view = make_buffer_view<BufferAddressSpace>(p, desc.GetElementSpaceSize());
 
-    return TensorView<decltype(buffer_view), decltype(desc)>{buffer_view, desc};
+    return TensorView<decltype(buffer_view), decltype(desc), DstInMemOp>{buffer_view, desc};
 }
 
 template <AddressSpaceEnum BufferAddressSpace = AddressSpaceEnum::Generic,
@@ -217,8 +236,9 @@ __host__ __device__ constexpr auto transform_tensor_view(const OldTensorView& ol
                                                 NewLowerDimensionOldVisibleIdss{},
                                                 NewUpperDimensionNewVisibleIdss{});
 
-    return TensorView<typename OldTensorView::BufferView, remove_cvref_t<decltype(new_desc)>>{
-        old_tensor_view.buf_, new_desc};
+    return TensorView<typename OldTensorView::BufferView,
+                      remove_cvref_t<decltype(new_desc)>,
+                      remove_cvref_t<OldTensorView>::DstInMemOp>{old_tensor_view.buf_, new_desc};
 }
 
 template <typename TensorView,

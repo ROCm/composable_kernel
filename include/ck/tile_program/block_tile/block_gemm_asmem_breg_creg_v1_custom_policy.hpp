@@ -22,7 +22,7 @@ template <typename AType_,
           typename CType_,
           typename BlockWarps_,
           typename WarpGemm_>
-struct BlockGemmARegBSmemCRegV2CustomPolicy
+struct BlockGemmASmemBRegCRegV1CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
     using BType = remove_cvref_t<BType_>;

@@ -17,9 +17,9 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-// Default policy for BlockGemmARegBSmemCRegV1
+// Default policy for BlockGemmASmemBRegCRegV1
 // Default policy class should not be templated, put template on member functions instead
-struct BlockGemmARegBSmemCRegV1DefaultPolicy
+struct BlockGemmASmemBRegCRegV1DefaultPolicy
 {
     template <typename Problem>
     __host__ __device__ static constexpr auto GetWarpGemmMWarpNWarp()
@@ -43,7 +43,7 @@ struct BlockGemmARegBSmemCRegV1DefaultPolicy
 
             // FIXME
             if constexpr(NumWarp == 4 && kMPerBlock % 128 == 0 &&
-                         kNPerBlock % 128 == 0 % kKPerBlock % 16 == 0)
+                        kNPerBlock % 128 == 0 % kKPerBlock % 16 == 0)
             {
                 return make_tuple(WarpGemmMfmaF16F16F32M32N32K8{}, 4, 1);
             }

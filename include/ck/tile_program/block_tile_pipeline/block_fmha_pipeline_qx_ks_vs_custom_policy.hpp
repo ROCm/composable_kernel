@@ -97,13 +97,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                          is_same_v<typename Problem::KDataType, half_t> &&
                          is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
                               is_same_v<typename Problem::KDataType, bhalf_t> &&
                               is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(Problem::kIsFp8)
             {
@@ -222,13 +222,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                          is_same_v<typename Problem::KDataType, half_t> &&
                          is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return warp::WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(is_same_v<typename Problem::QDataType, bhalf_t> &&
                               is_same_v<typename Problem::KDataType, bhalf_t> &&
                               is_same_v<typename Problem::SaccDataType, float>)
             {
-                return warp::WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return warp::WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(Problem::kIsFp8)
             {

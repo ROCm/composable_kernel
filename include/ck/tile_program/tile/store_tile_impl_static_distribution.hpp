@@ -43,5 +43,20 @@ store_tile_raw(TileWindowWithStaticDistribution<BottomTensorView_,
     tile_window.StoreRaw(dstr_tensor);
 }
 
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord,
+          typename DataType_>
+__device__ void
+update_tile(TileWindowWithStaticDistribution<BottomTensorView_,
+                                             WindowLengths_,
+                                             TileDistribution_,
+                                             NumCoord>& tile_window,
+            const StaticDistributedTensor<DataType_, TileDistribution_>& dstr_tensor)
+{
+    tile_window.Update(dstr_tensor);
+}
+
 } // namespace tile_program
 } // namespace ck

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,13 +10,12 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-// Problem Description for BlockGemmARegBSmemCReg
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           index_t kBlockSize_,
           typename BlockGemmShape_>
-struct BlockGemmARegBSmemCRegProblem
+struct BlockGemmProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
