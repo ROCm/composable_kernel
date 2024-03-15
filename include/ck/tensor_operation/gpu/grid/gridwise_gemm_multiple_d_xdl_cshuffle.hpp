@@ -457,7 +457,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
             printf("A_op: %s \n", a_element_op.type_name());
             printf("B_op: %s \n", b_element_op.type_name());
-            // printf("C_op: %s \n", static_cast<char>(cde_element_op));
             printf("A[M, K0]: %d, %d, %d \n",
                    a_grid_desc_ak0_m_ak1.GetLength(I0),
                    a_grid_desc_ak0_m_ak1.GetLength(I1),
@@ -472,14 +471,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                    static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2)),
                    static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I3)));
         }
-        /**std::cout << "B ptr: " << std::to_string(static_cast<int>(*(p_b_grid[I0])))
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            std::cout << "Ds[MBlock]: " << ds_grid_desc_mblock_mperblock_nblock_nperblock[i]
-                      << std::endl;
-        });
-        std::cout << "CDE_op: " << typeid(decltype(cde_element_op)).name() << std::endl;**/
 
-        /**const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -506,6 +499,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                           e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
         {
             return;
+        }
+        if(blockIdx.x == 0 && threadIdx.x == 0)
+        {
+            block_2_etile_map.Print();
         }
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
@@ -818,7 +815,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
-                 cde_element_op};
+                 ck::tensor_operation::element_wise::PassThrough{}};
 
             // space filling curve for threadwise C in VGPR before shuffle
             constexpr auto sfc_c_vgpr =
@@ -905,12 +902,12 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                         cde_lds_and_global_step);
                 }
             });
-        }**/
-        index_t i = blockIdx.x * blockDim.x + threadIdx.x;
+        }
+        /**index_t i = blockIdx.x * blockDim.x + threadIdx.x;
         if(i < static_cast<int>(*(p_e_grid)))
         {
             p_e_grid[i] = p_a_grid[i] + p_b_grid[i];
-        }
+        }**/
         if(blockIdx.x == 0 && threadIdx.x == 0)
         {
             printf("Device debug 2 \n");
@@ -1008,7 +1005,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                p_shared,
                                a_element_op,
                                b_element_op,
-                               cde_element_op,
+                               b_element_op,
                                a_grid_desc_ak0_m_ak1,
                                b_grid_desc_bk0_n_bk1,
                                ds_grid_desc_mblock_mperblock_nblock_nperblock,

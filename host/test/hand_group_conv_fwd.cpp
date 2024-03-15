@@ -201,7 +201,7 @@ const std::string conv_compile_check = R"__ck__(
       ck::Tuple<>, ck::tensor_layout::convolution::GNHWK, 
       ck::half_t, ck::half_t, float, ck::half_t, ck::Tuple<>, ck::half_t, 
       ck::tensor_operation::element_wise::PassThrough, 
-      ck::tensor_operation::element_wise::PassThrough, Prologue, 
+      ck::tensor_operation::element_wise::PassThrough, ck::tensor_operation::element_wise::PassThrough, 
       ck::tensor_operation::device::ConvolutionForwardSpecialization::Default, 
       ck::tensor_operation::device::GemmSpecialization::MNKPadding, 
       1, 256, 128, 256, 32, 8, 8, 32, 32, 2, 4, 
@@ -225,7 +225,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
     //
     const ck::tensor_operation::element_wise::PassThrough a_element_op,
     const ck::tensor_operation::element_wise::PassThrough b_element_op,
-    const Prologue cde_element_op,
+    const ck::tensor_operation::element_wise::PassThrough cde_element_op,
     const ck::index_t batch_count,
     const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
     const DeviceConv::BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
@@ -249,7 +249,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
                     ck::half_t,
                     ck::tensor_operation::element_wise::PassThrough,
                     ck::tensor_operation::element_wise::PassThrough,
-                    Prologue,
+                    ck::tensor_operation::element_wise::PassThrough,
                     DeviceConv::AGridDesc_AK0_M_AK1,
                     DeviceConv::BGridDesc_BK0_N_BK1,
                     DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -258,7 +258,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
 		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
 
                     // TODO(Amber): double check these bool flags
-                    false, // HasMainKBlockLoop
+                    ck::integral_constant<bool, true>{}, // HasMainKBlockLoop
                     false, // isMultiA
                     false> // isMultiB
                   (
@@ -293,8 +293,8 @@ TEST_CASE(test_problem_kernel)
     prob.X  = 3;
     prob.Hi = 71;
     prob.Wi = 71;
-    prob.Ho = 71;
-    prob.Wo = 71;
+    prob.Ho = 36;
+    prob.Wo = 36;
     check_all<ck::half_t> check;
     std::string prologue = R"(
     struct Prologue
@@ -322,7 +322,7 @@ TEST_CASE(test_problem_kernel)
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
 
-    using CDEElementOp = Prologue;
+    using CDEElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         2,
@@ -389,19 +389,18 @@ TEST_CASE(test_problem_kernel)
                                            static_cast<int>(prob.X)};
     std::array<ck::index_t, 5> d_lengths = {};
 
-    std::array<ck::index_t, 5> in_strides{static_cast<int>(prob.C),
+    std::array<ck::index_t, 5> in_strides{123887616,
                                           static_cast<int>(prob.Hi * prob.Wi * prob.G * prob.C),
                                           1,
                                           static_cast<int>(prob.Wi * prob.G * prob.C),
                                           static_cast<int>(prob.G * prob.C)};
-    std::array<ck::index_t, 5> out_strides{static_cast<int>(prob.K),
+    std::array<ck::index_t, 5> out_strides{42467328,
                                            static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
-
                                            1,
                                            static_cast<int>(prob.Wo * prob.G * prob.K),
 
                                            static_cast<int>(prob.G * prob.K)};
-    std::array<ck::index_t, 5> wei_strides{static_cast<int>(prob.K * prob.Y * prob.X * prob.C),
+    std::array<ck::index_t, 5> wei_strides{442368,
                                            static_cast<int>(prob.Y * prob.X * prob.C),
                                            1,
                                            static_cast<int>(prob.X * prob.C),
@@ -427,6 +426,14 @@ TEST_CASE(test_problem_kernel)
 
     auto in_tmp = get_num_elems(in_lengths);
     std::cout << std::to_string(in_tmp) << std::endl;
+    std::cout << "Lengths" << std::endl;
+    std::cout << in_lengths << std::endl;
+    std::cout << wei_lengths << std::endl;
+    std::cout << out_lengths << std::endl;
+    std::cout << "Strides" << std::endl;
+    std::cout << in_strides << std::endl;
+    std::cout << wei_strides << std::endl;
+    std::cout << out_strides << std::endl;
     // decltype(in)::foo = 1;
 
     auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
@@ -472,7 +479,7 @@ TEST_CASE(test_problem_kernel)
                                     input_right_pads,
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     ck::tensor_operation::element_wise::PassThrough{},
-                                    CDEElementOp{1.0f, 1.0f});
+                                    CDEElementOp{});
 
     constexpr ck::index_t NumATensor =
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
@@ -550,7 +557,7 @@ TEST_CASE(test_problem_kernel)
                                                   input_right_pads_,
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
-                                                  CDEElementOp{1.0f, 1.0f});
+                                                  CDEElementOp{});
         std::cout << "Ref args" << std::endl;
         ref_argument.Print();
 
