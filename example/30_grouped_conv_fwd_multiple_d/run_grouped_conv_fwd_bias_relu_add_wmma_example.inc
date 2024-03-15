@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 template <typename BiasLay, typename ResidualLay>
 struct LayoutSetting
@@ -279,8 +279,9 @@ bool run_grouped_conv_fwd_bias_relu_add_example(int argc, char* argv[])
     switch(conv_param.num_dim_spatial_)
     {
     // case 1: return run_grouped_conv_fwd_bias_relu_add<1>(config, conv_param);
-    case 2: return run_grouped_conv_fwd_bias_relu_add<2>(config, conv_param);
-    // case 3: return run_grouped_conv_fwd_bias_relu_add<3>(config, conv_param);
+    case 2:
+        return run_grouped_conv_fwd_bias_relu_add<2>(config, conv_param);
+        // case 3: return run_grouped_conv_fwd_bias_relu_add<3>(config, conv_param);
     }
 
     return false;
