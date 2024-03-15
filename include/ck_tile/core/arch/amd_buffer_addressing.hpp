@@ -413,7 +413,8 @@ struct buffer_store_if<8>
     {
         static_assert(sizeof(T) == 8);
         auto save_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t   = fp32x2_t;
+        // TODO: ugly. rocm-6.0/6.1 seems neet bit_cast to same base type to avoid scratch
+        using mbuf_t   = ext_vector_t<typename T::value_type::raw_type, T::size()>;
         asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
                      "buffer_store_dwordx2 %0, %1, %2, %3 offen offset:%4\n"
                      "s_mov_b64 exec %6"
