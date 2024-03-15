@@ -408,7 +408,7 @@ def runCKProfiler(Map conf=[:]){
 
 					dir("script"){
                         if (params.RUN_FULL_QA){
-                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm.log"
                             archiveArtifacts "perf_resnet50_N256.log"
                             archiveArtifacts "perf_resnet50_N4.log"
@@ -418,7 +418,6 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_conv_bwd_data.log"
                             archiveArtifacts "perf_gemm_bilinear.log"
                             archiveArtifacts "perf_reduction.log"
-                            archiveArtifacts "perf_splitK_gemm_verify.log"
                             archiveArtifacts "perf_splitK_gemm.log"
                             archiveArtifacts "perf_onnx_gemm.log"
                            // stash perf files to master
@@ -718,8 +717,8 @@ pipeline {
             description: "Run the cppcheck static analysis (default: OFF)")
         booleanParam(
             name: "RUN_PERFORMANCE_TESTS",
-            defaultValue: false,
-            description: "Run the performance tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the performance tests (default: ON)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
             defaultValue: true,
