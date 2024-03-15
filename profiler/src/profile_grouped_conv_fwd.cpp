@@ -81,8 +81,8 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using INT8 = int8_t;
-    using F8 = ck::f8_t;
-    using BF8 = ck::bf8_t;
+    using F8   = ck::f8_t;
+    using BF8  = ck::bf8_t;
 
     //
     using GNWC   = ck::tensor_layout::convolution::GNWC;
