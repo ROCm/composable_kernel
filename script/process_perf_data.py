@@ -133,11 +133,16 @@ def parse_logfile(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[4])
-    elif 'onnx_gemm' in logfile or 'splitK_gemm' in logfile or 'mixed_gemm' in logfile:
+    elif 'onnx_gemm' in logfile or 'mixed_gemm' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[33])
+    elif 'splitK_gemm' in logfile:
+        for line in open(logfile):
+            if 'Best Perf' in line:
+                lst=line.split()
+                res.append(lst[36])
     return res
 
 

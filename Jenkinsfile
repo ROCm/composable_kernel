@@ -420,6 +420,7 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_reduction.log"
                             archiveArtifacts "perf_splitK_gemm.log"
                             archiveArtifacts "perf_onnx_gemm.log"
+                            archiveArtifacts "perf_mixed_gemm.log"
                            // stash perf files to master
                             stash name: "perf_gemm.log"
                             stash name: "perf_resnet50_N256.log"
@@ -432,6 +433,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_reduction.log"
                             stash name: "perf_splitK_gemm.log"
                             stash name: "perf_onnx_gemm.log"
+                            stash name: "perf_mixed_gemm.log"
                             //we will process results on the master node
                         }
                         else{
@@ -631,6 +633,7 @@ def process_results(Map conf=[:]){
                         unstash "perf_reduction.log"
                         unstash "perf_splitK_gemm.log"
                         unstash "perf_onnx_gemm.log"
+                        unstash "perf_mixed_gemm.log"
                         sh "./process_qa_data.sh"
                         unstash "ckprofiler_0.2.0_amd64.deb"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
