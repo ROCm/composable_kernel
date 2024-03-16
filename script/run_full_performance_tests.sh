@@ -121,7 +121,7 @@ print_log_header $reduction_log $env_type $branch $host_name
 ./profile_reduce_no_index.sh $verify 2 10 --half 2>&1 | tee -a $reduction_log
 
 #run splitK_gemm tests, first correctness verification, then performance
-export splitK_gemm_log="perf_splitK_gemm_verify.log"
+export splitK_gemm_log="perf_splitK_gemm.log"
 print_log_header $splitK_gemm_log $env_type $branch $host_name
 ./profile_splitK_gemm.sh gemm_splitk 0 0 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_log
 ./profile_splitK_gemm.sh gemm_splitk 0 1 $verify 1 0 0 4 2>&1 | tee -a $splitK_gemm_log
