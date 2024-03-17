@@ -414,7 +414,7 @@ struct buffer_store_if<8>
         static_assert(sizeof(T) == 8);
         auto save_exec = __builtin_amdgcn_read_exec();
         // TODO: ugly. rocm-6.0/6.1 seems neet bit_cast to same base type to avoid scratch
-        using mbuf_t   = ext_vector_t<typename T::value_type::raw_type, T::size()>;
+        using mbuf_t = ext_vector_t<typename T::value_type, T::size()>;
         asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
                      "buffer_store_dwordx2 %0, %1, %2, %3 offen offset:%4\n"
                      "s_mov_b64 exec %6"
@@ -1778,7 +1778,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
     thread_buffer<T, N> tmp =
         amd_buffer_load_impl<T, N, coherence>(src_wave_buffer_resource, src_thread_addr_offset, 0);
     if constexpr(oob_conditional_check)
-        return src_thread_element_valid ? tmp : thread_buffer<T, N>{0};
+        return src_thread_element_valid ? tmp : thread_buffer<T, N>{numeric<T>::zero()};
     else
         return tmp;
 #endif

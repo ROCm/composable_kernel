@@ -18,7 +18,7 @@ CK_TILE_HOST void reference_batched_softmax(
     const int N = a_b_m_n.mDesc.get_lengths()[2];
 
     auto f = [&](auto batch, auto m) {
-        CompDataType v_max = -ck_tile::numeric_limits<CompDataType>::infinity();
+        CompDataType v_max = -ck_tile::numeric<CompDataType>::infinity();
 
         // max
         for(int n = 0; n < N; ++n)

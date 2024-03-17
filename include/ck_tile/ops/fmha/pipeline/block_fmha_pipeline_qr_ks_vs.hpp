@@ -190,7 +190,7 @@ struct BlockFmhaPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric_limits<SMPLComputeDataType>::infinity());
+        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
         const auto q_origin = q_dram_window.get_window_origin();
@@ -209,7 +209,7 @@ struct BlockFmhaPipelineQRKSVS
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -numeric_limits<SMPLComputeDataType>::infinity());
+                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
@@ -347,15 +347,12 @@ struct BlockFmhaPipelineQRKSVS
                                                            number<kN0>{});
                 if(need_perpixel_check)
                 {
-                    set_tile_if(s_acc,
-                                -numeric_limits<SMPLComputeDataType>::infinity(),
-                                [&](auto tile_idx) {
-                                    const auto row =
-                                        q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                                    const auto col =
-                                        k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                                    return mask.IsOutOfBound(row, col);
-                                });
+                    set_tile_if(
+                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                            return mask.IsOutOfBound(row, col);
+                        });
                 }
             }
 
@@ -364,7 +361,7 @@ struct BlockFmhaPipelineQRKSVS
                 s,
                 sequence<1>{},
                 f_max,
-                -numeric_limits<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
+                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
@@ -379,7 +376,7 @@ struct BlockFmhaPipelineQRKSVS
                 /// consideration
                 if constexpr(kHasBias || FmhaMask::IsMasking)
                 {
-                    return raw_m == -numeric_limits<SMPLComputeDataType>::infinity()
+                    return raw_m == -numeric<SMPLComputeDataType>::infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
                                : raw_m;
                 }

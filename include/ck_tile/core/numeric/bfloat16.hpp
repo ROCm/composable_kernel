@@ -3,10 +3,9 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
-#include "ck_tile/core/numeric/arithmetic.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
-#include "ck_tile/core/utility/limits.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
 #include <stdint.h>
 
 #pragma once
@@ -22,18 +21,19 @@ enum class bf16_rounding_mode
 
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
-CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding> = {});
+CK_TILE_HOST_DEVICE constexpr uint16_t float_to_bf16_raw(float f, constant<rounding> = {});
 
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
-CK_TILE_HOST_DEVICE uint16_t double_to_bf16_raw(double f, constant<rounding> = {});
+CK_TILE_HOST_DEVICE constexpr uint16_t double_to_bf16_raw(double f, constant<rounding> = {});
 
 CK_TILE_HOST_DEVICE
-float bf16_to_float_raw(uint16_t x);
+constexpr float bf16_to_float_raw(uint16_t x);
 
 CK_TILE_HOST_DEVICE
-double bf16_to_double_raw(uint16_t x);
+constexpr double bf16_to_double_raw(uint16_t x);
 
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
 // HIP use __hip_bfloat16 as struct
 struct alignas(2) bfloat16_t
 {
@@ -89,13 +89,24 @@ struct alignas(2) bfloat16_t
     CK_TILE_HOST_DEVICE
     constexpr raw_type get() const { return data; }
 };
+template <typename>
+struct native_t;
 
+template <>
+struct native_t<bfloat16_t>
+{
+    using type = ushort;
+};
 using bf16_t     = bfloat16_t;
 using bf16_raw_t = typename bf16_t::raw_type;
-
+#else
+using bfloat16_t = ushort;
+using bf16_t     = bfloat16_t;
+using bf16_raw_t = uint16_t;
+#endif
 // round to nearest
 CK_TILE_HOST_DEVICE
-uint16_t float_to_bf16_rtn_raw(float f)
+constexpr uint16_t float_to_bf16_rtn_raw(float f)
 {
     union
     {
@@ -139,7 +150,7 @@ uint16_t float_to_bf16_rtn_raw(float f)
 
 // Truncate instead of rounding, preserving SNaN
 CK_TILE_HOST_DEVICE
-uint16_t float_to_bf16_truc_nan_raw(float f)
+constexpr uint16_t float_to_bf16_truc_nan_raw(float f)
 {
     union
     {
@@ -151,7 +162,7 @@ uint16_t float_to_bf16_truc_nan_raw(float f)
 
 // Fast truncate instead of rounding, RTZ
 CK_TILE_HOST_DEVICE
-uint16_t float_to_bf16_truc_raw(float f)
+constexpr uint16_t float_to_bf16_truc_raw(float f)
 {
     union
     {
@@ -162,7 +173,7 @@ uint16_t float_to_bf16_truc_raw(float f)
 }
 
 template <bf16_rounding_mode rounding>
-CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding>)
+CK_TILE_HOST_DEVICE constexpr uint16_t float_to_bf16_raw(float f, constant<rounding>)
 {
     if constexpr(rounding == bf16_rounding_mode::standard)
         return float_to_bf16_rtn_raw(f);
@@ -173,13 +184,13 @@ CK_TILE_HOST_DEVICE uint16_t float_to_bf16_raw(float f, constant<rounding>)
 }
 
 template <bf16_rounding_mode rounding>
-CK_TILE_HOST_DEVICE uint16_t double_to_bf16_raw(double f, constant<rounding>)
+CK_TILE_HOST_DEVICE constexpr uint16_t double_to_bf16_raw(double f, constant<rounding>)
 {
     return float_to_bf16_raw(static_cast<float>(f), constant<rounding>{});
 }
 
 CK_TILE_HOST_DEVICE
-float bf16_to_float_raw(uint16_t x)
+constexpr float bf16_to_float_raw(uint16_t x)
 {
     union
     {
@@ -190,100 +201,118 @@ float bf16_to_float_raw(uint16_t x)
 }
 
 CK_TILE_HOST_DEVICE
-double bf16_to_double_raw(uint16_t x) { return static_cast<double>(bf16_to_float_raw(x)); }
-
-template <bf16_rounding_mode rounding =
-              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
-CK_TILE_HOST_DEVICE bfloat16_t float_to_bf16(float f, constant<rounding>)
+constexpr double bf16_to_double_raw(uint16_t x)
 {
-    return bfloat16_t::bit_cast(float_to_bf16_raw(f, constant<rounding>{}));
+    return static_cast<double>(bf16_to_float_raw(x));
 }
 
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
-CK_TILE_HOST_DEVICE bfloat16_t double_to_bf16(double f, constant<rounding>)
+CK_TILE_HOST_DEVICE constexpr bfloat16_t float_to_bf16(float f, constant<rounding> = {})
 {
-    return bfloat16_t::bit_cast(double_to_bf16_raw(f, constant<rounding>{}));
+    return bit_cast<bfloat16_t>(float_to_bf16_raw(f, constant<rounding>{}));
 }
-
-CK_TILE_HOST_DEVICE
-float bf16_to_float(bfloat16_t x) { return static_cast<float>(x); }
-
-CK_TILE_HOST_DEVICE
-double bf16_to_double(bfloat16_t x) { return static_cast<double>(x); }
 
 template <bf16_rounding_mode rounding =
               static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
-CK_TILE_HOST_DEVICE bfloat16_t fp16_to_bf16(half_t f, constant<rounding> = {})
+CK_TILE_HOST_DEVICE constexpr bfloat16_t double_to_bf16(double f, constant<rounding> = {})
 {
-    return bfloat16_t::bit_cast(float_to_bf16_raw(static_cast<float>(f), constant<rounding>{}));
+    return bit_cast<bfloat16_t>(double_to_bf16_raw(f, constant<rounding>{}));
 }
 
 CK_TILE_HOST_DEVICE
-half_t bf16_to_fp16(bfloat16_t x) { return float_to_fp16(static_cast<float>(x)); }
+constexpr float bf16_to_float(bfloat16_t x) { return bf16_to_float_raw(bit_cast<uint16_t>(x)); }
+
+CK_TILE_HOST_DEVICE
+constexpr double bf16_to_double(bfloat16_t x) { return static_cast<double>(bf16_to_float_raw(x)); }
+
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
+CK_TILE_HOST_DEVICE bfloat16_t constexpr fp16_to_bf16(half_t f, constant<rounding> = {})
+{
+    return bit_cast<bfloat16_t>(float_to_bf16_raw(static_cast<float>(f), constant<rounding>{}));
+}
+
+CK_TILE_HOST_DEVICE
+constexpr half_t bf16_to_fp16(bfloat16_t x) { return static_cast<fp16_t>(static_cast<float>(x)); }
 
 template <class T>
-struct numeric_limits;
+struct numeric;
 
 template <>
-struct numeric_limits<bfloat16_t>
+struct numeric<bfloat16_t>
 {
     // minimum finite value, or minimum positive normalized value for float
-    CK_TILE_HOST_DEVICE static constexpr bfloat16_t min() { return bfloat16_t::bit_cast(0x0080); }
+    CK_TILE_HOST_DEVICE static constexpr bfloat16_t min()
+    {
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x0080));
+    }
 
     // minumum finite value
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t lowest()
     {
-        return bfloat16_t::bit_cast(0xff7f);
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0xff7f));
     }
 
     // maximum finite value
-    CK_TILE_HOST_DEVICE static constexpr bfloat16_t max() { return bfloat16_t::bit_cast(0x7f7f); }
+    CK_TILE_HOST_DEVICE static constexpr bfloat16_t max()
+    {
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x7f7f));
+    }
 
     // difference between 1.0 and next value representable by float
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t epsilon()
     {
-        return bfloat16_t::bit_cast(0x1000);
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x1000));
     }
 
     // maximum rounding error
-    CK_TILE_HOST_DEVICE static constexpr bfloat16_t round_error() { return bfloat16_t(0.5f); }
+    CK_TILE_HOST_DEVICE static constexpr bfloat16_t round_error() { return float_to_bf16(0.5f); }
 
     // positive infinity value
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t infinity()
     {
-        return bfloat16_t::bit_cast(0x7f80);
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x7f80));
     }
 
     // quiet NaN
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t quiet_NaN()
     {
-        return bfloat16_t::bit_cast(0x7FFF);
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x7FFF));
     }
 
     // signaling NaN
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t signaling_NaN()
     {
-        return bfloat16_t::bit_cast(0x7FFF);
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x7FFF));
     }
 
     // smallest positive subnormal value
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t denorm_min()
     {
-        return bfloat16_t::bit_cast(0x0001);
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x0001));
+    }
+    CK_TILE_HOST_DEVICE static constexpr bfloat16_t zero()
+    {
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0));
     }
 };
 
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
 CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, bfloat16_t)
+#endif
 
 // math
 CK_TILE_HOST_DEVICE
-bfloat16_t abs(const bfloat16_t& x) { return bfloat16_t::bit_cast(x.get() & 0x7fff); }
+bfloat16_t abs(const bfloat16_t& x)
+{
+    return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(bit_cast<bf16_raw_t>(x) & 0x7fff));
+}
 
 CK_TILE_HOST_DEVICE
 bool isnan(const bfloat16_t& x)
 {
-    uint16_t xx = x.get();
+    uint16_t xx = bit_cast<bf16_raw_t>(x);
     return (xx & 0x7FFF) > 0x7C00;
 }
 

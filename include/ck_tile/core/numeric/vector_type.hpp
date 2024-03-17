@@ -14,6 +14,17 @@
 
 namespace ck_tile {
 
+// this structure is used to pick up the <base> type inside
+// using xxx = <base> __attribute__((ext_vector_type(N)));
+// because clang only allow native type + bool in this term (custom type will fail)
+// overload this structure to let proper <base> type
+
+template <typename T>
+struct native_t
+{
+    using type = remove_cvref_t<T>;
+};
+
 // we name this as ext_vector purposely, because clang ext_vector_type extention only accept literay
 // basic type to construct a ext_vector_type you must be very careful using this, or will have lot
 // of compiler errors e.g. struct A; using Ax2_t = A __attribute__((ext_vector_type(2)));  -> will
@@ -23,7 +34,7 @@ template <typename T_, index_t N_>
 struct ext_vector
 {
     static constexpr index_t N = N_;
-    using value_type           = T_;
+    using value_type           = typename native_t<remove_cvref_t<T_>>::type;
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
@@ -52,10 +63,12 @@ struct vector_traits<T __attribute__((ext_vector_type(N)))>
 // below are some pre-defines of ext_vector_type
 // attention! 2 vector type could be just the same type
 // fp64
+using fp64_t   = double;
 using fp64x2_t = double __attribute__((ext_vector_type(2)));
 using fp64x4_t = double __attribute__((ext_vector_type(4)));
 
 // fp32
+using fp32_t    = float;
 using fp32x2_t  = float __attribute__((ext_vector_type(2)));
 using fp32x4_t  = float __attribute__((ext_vector_type(4)));
 using fp32x8_t  = float __attribute__((ext_vector_type(8)));
@@ -64,6 +77,7 @@ using fp32x32_t = float __attribute__((ext_vector_type(32)));
 using fp32x64_t = float __attribute__((ext_vector_type(64)));
 
 // fp16
+// using fp16_t = ...
 using fp16x2_t  = _Float16 __attribute__((ext_vector_type(2)));
 using fp16x4_t  = _Float16 __attribute__((ext_vector_type(4)));
 using fp16x8_t  = _Float16 __attribute__((ext_vector_type(8)));
@@ -71,7 +85,8 @@ using fp16x16_t = _Float16 __attribute__((ext_vector_type(16)));
 using fp16x32_t = _Float16 __attribute__((ext_vector_type(32)));
 using fp16x64_t = _Float16 __attribute__((ext_vector_type(64)));
 
-// bfp16
+// bf16
+// using bf16_t = ...
 using bf16x2_t  = bf16_raw_t __attribute__((ext_vector_type(2)));
 using bf16x4_t  = bf16_raw_t __attribute__((ext_vector_type(4)));
 using bf16x8_t  = bf16_raw_t __attribute__((ext_vector_type(8)));
@@ -80,6 +95,7 @@ using bf16x32_t = bf16_raw_t __attribute__((ext_vector_type(32)));
 using bf16x64_t = bf16_raw_t __attribute__((ext_vector_type(64)));
 
 // i32
+// using int32_t = ...
 using int32x2_t  = int32_t __attribute__((ext_vector_type(2)));
 using int32x4_t  = int32_t __attribute__((ext_vector_type(4)));
 using int32x8_t  = int32_t __attribute__((ext_vector_type(8)));
@@ -88,6 +104,7 @@ using int32x32_t = int32_t __attribute__((ext_vector_type(32)));
 using int32x64_t = int32_t __attribute__((ext_vector_type(64)));
 
 // i16
+// using int16_t = ...
 using int16x2_t  = int16_t __attribute__((ext_vector_type(2)));
 using int16x4_t  = int16_t __attribute__((ext_vector_type(4)));
 using int16x8_t  = int16_t __attribute__((ext_vector_type(8)));
@@ -96,6 +113,7 @@ using int16x32_t = int16_t __attribute__((ext_vector_type(32)));
 using int16x64_t = int16_t __attribute__((ext_vector_type(64)));
 
 // u16
+// using uint16_t
 using uint16x2_t  = uint16_t __attribute__((ext_vector_type(2)));
 using uint16x4_t  = uint16_t __attribute__((ext_vector_type(4)));
 using uint16x8_t  = uint16_t __attribute__((ext_vector_type(8)));
@@ -104,6 +122,7 @@ using uint16x32_t = uint16_t __attribute__((ext_vector_type(32)));
 using uint16x64_t = uint16_t __attribute__((ext_vector_type(64)));
 
 // i8
+// using int8_t
 using int8x2_t  = int8_t __attribute((ext_vector_type(2)));
 using int8x4_t  = int8_t __attribute((ext_vector_type(4)));
 using int8x8_t  = int8_t __attribute((ext_vector_type(8)));
@@ -112,6 +131,7 @@ using int8x32_t = int8_t __attribute((ext_vector_type(32)));
 using int8x64_t = int8_t __attribute((ext_vector_type(64)));
 
 // f8
+// using fp8_t
 using fp8x2_t  = fp8_raw_t __attribute((ext_vector_type(2)));
 using fp8x4_t  = fp8_raw_t __attribute((ext_vector_type(4)));
 using fp8x8_t  = fp8_raw_t __attribute((ext_vector_type(8)));
@@ -120,6 +140,7 @@ using fp8x32_t = fp8_raw_t __attribute((ext_vector_type(32)));
 using fp8x64_t = fp8_raw_t __attribute((ext_vector_type(64)));
 
 // bf8
+// using bf8_t
 using bf8x2_t  = bf8_raw_t __attribute((ext_vector_type(2)));
 using bf8x4_t  = bf8_raw_t __attribute((ext_vector_type(4)));
 using bf8x8_t  = bf8_raw_t __attribute((ext_vector_type(8)));

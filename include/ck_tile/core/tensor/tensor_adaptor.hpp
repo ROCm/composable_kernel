@@ -10,7 +10,7 @@
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/utility/limits.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
 
 namespace ck_tile {
 
@@ -511,7 +511,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
 
     // shift
     constexpr index_t adaptor0_max_hidden_id = [&]() {
-        index_t adaptor0_max_hidden_id_ = numeric_limits<index_t>::min();
+        index_t adaptor0_max_hidden_id_ = numeric<index_t>::min();
 
         static_for<0, TensorAdaptor0::get_num_of_transform(), 1>{}([&](auto itran) {
             constexpr index_t ndim_low =
@@ -537,7 +537,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
     }();
 
     constexpr index_t adaptor1_min_hidden_id = [&]() {
-        index_t adaptor1_min_hidden_id_ = numeric_limits<index_t>::max();
+        index_t adaptor1_min_hidden_id_ = numeric<index_t>::max();
 
         static_for<0, TensorAdaptor1::get_num_of_transform(), 1>{}([&](auto itran) {
             constexpr index_t ndim_low =

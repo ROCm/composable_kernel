@@ -115,7 +115,7 @@ struct buffer_view<address_space_enum::generic,
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return X{0};
+                return X{numeric<remove_cvref_t<T>>::zero()};
             }
             else
             {
@@ -319,7 +319,7 @@ struct buffer_view<address_space_enum::global,
             {
                 if constexpr(InvalidElementUseNumericalZeroValue)
                 {
-                    return X{0};
+                    return X{numeric<remove_cvref_t<T>>::zero()};
                 }
                 else
                 {
@@ -666,14 +666,18 @@ struct buffer_view<address_space_enum::lds,
 
             return tmp;
 #else
-            return *c_style_pointer_cast<const X*>(&p_data_[i]);
+            using buf_t = ext_vector_t<typename vector_traits<remove_cvref_t<T>>::scalar_type,
+                                       scalar_per_t_vector * scalar_per_x_vector>;
+            // using buf_t = ushort __attribute__((ext_vector_type(8)));
+            auto rtn = *c_style_pointer_cast<const buf_t*>(&p_data_[i]);
+            return bit_cast<X>(rtn);
 #endif
         }
         else
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return X{0};
+                return X{numeric<remove_cvref_t<T>>::zero()};
             }
             else
             {
@@ -829,7 +833,10 @@ struct buffer_view<address_space_enum::lds,
 
                 __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
 #else
-                *c_style_pointer_cast<X*>(&p_data_[i]) = x;
+                using buf_t = ext_vector_t<typename vector_traits<remove_cvref_t<T>>::scalar_type,
+                                           scalar_per_t_vector * scalar_per_x_vector>;
+
+                *c_style_pointer_cast<buf_t*>(&p_data_[i]) = reinterpret_cast<const buf_t&>(x);
 #endif
             }
         }
@@ -948,7 +955,7 @@ struct buffer_view<address_space_enum::vgpr,
         {
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
-                return X{0};
+                return X{numeric<remove_cvref_t<T>>::zero()};
             }
             else
             {

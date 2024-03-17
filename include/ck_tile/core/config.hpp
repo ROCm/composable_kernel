@@ -20,6 +20,10 @@
 #define CK_TILE_DEVICE_EXTERN
 #endif
 
+#ifndef CK_TILE_USE_CUSTOM_DATA_TYPE
+#define CK_TILE_USE_CUSTOM_DATA_TYPE 0 // custom data type will generate extra move/bfi code
+#endif
+
 #define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD 0
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE_WITH_NAN 1
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE 2

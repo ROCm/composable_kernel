@@ -47,8 +47,8 @@ struct base_transform
     {
         if constexpr(NDimUp > 0)
         {
-            array<index_t, NDimUp> up_vector_lengths = make_array_with<index_t, NDimUp>({-1});
-            array<index_t, NDimUp> up_vector_strides = make_array_with<index_t, NDimUp>({-1});
+            array<index_t, NDimUp> up_vector_lengths{-1};
+            array<index_t, NDimUp> up_vector_strides{-1};
 
             return make_tuple(up_vector_lengths, up_vector_strides);
         }
@@ -690,8 +690,8 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
     calculate_upper_dimension_safe_vector_length_strides(const LowVectorLengths& low_vector_lengths,
                                                          const LowVectorStrides& low_vector_strides)
     {
-        array<index_t, 1> up_vector_lengths = make_array_with<index_t, 1>({-1});
-        array<index_t, 1> up_vector_strides = make_array_with<index_t, 1>({-1});
+        array<index_t, 1> up_vector_lengths{-1};
+        array<index_t, 1> up_vector_strides{-1};
 
         up_vector_lengths[0] = low_vector_lengths[number<NDimLow - 1>{}];
         up_vector_strides[0] = low_vector_strides[number<NDimLow - 1>{}];
@@ -821,8 +821,8 @@ struct merge_v3_division_mod : public base_transform<LowLengths::size(), 1>
     calculate_upper_dimension_safe_vector_length_strides(const LowVectorLengths& low_vector_lengths,
                                                          const LowVectorStrides& low_vector_strides)
     {
-        array<index_t, 1> up_vector_lengths = make_array_with<index_t, 1>({-1});
-        array<index_t, 1> up_vector_strides = make_array_with<index_t, 1>({-1});
+        array<index_t, 1> up_vector_lengths{-1};
+        array<index_t, 1> up_vector_strides{-1};
 
         up_vector_lengths[0] = low_vector_lengths[number<NDimLow - 1>{}];
         up_vector_strides[0] = low_vector_strides[number<NDimLow - 1>{}];
@@ -940,8 +940,8 @@ struct unmerge : public base_transform<1, UpLengths::size()>
     calculate_upper_dimension_safe_vector_length_strides(const LowVectorLengths& low_vector_lengths,
                                                          const LowVectorStrides& low_vector_strides)
     {
-        array<index_t, NDimUp> up_vector_lengths = make_array_with<index_t, NDimUp>({-1});
-        array<index_t, NDimUp> up_vector_strides = make_array_with<index_t, NDimUp>({-1});
+        array<index_t, NDimUp> up_vector_lengths{-1};
+        array<index_t, NDimUp> up_vector_strides{-1};
 
         constexpr auto up_length_last = UpLengths{}[number<NDimUp - 1>{}];
 

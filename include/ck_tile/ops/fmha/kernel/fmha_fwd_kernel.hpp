@@ -50,7 +50,7 @@ struct FmhaFwdKernel
     // clang-format off
     template <typename T> struct t2s;
     template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
-    template <> struct t2s<ck_tile::half_t> { static constexpr const char * name = "fp16"; };
+    template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };

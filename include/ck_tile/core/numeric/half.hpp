@@ -2,33 +2,34 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/numeric/arithmetic.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
-#include "ck_tile/core/utility/limits.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
 #include <hip/hip_fp16.h>
 
 #pragma once
 
 namespace ck_tile {
 
-using fp16_hip_t = __half; // most of hip internal function use this type
+using fp16_hip_t = _Float16; // most of hip internal function use this type
+using fp16_raw_t = uint16_t;
 
 CK_TILE_HOST_DEVICE
-float fp16_to_float_hip(const fp16_hip_t& x);
+constexpr float fp16_to_float_hip(const fp16_hip_t& x);
 
 CK_TILE_HOST_DEVICE
-double fp16_to_double_hip(const fp16_hip_t& x);
+constexpr double fp16_to_double_hip(const fp16_hip_t& x);
 
 CK_TILE_HOST_DEVICE
-fp16_hip_t float_to_fp16_hip(const float& x);
+constexpr fp16_hip_t float_to_fp16_hip(const float& x);
 
 CK_TILE_HOST_DEVICE
-fp16_hip_t double_to_fp16_hip(const double& x);
+constexpr fp16_hip_t double_to_fp16_hip(const double& x);
 
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
 // HIP use fp16_hip_t as interchangable data type for float16
 struct alignas(2) half_t
 {
-    using raw_type = uint16_t;
+    using raw_type = fp16_raw_t;
     raw_type data;
 
     CK_TILE_HOST_DEVICE
@@ -83,6 +84,9 @@ struct alignas(2) half_t
         return static_cast<int>(fp16_to_float_hip(to_fp16()));
     }
 
+    CK_TILE_HOST_DEVICE
+    explicit constexpr operator fp16_hip_t() const { return ck_tile::bit_cast<fp16_hip_t>(data); }
+
     // internal access
     CK_TILE_HOST_DEVICE
     constexpr raw_type& get() { return data; }
@@ -91,86 +95,132 @@ struct alignas(2) half_t
     constexpr raw_type get() const { return data; }
 };
 
+template <typename>
+struct native_t;
+
+template <>
+struct native_t<half_t>
+{
+    using type = _Float16;
+};
+
 using fp16_t     = half_t;
-using fp16_raw_t = typename fp16_t::raw_type;
+using fp16_raw_t = typename half_t::raw_type;
+#else
+using fp16_t     = _Float16;
+using half_t     = _Float16;
+using fp16_raw_t = ushort;
+#endif
 
 // conversions
 CK_TILE_HOST_DEVICE
-float fp16_to_float_hip(const fp16_hip_t& x)
+constexpr float fp16_to_float_hip(const fp16_hip_t& x)
 {
     // return __half2float(x);
     return static_cast<float>(x);
 }
 
 CK_TILE_HOST_DEVICE
-double fp16_to_double_hip(const fp16_hip_t& x) { return static_cast<double>(fp16_to_float_hip(x)); }
+constexpr double fp16_to_double_hip(const fp16_hip_t& x)
+{
+    return static_cast<double>(fp16_to_float_hip(x));
+}
 
 CK_TILE_HOST_DEVICE
-fp16_hip_t float_to_fp16_hip(const float& x)
+constexpr fp16_hip_t float_to_fp16_hip(const float& x)
 {
     return __float2half(x);
     // return static_cast<fp16_hip_t>(x);
 }
 
 CK_TILE_HOST_DEVICE
-fp16_hip_t double_to_fp16_hip(const double& x)
+constexpr fp16_hip_t double_to_fp16_hip(const double& x)
 {
     // return __float2half(x);
     return static_cast<fp16_hip_t>(x);
 }
 
 CK_TILE_HOST_DEVICE
-float fp16_to_float(const half_t& x) { return static_cast<float>(x); }
+constexpr float fp16_to_float(const half_t& x) { return static_cast<float>(x); }
 
 CK_TILE_HOST_DEVICE
-float fp16_to_double(const half_t& x) { return static_cast<float>(x); }
+constexpr float fp16_to_double(const half_t& x) { return static_cast<float>(x); }
 
 CK_TILE_HOST_DEVICE
-half_t float_to_fp16(const float& x) { return half_t{x}; }
+constexpr half_t float_to_fp16(const float& x) { return static_cast<half_t>(x); }
 
 CK_TILE_HOST_DEVICE
-half_t double_to_fp16(const double& x) { return half_t{x}; }
+constexpr half_t double_to_fp16(const double& x) { return static_cast<half_t>(x); }
 
 // limits
 template <class T>
-struct numeric_limits;
+struct numeric;
 
 template <>
-struct numeric_limits<half_t>
+struct numeric<half_t>
 {
     // minimum finite value, or minimum positive normalized value for float
-    CK_TILE_HOST_DEVICE static constexpr half_t min() { return half_t::bit_cast(0x0400); }
+    CK_TILE_HOST_DEVICE static constexpr half_t min()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x0400));
+    }
 
     // minumum finite value
-    CK_TILE_HOST_DEVICE static constexpr half_t lowest() { return half_t::bit_cast(0xFBFF); }
+    CK_TILE_HOST_DEVICE static constexpr half_t lowest()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0xFBFF));
+    }
 
     // maximum finite value
-    CK_TILE_HOST_DEVICE static constexpr half_t max() { return half_t::bit_cast(0x7BFF); }
+    CK_TILE_HOST_DEVICE static constexpr half_t max()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x7BFF));
+    }
 
     // difference between 1.0 and next value representable by float
-    CK_TILE_HOST_DEVICE static constexpr half_t epsilon() { return half_t::bit_cast(0x1800); }
+    CK_TILE_HOST_DEVICE static constexpr half_t epsilon()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x1800));
+    }
 
     // maximum rounding error
-    CK_TILE_HOST_DEVICE static constexpr half_t round_error() { return half_t(0.5f); }
+    CK_TILE_HOST_DEVICE static constexpr half_t round_error() { return static_cast<half_t>(0.5f); }
 
     // positive infinity value
-    CK_TILE_HOST_DEVICE static constexpr half_t infinity() { return half_t::bit_cast(0x7C00); }
+    CK_TILE_HOST_DEVICE static constexpr half_t infinity()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x7C00));
+    }
 
     // quiet NaN
-    CK_TILE_HOST_DEVICE static constexpr half_t quiet_NaN() { return half_t::bit_cast(0x7FFF); }
+    CK_TILE_HOST_DEVICE static constexpr half_t quiet_NaN()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x7FFF));
+    }
 
     // signaling NaN
-    CK_TILE_HOST_DEVICE static constexpr half_t signaling_NaN() { return half_t::bit_cast(0x7FFF); }
+    CK_TILE_HOST_DEVICE static constexpr half_t signaling_NaN()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x7FFF));
+    }
 
     // smallest positive subnormal value
-    CK_TILE_HOST_DEVICE static constexpr half_t denorm_min() { return half_t::bit_cast(0x0001); }
+    CK_TILE_HOST_DEVICE static constexpr half_t denorm_min()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x0001));
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr half_t zero()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0));
+    }
 };
 
 template <typename T>
-struct numeric_utils;
+struct numeric_traits;
 
 template <>
-struct numeric_utils<half_t>
+struct numeric_traits<half_t>
 {
     static constexpr int exp            = 5;
     static constexpr int mant           = 10;
@@ -186,9 +236,12 @@ struct numeric_utils<half_t>
     using bitwise_type                  = uint16_t;
 };
 
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
 // arithmetic
-CK_TILE_DEVICE
-bool operator==(const half_t& x, const half_t& y) { return __heq(x.to_fp16(), y.to_fp16()); }
+CK_TILE_DEVICE bool operator==(const half_t& x, const half_t& y)
+{
+    return __heq(x.to_fp16(), y.to_fp16());
+}
 
 CK_TILE_DEVICE
 bool operator!=(const half_t& x, const half_t& y) { return __hne(x.to_fp16(), y.to_fp16()); }
@@ -205,6 +258,7 @@ bool operator>(const half_t& x, const half_t& y) { return __hgt(x.to_fp16(), y.t
 CK_TILE_DEVICE
 bool operator>=(const half_t& x, const half_t& y) { return __hge(x.to_fp16(), y.to_fp16()); }
 
+#if 0
 CK_TILE_DEVICE
 half_t operator+(const half_t& x, const half_t& y)
 {
@@ -289,12 +343,15 @@ half_t operator--(half_t& x, int)
     x = half_t(__hsub(x.to_fp16(), half_t(1.0f).to_fp16()));
     return y;
 }
+#endif
 
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
 CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST, half_t)
+#endif
 
 // math
 CK_TILE_HOST_DEVICE
-half_t abs(const half_t& x) { return half_t::bit_cast(x.get() & 0x7fff); }
+half_t abs(const half_t& x) { return bit_cast<half_t>(x.get() & 0x7fff); }
 
 CK_TILE_HOST_DEVICE
 bool isnan(const half_t& x)
@@ -317,5 +374,5 @@ half_t exp2(half_t x) { return static_cast<half_t>(exp2f(static_cast<float>(x)))
 
 CK_TILE_DEVICE
 half_t log(half_t x) { return static_cast<half_t>(__logf(static_cast<float>(x))); };
-
+#endif
 } // namespace ck_tile

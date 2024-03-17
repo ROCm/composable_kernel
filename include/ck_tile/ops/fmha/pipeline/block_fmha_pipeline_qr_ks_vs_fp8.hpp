@@ -182,7 +182,7 @@ struct BlockFmhaPipelineQRKSVSFp8
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric_limits<SMPLComputeDataType>::infinity());
+        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
         const auto q_origin = q_dram_window.get_window_origin();
@@ -330,15 +330,12 @@ struct BlockFmhaPipelineQRKSVSFp8
                                                            number<kN0>{});
                 if(need_perpixel_check)
                 {
-                    set_tile_if(s_acc,
-                                -numeric_limits<SMPLComputeDataType>::infinity(),
-                                [&](auto tile_idx) {
-                                    const auto row =
-                                        q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                                    const auto col =
-                                        k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                                    return mask.IsOutOfBound(row, col);
-                                });
+                    set_tile_if(
+                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                            return mask.IsOutOfBound(row, col);
+                        });
                 }
             }
 
@@ -347,7 +344,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                 s,
                 sequence<1>{},
                 f_max,
-                -numeric_limits<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
+                -numeric<SMPLComputeDataType>::infinity()); // m_local = rowmax(S{j})
             block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
 
             const auto m_old = m; // m{j-1}
@@ -362,7 +359,7 @@ struct BlockFmhaPipelineQRKSVSFp8
                 /// consideration
                 if constexpr(kHasBias || FmhaMask::IsMasking)
                 {
-                    return raw_m == -numeric_limits<SMPLComputeDataType>::infinity()
+                    return raw_m == -numeric<SMPLComputeDataType>::infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
                                : raw_m;
                 }

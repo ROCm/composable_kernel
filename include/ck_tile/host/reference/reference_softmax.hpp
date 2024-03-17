@@ -16,7 +16,7 @@ CK_TILE_HOST void reference_softmax(const HostTensor<ADataType>& a_m_n,
     auto f = [&](auto m) {
         const int N = a_m_n.mDesc.get_lengths()[1];
 
-        AccDataType v_max = ck_tile::numeric_limits<ADataType>::Lowest();
+        AccDataType v_max = ck_tile::numeric<ADataType>::Lowest();
 
         // max
         for(int n = 0; n < N; ++n)

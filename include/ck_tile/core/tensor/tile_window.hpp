@@ -303,7 +303,7 @@ struct tile_window_with_static_distribution
                 const vector_t vec_value =
                     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                         bottom_tensor_thread_coord, bool_constant<oob_conditional_check>{});
-
+#if 1
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
                     constexpr auto idx_ys = generate_array(
@@ -319,7 +319,14 @@ struct tile_window_with_static_distribution
                     dst_tensor.get_thread_buffer().template at<d>() =
                         vec_value.template get_as<DataType>()[j];
                 });
+#else
+                constexpr index_t d =
+                    tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
+                static_assert(d % Traits::ScalarPerVector == 0);
 
+                dst_tensor.get_thread_buffer().template get_as<vector_t>()(
+                    number<d / Traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
+#endif
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {
