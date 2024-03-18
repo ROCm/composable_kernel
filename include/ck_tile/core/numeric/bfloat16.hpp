@@ -267,7 +267,15 @@ struct numeric<bfloat16_t>
     }
 
     // maximum rounding error
-    CK_TILE_HOST_DEVICE static constexpr bfloat16_t round_error() { return float_to_bf16(0.5f); }
+    // maximum rounding error
+    // bin :  f edcba 9876543210
+    // bits:  s eeeeeeee mmmmmmm
+    //        0 01111110 0000000 (0.5)
+    //
+    CK_TILE_HOST_DEVICE static constexpr bfloat16_t round_error()
+    {
+        return bit_cast<bfloat16_t>(static_cast<bf16_raw_t>(0x3f00));
+    }
 
     // positive infinity value
     CK_TILE_HOST_DEVICE static constexpr bfloat16_t infinity()

@@ -42,13 +42,13 @@ enum class fp8_rounding_mode
  */
 
 template <fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE constexpr uint8_t float_to_fp8_raw(float, constant<rounding> = {});
+CK_TILE_HOST_DEVICE uint8_t float_to_fp8_raw(float, constant<rounding> = {});
 
 template <fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE constexpr uint8_t float_to_bf8_raw(float, constant<rounding> = {});
+CK_TILE_HOST_DEVICE uint8_t float_to_bf8_raw(float, constant<rounding> = {});
 
-CK_TILE_HOST_DEVICE constexpr float fp8_to_float_raw(uint8_t);
-CK_TILE_HOST_DEVICE constexpr float bf8_to_float_raw(uint8_t);
+CK_TILE_HOST_DEVICE float fp8_to_float_raw(uint8_t);
+CK_TILE_HOST_DEVICE float bf8_to_float_raw(uint8_t);
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 struct alignas(1) float8_e4m3_t
@@ -581,7 +581,7 @@ CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_rtn_raw(float x)
 
 // clang-format off
 template<fp8_rounding_mode rounding>
-CK_TILE_HOST_DEVICE constexpr fp8_raw_t float_to_fp8_raw(float x, constant<rounding>)
+CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_raw(float x, constant<rounding>)
 {
     if      constexpr (rounding == fp8_rounding_mode::standard)   return float_to_fp8_rtn_raw(x);
     else if constexpr (rounding == fp8_rounding_mode::stochastic) return float_to_fp8_sr_raw(x);
@@ -589,14 +589,14 @@ CK_TILE_HOST_DEVICE constexpr fp8_raw_t float_to_fp8_raw(float x, constant<round
 }
 
 template<fp8_rounding_mode rounding>
-CK_TILE_HOST_DEVICE constexpr bf8_raw_t float_to_bf8_raw(float x, constant<rounding>)
+CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_raw(float x, constant<rounding>)
 {
     if      constexpr (rounding == fp8_rounding_mode::standard)   return float_to_bf8_rtn_raw(x);
     else if constexpr (rounding == fp8_rounding_mode::stochastic) return float_to_bf8_sr_raw(x);
     else return bf8_raw_t{0};
 }
 
-CK_TILE_HOST_DEVICE constexpr float fp8_to_float_raw(fp8_raw_t x)
+CK_TILE_HOST_DEVICE float fp8_to_float_raw(fp8_raw_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float fval;
@@ -610,7 +610,7 @@ CK_TILE_HOST_DEVICE constexpr float fp8_to_float_raw(fp8_raw_t x)
 #endif
 }
 
-CK_TILE_HOST_DEVICE constexpr float bf8_to_float_raw(bf8_raw_t x)
+CK_TILE_HOST_DEVICE float bf8_to_float_raw(bf8_raw_t x)
 {
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
     float fval;
@@ -625,23 +625,23 @@ CK_TILE_HOST_DEVICE constexpr float bf8_to_float_raw(bf8_raw_t x)
 }
 
 template<fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE constexpr fp8_t float_to_fp8(float x, constant<rounding> = {})
+CK_TILE_HOST_DEVICE fp8_t float_to_fp8(float x, constant<rounding> = {})
 {
     return bit_cast<fp8_t>(float_to_fp8_raw(x, constant<rounding>{}));
 }
 
 template<fp8_rounding_mode rounding = static_cast<fp8_rounding_mode>(CK_TILE_FLOAT_TO_FP8_DEFAULT)>
-CK_TILE_HOST_DEVICE constexpr bf8_t float_to_bf8(float x, constant<rounding> = {})
+CK_TILE_HOST_DEVICE bf8_t float_to_bf8(float x, constant<rounding> = {})
 {
     return bit_cast<bf8_t>(float_to_bf8_raw(x, constant<rounding>{}));
 }
 
-CK_TILE_HOST_DEVICE constexpr float fp8_to_float(fp8_t x)
+CK_TILE_HOST_DEVICE float fp8_to_float(fp8_t x)
 {
     return fp8_to_float_raw(bit_cast<fp8_raw_t>(x));
 }
 
-CK_TILE_HOST_DEVICE constexpr float bf8_to_float(bf8_t x)
+CK_TILE_HOST_DEVICE float bf8_to_float(bf8_t x)
 {
     return bf8_to_float_raw(bit_cast<bf8_raw_t>(x));
 }
@@ -706,7 +706,14 @@ struct numeric<fp8_t>
     }
 
     // maximum rounding error
-    CK_TILE_HOST_DEVICE static constexpr fp8_t round_error() { return float_to_fp8(0.5f); }
+    // bin :  7 6543 210
+    // bits:  s eeee mmm
+    //        0 0110 000 (0.5)
+    //
+    CK_TILE_HOST_DEVICE static constexpr fp8_t round_error()
+    {
+        return bit_cast<fp8_t>(static_cast<fp8_raw_t>(0x30));
+    }
 
     // positive infinity value
     CK_TILE_HOST_DEVICE static constexpr fp8_t infinity()
@@ -766,7 +773,14 @@ struct numeric<bf8_t>
     }
 
     // maximum rounding error
-    CK_TILE_HOST_DEVICE static constexpr bf8_t round_error() { return float_to_bf8(0.5f); }
+    // bin :  7 65432 10
+    // bits:  s eeeee mm
+    //        0 01110 00 (0.5)
+    //
+    CK_TILE_HOST_DEVICE static constexpr bf8_t round_error()
+    {
+        return bit_cast<bf8_t>(static_cast<bf8_raw_t>(0x38));
+    }
 
     // positive infinity value
     CK_TILE_HOST_DEVICE static constexpr bf8_t infinity()

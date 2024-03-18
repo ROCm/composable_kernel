@@ -130,6 +130,7 @@ using int8x16_t = int8_t __attribute((ext_vector_type(16)));
 using int8x32_t = int8_t __attribute((ext_vector_type(32)));
 using int8x64_t = int8_t __attribute((ext_vector_type(64)));
 
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
 // f8
 // using fp8_t
 using fp8x2_t  = fp8_raw_t __attribute((ext_vector_type(2)));
@@ -147,5 +148,24 @@ using bf8x8_t  = bf8_raw_t __attribute((ext_vector_type(8)));
 using bf8x16_t = bf8_raw_t __attribute((ext_vector_type(16)));
 using bf8x32_t = bf8_raw_t __attribute((ext_vector_type(32)));
 using bf8x64_t = bf8_raw_t __attribute((ext_vector_type(64)));
+#else
+// f8
+// using fp8_t
+using fp8x2_t  = fp8_t __attribute((ext_vector_type(2)));
+using fp8x4_t  = fp8_t __attribute((ext_vector_type(4)));
+using fp8x8_t  = fp8_t __attribute((ext_vector_type(8)));
+using fp8x16_t = fp8_t __attribute((ext_vector_type(16)));
+using fp8x32_t = fp8_t __attribute((ext_vector_type(32)));
+using fp8x64_t = fp8_t __attribute((ext_vector_type(64)));
+
+// bf8
+// using bf8_t
+using bf8x2_t  = bf8_t __attribute((ext_vector_type(2)));
+using bf8x4_t  = bf8_t __attribute((ext_vector_type(4)));
+using bf8x8_t  = bf8_t __attribute((ext_vector_type(8)));
+using bf8x16_t = bf8_t __attribute((ext_vector_type(16)));
+using bf8x32_t = bf8_t __attribute((ext_vector_type(32)));
+using bf8x64_t = bf8_t __attribute((ext_vector_type(64)));
+#endif
 
 } // namespace ck_tile

@@ -184,7 +184,14 @@ struct numeric<half_t>
     }
 
     // maximum rounding error
-    CK_TILE_HOST_DEVICE static constexpr half_t round_error() { return static_cast<half_t>(0.5f); }
+    // bin :  f edcba 9876543210
+    // bits:  s eeeee mmmmmmmmmm
+    //        0 01110 0000000000 (0.5)
+    //
+    CK_TILE_HOST_DEVICE static constexpr half_t round_error()
+    {
+        return bit_cast<half_t>(static_cast<fp16_raw_t>(0x3800));
+    }
 
     // positive infinity value
     CK_TILE_HOST_DEVICE static constexpr half_t infinity()

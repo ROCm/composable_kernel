@@ -40,8 +40,7 @@ template <typename InElementFunc,
 CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
                                         const InTensor&... in_dstr_tensors)
 {
-    using OutDataType   = decltype(in_element_func(typename InTensor::DataType{}...));
-    using OutNativeType = typename native_t<OutDataType>::type;
+    using OutDataType = decltype(in_element_func(typename InTensor::DataType{}...));
 
     // TODO: make sure all distributed tensors have same lengths and distribution
     // static_assert(xxx);
@@ -54,7 +53,7 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
 
     static_for<0, thread_buffer_size, 1>{}([&](auto i) {
         out_dstr_tensor.get_thread_buffer()(i) =
-            static_cast<OutNativeType>(in_element_func(in_dstr_tensors.get_thread_buffer()[i]...));
+            in_element_func(in_dstr_tensors.get_thread_buffer()[i]...);
     });
 
     return out_dstr_tensor;
