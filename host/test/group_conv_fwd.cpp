@@ -30,6 +30,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include <algorithm>
 #include <cmath>
 #include <iterator>
@@ -60,9 +61,10 @@ template <class T>
 rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
 {
     rtc::buffer<T> result(n);
-    std::mt19937 gen(seed);
-    std::uniform_real_distribution<double> dis(-1.0);
-    std::generate(result.begin(), result.end(), [&] { return dis(gen); });
+    // std::mt19937 gen(seed);
+    // std::uniform_real_distribution<double> dis(-1.0);
+    // std::generate(result.begin(), result.end(), [&] { return dis(gen); });
+    std::fill(result.begin(), result.end(), 1);
     return result;
 }
 
@@ -191,7 +193,7 @@ TEST_CASE(test_problem_kernel)
     prob.Wi = 71;
     prob.Ho = 71;
     prob.Wo = 71;
-    check_all<half> check;
+    check_all<ck::half_t> check;
     auto a = to_gpu(generate_buffer<half>(64 * 64, 0));
     auto b = to_gpu(generate_buffer<half>(64 * 64, 1));
     auto c = to_gpu(generate_buffer<half>(64 * 64, 2));
@@ -306,9 +308,13 @@ TEST_CASE(test_problem_kernel)
     std::array<ck::index_t, 5> d_strides = {};
 
     std::array<ck::index_t, 2> conv_filter_strides   = {2, 2};
+    std::vector<ck::index_t> conv_filter_strides_    = {2, 2};
     std::array<ck::index_t, 2> conv_filter_dilations = {1, 1};
+    std::vector<ck::index_t> conv_filter_dilations_  = {1, 1};
     std::array<ck::index_t, 2> input_left_pads       = {1, 1};
+    std::vector<ck::index_t> input_left_pads_        = {1, 1};
     std::array<ck::index_t, 2> input_right_pads      = {1, 1};
+    std::vector<ck::index_t> input_right_pads_       = {1, 1};
 
     /* TODO: remove
     // tensor descriptors
@@ -453,7 +459,53 @@ TEST_CASE(test_problem_kernel)
             arg.block_2_etile_map_,
             arg.compute_ptr_offset_of_batch_); // FIXME: my launch will bw different: will need
                                                // to pass in grid ptrs for run fcns
-        CHECK(report(solution, check(rtc::from_gpu(c))));
+        Tensor<ck::half_t> in_host(in_lengths, in_strides);
+        in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+        Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
+        wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+        Tensor<ck::half_t> out_host(out_lengths, out_strides);
+        out_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
+            2,
+            ck::half_t,
+            ck::half_t,
+            ck::half_t,
+            ck::tensor_operation::element_wise::PassThrough,
+            ck::tensor_operation::element_wise::PassThrough,
+            ck::tensor_operation::element_wise::PassThrough>();
+
+        auto ref_invoker = ref_conv.MakeInvoker();
+        auto ref_argument =
+            ref_conv.MakeArgument(in_host,
+                                  wei_host,
+                                  out_host,
+                                  conv_filter_strides_,
+                                  conv_filter_dilations_,
+                                  input_left_pads_,
+                                  input_right_pads_,
+                                  ck::tensor_operation::element_wise::PassThrough{},
+                                  ck::tensor_operation::element_wise::PassThrough{},
+                                  ck::tensor_operation::element_wise::PassThrough{});
+        std::cout << "Ref args" << std::endl;
+        ref_argument.Print();
+
+        ref_invoker.Run(ref_argument);
+
+        bool pass = true;
+        auto res  = rtc::from_gpu(out_dev);
+        std::ofstream ofh2("res.txt");
+        pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
+        ofh2 << "Check: " << pass << std::endl;
+        ofh2 << res.size();
+        for(int i = 0; i < res.size(); i++)
+        {
+            auto tmp = (res.data())[i];
+            ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
+        }
+        ofh2.close();
+        assert(pass);
+        CHECK(report(solution, check(res)));
     }
 }
 

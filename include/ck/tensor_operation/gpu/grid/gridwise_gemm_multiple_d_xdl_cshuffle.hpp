@@ -815,7 +815,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
-                 ck::tensor_operation::element_wise::PassThrough{}};
+                 cde_element_op};
+            // decltype(cde_element_op)::foo = 1;
 
             // space filling curve for threadwise C in VGPR before shuffle
             constexpr auto sfc_c_vgpr =
@@ -1005,7 +1006,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                p_shared,
                                a_element_op,
                                b_element_op,
-                               b_element_op,
+                               cde_element_op,
                                a_grid_desc_ak0_m_ak1,
                                b_grid_desc_bk0_n_bk1,
                                ds_grid_desc_mblock_mperblock_nblock_nperblock,

@@ -282,7 +282,7 @@ extern "C" __global__ void run_${name}(
                     DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceConv::Block2ETileMap,
 		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
-                    false,
+                    ck::integral_constant<bool, true>{},
                     false,
                     false>(
 				    p_as_grid,
