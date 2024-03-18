@@ -544,7 +544,7 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const StreamConfig& s){{
 """
 
 FMHA_BWD_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-        switch (t.hdim){{
+        switch (t.hdim_q){{
 {F_hdim_case}
             default:
             break;
@@ -826,7 +826,7 @@ float fmha_bwd_dot_do_o(fmha_bwd_dot_do_o_traits t, fmha_bwd_dot_do_o_args a, co
 """
 
 FMHA_BWD_DOT_DO_O_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-        switch (t.hdim){{
+        switch (t.hdim_v){{
 {F_hdim_case}
             default:
             break;

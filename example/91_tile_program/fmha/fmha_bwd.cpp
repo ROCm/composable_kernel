@@ -49,7 +49,7 @@ auto create_args(int argc, char* argv[])
         .insert("s_k", "0", "seqlen_k, 0 means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
-        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(seqlen)")
+        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -63,11 +63,14 @@ auto create_args(int argc, char* argv[])
                 "'t:l,r', top-left local-attn with left right size\n"
                 "'b:l,r', bottom-r local-attn with left right size\n"
                 "'g:y,x', generic attention mask coordinate with y/x size\n")
+        .insert("kname", "0", "if set to 1 will print kernel name")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 to use "
-                "non-deterministic random number as seed");
+                "non-deterministic random number as seed")
+        .insert("warmup", "5", "number of iterations before benchmark the kernel")
+        .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -127,11 +130,12 @@ bool run(const ArgParser& arg_parser)
         seed.reset();
     }
 
-    int stream_warmup = env_get_int("CK_WARMUP", 5);
-    int stream_repeat = env_get_int("CK_REPEAT", 20);
+    int stream_warmup = arg_parser.get_int("warmup");
+    int stream_repeat = arg_parser.get_int("repeat");
+    bool kname        = arg_parser.get_bool("kname");
 
-    StreamConfig stream_config{nullptr, true, 0, stream_warmup, stream_repeat};
-    StreamConfig stream_vconfig{nullptr, false, 0, 0, 0};
+    StreamConfig stream_config{
+        nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
 
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
@@ -301,46 +305,116 @@ bool run(const ArgParser& arg_parser)
 
     auto fmha_dot_do_o_traits =
         fmha_bwd_dot_do_o_traits{hdim_v, data_type, mode == mode_enum::group};
-    auto fmha_dot_do_o_args = fmha_bwd_dot_do_o_args{o_buf.GetDeviceBuffer(),
-                                                     do_buf.GetDeviceBuffer(),
-                                                     d_buf.GetDeviceBuffer(),
-                                                     seqstart_q.GetDeviceBuffer(),
-                                                     batch,
-                                                     nhead,
-                                                     shape_seqlen_q,
-                                                     hdim_v,
-                                                     max_seqlen_q,
-                                                     o_perm};
+    auto fmha_dot_do_o_args = [&]() {
+        const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck::index_t nhead_stride_o = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck::index_t nhead_stride_d = (shape_seqlen_q);
+        const ck::index_t batch_stride_o = (nhead * shape_seqlen_q * hdim_v);
+        const ck::index_t batch_stride_d = (nhead * shape_seqlen_q);
+
+        return fmha_bwd_dot_do_o_args{o_buf.GetDeviceBuffer(),
+                                      do_buf.GetDeviceBuffer(),
+                                      d_buf.GetDeviceBuffer(),
+                                      seqstart_q.GetDeviceBuffer(),
+                                      batch,
+                                      nhead,
+                                      shape_seqlen_q,
+                                      hdim_v,
+                                      max_seqlen_q,
+                                      stride_o,
+                                      nhead_stride_o,
+                                      nhead_stride_d,
+                                      batch_stride_o,
+                                      batch_stride_d};
+    }();
 
     auto fmha_traits =
-        fmha_bwd_traits{hdim_q, data_type, mode == mode_enum::group, mask.type, use_bias};
-    auto fmha_args = fmha_bwd_args{q_buf.GetDeviceBuffer(),
-                                   k_buf.GetDeviceBuffer(),
-                                   v_buf.GetDeviceBuffer(),
-                                   bias_buf.GetDeviceBuffer(),
-                                   lse_buf.GetDeviceBuffer(),
-                                   do_buf.GetDeviceBuffer(),
-                                   d_buf.GetDeviceBuffer(),
-                                   dq_buf.GetDeviceBuffer(),
-                                   dk_buf.GetDeviceBuffer(),
-                                   dv_buf.GetDeviceBuffer(),
-                                   dbias_buf.GetDeviceBuffer(),
-                                   seqstart_q.GetDeviceBuffer(),
-                                   seqstart_k.GetDeviceBuffer(),
-                                   nullptr,
-                                   batch,
-                                   nhead,
-                                   nhead_k,
-                                   shape_seqlen_q,
-                                   shape_seqlen_k,
-                                   hdim_q,
-                                   hdim_v,
-                                   max_seqlen_k,
-                                   scale,
-                                   i_perm,
-                                   o_perm,
-                                   mask.y,
-                                   mask.x};
+        fmha_bwd_traits{hdim_q, hdim_v, data_type, mode == mode_enum::group, mask.type, use_bias};
+    auto fmha_args = [&]() {
+        assert(nhead % nhead_k == 0);
+        /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
+        ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
+        ///       'nhead_stride_bias' are 0.
+        // setup stride_* arguments
+        const ck::index_t stride_q     = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck::index_t stride_k     = (i_perm ? hdim_q : nhead_k * hdim_q);
+        const ck::index_t stride_v     = (i_perm ? hdim_v : nhead_k * hdim_v);
+        const ck::index_t stride_bias  = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck::index_t stride_do    = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck::index_t stride_dk    = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck::index_t stride_dv    = (i_perm ? hdim_v : nhead * hdim_v);
+        const ck::index_t stride_dbias = (i_perm ? shape_seqlen_k : nhead * shape_seqlen_k);
+        // setup nhead_stride_* arguments
+        const ck::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
+        const ck::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
+        const ck::index_t nhead_stride_v = (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
+        const ck::index_t nhead_stride_bias =
+            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
+        const ck::index_t nhead_stride_do   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck::index_t nhead_stride_lsed = (shape_seqlen_q);
+        const ck::index_t nhead_stride_dbias =
+            (i_perm ? shape_seqlen_q * shape_seqlen_k : shape_seqlen_k);
+        // setup batch_stride_* arguments
+        const ck::index_t batch_stride_q     = (nhead * shape_seqlen_q * hdim_q);
+        const ck::index_t batch_stride_k     = (nhead_k * shape_seqlen_k * hdim_q);
+        const ck::index_t batch_stride_v     = (nhead_k * shape_seqlen_k * hdim_v);
+        const ck::index_t batch_stride_bias  = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck::index_t batch_stride_do    = (nhead * shape_seqlen_q * hdim_v);
+        const ck::index_t batch_stride_lsed  = (nhead * shape_seqlen_q);
+        const ck::index_t batch_stride_dk    = (nhead * shape_seqlen_k * hdim_q);
+        const ck::index_t batch_stride_dv    = (nhead * shape_seqlen_k * hdim_v);
+        const ck::index_t batch_stride_dbias = (nhead * shape_seqlen_q * shape_seqlen_k);
+
+        return fmha_bwd_args{q_buf.GetDeviceBuffer(),
+                             k_buf.GetDeviceBuffer(),
+                             v_buf.GetDeviceBuffer(),
+                             bias_buf.GetDeviceBuffer(),
+                             lse_buf.GetDeviceBuffer(),
+                             do_buf.GetDeviceBuffer(),
+                             d_buf.GetDeviceBuffer(),
+                             dq_buf.GetDeviceBuffer(),
+                             dk_buf.GetDeviceBuffer(),
+                             dv_buf.GetDeviceBuffer(),
+                             dbias_buf.GetDeviceBuffer(),
+                             seqstart_q.GetDeviceBuffer(),
+                             seqstart_k.GetDeviceBuffer(),
+                             nullptr,
+                             shape_seqlen_q,
+                             shape_seqlen_k,
+                             batch,
+                             max_seqlen_k,
+                             hdim_q,
+                             hdim_v,
+                             nhead,
+                             nhead_k,
+                             scale,
+                             stride_q,
+                             stride_k,
+                             stride_v,
+                             stride_bias,
+                             stride_do,
+                             stride_dk,
+                             stride_dv,
+                             stride_dbias,
+                             nhead_stride_q,
+                             nhead_stride_k,
+                             nhead_stride_v,
+                             nhead_stride_bias,
+                             nhead_stride_do,
+                             nhead_stride_lsed,
+                             nhead_stride_dbias,
+                             batch_stride_q,
+                             batch_stride_k,
+                             batch_stride_v,
+                             batch_stride_bias,
+                             batch_stride_do,
+                             batch_stride_lsed,
+                             batch_stride_dk,
+                             batch_stride_dv,
+                             batch_stride_dbias,
+                             mask.y,
+                             mask.x};
+    }();
 
     float ave_time = 0;
 
@@ -484,8 +558,8 @@ bool run(const ArgParser& arg_parser)
     dq_buf.SetZero();
     dbias_buf.SetZero();
 
-    fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_vconfig);
-    fmha_bwd(fmha_traits, fmha_args, stream_vconfig);
+    fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_config);
+    fmha_bwd(fmha_traits, fmha_args, stream_config);
 
     dq_buf.FromDevice(dq_host.data());
     dk_buf.FromDevice(dk_host.data());
