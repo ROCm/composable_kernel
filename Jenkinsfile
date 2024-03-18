@@ -104,7 +104,7 @@ def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm")
     def no_cache = conf.get("no_cache", false)
-    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
     if(no_cache)
     {
         dockerArgs = dockerArgs + " --no-cache "

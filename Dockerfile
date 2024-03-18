@@ -3,6 +3,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG ROCMVERSION=6.0
 ARG compiler_version=""
 ARG compiler_commit=""
+ARG CK_SCCACHE=""
 
 RUN set -xe
 
@@ -32,16 +33,18 @@ RUN if [ "$ROCMVERSION" != "6.1" ]; then \
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
 RUN amdgpu-install -y --usecase=rocm --no-dkms
 
-## Sccache binary built from source for ROCm
+## Sccache binary built from source for ROCm, only install if CK_SCCACHE is defined
 ARG SCCACHE_REPO_URL=http://compute-artifactory.amd.com/artifactory/rocm-generic-experimental/rocm-sccache
 ENV SCCACHE_INSTALL_LOCATION=/usr/local/.cargo/bin
-RUN mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
-curl ${SCCACHE_REPO_URL}/portable/0.2.16/sccache-0.2.16-alpha.1-rocm --output ${SCCACHE_INSTALL_LOCATION}/sccache && \
-chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache
 ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
+ENV CK_SCCACHE=$CK_SCCACHE
+RUN if [ "$CK_SCCACHE" != "" ]; then \
+        mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
+        curl ${SCCACHE_REPO_URL}/portable/0.2.16/sccache-0.2.16-alpha.1-rocm --output ${SCCACHE_INSTALL_LOCATION}/sccache && \
+        chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache; \
+    fi
 
 # Install dependencies
-# hipTensor requires rocm-llvm-dev for rocm versions > 6.0.1
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     build-essential \
     cmake \
@@ -61,7 +64,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-dev \
     python3-pip \
     redis \
-    rocm-llvm-dev \
     sshpass \
     stunnel \
     software-properties-common \
@@ -75,6 +77,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# hipTensor requires rocm-llvm-dev for rocm versions > 6.0.1
+RUN if [ "$ROCMVERSION" = "6.1" ]; then \
+        sh -c "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated rocm-llvm-dev"; \
+    fi
 # Update the cmake to version 3.27.5
 RUN pip install --upgrade cmake==3.27.5
 
