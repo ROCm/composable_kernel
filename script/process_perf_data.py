@@ -133,11 +133,16 @@ def parse_logfile(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[4])
-    elif 'onnx_gemm' in logfile or 'splitK_gemm' in logfile or 'mixed_gemm' in logfile:
+    elif 'onnx_gemm' in logfile or 'mixed_gemm' in logfile:
         for line in open(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[33])
+    elif 'splitK_gemm' in logfile:
+        for line in open(logfile):
+            if 'Best Perf' in line:
+                lst=line.split()
+                res.append(lst[36])
     return res
 
 
@@ -231,7 +236,7 @@ def main():
     sql_hostname = '127.0.0.1'
     sql_username = os.environ["dbuser"]
     sql_password = os.environ["dbpassword"]
-    sql_main_database = 'miopen_perf'
+    sql_main_database = os.environ["ck_perf_db"]
     sql_port = 3306
     ssh_host = os.environ["dbsship"]
     ssh_user = os.environ["dbsshuser"]
