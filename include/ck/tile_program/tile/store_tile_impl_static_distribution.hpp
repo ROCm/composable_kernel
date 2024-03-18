@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,21 +41,6 @@ store_tile_raw(TileWindowWithStaticDistribution<BottomTensorView_,
                const StaticDistributedTensor<DataType_, TileDistribution_>& dstr_tensor)
 {
     tile_window.StoreRaw(dstr_tensor);
-}
-
-template <typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
-          index_t NumCoord,
-          typename DataType_>
-__device__ void
-update_tile(TileWindowWithStaticDistribution<BottomTensorView_,
-                                             WindowLengths_,
-                                             TileDistribution_,
-                                             NumCoord>& tile_window,
-            const StaticDistributedTensor<DataType_, TileDistribution_>& dstr_tensor)
-{
-    tile_window.Update(dstr_tensor);
 }
 
 } // namespace tile_program

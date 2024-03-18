@@ -11,6 +11,7 @@
 #include "ck/tile_program/tile/tile_distribution.hpp"
 #include "ck/tile_program/tile/load_tile.hpp"
 #include "ck/tile_program/tile/store_tile.hpp"
+#include "ck/tile_program/tile/update_tile.hpp"
 #include "ck/tile_program/tile/tile_elementwise.hpp"
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/tile/slice_tile.hpp"
