@@ -553,7 +553,7 @@ bool run(const ArgParser& arg_parser)
                                                  /* allow_infinity_ref = */ true);
 
             pass &= lse_pass;
-            if(!cur_pass)
+            if(!lse_pass)
             {
                 std::cerr << "LSE mismatch found at batch: " << wb << std::endl
                           << "\tseqlen_q: " << real_seqlen_q << std::endl
