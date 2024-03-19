@@ -5,8 +5,11 @@
 
 #include "ck/ck.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Traits for blockwise gemm xdl.
