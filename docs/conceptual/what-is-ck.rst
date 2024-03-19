@@ -20,7 +20,7 @@ CK utilizes two concepts to achieve performance portability and code maintainabi
 * Algorithm complexity reduction for complex ML operators using an innovative technique called
   "Tensor Coordinate Transformation".
 
-.. image:: data/ck_component.png
+.. image:: ../data/ck_component.png
    :alt: CK Components
 
 
@@ -36,6 +36,6 @@ The CK library is structured into 4 layers:
 
 It also includes a simple wrapper component used to perform tensor transform operations more easily and with fewer lines of code.
 
-.. image:: data/ck_layer.png
+.. image:: ../data/ck_layer.png
    :alt: CK Layers
    

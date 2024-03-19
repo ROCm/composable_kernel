@@ -1,0 +1,5 @@
+if(GPU_TARGETS MATCHES "gfx11")
+  add_custom_target(example_fpAintB_gemm_wmma)
+  add_example_executable(example_fp16int8_gemm_wmma fp16int8_gemm_wmma.cpp)
+  add_dependencies(example_fpAintB_gemm_wmma example_fp16int8_gemm_wmma)
+endif()

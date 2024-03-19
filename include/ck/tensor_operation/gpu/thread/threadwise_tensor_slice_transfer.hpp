@@ -1333,4 +1333,139 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic
     ElementwiseOperation element_op_;
 };
 
+// Specilized for WMMA
+// A single Wave32 is composed by double row
+// Data exchange allowed between these two rows
+// This RowLane Dst buf will be filled from two Src buf
+// SrcA:    From specific thread buffer hold by This RowLane on This Row
+// SrcB:    From specific thread buffer hold by This RowLane on The other Row
+template <typename SrcData,
+          typename DstData,
+          typename SrcDesc,
+          typename DstDesc,
+          typename ElementwiseOperation,
+          typename SliceLengths,
+          typename DimAccessOrder,
+          index_t DstVectorDim,
+          index_t DstScalarPerVector,
+          uint32_t LowEightRowlaneIdx,
+          uint32_t HighEightRowLaneIdx,
+          bool IntraRowSwizzlePerm,
+          typename enable_if<SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                             bool>::type = false>
+struct ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow
+{
+    static constexpr index_t nDim = SliceLengths::Size();
+
+    using Index = MultiIndex<nDim>;
+
+    __device__ constexpr ThreadwiseTensorSliceTransfer_StaticToStatic_InterRow(const Index& src_idx)
+    {
+        static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                      "wrong! Desc need to known at compile-time");
+
+        static_assert(SliceLengths::At(Number<DstVectorDim>{}) % DstScalarPerVector == 0,
+                      "wrong! Not divisible");
+        ignore = src_idx;
+    }
+
+    template <typename SrcSliceOriginIdx,
+              typename DstSliceOriginIdx,
+              typename SrcBuffer,
+              typename DstBuffer>
+    __device__ void Run(const SrcDesc&,
+                        const SrcSliceOriginIdx&,
+                        const SrcBuffer& src_buf,
+                        const DstDesc&,
+                        const DstSliceOriginIdx&,
+                        DstBuffer& dst_buf) const
+    {
+        static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
+                      "wrong! Desc need to known at compile-time");
+
+        static_assert(is_known_at_compile_time<remove_cvref_t<SrcSliceOriginIdx>>::value &&
+                          is_known_at_compile_time<remove_cvref_t<DstSliceOriginIdx>>::value,
+                      "wrong! SliceOrigin need to known at compile-time");
+
+        static_assert(SrcBuffer::IsStaticBuffer() && DstBuffer::IsStaticBuffer(),
+                      "wrong! Buffer need to be StaticBuffer");
+
+        // SrcDesc and src_slice_origin_idx are known at compile-time
+        constexpr auto src_desc             = remove_cvref_t<SrcDesc>{};
+        constexpr auto dst_desc             = remove_cvref_t<DstDesc>{};
+        constexpr auto src_slice_origin_idx = to_multi_index(SrcSliceOriginIdx{});
+        constexpr auto dst_slice_origin_idx = to_multi_index(DstSliceOriginIdx{});
+
+        // scalar per access on each dim
+        constexpr auto dst_scalar_per_access = generate_sequence(
+            detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
+
+        constexpr auto dst_scalar_step_in_vector =
+            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
+
+        using SpaceFillingCurve = SpaceFillingCurve<SliceLengths,
+                                                    DimAccessOrder,
+                                                    remove_cv_t<decltype(dst_scalar_per_access)>>;
+
+        static_assert(DstScalarPerVector == SpaceFillingCurve::ScalarPerVector,
+                      "wrong!DstScalarPerVector != SpaceFillingCurve::ScalarPerVector");
+
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            constexpr auto idx_md = SpaceFillingCurve::GetIndex(idx_1d);
+
+            // copy data from src_buf into dst_vector
+            static_for<0, DstScalarPerVector, 1>{}([&](auto i) {
+                // src_desc error, non constexpr, caused by merge transform
+                constexpr index_t src_offset = src_desc.CalculateOffset(
+                    src_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+
+                constexpr index_t dst_offset = dst_desc.CalculateOffset(
+                    dst_slice_origin_idx + idx_md + i * dst_scalar_step_in_vector);
+
+                SrcData v_this_row, v_theother_row;
+                // int type temp value due to intrinsic requirement
+                int temp = 0;
+
+                // apply element-wise operation
+                element_op_(v_this_row, src_buf[Number<src_offset>{}]);
+
+                // apply intra-row permute.
+                if constexpr(IntraRowSwizzlePerm)
+                {
+                    temp = __builtin_amdgcn_permlane16(
+                        temp, type_convert_sp<int>(v_this_row), 0xb3a29180, 0xf7e6d5c4, 1, 0);
+                    v_this_row = type_convert_sp<SrcData>(temp);
+                }
+
+                // apply inter-row permute.
+                temp           = __builtin_amdgcn_permlanex16(temp,
+                                                    type_convert_sp<int>(v_this_row),
+                                                    LowEightRowlaneIdx,
+                                                    HighEightRowLaneIdx,
+                                                    1,
+                                                    0);
+                v_theother_row = type_convert_sp<SrcData>(temp);
+
+                if(get_thread_local_1d_id() % 32 < 16)
+                {
+                    // apply type convert
+                    dst_buf(Number<dst_offset>{}) = type_convert_sp<DstData>(v_this_row);
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) =
+                        type_convert_sp<DstData>(v_theother_row);
+                }
+                else
+                {
+                    // apply type convert
+                    dst_buf(Number<dst_offset + DstScalarPerVector>{}) =
+                        type_convert_sp<DstData>(v_this_row);
+                    dst_buf(Number<dst_offset>{}) = type_convert_sp<DstData>(v_theother_row);
+                }
+            });
+        });
+    }
+    ElementwiseOperation element_op_{};
+};
+
 } // namespace ck
