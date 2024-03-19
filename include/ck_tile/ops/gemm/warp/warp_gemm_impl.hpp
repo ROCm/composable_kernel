@@ -33,9 +33,9 @@ struct WarpGemmImpl
 
     CK_TILE_DEVICE void operator()(CWarpTensor& c, const AWarpTensor& a, const BWarpTensor& b) const
     {
-        using AVec = array<ADataType, AWarpTensor::get_thread_buffer_size()>;
-        using BVec = array<BDataType, BWarpTensor::get_thread_buffer_size()>;
-        using CVec = array<CDataType, CWarpTensor::get_thread_buffer_size()>;
+        using AVec = ext_vector_t<ADataType, AWarpTensor::get_thread_buffer_size()>;
+        using BVec = ext_vector_t<BDataType, BWarpTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CWarpTensor::get_thread_buffer_size()>;
 
         constexpr auto I0 = number<0>{};
 
@@ -53,9 +53,9 @@ struct WarpGemmImpl
     {
         CWarpTensor c;
 
-        using AVec = array<ADataType, AWarpTensor::get_thread_buffer_size()>;
-        using BVec = array<BDataType, BWarpTensor::get_thread_buffer_size()>;
-        using CVec = array<CDataType, CWarpTensor::get_thread_buffer_size()>;
+        using AVec = ext_vector_t<ADataType, AWarpTensor::get_thread_buffer_size()>;
+        using BVec = ext_vector_t<BDataType, BWarpTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CWarpTensor::get_thread_buffer_size()>;
 
         constexpr auto I0 = number<0>{};
 
