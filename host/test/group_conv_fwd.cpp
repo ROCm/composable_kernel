@@ -155,19 +155,19 @@ auto report(const Solution& solution, bool pass)
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
 
-struct Prologue
+struct Epilogue
 {
-    Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    Epilogue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
-    template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+    template <typename E, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const D& d) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
-        ck::half_t& e, const float& c, const ck::half_t& d) const
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t>(ck::half_t& e,
+                                                                          const ck::half_t& d) const
     {
-        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
-    };
+        e = ck::type_convert<ck::half_t>(alpha_ * e + beta_ * ck::type_convert<float>(d));
+    }
 
     float alpha_;
     float beta_;
@@ -191,31 +191,32 @@ TEST_CASE(test_problem_kernel)
     prob.X  = 3;
     prob.Hi = 71;
     prob.Wi = 71;
-    prob.Ho = 71;
-    prob.Wo = 71;
+    prob.Ho = 36;
+    prob.Wo = 36;
     check_all<ck::half_t> check;
-    auto a = to_gpu(generate_buffer<half>(64 * 64, 0));
-    auto b = to_gpu(generate_buffer<half>(64 * 64, 1));
-    auto c = to_gpu(generate_buffer<half>(64 * 64, 2));
-    /**std::string epilogue = R"(struct Epilogue
+    auto a               = to_gpu(generate_buffer<half>(64 * 64, 0));
+    auto b               = to_gpu(generate_buffer<half>(64 * 64, 1));
+    auto c               = to_gpu(generate_buffer<half>(64 * 64, 2));
+    std::string epilogue = R"(
+struct Epilogue
 {
     Epilogue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
-    template <typename E, typename C, typename D>
-    __host__ __device__ constexpr void operator()(E& e, const C& c, const D& d) const;
+    template <typename E, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const D& d) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, ck::half_t>(
-        ck::half_t& e, const float& c, const ck::half_t& d) const
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t>(ck::half_t& e,
+                                                                          const ck::half_t& d) const
     {
-        e = ck::type_convert<ck::half_t>(alpha_ * c + beta_ * ck::type_convert<float>(d));
-    };
+        e = ck::type_convert<ck::half_t>(alpha_ * e + beta_ * ck::type_convert<float>(d));
+    }
 
     float alpha_;
     float beta_;
 };
-)";**/
-    std::string epilogue = "";
+)";
+    // std::string epilogue = "";
     std::string prologue = "";
 
     static constexpr auto I0 = ck::Number<0>{};
@@ -223,7 +224,7 @@ TEST_CASE(test_problem_kernel)
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
 
-    // using CDEElementOp = Epilogue;
+    using CDEElementOp = Epilogue;
 
     using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         2,
@@ -239,7 +240,7 @@ TEST_CASE(test_problem_kernel)
         ck::half_t,
         ck::tensor_operation::element_wise::PassThrough,
         ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough, // FIXME: replace with prologue
+        CDEElementOp, // FIXME: replace with prologue
         ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         ck::tensor_operation::device::GemmSpecialization::MNKPadding,
         1,
@@ -290,17 +291,17 @@ TEST_CASE(test_problem_kernel)
                                            static_cast<int>(prob.X)};
     std::array<ck::index_t, 5> d_lengths = {};
 
-    std::array<ck::index_t, 5> in_strides{static_cast<int>(prob.C),
+    std::array<ck::index_t, 5> in_strides{123887616,
                                           static_cast<int>(prob.Hi * prob.Wi * prob.G * prob.C),
                                           1,
                                           static_cast<int>(prob.Wi * prob.G * prob.C),
                                           static_cast<int>(prob.G * prob.C)};
-    std::array<ck::index_t, 5> out_strides{static_cast<int>(prob.K),
+    std::array<ck::index_t, 5> out_strides{42467328,
                                            static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
                                            1,
                                            static_cast<int>(prob.Wo * prob.G * prob.K),
                                            static_cast<int>(prob.G * prob.K)};
-    std::array<ck::index_t, 5> wei_strides{static_cast<int>(prob.K * prob.Y * prob.X * prob.C),
+    std::array<ck::index_t, 5> wei_strides{442368,
                                            static_cast<int>(prob.Y * prob.X * prob.C),
                                            1,
                                            static_cast<int>(prob.X * prob.C),
@@ -372,8 +373,8 @@ TEST_CASE(test_problem_kernel)
     };
 
     auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
-    auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 0));
-    auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 0));
+    auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
+    auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));
 
     // populated arg call
     auto arg = DeviceConv::Argument(in_dev.data(),
@@ -394,8 +395,7 @@ TEST_CASE(test_problem_kernel)
                                     input_right_pads,
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     ck::tensor_operation::element_wise::PassThrough{},
-                                    // CDEElementOp{1.0f, 1.0f}
-                                    ck::tensor_operation::element_wise::PassThrough{});
+                                    CDEElementOp{1.0f, 1.0f});
 
     constexpr ck::index_t NumATensor =
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
@@ -406,12 +406,13 @@ TEST_CASE(test_problem_kernel)
     auto bs_grid_desc_bk0_n_bk1 =
         generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
+    std::cout << "entering loop" << std::endl;
+
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         auto src = ck::host::InterpolateString(
             conv_compile_check,
-            {{"include", prob.GetIncludeHeader()},
-             {"template", solution.ToTemplateString()}}); // FIXME: pass in the right dims
+            {{"include", prob.GetIncludeHeader()}, {"template", solution.ToTemplateString()}});
 
         std::ofstream ofh("kernel.txt");
         ofh << "##########################################################\n";
@@ -434,11 +435,6 @@ TEST_CASE(test_problem_kernel)
         auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
         // auto a_layout       =
         // solution.GetTemplateParameter<ck::tensor_layout::convolution::NHWGC>("ALayout");
-
-        // FIXME: how to pass layout?? remove hardcoding
-        using ALayout = ck::tensor_layout::convolution::NHWGC;
-        using BLayout = ck::tensor_layout::convolution::GKYXC;
-        using CLayout = ck::tensor_layout::convolution::NHWGK;
 
         // decltype(arg)::foo = 1;
         // decltype(arg.a_grid_desc_ak0_m_ak1_)::foo = 1;
@@ -464,7 +460,6 @@ TEST_CASE(test_problem_kernel)
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
         wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> out_host(out_lengths, out_strides);
-        out_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
             2,
@@ -473,20 +468,19 @@ TEST_CASE(test_problem_kernel)
             ck::half_t,
             ck::tensor_operation::element_wise::PassThrough,
             ck::tensor_operation::element_wise::PassThrough,
-            ck::tensor_operation::element_wise::PassThrough>();
+            CDEElementOp>();
 
-        auto ref_invoker = ref_conv.MakeInvoker();
-        auto ref_argument =
-            ref_conv.MakeArgument(in_host,
-                                  wei_host,
-                                  out_host,
-                                  conv_filter_strides_,
-                                  conv_filter_dilations_,
-                                  input_left_pads_,
-                                  input_right_pads_,
-                                  ck::tensor_operation::element_wise::PassThrough{},
-                                  ck::tensor_operation::element_wise::PassThrough{},
-                                  ck::tensor_operation::element_wise::PassThrough{});
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei_host,
+                                                  out_host,
+                                                  conv_filter_strides_,
+                                                  conv_filter_dilations_,
+                                                  input_left_pads_,
+                                                  input_right_pads_,
+                                                  ck::tensor_operation::element_wise::PassThrough{},
+                                                  ck::tensor_operation::element_wise::PassThrough{},
+                                                  CDEElementOp{1.0f, 1.0f});
         std::cout << "Ref args" << std::endl;
         ref_argument.Print();
 

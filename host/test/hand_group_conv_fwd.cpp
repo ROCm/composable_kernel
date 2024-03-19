@@ -533,7 +533,6 @@ struct Prologue
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
         wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> out_host(out_lengths, out_strides);
-        out_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
             2,

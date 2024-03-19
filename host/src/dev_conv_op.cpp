@@ -193,7 +193,8 @@ static const char* const Device_ConvTemplate =
 ${Prologue}
 ${Epilogue}
 
-using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
+using CDEElementOp = Epilogue;
+using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, CDEElementOp, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
 
 constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
@@ -205,7 +206,7 @@ extern "C" __global__ void run_${name}(
     ck::half_t* __restrict__ p_e_grid,
     const ck::tensor_operation::element_wise::PassThrough a_element_op,
     const ck::tensor_operation::element_wise::PassThrough b_element_op,
-    const ck::tensor_operation::element_wise::PassThrough cde_element_op,
+    const Epilogue cde_element_op,
     const ck::index_t batch_count,
     const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
     const DeviceConv::BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
@@ -216,7 +217,6 @@ extern "C" __global__ void run_${name}(
     const DeviceConv::Block2ETileMap block_2_ctile_map,
                 const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch)
 {
-    //using CDEElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
@@ -231,7 +231,7 @@ extern "C" __global__ void run_${name}(
         ${EDataType},
         ${AElementwiseOperation},
         ${BElementwiseOperation},
-        ${CDEElementwiseOperation},
+        CDEElementOp,
         ck::InMemoryDataOperationEnum::Set,
         ${NumGemmkPrefetchStage},
         ${BlockSize},
@@ -275,7 +275,7 @@ extern "C" __global__ void run_${name}(
                     ${EDataType},
                     ${AElementwiseOperation},
                     ${BElementwiseOperation},
-                    ${CDEElementwiseOperation},
+                    CDEElementOp,
                     DeviceConv::AGridDesc_AK0_M_AK1,
                     DeviceConv::BGridDesc_BK0_N_BK1,
                     DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
