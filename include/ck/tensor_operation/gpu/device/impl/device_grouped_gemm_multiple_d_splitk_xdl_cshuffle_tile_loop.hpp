@@ -12,7 +12,6 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/host_utility/stream_utility.hpp"
 #include "ck/utility/common_header.hpp"
-#include "ck/utility/tuple.hpp"
 #include <ck/utility/work_scheduling.hpp>
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -70,8 +69,7 @@ __global__ void
                                           const BElementwiseOperation b_element_op,
                                           const CDEElementwiseOperation cde_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx90a__) || defined(__gfx94__))
 
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
     __shared__ uint8_t p_shared[shared_size];
@@ -101,7 +99,12 @@ __global__ void
 
     index_t gemm_tile_id_start = 0;
     index_t gemm_tile_id_end   = grid_size_grp;
-    auto gridwise_gemm         = GridwiseGemm();
+    StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
+                              typename GridwiseGemm::AccType,
+                              GridwiseGemm::GetMPerXdl() * GridwiseGemm::GetNPerXdl(),
+                              GridwiseGemm::GetCThreadBufferVectorSize(),
+                              true>
+        results_buffer;
 
     do
     {
@@ -128,10 +131,8 @@ __global__ void
         const auto StrideA = gemm_desc_ptr[group_id].StrideA;
         const auto StrideB = gemm_desc_ptr[group_id].StrideB;
 
-        using VGPRBufferT   = remove_cvref_t<decltype(GridwiseGemm::GetCThreadBuffer())>;
-        auto results_buffer = VGPRBufferT{};
-        b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
         results_buffer.Clear();
+        b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
 
         // Iterate over K dimension for this [M,N] tile
         // still in the same GEMM && the same [M,N] tile
@@ -139,7 +140,7 @@ __global__ void
         do
         {
             // just accumulate results in registers!
-            gridwise_gemm.template RunGEMM<HasMainKBlockLoop>(p_a_grid,
+            GridwiseGemm::template RunGEMM<HasMainKBlockLoop>(p_a_grid,
                                                               p_b_grid,
                                                               static_cast<void*>(p_shared),
                                                               a_element_op,
@@ -162,7 +163,7 @@ __global__ void
         // if (changed group_id || next [M,N] tile)
         if(!b2c_tile_map.IsFirstKSplitBlock())
         {
-            gridwise_gemm.StorePartials(p_workspace, results_buffer);
+            GridwiseGemm::StorePartials(p_workspace, results_buffer);
         }
 
         work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
@@ -177,7 +178,7 @@ __global__ void
             // Accumulate only when there is at least two workgroups processing splitk data-tiles
             // across same MN-output tile.
             if(neighbour_count > 1)
-                gridwise_gemm.AccumulatePartials(p_workspace, results_buffer, neighbour_count);
+                GridwiseGemm::AccumulatePartials(p_workspace, results_buffer, neighbour_count);
 
             // Signal waiting blocks that they can start use their workspace.
             work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
@@ -196,7 +197,7 @@ __global__ void
                 p_ds_grid(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
             });
 
-            gridwise_gemm.template RunWrite(p_ds_grid,
+            GridwiseGemm::template RunWrite(p_ds_grid,
                                             p_e_grid,
                                             static_cast<void*>(p_shared),
                                             M,
