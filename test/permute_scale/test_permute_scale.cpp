@@ -60,8 +60,8 @@ TYPED_TEST(TestPermute, Test1D)
 TYPED_TEST(TestPermute, Test2D)
 {
     constexpr ck::index_t NumDims = 2;
-    this->template Run<NumDims>({8, 8}, {8, 1}, {1, 8});
-    this->template Run<NumDims>({8, 8}, {1, 8}, {8, 1});
+    this->template Run<NumDims>({8, 16}, {16, 1}, {1, 8});
+    this->template Run<NumDims>({8, 16}, {1, 8}, {16, 1});
     this->template Run<NumDims>({1, 1}, {1, 1}, {1, 1});
 }
 
@@ -76,16 +76,16 @@ TYPED_TEST(TestPermute, Test3D)
 TYPED_TEST(TestPermute, Test4D)
 {
     constexpr ck::index_t NumDims = 4;
-    this->template Run<NumDims>({4, 4, 4, 4}, {64, 16, 4, 1}, {1, 4, 16, 64});
-    this->template Run<NumDims>({4, 4, 4, 4}, {1, 4, 16, 64}, {64, 16, 4, 1});
+    this->template Run<NumDims>({8, 2, 2, 8}, {32, 16, 8, 1}, {1, 8, 16, 32});
+    this->template Run<NumDims>({8, 2, 2, 8}, {1, 8, 16, 32}, {32, 16, 8, 1});
     this->template Run<NumDims>({1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1});
 }
 
 TYPED_TEST(TestPermute, Test5D)
 {
     constexpr ck::index_t NumDims = 5;
-    this->template Run<NumDims>({4, 4, 4, 4, 4}, {256, 64, 16, 4, 1}, {1, 4, 16, 64, 256});
-    this->template Run<NumDims>({4, 4, 4, 4, 4}, {1, 4, 16, 64, 256}, {256, 64, 16, 4, 1});
+    this->template Run<NumDims>({8, 2, 2, 2, 8}, {64, 32, 16, 8, 1}, {1, 8, 16, 32, 64});
+    this->template Run<NumDims>({8, 2, 2, 2, 8}, {1, 8, 16, 32, 64}, {64, 32, 16, 8, 1});
     this->template Run<NumDims>({1, 1, 1, 1, 1}, {1, 1, 1, 1, 1}, {1, 1, 1, 1, 1});
 }
 
@@ -93,8 +93,8 @@ TYPED_TEST(TestPermute, Test6D)
 {
     constexpr ck::index_t NumDims = 6;
     this->template Run<NumDims>(
-        {4, 4, 4, 4, 4, 4}, {1024, 256, 64, 16, 4, 1}, {1, 4, 16, 64, 256, 1024});
+        {8, 2, 2, 2, 2, 8}, {128, 64, 32, 16, 8, 1}, {1, 8, 16, 32, 64, 128});
     this->template Run<NumDims>(
-        {4, 4, 4, 4, 4, 4}, {1, 4, 16, 64, 256, 1024}, {1024, 256, 64, 16, 4, 1});
+        {8, 2, 2, 2, 2, 8}, {1, 8, 16, 32, 64, 128}, {128, 64, 32, 16, 8, 1});
     this->template Run<NumDims>({1, 1, 1, 1, 1, 1}, {1, 1, 1, 1, 1, 1}, {1, 1, 1, 1, 1, 1});
 }

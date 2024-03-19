@@ -65,20 +65,21 @@ struct ThreadGroupTensorSliceTransfer_v4r2
                                element_op)
 
     {
+        static_assert(nDim == ThreadClusterLengths::Size() &&
+                          nDim == ThreadClusterArrangeOrder::Size() &&
+                          nDim == SrcDimAccessOrder::Size() && nDim == SrcDimAccessOrder::Size(),
+                      "wrong! nDim not consistent");
+
         static_for<0, nSrc, 1>{}([&](auto src_i) {
-            static_assert(
-                nDim == remove_cvref_t<tuple_element_t<src_i, SrcDescs>>::GetNumOfDimension() &&
-                    nDim == ThreadClusterLengths::Size() &&
-                    nDim == ThreadClusterArrangeOrder::Size() &&
-                    nDim == SrcDimAccessOrder::Size() && nDim == SrcDimAccessOrder::Size(),
-                "wrong! nDim not consistent");
+            static_assert(nDim ==
+                              remove_cvref_t<tuple_element_t<src_i, SrcDescs>>::GetNumOfDimension(),
+                          "wrong! nDim not consistent");
         });
 
-        static_for<0, nSrc, 1>{}([&](auto dst_i) {
-            static_assert(
-                nDim == remove_cvref_t<tuple_element_t<dst_i, DstDescs>>::GetNumOfDimension() &&
-                    nDim == SrcDimAccessOrder::Size() && nDim == DstDimAccessOrder::Size(),
-                "wrong! nDim not consistent");
+        static_for<0, nDst, 1>{}([&](auto dst_i) {
+            static_assert(nDim ==
+                              remove_cvref_t<tuple_element_t<dst_i, DstDescs>>::GetNumOfDimension(),
+                          "wrong! nDim not consistent");
         });
 
         static_assert(

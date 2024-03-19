@@ -20,7 +20,7 @@ using F32 = float;
 using ADataType = F32;
 using BDataType = F32;
 
-using UnaryOp                          = ck::tensor_operation::element_wise::UnaryScaleSquare;
+using UnaryOp                          = ck::tensor_operation::element_wise::Scale;
 using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
     ck::Tuple<ADataType>, // InDataTypeTuple
     ck::Tuple<BDataType>, // OutDataTypeTuple

@@ -43,7 +43,7 @@ bool profile_permute_scale_impl(int do_verification,
     bool pass           = true;
     bool instance_found = false;
 
-    using ElementOp = ck::tensor_operation::element_wise::UnaryScaleSquare;
+    using ElementOp = ck::tensor_operation::element_wise::Scale;
     float scale     = 2.f;
 
     Tensor<ADataType> a(lengths_vector, input_strides_vector);

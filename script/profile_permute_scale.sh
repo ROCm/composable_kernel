@@ -13,31 +13,31 @@ TIME=$6
 
 
 # 1D
-########  op  datatype  verify  init  log  time  dims     in_strides out_strides
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  67108864 0          0
+########  op  datatype  verify  init  log  time  dims     in_strides_order out_strides_order
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  67108864 0                0
 
 # # 2D
-# ########  op  datatype  verify  init  log  time  dims      in_strides out_strides
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8192 8192   0 1        1 0
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8192 8192   1 0        0 1
+# ########  op  datatype  verify  init  log  time  dims      in_strides_order out_strides_order
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8192 8192   0 1              1 0
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8192 8192   1 0              0 1
 
 # 3D
-########  op  datatype  verify  init  log  time  dims        in_strides out_strides
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 1024 8192 0 1 2      2 1 0
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 1024 8192 2 1 0      0 1 2
+########  op  datatype  verify  init  log  time  dims        in_strides_order out_strides_order
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 1024 8192 0 1 2            2 1 0
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 1024 8192 2 1 0            0 1 2
 
 # 4D
-########  op  datatype  verify  init  log  time  dims          in_strides out_strides
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 512 8192  0 1 2 3    3 2 1 0
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 512 8192  3 2 1 0    0 1 2 3
+########  op  datatype  verify  init  log  time  dims          in_strides_order out_strides_order
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 512 8192  0 1 2 3          3 2 1 0
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 512 8192  3 2 1 0          0 1 2 3
 
 # 5D
-########  op  datatype  verify  init  log  time  dims            in_strides out_strides
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 256 8192  0 1 2 3 4  4 3 2 1 0
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 256 8192  4 3 2 1 0  0 1 2 3 4
+########  op  datatype  verify  init  log  time  dims            in_strides_order out_strides_order
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 256 8192  0 1 2 3 4        4 3 2 1 0
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 256 8192  4 3 2 1 0        0 1 2 3 4
 
  # 6D
-########  op  datatype  verify  init  log  time  dims             in_strides  out_strides
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 2 128 8192 0 1 2 3 4 5 5 4 3 2 1 0
- $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 2 128 8192 5 4 3 2 1 0 0 1 2 3 4 5
+########  op  datatype  verify  init  log  time  dims             in_strides_order out_strides_order
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 2 128 8192 0 1 2 3 4 5      5 4 3 2 1 0
+ $DRIVER $OP $DATATYPE $VERIFY $INIT $LOG $TIME  8 2 2 2 128 8192 5 4 3 2 1 0      0 1 2 3 4 5
 

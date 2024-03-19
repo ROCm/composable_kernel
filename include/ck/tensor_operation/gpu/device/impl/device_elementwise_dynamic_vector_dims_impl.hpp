@@ -107,6 +107,8 @@ struct DeviceElementwiseImpl
                                               const index_t M1_dim)
     {
         // Generate batch dims, they will be merged to M0
+        // Add one more dim than needed in case that M0 is equal to M1
+        // If M0 is equal to M1, then will be one more batch dim
         std::array<index_t, NumDim - 1> batch_dims;
         index_t batch_dim = 0;
         for(index_t i = 0; i < NumDim; i++)
@@ -151,7 +153,7 @@ struct DeviceElementwiseImpl
             typename arithmetic_sequence_gen<0, decltype(batch_dims_lenghts)::Size() + 1, 1>::type;
         const auto lower_dims = make_tuple(BatchElemsSequence{}, Sequence<NumDim>{});
         const auto upper_dims = make_tuple(Sequence<0>{}, Sequence<1>{});
-        // desc: (merged_dims, b_vector_dim, a_vector_dim)
+        // desc: (merged_dims + M0, M1)
         auto merged_desc = transform_tensor_descriptor(desc, transforms, lower_dims, upper_dims);
         return PadInputOutputDescriptor(merged_desc);
     }
@@ -413,7 +415,7 @@ struct DeviceElementwiseImpl
 
         return str.str();
     }
-}; // namespace device
+};
 
 } // namespace device
 } // namespace tensor_operation
