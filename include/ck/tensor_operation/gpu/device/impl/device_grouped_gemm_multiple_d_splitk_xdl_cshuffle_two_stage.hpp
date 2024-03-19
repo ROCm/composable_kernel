@@ -14,14 +14,18 @@
 #include "ck/utility/common_header.hpp"
 #include <ck/utility/loop_scheduler.hpp>
 #include "ck/utility/tuple.hpp"
+#include "ck/utility/sequence_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d_splitk.hpp"
+
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_splitk_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
+
+#include <ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp>
 
 namespace ck {
 namespace tensor_operation {
@@ -100,7 +104,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     static constexpr index_t K0PerBlock = KPerBlock / AK1;
 
     using PassThrough        = ck::tensor_operation::element_wise::PassThrough;
-    using WorkspaceEDataType = float;
+    using WorkspaceDataType = float;
 
     // First stage GridwiseGEMM kernel.
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
@@ -108,7 +112,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         ADataType,
         BDataType,
         AccDataType,
-        WorkspaceEDataType,
+        WorkspaceDataType,
         ALayout,
         BLayout,
         ELayout,
@@ -149,7 +153,95 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         PipelineVer,
         ComputeDataType>;
 
+template <typename ELay>
+    static auto MakeEGridDescriptor_M_N(index_t M, index_t N, index_t StrideE)
+    {
+        const auto c_grid_desc_m_n = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, ELay>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(StrideE, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ELay>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(M, N), make_tuple(I1, StrideE));
+            }
+        }();
+
+        if constexpr(GemmSpec == GemmSpecialization::MNPadding)
+        {
+            const auto PadM = (MPerBlock - M % MPerBlock) % MPerBlock;
+            const auto PadN = (NPerBlock - N % NPerBlock) % NPerBlock;
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_right_pad_transform(M, PadM), make_right_pad_transform(N, PadN)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+        else
+        {
+
+            return transform_tensor_descriptor(
+                c_grid_desc_m_n,
+                make_tuple(make_pass_through_transform(M), make_pass_through_transform(N)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+    }
+
+   static auto MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
+                                         const std::array<index_t, NumDTensor>& NRaws,
+                                         const std::array<index_t, NumDTensor>& DsStride)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                return MakeEGridDescriptor_M_N<DLayout>(MRaws[i], NRaws[i], DsStride[i]);
+            },
+            Number<NumDTensor>{});
+    }
+
+    static constexpr auto MakeDsGridPointer()
+    {
+        return generate_tuple(
+            [&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+
+                return static_cast<const DDataType*>(nullptr);
+            },
+            Number<NumDTensor>{});
+    }
+
+    static constexpr auto MakeElementwiseInputSequence()
+    {
+        return generate_sequence_v2(
+                [&](auto i) constexpr { return Number<i+1-i>{}; },
+                Number<NumDTensor+1>{});
+
+        //CShuffleNXdlPerWavePerShuffle
+    }
+
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
+    using EGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
+    using DsGridDesc_M_N    = decltype(MakeDsGridDescriptor_M_N({}, {}, {}));
+    using DsGridPointer = decltype(MakeDsGridPointer());
+    using CDGridDesc_M_N = decltype(concat_tuple(ck::Tuple<CGridDesc_M_N>{}, DsGridDesc_M_N{}));
+    //using CDDataTypes = decltype(concat_tuple(ck::Tuple<WorkspaceDataType*>{}, DsDataType{}));
+    using CDDataTypes = decltype(concat_tuple(ck::Tuple<WorkspaceDataType*>{}, DsGridPointer{}));
+
+    using ElementwiseInputSequence = decltype(MakeElementwiseInputSequence());
+
+    using GridwiseElementwise = GridwiseElementwise_2D<CDGridDesc_M_N, // zmien na C, D_0, ..., D_n  / tuple<C, D_0, ..., D_N>
+                                                       ck::Tuple<EGridDesc_M_N>,
+                                                       CDDataTypes, // zmien na C, D_0, ..., D_n / tuple<C, D_0, ..., D_N>
+                                                       ck::Tuple<EDataType*>,
+                                                       CDEElementwiseOperation,  
+                                                       CDEShuffleBlockTransferScalarPerVector_NPerBlock,  // MPerThread
+                                                       CDEShuffleBlockTransferScalarPerVector_NPerBlock,  // NPerThread
+                                                       ElementwiseInputSequence,
+                                                       ck::Sequence<8>>;
+
     using Block2ETileMapKSplit =
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
     // Block2CTileMap configuration parameter.
@@ -231,6 +323,11 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             }
 
             gemm_kernel_args_.reserve(group_count_);
+            elementwise_c_grid_descs_m_n_.reserve(group_count_);
+
+
+            elementwise_d_grid_descs_m_n_.reserve(group_count_);
+            ds_grid_pointer_.reserve(group_count_);
 
             for(std::size_t i = 0; i < gemm_descs.size(); ++i)
             {
@@ -255,6 +352,17 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
                 const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_e);
 
+                DsGridDesc_M_N ds_grid_desc_m_n;
+                DsGridPointer p_ds_grid;
+
+                static_for<0, NumDTensor, 1>{}([&](auto j) {
+                    using DLayout   = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+                    using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
+
+                    p_ds_grid(j)        = static_cast<const DDataType*>(p_Ds[i][j]);
+                    ds_grid_desc_m_n(j) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
+                        M, N, gemm_descs[i].stride_Ds_[j]);
+                });
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
                 const index_t grid_size_grp = local_b2c_tile_map.CalculateGridSize(c_grid_desc_m_n);
@@ -284,7 +392,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 // when workspace will be set, this will be updated to workspace memory.
                 auto karg = GemmKernelArgument{type_convert<const ADataType*>(p_As[i]),
                                                type_convert<const BDataType*>(p_Bs[i]),
-                                               type_convert<EDataType*>(p_Es[i]),
+                                               type_convert<WorkspaceDataType*>(p_Es[i]),
                                                M,
                                                N,
                                                K,
@@ -299,7 +407,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
                 gemm_kernel_args_.emplace_back(
                     std::move(karg), std::move(grouped_block_2_ctile_map), block_start, block_end);
+
+                elementwise_c_grid_descs_m_n_.push_back(c_grid_desc_m_n);
+                elementwise_d_grid_descs_m_n_.push_back(ds_grid_desc_m_n);
+                ds_grid_pointer_.push_back(p_ds_grid);
             }
+            // Store a copy of E pointers for elementwise kernel destination
+            e_ptrs_ = p_Es;
         }
 
         /**
@@ -374,7 +488,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             for(const auto& arg : gemm_kernel_args_)
             {
                 index_t tiles = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
-                size_bytes += tiles * MPerBlock * NPerBlock * sizeof(WorkspaceEDataType);
+                size_bytes += tiles * MPerBlock * NPerBlock * sizeof(WorkspaceDataType);
             }
             return size_bytes;
         }
@@ -401,6 +515,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         std::vector<std::array<const void*, NumDTensor>>& p_Ds_;
         std::vector<std::array<index_t, NumDTensor>> stride_Ds_;
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
+
+        std::vector<CGridDesc_M_N> elementwise_c_grid_descs_m_n_;
+        std::vector<DsGridDesc_M_N> elementwise_d_grid_descs_m_n_;
+
+        std::vector<DsGridPointer> ds_grid_pointer_;
+
+        std::vector<void *> e_ptrs_;
     };
 
     // Invoker
@@ -591,13 +712,19 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                                AElementwiseOperation,
                                                BElementwiseOperation,
                                                PassThrough>;
-            //  TODO
-            // const auto fuse_kernel = ...
-            return LaunchKernel(gemm_kernel, arg, dev_gemm_args, dev_gemm_workspace, stream_config);
+
+            const auto elementwise_kernel = kernel_elementwise_2d<GridwiseElementwise,
+                                                      CDGridDesc_M_N,
+                                                      ck::Tuple<EGridDesc_M_N>,
+                                                      CDDataTypes,
+                                                      ck::Tuple<EDataType*>,
+                                                      CDEElementwiseOperation>;
+            return LaunchKernel(gemm_kernel, elementwise_kernel, arg, dev_gemm_args, dev_gemm_workspace, stream_config);
         }
 
-        template <typename KernelFunction>
+        template <typename KernelFunction, typename KernelFunction2>
         float LaunchKernel(const KernelFunction& gemm_kernel,
+                           const KernelFunction2& elementwise_kernel,
                            const Argument& arg,
                            const void* dev_gemm_args,
                            [[maybe_unused]] void* dev_gemm_workspace,
@@ -624,7 +751,21 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 arg.b_element_op_,
                 PassThrough{});
 
-            // launch fuse kernel.
+            // launch elementwise kernels.
+            for(int i=0; i < arg.group_count_; ++i) {
+                time += launch_and_time_kernel(stream_config,
+                                                        elementwise_kernel,
+                                                        dim3(arg.grid_size_), // chyba group_grid_size <<< tak  zmienic na group_grid_size[i]
+                                                        dim3(BlockSize),
+                                                        0,
+                                                        concat_tuple(make_tuple(arg.elementwise_c_grid_descs_m_n_[i]), arg.elementwise_d_grid_descs_m_n_[i]),
+                                                        make_tuple(arg.elementwise_c_grid_descs_m_n_[i]),
+                                                        concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid), arg.ds_grid_pointer_[i]),
+                                                        type_convert<EDataType*>(arg.e_ptrs_[i]),
+                                                        arg.cde_element_op_,
+                                                        CDEShuffleBlockTransferScalarPerVector_NPerBlock, // num_threads_m
+                                                        CDEShuffleBlockTransferScalarPerVector_NPerBlock); // num_threads_n
+            }
 
             return time;
         }
@@ -749,8 +890,6 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle << ", "
             << getGemmSpecializationString(GemmSpec) << ", "
-            << PipelineVer << ", "
-            << LoopSched
             << ">";
         // clang-format on
 
