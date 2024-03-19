@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 // This (ifndef) is a hack to use customized behavior for buffer load rather than using default
 // setting Don't use this hack unless absolutely necessary!
@@ -22,7 +22,8 @@ namespace instance {
 // A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1]
 // m/n/n/n are the fast changing dimension for A/B/D/E
 using device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f32_f32_f32_f32_compute_bf16_mnnn_instance =
-    device_contraction_mn_instance<F32,
+    device_contraction_mn_instance<2,
+                                   F32,
                                    F32,
                                    F32,
                                    F32,

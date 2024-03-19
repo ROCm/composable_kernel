@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -100,7 +100,9 @@ int profile_contraction_bilinear(int argc, char* argv[])
                 assign_default_strides(cde_layout, StridesE, {M[0], M[1], N[0], N[1]});
                 assign_default_strides(cde_layout, StridesD, {M[0], M[1], N[0], N[1]});
             }
-            bool pass = ck::profiler::profile_contraction_impl<ALayout,
+            constexpr ck::index_t NumDim = 2;
+            bool pass                    = ck::profiler::profile_contraction_impl<NumDim,
+                                                               ALayout,
                                                                BLayout,
                                                                CDELayout,
                                                                DataType,
