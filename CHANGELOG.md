@@ -2,18 +2,25 @@
 
 Full documentation for Composable Kernel is not yet available.
 
-## (Unreleased) CK
-
-### Fixes
-None
-
-### Optimizations
-None
+## CK for ROCm 6.1.0
 
 ### Additions
-* Introduced wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126, #1139)
+* Added generic instances for GEMM XDL operations (#1161)
+* Added gamma and beta parameters for the layernorm and groupnorm bwd operations (#1133)
+* Introduced wrapper sublibrary (limited functionality). (#1071, #1098, #1108, #1126)
+* Added an option to vary the number of warm-up cycles and iterations for ckProfiler (#1124)
+
+### Optimizations
+* New performance optimizations for GEMM operations on MI200 and MI300 architectures (#1135)
+
+### Fixes
+* Reduced the build time for most GPU architectures (#1084)
+* Fixed some conversion issues for fp8 data type (#1099)
 
 ### Changes
+None
+
+### Known issues
 None
 
 ## CK for ROCm 6.0.0
@@ -32,7 +39,7 @@ None
 * Grouped convolution support for small K and C (#822 #879 #897)
 * Support for NHWGC (2D and 3D) grouped convolution backward weight (#769 #804)
 * Support for bf16/f32/f16 and NHWGC (2D and 3D) grouped convolution backward data (#757 #799)
-* Support for Batched Gemm DL (#732)
+* Support for Batched GEMM DL (#732)
 
 ### Changes
  * Changed the grouped convolution API to maintain consistency with other convolution kernels (#817)
@@ -48,7 +55,7 @@ None
 
 ### Additions
 * New CMake flags:
-  * "DL_KERNELS"-* Must be set to "ON" in order to build the gemm_dl and batched_gemm_multi_d_dl instances
+  * "DL_KERNELS"-* Must be set to "ON" in order to build the GEMM DL and batched_gemm_multi_d_dl instances
   * "DTYPES" -- Can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build an instance of the specified data types
   * "INSTANCES_ONLY" -- Only builds CK library and instances without tests, examples, or profiler
 * New feature: if GPU_TARGETS is not set in the CMake command line, CK will be built for all targets supported by the compiler

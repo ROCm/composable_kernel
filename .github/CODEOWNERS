@@ -1,7 +1,7 @@
-* @zjing14 @asroy @junliume @illsilin @carlushuang @aosewski
+* @zjing14 @junliume @illsilin @carlushuang @aosewski
 # Documentation files
-docs/* @saadrahim @LisaDelaney
-*.md  @saadrahim @LisaDelaney
-*.rst  @saadrahim @LisaDelaney
-# Header directory
-library/include/*  @saadrahim @LisaDelaney
+docs/* @ROCm/rocm-documentation
+*.md @ROCm/rocm-documentation
+*.rst @ROCm/rocm-documentation
+# Header directory for Doxygen documentation
+library/include/* @ROCm/rocm-documentation
