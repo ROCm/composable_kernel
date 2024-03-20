@@ -156,32 +156,28 @@ __global__ void
 
         } while(work_scheduler.GetNextTile() && b2c_tile_map.GetNextKTileIdx());
 
-        const index_t output_tile_idx =
-            __builtin_amdgcn_readfirstlane(b2c_tile_map.GetOutputTileIdx());
-        const index_t output_tile_idx_offset = __builtin_amdgcn_readfirstlane(offset / k_batch);
-
         // if (changed group_id || next [M,N] tile)
         if(!b2c_tile_map.IsFirstKSplitBlock())
         {
             GridwiseGemm::StorePartials(p_workspace, results_buffer);
         }
 
-        work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
+        work_scheduler.FlagFinished();
 
         // The workgroup which processed first K tile accumulates results and stores to GMEM
         if(b2c_tile_map.IsFirstKSplitBlock())
         {
             // Wait untill all other blocks for this [M,N] tile store their results.
-            index_t neighbour_count = work_scheduler.WaitForNeighbours(
-                k_batch, b2c_tile_map.GetTileKIdx(), output_tile_idx, output_tile_idx_offset);
+            index_t neighbour_count =
+                work_scheduler.WaitForNeighbours(k_batch, b2c_tile_map.GetTileKIdx());
 
             // Accumulate only when there is at least two workgroups processing splitk data-tiles
             // across same MN-output tile.
-            if(neighbour_count > 1)
-                GridwiseGemm::AccumulatePartials(p_workspace, results_buffer, neighbour_count);
+            if(neighbour_count > 0)
+                GridwiseGemm::AccumulatePartials(p_workspace, results_buffer, neighbour_count + 1);
 
             // Signal waiting blocks that they can start use their workspace.
-            work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
+            work_scheduler.Reset(neighbour_count);
 
             const auto p_e_grid  = reinterpret_cast<FloatC*>(gemm_desc_ptr[group_id].p_e_grid);
             const auto stride_e  = gemm_desc_ptr[group_id].StrideE;
@@ -210,7 +206,7 @@ __global__ void
         }
         else if(work_scheduler.HasTile())
         {
-            work_scheduler.WaitForReduction(k_batch, output_tile_idx, output_tile_idx_offset);
+            work_scheduler.WaitForReduction();
         }
     } while(work_scheduler.HasTile());
 #else
@@ -752,7 +748,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             void* p_flags = reinterpret_cast<char*>(dev_gemm_workspace) +
                             Block2ETileMapKSplit::GetAccWorkspaceSize(
                                 sizeof(typename GridwiseGemm::AccType), grid_size);
-            std::size_t flag_count = (grid_size * tiles_per_block + arg.K_BATCH - 1) / arg.K_BATCH;
+            std::size_t flag_count = grid_size;
 
             if(stream_config.log_level_ > 0)
             {
@@ -993,7 +989,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         {
             grid_size = (arg.tile_count_ + tiles_per_block - 1) / tiles_per_block;
         }
-        int flag_count = (grid_size * tiles_per_block + arg.K_BATCH - 1) / arg.K_BATCH;
+        int flag_count = grid_size;
 
         // This would be the maximum needed workspace size. Since actual grid size, which determines
         // the amount of workspace bytes needed, may be less due to the number of available CUs in

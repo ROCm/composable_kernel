@@ -32,8 +32,7 @@ enum struct WorkSchedulingPolicy
 class StridedReductionTileLoop
 {
     public:
-    __device__ StridedReductionTileLoop(index_t tile_count,
-                                        volatile uint32_t* const __restrict__ p_flags)
+    __device__ StridedReductionTileLoop(index_t tile_count, uint32_t* const __restrict__ p_flags)
         : tile_count_{tile_count},
           tiles_per_block_{(tile_count_ + get_grid_size() - 1) / get_grid_size()},
           tile_id_{get_block_1d_id() * tiles_per_block_},
@@ -54,62 +53,29 @@ class StridedReductionTileLoop
         return HasTile();
     }
 
-    __device__ index_t GetFlagCount(index_t k_tiles) const
-    {
-        // This is the number of MN-output tiles which we cover with workgroups.
-        // We launch k_tiles (k_batch) / tiles_per_block workgroups for each output tile.
-        return (get_grid_size() * tiles_per_block_ + k_tiles - 1) / k_tiles;
-    }
+    __device__ index_t GetFlagCount() const { return get_grid_size(); }
 
     ///
-    /// @brief      Calculate this workgroup flag index.
-    ///
-    /// @note       Note this scheduler intentionaly does not have flag index as its member, since
-    ///             current workgroup may process tiles across different MN-output tiles or
-    ///             acorss different GEMMs (grouped gemm).
-    ///
-    /// @param[in]  k_tiles                 The number of data tiles in the reduced dimension.
-    /// @param[in]  output_tile_idx         The output (MN) linear tile index (of current GEMM).
-    /// @param[in]  output_tile_idx_offset  The accumulated offset of output tiles from previous
-    ///                                     GEMMs.
+    /// @brief      Get this workgroup flag index.
     ///
     /// @return     The workgroup flag index.
     ///
-    __device__ uint32_t GetWorkgroupFlagIdx(index_t k_tiles,
-                                            index_t output_tile_idx,
-                                            index_t output_tile_idx_offset) const
-    {
-        return (output_tile_idx + output_tile_idx_offset) % GetFlagCount(k_tiles);
-    }
+    __device__ uint32_t GetWorkgroupFlagIdx() const { return static_cast<uint32_t>(blockIdx.x); }
 
     ///
     /// @brief      Flag each workgroup that has finished its work.
     ///
-    /// @param[in]  k_tiles               The number of tiles in the reduced dimension.
-    /// @param[in]  output_tile_idx         The output (MN) tile index
-    /// @param[in]  output_tile_idx_offset  The output tile index offset
-    ///
-    __device__ void
-    FlagFinished(index_t k_tiles, index_t output_tile_idx, index_t output_tile_idx_offset)
-    {
-        const auto fidx = GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset);
-        finished_block_flags_.inc(fidx);
-    }
+    __device__ void FlagFinished() { finished_block_flags_.inc(GetWorkgroupFlagIdx()); }
 
     ///
     /// @brief      Wait until each workgroup has finished its work.
     ///
-    /// @param[in]  k_tiles                 The number of tiles in the reduced dimension.
-    /// @param[in]  k_tile_idx              The currently processed tile k index.
-    /// @param[in]  output_tile_idx         The output (MN) tile index
-    /// @param[in]  output_tile_idx_offset  The output tile index offset
+    /// @param[in]  k_tiles     The number of tiles in the reduced dimension.
+    /// @param[in]  k_tile_idx  The currently processed tile k index.
     ///
     /// @return     The number of neighbours.
     ///
-    __device__ index_t WaitForNeighbours(index_t k_tiles,
-                                         index_t k_tile_idx,
-                                         index_t output_tile_idx,
-                                         index_t output_tile_idx_offset)
+    __device__ index_t WaitForNeighbours(index_t k_tiles, index_t k_tile_idx)
     {
         // We have to wait for all workgroups to finish their partial results.
         // First count how many "neighbour" workgroups we have to check.
@@ -139,57 +105,48 @@ class StridedReductionTileLoop
 
         if(neighbour_count > 0)
         {
-            // Also count this workgroup
-            neighbour_count++;
-            finished_block_flags_.wait_eq(
-                GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset),
-                neighbour_count);
+            index_t flag_sum = 0;
+            do
+            {
+                flag_sum = 0;
+                for(index_t i = 1; i <= neighbour_count; ++i)
+                {
+                    flag_sum += finished_block_flags_.ld(GetWorkgroupFlagIdx() + i);
+                }
+            } while(flag_sum != neighbour_count);
         }
 
         return neighbour_count;
     }
 
     ///
-    /// @brief      Wait until each workgroup has finished its work.
+    /// @brief      Wait until reduction workgroup has finished its work.
     ///
-    /// @param[in]  k_tiles                 The number of tiles in the reduced dimension.
-    /// @param[in]  output_tile_idx         The output (MN) tile index
-    /// @param[in]  output_tile_idx_offset  The output tile index offset
-    ///
-    __device__ void
-    WaitForReduction(index_t k_tiles, index_t output_tile_idx, index_t output_tile_idx_offset)
+    __device__ void WaitForReduction()
     {
-        // Wait untill the counter has been reset.
-        finished_block_flags_.wait_eq(
-            GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset), 0);
+        // Wait untill my counter has been reset.
+        finished_block_flags_.wait_eq(GetWorkgroupFlagIdx(), 0);
     }
 
     ///
     /// @brief      Reset flag counter to zero.
     ///
-    /// @param[in]  k_tiles                 The number of tiles in the reduced dimension.
-    /// @param[in]  output_tile_idx         The output (MN) tile index.
-    /// @param[in]  output_tile_idx_offset  The output tile index offset.
+    /// @param[in]  neighbour_count     The number of peer workgroups.
     ///
-    __device__ void Reset(index_t k_tiles, index_t output_tile_idx, index_t output_tile_idx_offset)
+    __device__ void Reset(index_t neighbour_count)
     {
-        finished_block_flags_.reset(
-            GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset));
+        for(index_t i = 0; i <= neighbour_count; ++i)
+        {
+            finished_block_flags_.reset(GetWorkgroupFlagIdx() + i);
+        }
     }
 
     ///
     /// @brief      Gets the flag value.
     ///
-    /// @param[in]  k_tiles                 The number of tiles in the reduced dimension.
-    /// @param[in]  output_tile_idx         The output (MN) tile index.
-    /// @param[in]  output_tile_idx_offset  The output tile index offset.
-    ///
-    __device__ uint32_t GetFlagValue(index_t k_tiles,
-                                     index_t output_tile_idx,
-                                     index_t output_tile_idx_offset) const
+    __device__ uint32_t GetFlagValue() const
     {
-        return finished_block_flags_.ld(
-            GetWorkgroupFlagIdx(k_tiles, output_tile_idx, output_tile_idx_offset));
+        return finished_block_flags_.ld(GetWorkgroupFlagIdx());
     }
 
     const index_t tile_count_;

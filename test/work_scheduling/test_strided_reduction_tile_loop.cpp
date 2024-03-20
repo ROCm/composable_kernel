@@ -166,22 +166,18 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
             //     partial_result;
         }
 
-        const index_t output_tile_idx =
-            __builtin_amdgcn_readfirstlane(b2c_tile_map.GetOutputTileIdx());
-        const index_t output_tile_idx_offset = __builtin_amdgcn_readfirstlane(offset / k_batch);
-
-        work_scheduler.FlagFinished(k_batch, output_tile_idx, output_tile_idx_offset);
+        work_scheduler.FlagFinished();
 
         // The workgroup which processed first K tile accumulates results and stores to GMEM
         if(b2c_tile_map.IsFirstKSplitBlock())
         {
             // Wait untill all other blocks for this [M,N] tile store their results.
-            index_t neighbour_count = work_scheduler.WaitForNeighbours(
-                k_batch, b2c_tile_map.GetTileKIdx(), output_tile_idx, output_tile_idx_offset);
+            index_t neighbour_count =
+                work_scheduler.WaitForNeighbours(k_batch, b2c_tile_map.GetTileKIdx());
 
             // Accumulate partial results. We can have different # of workgroups to reduce, thus we
             // read actual flag value.
-            for(index_t i = 1; i < neighbour_count; ++i)
+            for(index_t i = 1; i <= neighbour_count; ++i)
             {
                 // partial_result += p_workspace[(get_block_1d_id()) * MPerBlock * NPerBlock +
                 //                               i * MPerBlock * NPerBlock +
@@ -199,7 +195,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
             }
 
             // Signal waiting blocks that they can start use their workspace.
-            work_scheduler.Reset(k_batch, output_tile_idx, output_tile_idx_offset);
+            work_scheduler.Reset(neighbour_count);
 
             // write result
             const index_t C_m_tile_offset     = block_m_id * MPerBlock;
@@ -221,7 +217,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
         }
         else if(work_scheduler.HasTile())
         {
-            work_scheduler.WaitForReduction(k_batch, output_tile_idx, output_tile_idx_offset);
+            work_scheduler.WaitForReduction();
         }
     } while(work_scheduler.HasTile());
 
@@ -328,11 +324,7 @@ struct GroupedGemmStridedTileLoopReduce
         gemm_descs_device_buf.ToDevice(gemm_descs.data());
 
         DeviceMem gemm_workspace, gemm_flags;
-
-        const index_t tiles_per_block = (tile_count + grid_size - 1) / grid_size;
-        // This is the number of MN-output tiles which we cover with workgroups.
-        // We launch k_batch / tiles_per_block workgroups for each output tile.
-        const index_t flag_count = (grid_size * tiles_per_block + k_batch - 1) / k_batch;
+        const index_t flag_count = grid_size;
 
         gemm_workspace.Realloc(grid_size * MPerBlock * NPerBlock * sizeof(float));
         gemm_flags.Realloc(flag_count * sizeof(uint32_t));
