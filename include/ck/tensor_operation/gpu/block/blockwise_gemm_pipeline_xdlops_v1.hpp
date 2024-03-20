@@ -265,7 +265,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
         }
 
         // tail
-        if constexpr(TailNum == TailNumber::Odd)
+        if constexpr(TailNum == TailNumber::Full)
         {
             block_sync_lds();
             static_for<0, KRepeat, 1>{}([&](auto k) {
@@ -435,7 +435,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         ignore = num_loop;
-        return TailNumber::Odd;
+        return TailNumber::Full;
     }
 
     template <bool HasMainLoop,

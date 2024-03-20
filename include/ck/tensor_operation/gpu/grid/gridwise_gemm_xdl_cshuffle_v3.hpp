@@ -589,7 +589,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             return make_naive_tensor_descriptor(
                 make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
-                make_tuple(Number<MPerBlock + ABlockLdsExtraM>{} * AK1Number, AK1Number, I1));
+                make_tuple(AK1Number, Number<KPerBlock + ABlockLdsExtraM>{}, I1));
         }
         // xor tensor transformation request more unnecessary vgpr usage, would cause register spill
         // in some cases.
@@ -669,7 +669,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             return make_naive_tensor_descriptor(
                 make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
-                make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1Number, BK1Number, I1));
+                make_tuple(BK1Number, Number<KPerBlock + BBlockLdsExtraN>{}, I1));
         }
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
