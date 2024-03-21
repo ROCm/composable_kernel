@@ -18,6 +18,7 @@ template <typename QDataType_,
           typename SaccDataType_,
           typename SMPLComputeDataType_,
           typename BiasDataType_,
+          typename RandValOutputDataType_,
           typename LSEDataType_,
           typename PDataType_,
           typename OaccDataType_,
@@ -28,19 +29,20 @@ template <typename QDataType_,
           typename Traits_>
 struct BlockFmhaPipelineProblem
 {
-    using QDataType           = remove_cvref_t<QDataType_>;
-    using KDataType           = remove_cvref_t<KDataType_>;
-    using VDataType           = remove_cvref_t<VDataType_>;
-    using SaccDataType        = remove_cvref_t<SaccDataType_>;
-    using SMPLComputeDataType = remove_cvref_t<SMPLComputeDataType_>;
-    using BiasDataType        = remove_cvref_t<BiasDataType_>;
-    using LSEDataType         = remove_cvref_t<LSEDataType_>;
-    using PDataType           = remove_cvref_t<PDataType_>;
-    using OaccDataType        = remove_cvref_t<OaccDataType_>;
-    using ODataType           = remove_cvref_t<ODataType_>;
-    using BlockFmhaShape      = remove_cvref_t<BlockFmhaShape_>;
-    using FmhaMask            = remove_cvref_t<FmhaMask_>;
-    using Traits              = remove_cvref_t<Traits_>;
+    using QDataType             = remove_cvref_t<QDataType_>;
+    using KDataType             = remove_cvref_t<KDataType_>;
+    using VDataType             = remove_cvref_t<VDataType_>;
+    using SaccDataType          = remove_cvref_t<SaccDataType_>;
+    using SMPLComputeDataType   = remove_cvref_t<SMPLComputeDataType_>;
+    using BiasDataType          = remove_cvref_t<BiasDataType_>;
+    using RandValOutputDataType = remove_cvref_t<RandValOutputDataType_>;
+    using LSEDataType           = remove_cvref_t<LSEDataType_>;
+    using PDataType             = remove_cvref_t<PDataType_>;
+    using OaccDataType          = remove_cvref_t<OaccDataType_>;
+    using ODataType             = remove_cvref_t<ODataType_>;
+    using BlockFmhaShape        = remove_cvref_t<BlockFmhaShape_>;
+    using FmhaMask              = remove_cvref_t<FmhaMask_>;
+    using Traits                = remove_cvref_t<Traits_>;
 
     static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
@@ -53,6 +55,7 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kHasBias       = Traits::kHasBias;
     static constexpr bool kStoreLSE      = Traits::kStoreLSE;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
+    static constexpr bool kHasDropout    = Traits::kHasDropout;
     static constexpr bool kIsFp8 =
         (is_same_v<QDataType, f8_t> || is_same_v<QDataType, bf8_t>)&&(
             is_same_v<KDataType, f8_t> ||

@@ -14,6 +14,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
           bool kHasBias_,
           bool kStoreLSE_,
+          bool kHasDropout_,
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaTraits
 {
@@ -24,6 +25,7 @@ struct TileFmhaTraits
     static constexpr bool kHasBias       = kHasBias_;
     static constexpr bool kStoreLSE      = kStoreLSE_;
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
+    static constexpr bool kHasDropout    = kHasDropout_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,

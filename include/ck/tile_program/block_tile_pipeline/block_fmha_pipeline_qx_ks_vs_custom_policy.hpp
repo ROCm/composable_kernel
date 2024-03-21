@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -409,7 +409,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             else
             {
                 constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
                 constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
                 constexpr index_t warpSize   = ck::get_warp_size();
 
@@ -482,8 +482,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     __host__ __device__ static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-        constexpr index_t kKPack     = GetSmemKPackK<Problem>();
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPack     = GetSmemKPackV<Problem>();
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(Number<kKPerBlock / kKPack>{}, Number<kNPerBlock>{}, Number<kKPack>{}),
@@ -507,7 +507,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
@@ -562,7 +562,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
@@ -609,7 +609,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck::get_warp_size();
@@ -701,7 +701,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr ck::index_t GetSmemSize()
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeKV()
     {
         // TODO: assume Q is in register
         // TODO: assume K/V has same data type
@@ -710,6 +710,40 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
         return QXPolicy::template GetSmemSizeQ<Problem>() +
                single_smem_size * math::max(NumPrefetchK, NumPrefetchV);
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSize()
+    {
+        if constexpr(AsyncCopyK)
+        {
+            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
+        }
+        else
+        {
+            return math::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>());
+        }
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr ck::index_t GetSmemSizeDropout()
+    {
+        if constexpr(Problem::kHasDropout)
+        {
+            constexpr auto gemm_0 = QXPolicy::template GetQKBlockGemm<Problem>();
+            constexpr auto config =
+                decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG                    = remove_cvref_t<decltype(config.template At<0>())>;
+            constexpr index_t MWarp     = config.template At<1>();
+            constexpr index_t kMPerStep = MWarp * WG::kM;
+            constexpr index_t kNPerStep = WG::kN;
+
+            return kMPerStep * kNPerStep * sizeof(uint8_t);
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     template <typename Problem>
@@ -740,7 +774,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         else
         {
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
             constexpr index_t kBlockSize = Problem::kBlockSize;
             constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
             constexpr index_t warpSize   = ck::get_warp_size();

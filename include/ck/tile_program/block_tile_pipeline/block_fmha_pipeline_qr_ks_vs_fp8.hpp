@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,19 +27,20 @@ namespace block {
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
 struct BlockFmhaPipelineQRKSVSFp8
 {
-    using Problem             = remove_cvref_t<Problem_>;
-    using Policy              = remove_cvref_t<Policy_>;
-    using QDataType           = remove_cvref_t<typename Problem::QDataType>;
-    using KDataType           = remove_cvref_t<typename Problem::KDataType>;
-    using VDataType           = remove_cvref_t<typename Problem::VDataType>;
-    using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
-    using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
-    using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
-    using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
-    using PDataType           = remove_cvref_t<typename Problem::PDataType>;
-    using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
-    using ODataType           = remove_cvref_t<typename Problem::ODataType>;
-    using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
+    using Problem               = remove_cvref_t<Problem_>;
+    using Policy                = remove_cvref_t<Policy_>;
+    using QDataType             = remove_cvref_t<typename Problem::QDataType>;
+    using KDataType             = remove_cvref_t<typename Problem::KDataType>;
+    using VDataType             = remove_cvref_t<typename Problem::VDataType>;
+    using SaccDataType          = remove_cvref_t<typename Problem::SaccDataType>;
+    using SMPLComputeDataType   = remove_cvref_t<typename Problem::SMPLComputeDataType>;
+    using BiasDataType          = remove_cvref_t<typename Problem::BiasDataType>;
+    using RandValOutputDataType = remove_cvref_t<typename Problem::RandValOutputDataType>;
+    using LSEDataType           = remove_cvref_t<typename Problem::LSEDataType>;
+    using PDataType             = remove_cvref_t<typename Problem::PDataType>;
+    using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
+    using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -63,6 +64,7 @@ struct BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -120,18 +122,21 @@ struct BlockFmhaPipelineQRKSVSFp8
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp>
     __host__ __device__ auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               LSEDramBlockWindowTmp& /*lse_dram_window_tmp*/,           // not supported
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,           // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,           // N0*K0 tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,           // N1*K1 tile
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,     // M0*N0 tile
+               RandValDramBlockWindowTmp& /*randval_dram_block_window_tmp*/, // not supported
+               LSEDramBlockWindowTmp& /*lse_dram_window_tmp*/,               // not supported
                FmhaMask mask,
                float scale,
                float descale_qk,
                float descale_sv,
-               void* smem_ptr) const
+               void* smem_ptr,
+               BlockDropout& /*dropout*/) const // not supported
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
