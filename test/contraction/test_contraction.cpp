@@ -26,7 +26,7 @@ using Scale    = ck::tensor_operation::element_wise::Scale;
 template <ck::index_t NDims>
 struct Dimensions
 {
-    constexpr static ck::index_t NumDims = NDims;
+    constexpr static ck::index_t NumDimMNK = NDims;
 
     std::vector<ck::index_t> M;
     std::vector<ck::index_t> N;
@@ -51,7 +51,7 @@ class TestContraction : public ::testing::Test
     template <ck::index_t NumDim>
     void Run(Dimensions<NumDim> dimension_params)
     {
-        constexpr ck::index_t NumDims = ck::remove_cvref_t<decltype(dimension_params)>::NumDims;
+        constexpr ck::index_t NumDimMNK = ck::remove_cvref_t<decltype(dimension_params)>::NumDimMNK;
 
         std::vector<ck::index_t> StridesA(2 * NumDim);
         std::vector<ck::index_t> StridesB(2 * NumDim);
@@ -77,7 +77,7 @@ class TestContraction : public ::testing::Test
         for(const ck::index_t init_method : init_methods)
         {
             bool pass =
-                ck::profiler::profile_contraction_impl<NumDims,
+                ck::profiler::profile_contraction_impl<NumDimMNK,
                                                        ALayout,
                                                        BLayout,
                                                        CDLayout,
@@ -130,16 +130,14 @@ TYPED_TEST_SUITE(TestContractionScale, ScaleKernelTypes);
 TYPED_TEST(TestContractionBilinear, bilinear)
 {
     this->p_cd_element_op = std::make_unique<Bilinear>(1.f, 1.f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 
     this->p_cd_element_op = std::make_unique<Bilinear>(-0.5f, 0.5f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 }
@@ -147,16 +145,14 @@ TYPED_TEST(TestContractionBilinear, bilinear)
 TYPED_TEST(TestContractionScale, scale)
 {
     this->p_cd_element_op = std::make_unique<Scale>(1.f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 
     this->p_cd_element_op = std::make_unique<Scale>(0.5f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 }
@@ -191,16 +187,14 @@ TYPED_TEST_SUITE(TestContractionScaleMixedPrecision, ScaleKernelTypesMixedPrecis
 TYPED_TEST(TestContractionBilinearMixedPrecision, bilinear)
 {
     this->p_cd_element_op = std::make_unique<Bilinear>(1.f, 1.f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 
     this->p_cd_element_op = std::make_unique<Bilinear>(-0.5f, 0.5f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 }
@@ -208,16 +202,14 @@ TYPED_TEST(TestContractionBilinearMixedPrecision, bilinear)
 TYPED_TEST(TestContractionScaleMixedPrecision, scale)
 {
     this->p_cd_element_op = std::make_unique<Scale>(1.f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 
     this->p_cd_element_op = std::make_unique<Scale>(0.5f);
-    this->template Run<5>({{2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}, {2, 2, 2, 8, 8}});
-    this->template Run<4>({{2, 2, 8, 8}, {2, 2, 8, 8}, {2, 2, 8, 8}});
-    this->template Run<3>({{2, 8, 8}, {2, 8, 8}, {2, 8, 8}});
+    this->template Run<6>({{2, 3, 2, 3, 2, 3}, {2, 3, 2, 3, 2, 3}, {2, 2, 2, 2, 2, 4}});
+    this->template Run<6>({{1, 1, 1, 3, 2, 3}, {1, 1, 1, 3, 2, 3}, {1, 1, 1, 2, 2, 4}});
     this->template Run<2>({{16, 16}, {16, 16}, {16, 16}});
     this->template Run<2>({{8, 8}, {16, 16}, {8, 8}});
 }

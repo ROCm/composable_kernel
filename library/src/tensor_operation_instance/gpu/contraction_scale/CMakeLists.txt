@@ -1,6 +1,8 @@
 set(DEVICE_CONTRACTION_SCALE_INSTANCES)
 
-foreach(idx RANGE 2 5)
+list(APPEND DIMS 2 6)
+
+foreach(idx IN LISTS DIMS)
     set(PREFIX ${idx}D/device_contraction_scale_m${idx}_n${idx}_k${idx})
 
     # FP32

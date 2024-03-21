@@ -35,7 +35,7 @@ using Scale    = ck::tensor_operation::element_wise::Scale;
 using F32 = float;
 using F64 = double;
 
-template <index_t NumDim,
+template <index_t NumDimMNK,
           typename ALayout,
           typename BLayout,
           typename CDELayout,
@@ -121,9 +121,9 @@ int profile_contraction_impl(ck::index_t do_verification,
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
 
-    using DeviceOp = ck::tensor_operation::device::DeviceContractionMultipleD<NumDim,
-                                                                              NumDim,
-                                                                              NumDim,
+    using DeviceOp = ck::tensor_operation::device::DeviceContractionMultipleD<NumDimMNK,
+                                                                              NumDimMNK,
+                                                                              NumDimMNK,
                                                                               DataType,
                                                                               DataType,
                                                                               DTupleDataType,
@@ -146,9 +146,9 @@ int profile_contraction_impl(ck::index_t do_verification,
     if(do_verification)
     {
         using ReferenceGemmInstance =
-            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDim,
-                                                                      NumDim,
-                                                                      NumDim,
+            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimMNK,
+                                                                      NumDimMNK,
+                                                                      NumDimMNK,
                                                                       DataType,
                                                                       DataType,
                                                                       DataType,
@@ -237,12 +237,12 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        auto nelems_m =
-            ck::accumulate_n<ck::index_t>(a_ms_ks_lengths.begin(), NumDim, 1, std::multiplies<>{});
-        auto nelems_n =
-            ck::accumulate_n<ck::index_t>(b_ns_ks_lengths.begin(), NumDim, 1, std::multiplies<>{});
+        auto nelems_m = ck::accumulate_n<ck::index_t>(
+            a_ms_ks_lengths.begin(), NumDimMNK, 1, std::multiplies<>{});
+        auto nelems_n = ck::accumulate_n<ck::index_t>(
+            b_ns_ks_lengths.begin(), NumDimMNK, 1, std::multiplies<>{});
         auto nelems_k = ck::accumulate_n<ck::index_t>(
-            a_ms_ks_lengths.begin() + NumDim, NumDim, 1, std::multiplies<>{});
+            a_ms_ks_lengths.begin() + NumDimMNK, NumDimMNK, 1, std::multiplies<>{});
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {

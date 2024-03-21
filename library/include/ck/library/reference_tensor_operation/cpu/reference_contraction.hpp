@@ -25,7 +25,8 @@ template <ck::index_t NumDimM,
           typename ComputeDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          ck::enable_if_t<NumDimM == NumDimN && NumDimN == NumDimK && NumDimK >= 2 && NumDimK <= 5,
+          ck::enable_if_t<(NumDimM == 2 || NumDimM == 6) && (NumDimN == 2 || NumDimN == 6) &&
+                              (NumDimK == 2 || NumDimK == 6),
                           bool> = false>
 struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::BaseOperator
 {
@@ -65,11 +66,13 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                                auto m2,
                                auto m3,
                                auto m4,
+                               auto m5,
                                auto n0,
                                auto n1,
                                auto n2,
                                auto n3,
-                               auto n4) {
+                               auto n4,
+                               auto n5) {
                 const ck::index_t K0 = arg.a_ms_ks_.mDesc.GetLengths()[NumDimM];
                 const ck::index_t K1 = arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 1];
                 const ck::index_t K2 =
@@ -78,6 +81,8 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                     NumDimK >= 4 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 3] : 1;
                 const ck::index_t K4 =
                     NumDimK >= 5 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 4] : 1;
+                const ck::index_t K5 =
+                    NumDimK >= 6 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 5] : 1;
 
                 AccDataType v_acc = 0;
 
@@ -91,49 +96,40 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                             {
                                 for(ck::index_t k4 = 0; k4 < K4; ++k4)
                                 {
-                                    ComputeDataType v_a_compute_input;
-                                    ComputeDataType v_b_compute_input;
-
-                                    // Simulate the possible casting when ComputeDataType is
-                                    // different than the A/B data types
-                                    if constexpr(NumDimK == 2)
+                                    for(ck::index_t k5 = 0; k5 < K5; ++k5)
                                     {
-                                        v_a_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.a_ms_ks_(m0, m1, k0, k1));
-                                        v_b_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.b_ns_ks_(n0, n1, k0, k1));
-                                    }
-                                    else if constexpr(NumDimK == 3)
-                                    {
-                                        v_a_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.a_ms_ks_(m0, m1, m2, k0, k1, k2));
-                                        v_b_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.b_ns_ks_(n0, n1, n2, k0, k1, k2));
-                                    }
-                                    else if constexpr(NumDimK == 4)
-                                    {
-                                        v_a_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.a_ms_ks_(m0, m1, m2, m3, k0, k1, k2, k3));
-                                        v_b_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.b_ns_ks_(n0, n1, n2, n3, k0, k1, k2, k3));
-                                    }
-                                    else if constexpr(NumDimK == 5)
-                                    {
-                                        v_a_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.a_ms_ks_(m0, m1, m2, m3, m4, k0, k1, k2, k3, k4));
-                                        v_b_compute_input = ck::type_convert<ComputeDataType>(
-                                            arg.b_ns_ks_(n0, n1, n2, n3, n4, k0, k1, k2, k3, k4));
-                                    }
+                                        ComputeDataType v_a_compute_input;
+                                        ComputeDataType v_b_compute_input;
 
-                                    AccDataType v_a;
-                                    AccDataType v_b;
+                                        // Simulate the possible casting when ComputeDataType is
+                                        // different than the A/B data types
+                                        if constexpr(NumDimK == 2)
+                                        {
+                                            v_a_compute_input = ck::type_convert<ComputeDataType>(
+                                                arg.a_ms_ks_(m0, m1, k0, k1));
+                                            v_b_compute_input = ck::type_convert<ComputeDataType>(
+                                                arg.b_ns_ks_(n0, n1, k0, k1));
+                                        }
+                                        else if constexpr(NumDimK == 6)
+                                        {
+                                            v_a_compute_input = ck::type_convert<
+                                                ComputeDataType>(arg.a_ms_ks_(
+                                                m0, m1, m2, m3, m4, m5, k0, k1, k2, k3, k4, k5));
+                                            v_b_compute_input = ck::type_convert<
+                                                ComputeDataType>(arg.b_ns_ks_(
+                                                n0, n1, n2, n3, n4, n5, k0, k1, k2, k3, k4, k5));
+                                        }
 
-                                    arg.a_element_op_(
-                                        v_a, ck::type_convert<AccDataType>(v_a_compute_input));
-                                    arg.b_element_op_(
-                                        v_b, ck::type_convert<AccDataType>(v_b_compute_input));
+                                        AccDataType v_a;
+                                        AccDataType v_b;
 
-                                    v_acc += v_a * v_b;
+                                        arg.a_element_op_(
+                                            v_a, ck::type_convert<AccDataType>(v_a_compute_input));
+                                        arg.b_element_op_(
+                                            v_b, ck::type_convert<AccDataType>(v_b_compute_input));
+
+                                        v_acc += v_a * v_b;
+                                    }
                                 }
                             }
                         }
@@ -144,18 +140,9 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                 {
                     arg.c_ms_ns_(m0, m1, n0, n1) = ck::type_convert<CDataType>(v_acc);
                 }
-                else if constexpr(NumDimK == 3)
+                else if constexpr(NumDimK == 6)
                 {
-                    arg.c_ms_ns_(m0, m1, m2, n0, n1, n2) = ck::type_convert<CDataType>(v_acc);
-                }
-                else if constexpr(NumDimK == 4)
-                {
-                    arg.c_ms_ns_(m0, m1, m2, m3, n0, n1, n2, n3) =
-                        ck::type_convert<CDataType>(v_acc);
-                }
-                else if constexpr(NumDimK == 5)
-                {
-                    arg.c_ms_ns_(m0, m1, m2, m3, m4, n0, n1, n2, n3, n4) =
+                    arg.c_ms_ns_(m0, m1, m2, m3, m4, m5, n0, n1, n2, n3, n4, n5) =
                         ck::type_convert<CDataType>(v_acc);
                 }
             };
@@ -168,41 +155,15 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                                            1,
                                            1,
                                            1,
+                                           1,
                                            arg.c_ms_ns_.mDesc.GetLengths()[2],
                                            arg.c_ms_ns_.mDesc.GetLengths()[3],
                                            1,
                                            1,
-                                           1)(std::thread::hardware_concurrency());
-            }
-            else if constexpr(NumDimK == 3)
-            {
-                make_ParallelTensorFunctor(f_ms_ns,
-                                           arg.c_ms_ns_.mDesc.GetLengths()[0],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[1],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[2],
-                                           1,
-                                           1,
-                                           arg.c_ms_ns_.mDesc.GetLengths()[3],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[4],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[5],
                                            1,
                                            1)(std::thread::hardware_concurrency());
             }
-            else if constexpr(NumDimK == 4)
-            {
-                make_ParallelTensorFunctor(f_ms_ns,
-                                           arg.c_ms_ns_.mDesc.GetLengths()[0],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[1],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[2],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[3],
-                                           1,
-                                           arg.c_ms_ns_.mDesc.GetLengths()[4],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[5],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[6],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[7],
-                                           1)(std::thread::hardware_concurrency());
-            }
-            else if constexpr(NumDimK == 5)
+            else if constexpr(NumDimK == 6)
             {
                 make_ParallelTensorFunctor(f_ms_ns,
                                            arg.c_ms_ns_.mDesc.GetLengths()[0],
@@ -214,7 +175,9 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                                            arg.c_ms_ns_.mDesc.GetLengths()[6],
                                            arg.c_ms_ns_.mDesc.GetLengths()[7],
                                            arg.c_ms_ns_.mDesc.GetLengths()[8],
-                                           arg.c_ms_ns_.mDesc.GetLengths()[9])(
+                                           arg.c_ms_ns_.mDesc.GetLengths()[9],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[10],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[11])(
                     std::thread::hardware_concurrency());
             }
 

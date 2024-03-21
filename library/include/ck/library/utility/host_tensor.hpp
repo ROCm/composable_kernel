@@ -408,22 +408,7 @@ struct Tensor
                                        mDesc.GetLengths()[5])(num_thread);
             break;
         }
-        case 8: {
-            auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4, auto i5, auto i6, auto i7) {
-                (*this)(i0, i1, i2, i3, i4, i5, i6, i7) = g(i0, i1, i2, i3, i4, i5, i6, i7);
-            };
-            make_ParallelTensorFunctor(f,
-                                       mDesc.GetLengths()[0],
-                                       mDesc.GetLengths()[1],
-                                       mDesc.GetLengths()[2],
-                                       mDesc.GetLengths()[3],
-                                       mDesc.GetLengths()[4],
-                                       mDesc.GetLengths()[5],
-                                       mDesc.GetLengths()[6],
-                                       mDesc.GetLengths()[7])(num_thread);
-            break;
-        }
-        case 10: {
+        case 12: {
             auto f = [&](auto i0,
                          auto i1,
                          auto i2,
@@ -433,9 +418,11 @@ struct Tensor
                          auto i6,
                          auto i7,
                          auto i8,
-                         auto i9) {
-                (*this)(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9) =
-                    g(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9);
+                         auto i9,
+                         auto i10,
+                         auto i11) {
+                (*this)(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11) =
+                    g(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11);
             };
             make_ParallelTensorFunctor(f,
                                        mDesc.GetLengths()[0],
@@ -447,7 +434,9 @@ struct Tensor
                                        mDesc.GetLengths()[6],
                                        mDesc.GetLengths()[7],
                                        mDesc.GetLengths()[8],
-                                       mDesc.GetLengths()[9])(num_thread);
+                                       mDesc.GetLengths()[9],
+                                       mDesc.GetLengths()[10],
+                                       mDesc.GetLengths()[11])(num_thread);
             break;
         }
         default: throw std::runtime_error("unspported dimension");
