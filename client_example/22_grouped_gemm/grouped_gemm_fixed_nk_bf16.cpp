@@ -63,8 +63,8 @@ int main()
     for(int i = 0; i < group_count; ++i)
     {
         Ms.push_back(256 + 256 * i);
-        Ns.push_back(128 + 128 * i);
-        Ks.push_back(128 + 64 * i);
+        Ns.push_back(128);
+        Ks.push_back(128);
 
         StrideAs.push_back(std::is_same<Row, ALayout>::value ? Ks[i] : Ms[i]);
         StrideBs.push_back(std::is_same<Row, BLayout>::value ? Ns[i] : Ks[i]);
