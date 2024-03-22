@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -12,17 +12,12 @@
 enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
-    MK_NK_MN, // 1
 };
 
 enum struct GemmDataType
 {
-    F32_F32_F32,    // 0
-    F16_F16_F16,    // 1
-    BF16_BF16_BF16, // 2
-    INT8_INT8_INT8, // 3
-    F8_F16_F16,     // 4
-    F16_F8_F16,     // 5
+    F16_F16_F16,   // 0
+    BF16_INT8_BF16 // 1
 };
 
 #define OP_NAME "grouped_gemm_two_stage"
@@ -52,9 +47,8 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
     {
         std::cout
             << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-            << "arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: fp8@fp6; 5: f16@f8)\n"
-            << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n"
-            << "                     1: A[m, k] * B[n, k] = C[m, n];\n"
+            << "arg2: data type (0: fp16; 1: bf16@int8)\n"
+            << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n]);\n"
             << "arg4: verification (0: no; 1: yes)\n"
             << "arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n"
             << "arg6: print tensor value (0: no; 1: yes)\n"
@@ -81,16 +75,17 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
     const auto Ns = argToIntArray(argv[9]);
     const auto Ks = argToIntArray(argv[10]);
 
-    auto StrideAs = argToIntArray(argv[11]); //a: mk   b: kn, c: mn: stride a = 
-    auto StrideBs = argToIntArray(argv[12]);
-    auto StrideCs = argToIntArray(argv[13]);
-    const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
+    auto StrideAs    = argToIntArray(argv[11]);
+    auto StrideBs    = argToIntArray(argv[12]);
+    auto StrideCs    = argToIntArray(argv[13]);
+    const int kbatch = argc == 15 ? std::stoi(argv[14]) : 1;
 
-    const int DefaultStrideA  = Ks[0];
-    const int DefaultStrideB  = Ns[0];
-    const int DefaultStrideC  = Ns[0];
+    const int DefaultStrideA = Ks[0];
+    const int DefaultStrideB = Ns[0];
+    const int DefaultStrideC = Ns[0];
 
-    for(size_t i=0; i<Ms.size(); ++i) {
+    for(size_t i = 0; i < Ms.size(); ++i)
+    {
         StrideAs[i] = StrideAs[i] == -1 ? DefaultStrideA : StrideAs[i];
         StrideBs[i] = StrideBs[i] == -1 ? DefaultStrideB : StrideBs[i];
         StrideCs[i] = StrideCs[i] == -1 ? DefaultStrideC : StrideCs[i];
@@ -108,46 +103,48 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_two_stage_impl<ck::half_t,
-                                                ck::half_t,
-                                                ck::half_t,
-                                                float,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
-                                                                                   init_method,
-                                                                                   do_log,
-                                                                                   time_kernel,
-                                                                                   Ms,
-                                                                                   Ns,
-                                                                                   Ks,
-                                                                                   StrideAs,
-                                                                                   StrideBs,
-                                                                                   StrideCs,
-                                                                                   kbatch,
-                                                                                   n_warmup,
-                                                                                   n_iter);
+                                                          ck::half_t,
+                                                          ck::half_t,
+                                                          float,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatch,
+            n_warmup,
+            n_iter);
     }
-    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    else if(data_type == GemmDataType::BF16_INT8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        ck::profiler::profile_grouped_gemm_two_stage_impl<ck::half_t,
-                                                ck::half_t,
-                                                ck::half_t,
-                                                float,
-                                                ck::tensor_layout::gemm::RowMajor,
-                                                ck::tensor_layout::gemm::ColumnMajor,
-                                                ck::tensor_layout::gemm::RowMajor>(do_verification,
-                                                                                   init_method,
-                                                                                   do_log,
-                                                                                   time_kernel,
-                                                                                   Ms,
-                                                                                   Ns,
-                                                                                   Ks,
-                                                                                   StrideAs,
-                                                                                   StrideBs,
-                                                                                   StrideCs,
-                                                                                   kbatch,
-                                                                                   n_warmup,
-                                                                                   n_iter);
+        ck::profiler::profile_grouped_gemm_two_stage_impl<ck::bhalf_t,
+                                                          int8_t,
+                                                          ck::bhalf_t,
+                                                          float,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatch,
+            n_warmup,
+            n_iter);
     }
     else
     {
