@@ -26,6 +26,7 @@ enum struct GemmDataType
     F8_F16_F16,     // 4
     F16_F8_F16,     // 5
     F16_F16_F16_F8, // 6
+    BF16_I8_BF16,   // 7
 };
 
 #define OP_NAME "gemm_splitk"
@@ -37,7 +38,7 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16, "
-               "comp f8)\n");
+               "comp f8; 7: bf16@i8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("                     1: A[m, k] * B[n, k] = C[m, n];\n");
         printf("                     2: A[k, m] * B[k, n] = C[m, n];\n");
@@ -80,9 +81,9 @@ int profile_gemm_splitk(int argc, char* argv[])
 
     using F32 = float;
     using F16 = ck::half_t;
-#if 0 
-    using F8 = ck::f8_t;
-#endif
+    // using F8 = ck::f8_t;
+    using BF16 = ck::bhalf_t;
+    using I8   = int8_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -221,7 +222,18 @@ int profile_gemm_splitk(int argc, char* argv[])
         return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F8{});
     }
 #endif
-    else
+
+#if 1
+    if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(BF16{}, I8{}, F32{}, BF16{}, Row{}, Row{}, Row{}, BF16{});
+    }
+    else if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(BF16{}, I8{}, F32{}, BF16{}, Row{}, Col{}, Row{}, BF16{});
+    }
+#endif
+
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
 

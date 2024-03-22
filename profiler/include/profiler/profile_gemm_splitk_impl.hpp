@@ -182,7 +182,9 @@ bool profile_gemm_splitk_impl(int do_verification,
                 DeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
                 op_ptr->SetWorkSpacePointer(argument_ptr.get(),
-                                            gemm_workspace_dev.GetDeviceBuffer());
+                                            gemm_workspace_dev.GetDeviceBuffer(),
+                                            StreamConfig{},
+                                            op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
                 std::string op_name = op_ptr->GetTypeString();
 
