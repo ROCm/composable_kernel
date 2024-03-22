@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,7 +33,7 @@ struct ReferenceGemmMultipleD : public device::BaseOperator
     {
         Argument(const Tensor<ADataType>& a_m_k,
                  const Tensor<BDataType>& b_k_n,
-                 const std::array<Tensor<DDataType>, DsDataType::Size()>& ds_m_n, 
+                 const std::array<Tensor<DDataType>, DsDataType::Size()>& ds_m_n,
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -101,11 +101,16 @@ struct ReferenceGemmMultipleD : public device::BaseOperator
 
                 CDataType v_c = 0;
 
-                if constexpr (DsDataType::Size() == 0) {
+                if constexpr(DsDataType::Size() == 0)
+                {
                     arg.cde_element_op_(v_c, v_acc);
-                } else if constexpr(DsDataType::Size() == 1) {
+                }
+                else if constexpr(DsDataType::Size() == 1)
+                {
                     arg.cde_element_op_(v_c, v_acc, arg.ds_m_n_[0](m, n));
-                } else if constexpr(DsDataType::Size() == 2) {
+                }
+                else if constexpr(DsDataType::Size() == 2)
+                {
                     arg.cde_element_op_(v_c, v_acc, arg.ds_m_n_[0](m, n), arg.ds_m_n_[1](m, n));
                 }
 
@@ -136,7 +141,7 @@ struct ReferenceGemmMultipleD : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<ADataType>& a_m_k,
                              const Tensor<BDataType>& b_k_n,
-                             const std::array<Tensor<DDataType>, DsDataType::Size()>& ds_m_n, 
+                             const std::array<Tensor<DDataType>, DsDataType::Size()>& ds_m_n,
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
@@ -157,7 +162,7 @@ struct ReferenceGemmMultipleD : public device::BaseOperator
         auto str = std::stringstream();
 
         // clang-format off
-        str << "ReferenceGemm"
+        str << "ReferenceGemmMultipleD"
             << std::endl;
         // clang-format on
 

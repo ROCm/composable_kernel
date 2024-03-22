@@ -270,16 +270,15 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                std::cout << "p1\n";
                 invoker_ptr->Run(argument_ptr.get(),
                                  StreamConfig{nullptr, false, 0, n_warmup, n_iter});
-                std::cout << "p2\n";
+
                 if(do_verification)
                 {
                     bool instance_pass = true;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {
-                        std::cout << "p3\n";
+
                         c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
 
                         if(std::is_same_v<CDataType, ck::half_t> && kbatch_curr > 1)
@@ -317,10 +316,10 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
 
                     pass = pass && instance_pass;
                 }
-                std::cout << "p4\n";
+
                 float ave_time = invoker_ptr->Run(
                     argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
-                std::cout << "p5\n";
+
                 if(time_kernel)
                 {
                     std::size_t flop = 0, num_btype = 0;
