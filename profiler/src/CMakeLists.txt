@@ -54,6 +54,7 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm.cpp)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm_fixed_nk.cpp)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm_fastgelu.cpp)
+  list(APPEND PROFILER_SOURCES profile_grouped_gemm_two_stage.cpp)
 endif()
 
 if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)

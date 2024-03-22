@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,10 +7,12 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d_splitk.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_fixed_nk.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
@@ -31,19 +33,19 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
-                                        int init_method,
-                                        bool do_log,
-                                        bool time_kernel,
-                                        const std::vector<int>& Ms,
-                                        const std::vector<int>& Ns,
-                                        const std::vector<int>& Ks,
-                                        const std::vector<int>& StrideAs,
-                                        const std::vector<int>& StrideBs,
-                                        const std::vector<int>& StrideCs,
-                                        int kbatch   = 1,
-                                        int n_warmup = 1,
-                                        int n_iter   = 10)
+bool profile_grouped_gemm_two_stage_impl(int do_verification,
+                               int init_method,
+                               bool do_log,
+                               bool time_kernel,
+                               const std::vector<int>& Ms,
+                               const std::vector<int>& Ns,
+                               const std::vector<int>& Ks,
+                               const std::vector<int>& StrideAs,
+                               const std::vector<int>& StrideBs,
+                               const std::vector<int>& StrideCs,
+                               int kbatch   = 1,
+                               int n_warmup = 1,
+                               int n_iter   = 10)
 {
     bool pass = true;
 
@@ -128,11 +130,8 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
     p_c.reserve(group_count);
 
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
-    gemm_descs.reserve(group_count);
 
-    std::vector<ck::tensor_operation::device::GroupedGemmKernelArgument<1>>
-        grouped_gemm_kernel_args_;
-    grouped_gemm_kernel_args_.reserve(group_count);
+    gemm_descs.reserve(group_count);
 
     for(std::size_t i = 0; i < group_count; i++)
     {
@@ -151,31 +150,19 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
         p_a.push_back(a_device_buf[i]->GetDeviceBuffer());
         p_b.push_back(b_device_buf[i]->GetDeviceBuffer());
         p_c.push_back(c_device_buf[i]->GetDeviceBuffer());
-
-        grouped_gemm_kernel_args_.push_back({a_device_buf[i]->GetDeviceBuffer(),
-                                             b_device_buf[i]->GetDeviceBuffer(),
-                                             {},
-                                             c_device_buf[i]->GetDeviceBuffer(),
-                                             Ms[i],
-                                             Ns[i],
-                                             Ks[i],
-                                             StrideAs[i],
-                                             StrideBs[i],
-                                             {},
-                                             StrideCs[i]});
     }
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemmFixedNK<ALayout,
-                                                                            BLayout,
-                                                                            ck::Tuple<>,
-                                                                            CLayout,
-                                                                            ADataType,
-                                                                            BDataType,
-                                                                            ck::Tuple<>,
-                                                                            CDataType,
-                                                                            AElementOp,
-                                                                            BElementOp,
-                                                                            CElementOp>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedGemm<ALayout,
+                                                                     BLayout,
+                                                                     ck::Tuple<>,
+                                                                     CLayout,
+                                                                     ADataType,
+                                                                     BDataType,
+                                                                     ck::Tuple<>,
+                                                                     CDataType,
+                                                                     AElementOp,
+                                                                     BElementOp,
+                                                                     CElementOp>;
 
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -235,21 +222,27 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
         DeviceMem gemm_desc_workspace(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
-        DeviceMem grouped_gemm_kernel_args_dev(
-            gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()));
-
-        hipGetErrorString(hipMemcpy(grouped_gemm_kernel_args_dev.GetDeviceBuffer(),
-                                    grouped_gemm_kernel_args_.data(),
-                                    gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()),
-                                    hipMemcpyHostToDevice));
-
         gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_desc_workspace.GetDeviceBuffer());
 
-        gemm_ptr->SetDeviceKernelArgs(argument_ptr.get(),
-                                      grouped_gemm_kernel_args_dev.GetDeviceBuffer());
-
         std::string gemm_name = gemm_ptr->GetTypeString();
+
+        using DeviceOpSplitK = ck::tensor_operation::device::DeviceGroupedGemmMultipleDSplitK<ALayout,
+                                                                                     BLayout,
+                                                                                     ck::Tuple<>,
+                                                                                     CLayout,
+                                                                                     ADataType,
+                                                                                     BDataType,
+                                                                                     ck::Tuple<>,
+                                                                                     CDataType,
+                                                                                     AElementOp,
+                                                                                     BElementOp,
+                                                                                     CElementOp>;
+
+        // skip non-splitk grouped_gemm
+        if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) == nullptr)
+        {
+            continue;
+        }
 
         std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 20, 24, 32, 48, 64};
 
@@ -262,26 +255,26 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
         {
 
             auto kbatch_curr = kbatch_list[j];
+            dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                ->SetKBatchSize(argument_ptr.get(), kbatch_curr);
 
-            gemm_ptr->SetKBatch(argument_ptr.get(), kbatch_curr);
+            DeviceMem gemm_arg_dev_mem(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())->GetDeviceKernelArgSize(argument_ptr.get()));
+            dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())->SetDeviceKernelArgs(argument_ptr.get(), gemm_arg_dev_mem.GetDeviceBuffer());
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                gemm_desc_workspace.SetZero();
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                std::cout << "p1\n";
                 invoker_ptr->Run(argument_ptr.get(),
                                  StreamConfig{nullptr, false, 0, n_warmup, n_iter});
-                std::cout << "p2\n";
                 if(do_verification)
                 {
                     bool instance_pass = true;
                     for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     {
-                        std::cout << "p3\n";
                         c_device_buf[i]->FromDevice(c_m_n_device_results[i].mData.data());
-
                         if(std::is_same_v<CDataType, ck::half_t> && kbatch_curr > 1)
                         {
                             instance_pass =
@@ -317,10 +310,8 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
 
                     pass = pass && instance_pass;
                 }
-                std::cout << "p4\n";
                 float ave_time = invoker_ptr->Run(
                     argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
-                std::cout << "p5\n";
                 if(time_kernel)
                 {
                     std::size_t flop = 0, num_btype = 0;
@@ -364,6 +355,7 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
                   << best_gb_per_sec << " GB/s, " << best_gemm_name << ", KBatch = " << best_kbatch
                   << std::endl;
     }
+
     return pass;
 }
 

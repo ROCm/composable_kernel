@@ -153,6 +153,9 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         PipelineVer,
         ComputeDataType>;
 
+
+// CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+// indexy 1,3 -> MPerBlock, NPerBlock    || podzielone przez MPerBlock -> NPerThread
 template <typename ELay>
     static auto MakeEGridDescriptor_M_N(index_t M, index_t N, index_t StrideE)
     {
@@ -216,10 +219,8 @@ template <typename ELay>
     static constexpr auto MakeElementwiseInputSequence()
     {
         return generate_sequence_v2(
-                [&](auto i) constexpr { return Number<i+1-i>{}; },
+                [&]([[maybe_unused]] auto i) constexpr { return Number<CDEShuffleBlockTransferScalarPerVector_NPerBlock>{}; },
                 Number<NumDTensor+1>{});
-
-        //CShuffleNXdlPerWavePerShuffle
     }
 
     using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
@@ -227,20 +228,21 @@ template <typename ELay>
     using DsGridDesc_M_N    = decltype(MakeDsGridDescriptor_M_N({}, {}, {}));
     using DsGridPointer = decltype(MakeDsGridPointer());
     using CDGridDesc_M_N = decltype(concat_tuple(ck::Tuple<CGridDesc_M_N>{}, DsGridDesc_M_N{}));
-    //using CDDataTypes = decltype(concat_tuple(ck::Tuple<WorkspaceDataType*>{}, DsDataType{}));
     using CDDataTypes = decltype(concat_tuple(ck::Tuple<WorkspaceDataType*>{}, DsGridPointer{}));
 
     using ElementwiseInputSequence = decltype(MakeElementwiseInputSequence());
 
-    using GridwiseElementwise = GridwiseElementwise_2D<CDGridDesc_M_N, // zmien na C, D_0, ..., D_n  / tuple<C, D_0, ..., D_N>
+    static constexpr index_t ClusterLengthMPerBlock = CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
+    static constexpr index_t ClusterLengthNPerBlock = CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
+    using GridwiseElementwise = GridwiseElementwise_2D<CDGridDesc_M_N,
                                                        ck::Tuple<EGridDesc_M_N>,
-                                                       CDDataTypes, // zmien na C, D_0, ..., D_n / tuple<C, D_0, ..., D_N>
+                                                       CDDataTypes,
                                                        ck::Tuple<EDataType*>,
                                                        CDEElementwiseOperation,  
-                                                       CDEShuffleBlockTransferScalarPerVector_NPerBlock,  // MPerThread
-                                                       CDEShuffleBlockTransferScalarPerVector_NPerBlock,  // NPerThread
+                                                       MPerBlock / ClusterLengthMPerBlock,
+                                                       NPerBlock / ClusterLengthNPerBlock,
                                                        ElementwiseInputSequence,
-                                                       ck::Sequence<8>>;
+                                                       ck::Sequence<CDEShuffleBlockTransferScalarPerVector_NPerBlock>>;
 
     using Block2ETileMapKSplit =
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
@@ -324,10 +326,9 @@ template <typename ELay>
 
             gemm_kernel_args_.reserve(group_count_);
             elementwise_c_grid_descs_m_n_.reserve(group_count_);
-
-
             elementwise_d_grid_descs_m_n_.reserve(group_count_);
             ds_grid_pointer_.reserve(group_count_);
+            group_grid_size_.reserve(group_count_);
 
             for(std::size_t i = 0; i < gemm_descs.size(); ++i)
             {
@@ -371,6 +372,7 @@ template <typename ELay>
                 const index_t block_end   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
+                group_grid_size_[i] = grid_size_grp;
                 // block-to-e-tile map
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
@@ -449,12 +451,25 @@ template <typename ELay>
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
 
+                group_grid_size_[i] = grid_size_grp;
                 karg.KPadded                            = k_padded;
                 karg.K0Padded                           = k0_padded;
                 karg.k_batch                            = K_BATCH;
                 gemm_kernel_args_[i].block_2_ctile_map_ = grouped_block_2_ctile_map;
                 gemm_kernel_args_[i].block_start_       = block_start;
                 gemm_kernel_args_[i].block_end_         = block_end;
+
+#if DEBUG_LOG
+                index_t tiles      = (block_end - block_start) / K_BATCH;
+                std::cout << "block_start: " << block_start << "\n"
+                          << "block_end: " << block_end << "\n"
+                          << "tiles: " << tiles << std::endl << std::endl;
+
+                std::cout << "KPadded: " << karg.KPadded << std::endl
+                          << "K0Padded: " << karg.K0Padded << std::endl 
+                          << "KBatch: " << karg.k_batch << std::endl 
+                          << "grid_size_: " << karg.KPadded << std::endl;
+#endif
             }
         }
 
@@ -515,6 +530,7 @@ template <typename ELay>
         std::vector<std::array<const void*, NumDTensor>>& p_Ds_;
         std::vector<std::array<index_t, NumDTensor>> stride_Ds_;
         std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        std::vector<index_t> group_grid_size_;
 
         std::vector<CGridDesc_M_N> elementwise_c_grid_descs_m_n_;
         std::vector<DsGridDesc_M_N> elementwise_d_grid_descs_m_n_;
@@ -755,7 +771,7 @@ template <typename ELay>
             for(int i=0; i < arg.group_count_; ++i) {
                 time += launch_and_time_kernel(stream_config,
                                                         elementwise_kernel,
-                                                        dim3(arg.grid_size_), // chyba group_grid_size <<< tak  zmienic na group_grid_size[i]
+                                                        dim3(arg.group_grid_size_[i]), // chyba group_grid_size <<< tak  zmienic na group_grid_size[i]
                                                         dim3(BlockSize),
                                                         0,
                                                         concat_tuple(make_tuple(arg.elementwise_c_grid_descs_m_n_[i]), arg.elementwise_d_grid_descs_m_n_[i]),
@@ -763,10 +779,9 @@ template <typename ELay>
                                                         concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid), arg.ds_grid_pointer_[i]),
                                                         type_convert<EDataType*>(arg.e_ptrs_[i]),
                                                         arg.cde_element_op_,
-                                                        CDEShuffleBlockTransferScalarPerVector_NPerBlock, // num_threads_m
-                                                        CDEShuffleBlockTransferScalarPerVector_NPerBlock); // num_threads_n
+                                                        ClusterLengthMPerBlock, // num_threads_m
+                                                        ClusterLengthNPerBlock); // num_threads_n
             }
-
             return time;
         }
     };
@@ -870,7 +885,7 @@ template <typename ELay>
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedGemm_XdlSplitKTileLoop"
+        str << "DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage"
             << "<"
             << std::string(ALayout::name)[0] << ","
             << std::string(BLayout::name)[0] << ","

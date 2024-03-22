@@ -37,9 +37,9 @@ __global__ void
         kernel_grouped_gemm_xdl_splitk(
             const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
             const index_t group_count,
-            const AElementwiseOperation a_element_op = AElementwiseOperation{},
-            const BElementwiseOperation b_element_op = BElementwiseOperation{},
-            const CElementwiseOperation c_element_op = CElementwiseOperation{})
+            const AElementwiseOperation a_element_op,
+            const BElementwiseOperation b_element_op,
+            const CElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -206,7 +206,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     static constexpr index_t B2E_M01 = 8;
     using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
     using KernelArgument             = typename GridwiseGemm::Argument;
-
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     struct GemmTransKernelArg
     {
         KernelArgument karg_;
@@ -450,7 +450,10 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                            dim3(BlockSize),
                                            0,
                                            cast_pointer_to_constant_address_space(arg.p_workspace_),
-                                           arg.gemm_kernel_args_.size());
+                                           arg.gemm_kernel_args_.size(),
+                                           PassThrough{},
+                                           PassThrough{},
+                                           PassThrough{});
             };
 
             if(all_have_main_k0_block_loop)
