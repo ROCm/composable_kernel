@@ -137,6 +137,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                     "setting");
             }
 
+            // stream-k: calculate the number of blocks to be launched based on #CUs and #occupancy
+            // dim3 grid_dims = karg.block_mapping.get_grid_dims(karg.num_cu, karg.occupancy);
             dim3 grid_dims = karg.block_mapping.get_grid_dims();
 
             float ave_time = 0;
@@ -268,22 +270,19 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                              AElementwiseOperation,
                              BElementwiseOperation,
                              CElementwiseOperation,
-                             uint32_t NumSKBlocks = 0xffffffff)
+                             uint32_t NumSKBlocks = 0)
     {
         const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
         int occupancy, num_cu;
-        hipError_t rtn;
-        rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
-        hip_check_error(rtn);
-
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
-        rtn = hipGetDevice(&dev);
-        hip_check_error(rtn);
-        rtn = hipGetDeviceProperties(&dev_prop, dev);
-        hip_check_error(rtn);
+        hip_check_error(hipGetDevice(&dev));
+        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
         num_cu = dev_prop.multiProcessorCount;
+        printf("Assuming full GPU availability, recommended stream-k grid size for tuning :%0d\n",
+               num_cu * occupancy);
 
         return Argument{p_a,
                         p_b,
@@ -318,17 +317,12 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     {
         const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
         int occupancy, num_cu;
-        hipError_t rtn;
-        rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
-        hip_check_error(rtn);
-
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
-        rtn = hipGetDevice(&dev);
-        hip_check_error(rtn);
-        rtn = hipGetDeviceProperties(&dev_prop, dev);
-        hip_check_error(rtn);
+        hip_check_error(hipGetDevice(&dev));
+        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
         num_cu = dev_prop.multiProcessorCount;
 
         return std::make_unique<Argument>(reinterpret_cast<const ADataType*>(p_a),
