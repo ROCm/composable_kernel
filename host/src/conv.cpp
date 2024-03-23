@@ -6,6 +6,7 @@
 #include "ck/host/conv/conv_op.hpp"
 #include "ck/host/utils.hpp"
 #include <algorithm>
+#include <iostream>
 
 namespace ck {
 namespace host {
@@ -14,7 +15,7 @@ namespace conv {
 std::string Problem_Conv::GetIncludeHeader() const
 {
     return "ck/tensor_operation/gpu/device/impl/"
-           "device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp";
+           "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp";
 }
 
 std::vector<Solution> Problem_Conv::GetSolutions(const std::string& arch,
@@ -26,6 +27,7 @@ std::vector<Solution> Problem_Conv::GetSolutions(const std::string& arch,
     auto ops = ck::host::conv::Operation_Conv::CreateOperations(*this, prologue, epilogue);
     std::vector<Solution> result;
     std::transform(ops.begin(), ops.end(), std::back_inserter(result), [&](const auto& op) {
+        std::cout << "the right cde: " << op.cde_elem_op << std::endl;
         return op.ToSolution();
     });
     return result;

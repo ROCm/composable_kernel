@@ -35,8 +35,10 @@ void Operation_Conv::update_prologue(const std::string& prologue)
 {
     if(!prologue.empty())
     {
-        this->prologue    = prologue;
+        this->prologue = prologue;
+        std::cout << "changing to prologue" << std::endl;
         this->cde_elem_op = "CDEElementOp";
+        std::cout << "New CDE(P): " << this->cde_elem_op << std::endl;
     }
     else
     {
@@ -48,8 +50,10 @@ void Operation_Conv::update_epilogue(const std::string& epilogue)
 {
     if(!epilogue.empty())
     {
-        this->epilogue    = epilogue;
+        this->epilogue = epilogue;
+        std::cout << "changing to epilogue" << std::endl;
         this->cde_elem_op = "CDEElementOp";
+        std::cout << "New CDE: " << this->cde_elem_op << std::endl;
     }
     else
     {
@@ -140,6 +144,7 @@ std::vector<Operation_Conv> CreateOperationsImpl(
         x.c_block_transfer = c_block_descriptions[i];
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
+        std::cout << "Check: " << x.cde_elem_op << std::endl;
         auto all = f(x);
         result.insert(result.end(), all.begin(), all.end());
     }
@@ -173,6 +178,8 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
             x.a_elem_op   = prob.AElementOp;
             x.b_elem_op   = prob.BElementOp;
             x.cde_elem_op = prob.CDEElementOp;
+            x.update_prologue(prologue);
+            x.update_epilogue(epilogue);
             x.gemm_specialization =
                 GetGemmSpec(prob.G, // TODO: check the input going into this is correct
                             prob.N,
@@ -194,20 +201,20 @@ ${Prologue}
 ${Epilogue}
 
 using CDEElementOp = Epilogue;
-using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, CDEElementOp, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
+using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
 
 constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
 extern "C" __global__ void run_${name}(
-    const ck::half_t* p_as_grid,
-    const ck::half_t* p_bs_grid,
+    const ${ADataType}* p_as_grid,
+    const ${BDataType}* p_bs_grid,
     DeviceConv::GridwiseGemm::DsGridPointer p_ds_grid,
-    ck::half_t* __restrict__ p_e_grid,
-    const ck::tensor_operation::element_wise::PassThrough a_element_op,
-    const ck::tensor_operation::element_wise::PassThrough b_element_op,
-    const Epilogue cde_element_op,
-    const ck::index_t batch_count,
+    ${EDataType}* __restrict__ p_e_grid,
+    const ${AElementwiseOperation} a_element_op,
+    const ${BElementwiseOperation} b_element_op,
+    const ${CDEElementwiseOperation} cde_element_op,
+   const ck::index_t batch_count,
     const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
     const DeviceConv::BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
     const DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
@@ -217,6 +224,7 @@ extern "C" __global__ void run_${name}(
     const DeviceConv::Block2ETileMap block_2_ctile_map,
                 const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch)
 {
+    
 
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
@@ -231,7 +239,7 @@ extern "C" __global__ void run_${name}(
         ${EDataType},
         ${AElementwiseOperation},
         ${BElementwiseOperation},
-        CDEElementOp,
+        ${CDEElementwiseOperation},
         ck::InMemoryDataOperationEnum::Set,
         ${NumGemmkPrefetchStage},
         ${BlockSize},
@@ -275,7 +283,7 @@ extern "C" __global__ void run_${name}(
                     ${EDataType},
                     ${AElementwiseOperation},
                     ${BElementwiseOperation},
-                    CDEElementOp,
+                    ${CDEElementwiseOperation},
                     DeviceConv::AGridDesc_AK0_M_AK1,
                     DeviceConv::BGridDesc_BK0_N_BK1,
                     DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,

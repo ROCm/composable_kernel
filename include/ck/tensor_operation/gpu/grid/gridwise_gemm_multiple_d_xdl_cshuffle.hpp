@@ -471,6 +471,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                    static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2)),
                    static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I3)));
         }
+        // decltype(cde_element_op)::foo = 1;
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
