@@ -1,2 +1,2 @@
-add_gtest_executable(test_transpose test_transpose.cpp)
+add_gtest_executable(test_transpose test_transpose_xdl.cpp)
 target_link_libraries(test_transpose PRIVATE utility device_transpose_instance)
