@@ -28,7 +28,7 @@ struct TransformConvFwdToGemm
                                            is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
                                            is_same_v<ALayout, tensor_layout::convolution::GNWC>),
                                       bool>::type = false>
-    static auto
+    __host__ __device__ static auto
     MakeADescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
@@ -141,7 +141,7 @@ struct TransformConvFwdToGemm
                                        is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
                                        is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
                   bool>::type = false>
-    static auto
+    __host__ __device__ static auto
     MakeADescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
@@ -421,7 +421,7 @@ struct TransformConvFwdToGemm
                                           is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
                                           is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
                                       bool>::type = false>
-    static auto
+    __host__ __device__ static auto
     MakeBDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
                         const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */)
     {
@@ -446,8 +446,9 @@ struct TransformConvFwdToGemm
                                     is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
                                     is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
                                 bool>::type = false>
-    static auto MakeBDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                                    const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    __host__ __device__ static auto
+    MakeBDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
     {
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];

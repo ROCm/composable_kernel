@@ -497,7 +497,6 @@ struct Prologue
 
         std::ofstream ofh("kernel.txt");
         ofh << src;
-        ofh.close();
 
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
@@ -509,6 +508,9 @@ struct Prologue
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
         auto block_size = 256; // TODO(Amber): pick from DeviceConv template params
 
+        ofh << "Grid Size: " << grid_size << std::endl;
+        ofh << "Block Size: " << block_size << std::endl;
+        ofh.close();
         // print arg kernels - host_side
         arg.Print();
 
@@ -565,7 +567,7 @@ struct Prologue
         std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
         ofh2 << "Check: " << pass << std::endl;
-        ofh2 << res.size();
+        ofh2 << res.size() << std::endl;
         for(int i = 0; i < res.size(); i++)
         {
             auto tmp = (res.data())[i];
