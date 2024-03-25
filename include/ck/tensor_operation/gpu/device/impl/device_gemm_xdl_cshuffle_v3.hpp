@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/kernel_launch_flush_cache.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -157,7 +157,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                      arg.M * arg.N * sizeof(CDataType),
                                                      stream_config.stream_id_));
 
-                ave_time = launch_and_time_kernel(
+                ave_time = launch_and_time_kernel_flush_cache(
                     stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
             };
 
