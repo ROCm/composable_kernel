@@ -548,7 +548,10 @@ struct BlockFmhaPipelineQRKSVSAsync
                 auto randval_ptr =
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    randval_ptr, i_total_loops * kN0, p_compute, randval_dram_window);
+                    randval_ptr,
+                    seqlen_k_start + i_total_loops * kN0,
+                    p_compute,
+                    randval_dram_window);
             }
 
             const auto p = cast_tile<PDataType>(p_compute);
