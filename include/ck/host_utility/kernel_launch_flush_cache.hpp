@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,21 @@ extern "C" __global__ void flush_icache()
                          :);
 }
 
+void run_flush_icache()
+{
+    hipStream_t stream;
+    hipDeviceProp_t deviceProps;
+    hip_check_error(hipStreamCreate(&stream)); // initialized stream
+    hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
+    int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
+
+    int flush_iter = 100000;
+
+    for(int i = 0; i < flush_iter; i++)
+        hipLaunchKernelGGL(flush_icache, dim3(gpu_block3), dim3(64), 0, stream);
+    hip_check_error(hipGetLastError());
+}
+
 template <typename... Args, typename F>
 float launch_and_time_kernel_flush_cache(const StreamConfig& stream_config,
                                          F kernel,
@@ -57,10 +72,7 @@ float launch_and_time_kernel_flush_cache(const StreamConfig& stream_config,
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
-            {
-                flush_icache<<<grid_dim, block_dim, lds_byte, nullptr>>>();
-                hip_check_error(hipGetLastError());
-            }
+            run_flush_icache();
 
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
             hip_check_error(hipGetLastError());
@@ -73,10 +85,7 @@ float launch_and_time_kernel_flush_cache(const StreamConfig& stream_config,
         float total_time = 0;
         for(int i = 0; i < nrepeat; ++i)
         {
-            {
-                flush_icache<<<grid_dim, block_dim, lds_byte, nullptr>>>();
-                hip_check_error(hipGetLastError());
-            }
+            run_flush_icache();
 
             hipEvent_t start, stop;
 
@@ -100,20 +109,14 @@ float launch_and_time_kernel_flush_cache(const StreamConfig& stream_config,
     }
     else
     {
-        {
-            flush_icache<<<grid_dim, block_dim, lds_byte, nullptr>>>();
-            hip_check_error(hipGetLastError());
-        }
+        run_flush_icache();
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
         hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
-    {
-        flush_icache<<<grid_dim, block_dim, lds_byte, nullptr>>>();
-        hip_check_error(hipGetLastError());
-    }
+    run_flush_icache();
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
     hip_check_error(hipGetLastError());
 
