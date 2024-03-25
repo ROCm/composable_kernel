@@ -39,9 +39,9 @@ struct WarpGemmImpl
 
         constexpr auto I0 = number<0>{};
 
-        const auto a_vec = a.get_thread_buffer().template get_as<AVec>(I0);
-        const auto b_vec = b.get_thread_buffer().template get_as<BVec>(I0);
-        auto c_vec       = c.get_thread_buffer().template get_as<CVec>(I0);
+        const auto a_vec = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
+        auto c_vec       = c.get_thread_buffer().template get_as<CVec>()[I0];
 
         // c_vec += a_vec * b_vec
         WarpGemmAttribute{}(c_vec, a_vec, b_vec);
@@ -59,8 +59,8 @@ struct WarpGemmImpl
 
         constexpr auto I0 = number<0>{};
 
-        const auto a_vec = a.get_thread_buffer().template get_as<AVec>(I0);
-        const auto b_vec = b.get_thread_buffer().template get_as<BVec>(I0);
+        const auto a_vec = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
 
         // c_vec = a_vec * b_vec
         auto c_vec = WarpGemmAttribute{}(a_vec, b_vec);

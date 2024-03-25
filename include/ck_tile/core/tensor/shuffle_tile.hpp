@@ -119,8 +119,8 @@ CK_TILE_DEVICE void shuffle_tile_impl_in_thread(OutTensor& out_tensor, const InT
             static_assert(in_offset % vec_length_in == 0);
 
             in_vectors(i).template get_as<InVec>()(I0) =
-                in_tensor.get_thread_buffer().template get_as<InVec>(
-                    number<in_offset / vec_length_in>{});
+                in_tensor.get_thread_buffer()
+                    .template get_as<InVec>()[number<in_offset / vec_length_in>{}];
         });
 
         // transpose

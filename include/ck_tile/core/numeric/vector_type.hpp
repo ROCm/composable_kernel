@@ -38,6 +38,16 @@ struct ext_vector
     static_assert(!std::is_class_v<value_type>);
     using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
 };
+
+template <typename V_, index_t Vs_, index_t N_>
+struct ext_vector<V_ __attribute__((ext_vector_type(Vs_))), N_>
+{
+    static constexpr index_t N = Vs_ * N_;
+    using value_type           = typename native_t<remove_cvref_t<V_>>::type;
+    static_assert(!std::is_class_v<value_type>);
+    using type = value_type __attribute__((ext_vector_type(N))); // this is danguous
+};
+
 } // namespace impl
 
 template <typename T, index_t N>
@@ -59,6 +69,10 @@ struct vector_traits<T __attribute__((ext_vector_type(N)))>
     using scalar_type                    = T;
     static constexpr index_t vector_size = N;
 };
+
+template <typename X, typename Y>
+using has_same_scalar_type = std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                          typename vector_traits<remove_cvref_t<Y>>::scalar_type>;
 
 // below are some pre-defines of ext_vector_type
 // attention! 2 vector type could be just the same type
