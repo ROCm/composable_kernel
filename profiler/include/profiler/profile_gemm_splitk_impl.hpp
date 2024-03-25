@@ -145,7 +145,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 30};
 
         if(KBatch > 0)
         {
@@ -178,6 +178,11 @@ bool profile_gemm_splitk_impl(int do_verification,
 
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
+
+                DeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+
+                op_ptr->SetWorkSpacePointer(argument_ptr.get(),
+                                            gemm_workspace_dev.GetDeviceBuffer());
 
                 std::string op_name = op_ptr->GetTypeString();
 

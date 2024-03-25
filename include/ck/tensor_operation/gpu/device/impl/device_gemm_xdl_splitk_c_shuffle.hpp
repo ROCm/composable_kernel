@@ -160,7 +160,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                         false,
                                                         false, // HaveIndexInputIfOutputIndex
                                                         256,   // BlockSize_,
-                                                        1,     // MThreadSliceSize_,
+                                                        3,     // MThreadSliceSize_,
                                                         1,     // KThreadSliceSize_,
                                                         0,     // InSrcVectorDim_,
                                                         1,     // InSrcVectorSize_,
@@ -520,7 +520,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     {
         auto arg = *dynamic_cast<const Argument*>(p_arg);
 
-        const index_t MAX_K_BATCH = 16;
+        const index_t MAX_K_BATCH = 30;
 
         return arg.MPadded * arg.NPadded * sizeof(AccDataType) * MAX_K_BATCH;
     }
