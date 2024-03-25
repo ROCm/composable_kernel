@@ -361,7 +361,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             constexpr auto src_data_idx_seq = generate_sequence_v2(
                 [&](auto i) { return Number<src_data_idx[i]>{}; }, Number<src_data_idx.Size()>{});
 
-            using vector_t = typename vector_type_maker<SrcData, SrcScalarPerVector>::type::type;
+            using vector_t = typename vector_type_maker<DstData, SrcScalarPerVector>::type::type;
 
             auto op_r = src_thread_scratch_tuple_(thread_scratch_id)
                             .template GetAsType<vector_t>(src_data_idx_seq);
