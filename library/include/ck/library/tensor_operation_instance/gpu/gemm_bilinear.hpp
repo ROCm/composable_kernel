@@ -16,7 +16,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-#ifdef CK_ENABLE_FP16
+#if defined(CK_ENABLE_FP16) && defined(__gfx9__)
 void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
                                                     Row,
@@ -69,7 +69,7 @@ void add_device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_mk_nk_mn_mn_instance
                                                     PassThrough,
                                                     Bilinear>>>& instances);
 #endif
-#ifdef CK_ENABLE_INT8
+#if defined(CK_ENABLE_INT8) && defined(__gfx11__)
 void add_device_gemm_bilinear_wmma_c_shuffle_i8_i8_i8_i8_mk_kn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
@@ -159,7 +159,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-#ifdef CK_ENABLE_FP16
+#if defined(CK_ENABLE_FP16) && defined(__gfx9__)
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<DDataType, half_t> && is_same_v<EDataType, half_t>)
         {
@@ -189,7 +189,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             }
         }
 #endif
-#ifdef CK_ENABLE_INT8
+#if defined(CK_ENABLE_INT8) && defined(__gfx11__)
         if constexpr(is_same_v<ADataType, std::int8_t> && is_same_v<BDataType, std::int8_t> &&
                      is_same_v<DDataType, std::int8_t> && is_same_v<EDataType, std::int8_t>)
         {
