@@ -92,8 +92,10 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
+
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(
+
 #ifdef BUILD_INT4_EXAMPLE
         static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
@@ -112,6 +114,10 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         b_element_op,
         c_element_op,
         KBatch);
+
+    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
+    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+
 
     if(!gemm.IsSupportedArgument(argument))
     {

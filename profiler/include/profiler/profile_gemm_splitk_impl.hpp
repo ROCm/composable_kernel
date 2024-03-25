@@ -179,6 +179,10 @@ bool profile_gemm_splitk_impl(int do_verification,
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
 
+                std::string op_name = op_ptr->GetTypeString();
+
+                std::cout << op_name << std::endl;
+
                 invoker_ptr->Run(argument_ptr.get(),
                                  StreamConfig{nullptr, false, 0, n_warmup, n_iter});
 
@@ -200,8 +204,6 @@ bool profile_gemm_splitk_impl(int do_verification,
                             << std::endl;
                     }
                 }
-
-                std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(
                     argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});

@@ -16,6 +16,10 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -58,7 +62,7 @@ template <typename ADataType,
           index_t CShuffleNRepeatPerShuffle,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CBlockTransferScalarPerVector_NWaveNPerXDL,
-          typename ComputeType        = CDataType,
+          typename ComputeType        = ADataType,
           PipelineVersion PipelineVer = PipelineVersion::v1,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           typename LDSTypeA           = ComputeType,
@@ -86,12 +90,17 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     using ComputeTypeA = ComputeType;
     using ComputeTypeB = ComputeType;
 
+    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ =
+        CBlockTransferScalarPerVector_NWaveNPerXDL > 1
+            ? (CBlockTransferScalarPerVector_NWaveNPerXDL / 2)
+            : 1;
+
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType,
         BDataType,
         AccDataType,
-        CDataType,
+        AccDataType,
         ALayout,
         BLayout,
         CLayout,
@@ -126,7 +135,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         BBlockLdsAddExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
-        CBlockTransferScalarPerVector_NWaveNPerXDL,
+        CBlockTransferScalarPerVector_NWaveNPerXDL_,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
         PipelineVer,
@@ -134,6 +143,29 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         ComputeTypeB,
         LDSTypeA,
         LDSTypeB>;
+
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using ReduceAdd   = ck::reduce::Add;
+
+    using DeviceReduceInstance = DeviceReduceThreadWise<AccDataType, // InDataType,
+                                                        AccDataType, // AccDataType,
+                                                        CDataType,   // OutDataType,
+                                                        5,           // Rank
+                                                        1,           // NumReduceDim
+                                                        ReduceAdd,
+                                                        PassThrough,
+                                                        PassThrough,
+                                                        false, // PropagateNan,
+                                                        false, // OutputIndex,
+                                                        false,
+                                                        false, // HaveIndexInputIfOutputIndex
+                                                        256,   // BlockSize_,
+                                                        1,     // MThreadSliceSize_,
+                                                        1,     // KThreadSliceSize_,
+                                                        0,     // InSrcVectorDim_,
+                                                        1,     // InSrcVectorSize_,
+                                                        1      // OutDstVectorSize_
+                                                        >;
 
     struct Argument : public GridwiseGemm::Argument
     {
@@ -156,7 +188,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                  CElementwiseOperation c_element_op_)
             : GridwiseGemm::Argument(p_a_grid_,
                                      p_b_grid_,
-                                     p_c_grid_,
+                                     nullptr, // p_c_grid_,
                                      M_,
                                      N_,
                                      K_,
@@ -168,11 +200,14 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                      KPadded_,
                                      K0Padded_,
                                      k_batch_),
+              p_c_grid{p_c_grid_},
               a_element_op(a_element_op_),
               b_element_op(b_element_op_),
               c_element_op(c_element_op_)
         {
         }
+
+        CDataType* p_c_grid;
 
         AElementwiseOperation a_element_op;
         BElementwiseOperation b_element_op;
@@ -186,6 +221,69 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     {
 
         void Print(const Argument& karg) { karg.Print(); }
+
+        float RunReduce(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            const index_t MBlock = arg.MPadded / MPerBlock;
+            const index_t NBlock = arg.NPadded / NPerBlock;
+
+            const index_t KBatch = arg.k_batch;
+
+            std::cout << "MBlock = " << MBlock << " NBlock = " << NBlock << " KBatch = " << KBatch
+                      << std::endl;
+
+            std::array<ck::index_t, 5> in_lengths = {MBlock, MPerBlock, NBlock, KBatch, NPerBlock};
+            std::array<ck::index_t, 5> in_strides = {MPerBlock * NBlock * KBatch * NPerBlock,
+                                                     NBlock * KBatch * NPerBlock,
+                                                     KBatch * NPerBlock,
+                                                     NPerBlock,
+                                                     1};
+
+            std::array<ck::index_t, 4> out_lengths = {MBlock, NBlock, MPerBlock, NPerBlock};
+            std::array<ck::index_t, 4> out_strides = {
+                NBlock * MPerBlock * NPerBlock, MPerBlock * NPerBlock, NPerBlock, 1};
+
+            std::array<int, 1> reduce_dims{3};
+
+            auto reduce = DeviceReduceInstance{};
+
+            auto argument_ptr = reduce.MakeArgumentPointer(in_lengths,
+                                                           in_strides,
+                                                           out_lengths,
+                                                           out_strides,
+                                                           reduce_dims,
+                                                           1.0,
+                                                           0,
+                                                           arg.p_workspace_,
+                                                           nullptr,
+                                                           arg.p_c_grid,
+                                                           nullptr,
+                                                           PassThrough{},
+                                                           PassThrough{});
+
+            auto invoker_ptr = reduce.MakeInvokerPointer();
+
+            float ave_time = 0;
+
+            if(reduce.IsSupportedArgument(argument_ptr.get()))
+            {
+                ave_time = invoker_ptr->Run(argument_ptr.get(), stream_config);
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "The runtime parameters seems not supported by the device instance, exiting!");
+            }
+
+            std::size_t num_bytes = arg.MPadded * arg.NPadded * KBatch * sizeof(AccDataType) +
+                                    arg.MPadded * arg.NPadded * sizeof(CDataType);
+
+            float gb_per_sec = num_bytes / 1.E6 / ave_time;
+
+            std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+
+            return ave_time;
+        }
 
         float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
@@ -290,6 +388,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                     Run(kernel);
                 }
             }
+
+            ave_time += RunReduce(karg, stream_config);
 
             return ave_time;
         }
@@ -414,6 +514,31 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             << ", PipelineVersion: " << PipelineVersionToString[PipelineVer];
 
         return str.str();
+    }
+
+    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
+    {
+        auto arg = *dynamic_cast<const Argument*>(p_arg);
+
+        const index_t MAX_K_BATCH = 16;
+
+        return arg.MPadded * arg.NPadded * sizeof(AccDataType) * MAX_K_BATCH;
+    }
+
+    void SetWorkSpacePointer(BaseArgument* p_arg,
+                             void* p_workspace,
+                             const StreamConfig& stream_config = StreamConfig{}) const override
+    {
+        auto p_arg_          = dynamic_cast<Argument*>(p_arg);
+        p_arg_->p_workspace_ = p_workspace;
+
+#if 1
+        hip_check_error(
+            hipMemsetAsync(p_workspace, 0, GetWorkSpaceSize(p_arg), stream_config.stream_id_));
+#endif
+
+        auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(p_arg);
+        p_gemm_arg_->p_c_grid = static_cast<AccDataType*>(p_workspace);
     }
 };
 

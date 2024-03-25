@@ -95,7 +95,7 @@ template <index_t BlockSize,
           typename CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           PipelineVersion PipelineVer = PipelineVersion::v1,
-          typename ComputeTypeA       = FloatC,
+          typename ComputeTypeA       = FloatA,
           typename ComputeTypeB       = ComputeTypeA,
           typename LDSTypeA           = ComputeTypeA,
           typename LDSTypeB           = ComputeTypeB>
@@ -218,6 +218,16 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     {
         auto K0Padded = CalculateK0Padded(K, K_Batch);
         return K_Batch * K0Padded * K1;
+    }
+
+    __host__ __device__ static auto CalculateMBlock(index_t M)
+    {
+        return math::integer_divide_floor(M, MPerBlock);
+    }
+
+    __host__ __device__ static auto CalculateNBlock(index_t N)
+    {
+        return math::integer_divide_floor(N, NPerBlock);
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_KBatch_K0_M_K1(index_t M,
@@ -628,6 +638,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
     }
 
+    __device__ static constexpr auto MakeCGridDescriptor_MBlock_MPerBlock_NBlock_KBatch_NPerBlock(
+        index_t MBlock, index_t NBlock, index_t KBatch)
+    {
+        return make_naive_tensor_descriptor_packed(
+            make_tuple(MBlock, MPerBlock, NBlock, KBatch, NPerBlock));
+    }
+
     // return block_id to C matrix tile idx (m0, n0) mapping
     template <typename CGridDesc>
     __host__ __device__ static constexpr auto MakeCBlockClusterAdaptor(
@@ -676,15 +693,38 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             karg.M, karg.MPadded, karg.K, karg.StrideA, karg.k_batch, karg.K0Padded, karg.KPadded);
         const auto b_b_k0_n_k1_grid_desc = MakeBGridDescriptor_KBatch_K0_N_K1(
             karg.K, karg.NPadded, karg.N, karg.StrideB, karg.k_batch, karg.K0Padded, karg.KPadded);
-        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
-
-        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-            MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_b_k0_m_k1_grid_desc.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_b_k0_n_k1_grid_desc.GetElementSpaceSize());
+
+#if 0
+        const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
+
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+#else
+        const index_t MBlock = karg.MPadded / MPerBlock;
+        const index_t NBlock = karg.NPadded / NPerBlock;
+
+        const auto c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock =
+            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_KBatch_NPerBlock(
+                MBlock, NBlock, karg.k_batch);
+
+        const index_t k_batch_id = blockIdx.z;
+
+        const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
+            c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock,
+            make_tuple(make_pass_through_transform(MBlock),
+                       make_pass_through_transform(MPerBlock),
+                       make_pass_through_transform(NBlock),
+                       make_freeze_transform(k_batch_id),
+                       make_pass_through_transform(NPerBlock)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<>{}, Sequence<3>{}));
+#endif
+
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
@@ -702,7 +742,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
         const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I2]);
-        const index_t k_batch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
+        // const index_t k_batch_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -1008,9 +1048,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
             // LDS to global
             auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
-                ThisThreadBlock,            // index_t BlockSize,
-                CElementwiseOperation,      // ElementwiseOperation,
-                CGlobalMemoryDataOperation, // DstInMemOp,
+                ThisThreadBlock,       // index_t BlockSize,
+                CElementwiseOperation, // ElementwiseOperation,
+                                       // CGlobalMemoryDataOperation, // DstInMemOp,
+                InMemoryDataOperationEnum::Set,
                 Sequence<1,
                          CShuffleMRepeatPerShuffle * MWave * MPerXDL,
                          1,
