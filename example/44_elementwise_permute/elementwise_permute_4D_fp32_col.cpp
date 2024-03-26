@@ -5,7 +5,7 @@
 #include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
@@ -20,11 +20,14 @@ using F32 = float;
 using ADataType = F32;
 using BDataType = F32;
 
-using UnaryOp                          = ck::tensor_operation::element_wise::Scale;
+using UnaryScale  = ck::tensor_operation::element_wise::Scale;
+using UnarySquare = ck::tensor_operation::element_wise::UnarySquare;
+using UnaryScaleSquare =
+    ck::tensor_operation::element_wise::UnaryCombinedOp<UnarySquare, UnaryScale>;
 using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceElementwiseImpl<
     ck::Tuple<ADataType>, // InDataTypeTuple
     ck::Tuple<BDataType>, // OutDataTypeTuple
-    UnaryOp,              // UnaryOp
+    UnaryScaleSquare,     // UnaryScaleSquare
     4,                    // NumDim
     256,                  // BlockSize
     128,                  // M0PerBlock
@@ -35,9 +38,13 @@ using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceEle
     ck::Sequence<1>,      // InScalarPerVectorSeq
     ck::Sequence<1>>;     // OutScalarPerVectorSeq
 
-template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor functor)
+template <typename HostTensorA, typename HostTensorB>
+void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, float scale)
 {
+    auto scale_square = [&](auto& b, auto& a) {
+        b = ck::type_convert<BDataType>(scale * ck::type_convert<float>(a * a));
+    };
+
     std::size_t N = A_nchw.mDesc.GetLengths()[0];
     std::size_t C = A_nchw.mDesc.GetLengths()[1];
     std::size_t H = A_nchw.mDesc.GetLengths()[2];
@@ -48,7 +55,8 @@ void host_elementwise4D(HostTensorB& B_nhwc, const HostTensorA& A_nchw, Functor 
                 for(std::size_t n = 0; n < N; ++n)
                 {
                     auto a_val = A_nchw.mData[(n) + (c * N) + (h * C * N) + (w * H * C * N)];
-                    functor(B_nhwc.mData[(n) + (c * W * H * N) + (h * N) + (w * H * N)], a_val);
+                    scale_square(B_nhwc.mData[(n) + (c * W * H * N) + (h * N) + (w * H * N)],
+                                 a_val);
                 }
 }
 
@@ -98,8 +106,13 @@ int main()
     ck::ranges::copy(nchw, ab_lengths.begin());
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
-    auto argument         = broadcastPermute.MakeArgumentPointer(
-        ab_lengths, {a_strides}, {b_strides}, input, output, UnaryOp{scale});
+    auto argument =
+        broadcastPermute.MakeArgumentPointer(ab_lengths,
+                                             {a_strides},
+                                             {b_strides},
+                                             input,
+                                             output,
+                                             UnaryScaleSquare{UnarySquare{}, UnaryScale{scale}});
 
     if(!broadcastPermute.IsSupportedArgument(argument.get()))
     {
@@ -131,7 +144,7 @@ int main()
     {
         b_device_buf.FromDevice(b.mData.data());
         Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D(host_b, a, UnaryOp{scale});
+        host_elementwise4D(host_b, a, scale);
 
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
