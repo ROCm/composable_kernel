@@ -150,7 +150,9 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         ComputeTypeA,
         ComputeTypeB,
         LDSTypeA,
-        LDSTypeB>;
+        LDSTypeB,
+        false // disable atomic
+        >;
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using ReduceAdd   = ck::reduce::Add;
@@ -285,14 +287,27 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             return ave_time;
         }
 
-        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& karg_, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
-                Print(karg);
+                Print(karg_);
             }
 
+            auto karg = karg_;
+
             const auto kbatch = karg.k_batch;
+
+            if(kbatch > 1)
+            {
+                auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(&karg);
+                p_gemm_arg_->p_c_grid = static_cast<CReduceType*>(karg.p_workspace_);
+            }
+            else
+            {
+                auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(&karg);
+                p_gemm_arg_->p_c_grid = static_cast<CReduceType*>(karg.p_c_grid);
+            }
 
             if(!GridwiseGemm::CheckValidity(karg))
             {
@@ -311,12 +326,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
-                if(kbatch > 1)
-                    hipGetErrorString(hipMemsetAsync(karg.p_c_grid,
-                                                     0,
-                                                     karg.M * karg.N * sizeof(CDataType),
-                                                     stream_config.stream_id_));
-
                 ave_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
@@ -332,64 +341,33 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
             if(has_main_k0_block_loop)
             {
-                if(kbatch == 1)
-                {
-                    const auto kernel =
-                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::Set,
-                                                             DefaultBlock2CTileMap,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation>;
+                const auto kernel =
+                    kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
+                                                         true,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         DefaultBlock2CTileMap,
+                                                         AElementwiseOperation,
+                                                         BElementwiseOperation,
+                                                         CElementwiseOperation>;
 
-                    Run(kernel);
-                }
-                else
-                {
-                    const auto kernel =
-                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::AtomicAdd,
-                                                             DefaultBlock2CTileMap,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation>;
-
-                    Run(kernel);
-                }
+                Run(kernel);
             }
             else
             {
-                if(kbatch == 1)
-                {
-                    const auto kernel =
-                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             false,
-                                                             InMemoryDataOperationEnum::Set,
-                                                             DefaultBlock2CTileMap,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation>;
+                const auto kernel =
+                    kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
+                                                         false,
+                                                         InMemoryDataOperationEnum::Set,
+                                                         DefaultBlock2CTileMap,
+                                                         AElementwiseOperation,
+                                                         BElementwiseOperation,
+                                                         CElementwiseOperation>;
 
-                    Run(kernel);
-                }
-                else
-                {
-                    const auto kernel =
-                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                             false,
-                                                             InMemoryDataOperationEnum::AtomicAdd,
-                                                             DefaultBlock2CTileMap,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation>;
-
-                    Run(kernel);
-                }
+                Run(kernel);
             }
 
-            ave_time += RunReduce(karg, stream_config);
+            if(kbatch > 1)
+                ave_time += RunReduce(karg, stream_config);
 
             return ave_time;
         }
@@ -531,19 +509,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
                              void* p_workspace,
-                             const StreamConfig& stream_config = StreamConfig{}) const override
+                             const StreamConfig& = StreamConfig{}) const override
     {
         auto p_arg_          = dynamic_cast<Argument*>(p_arg);
         p_arg_->p_workspace_ = p_workspace;
-
-        ignore = stream_config;
-#if 0
-        hip_check_error(
-            hipMemsetAsync(p_workspace, 0, GetWorkSpaceSize(p_arg), stream_config.stream_id_));
-#endif
-
-        auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(p_arg);
-        p_gemm_arg_->p_c_grid = static_cast<CReduceType*>(p_workspace);
     }
 };
 
