@@ -639,10 +639,51 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
     }
 
     __device__ static constexpr auto MakeCGridDescriptor_MBlock_MPerBlock_NBlock_KBatch_NPerBlock(
-        index_t MBlock, index_t NBlock, index_t KBatch)
+        index_t M, index_t N, index_t StrideC, index_t KBatch)
     {
-        return make_naive_tensor_descriptor_packed(
-            make_tuple(MBlock, MPerBlock, NBlock, KBatch, NPerBlock));
+        const index_t MPad   = CalculateMPadded(M);
+        const index_t MBlock = MPad / MPerBlock;
+
+        const index_t NBlock = N / NPerBlock;
+
+        const auto c_grid_desc_m_nblock_kbatch_nperblock = make_naive_tensor_descriptor(
+            make_tuple(M, NBlock, KBatch, NPerBlock),
+            make_tuple(StrideC * KBatch, KBatch * NPerBlock, NPerBlock, I1));
+
+        if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                     GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
+        {
+            const auto c_grid_desc_mpad_nblock_kbatch_nperblock = transform_tensor_descriptor(
+                c_grid_desc_m_nblock_kbatch_nperblock,
+                make_tuple(make_right_pad_transform(M, MPad - M),
+                           make_pass_through_transform(NBlock),
+                           make_pass_through_transform(KBatch),
+                           make_pass_through_transform(NPerBlock)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+            return transform_tensor_descriptor(
+                c_grid_desc_mpad_nblock_kbatch_nperblock,
+                make_tuple(make_unmerge_transform(make_tuple(MBlock, MPerBlock)),
+                           make_pass_through_transform(NBlock),
+                           make_pass_through_transform(KBatch),
+                           make_pass_through_transform(NPerBlock)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+        }
+        else
+        {
+            return transform_tensor_descriptor(
+                c_grid_desc_m_nblock_kbatch_nperblock,
+                make_tuple(make_unmerge_transform(make_tuple(MBlock, MPerBlock)),
+                           make_pass_through_transform(NBlock),
+                           make_pass_through_transform(KBatch),
+                           make_pass_through_transform(NPerBlock)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+        }
     }
 
     // return block_id to C matrix tile idx (m0, n0) mapping
@@ -699,20 +740,21 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_b_grid, b_b_k0_n_k1_grid_desc.GetElementSpaceSize());
 
+        const index_t k_batch_id = blockIdx.z;
+
 #if 0
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
 #else
-        const index_t MBlock = karg.MPadded / MPerBlock;
-        const index_t NBlock = karg.NPadded / NPerBlock;
 
         const auto c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock =
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_KBatch_NPerBlock(
-                MBlock, NBlock, karg.k_batch);
+                karg.M, karg.N, karg.StrideC, karg.k_batch);
 
-        const index_t k_batch_id = blockIdx.z;
+        const index_t MBlock = c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock.GetLength(I0);
+        const index_t NBlock = c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock.GetLength(I2);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock,

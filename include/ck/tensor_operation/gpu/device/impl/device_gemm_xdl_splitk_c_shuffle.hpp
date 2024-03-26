@@ -67,7 +67,7 @@ template <typename ADataType,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           typename LDSTypeA           = ComputeType,
           typename LDSTypeB           = ComputeType,
-          typename CReduceType        = AccDataType>
+          typename CReduceType        = CDataType>
 
 struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              BLayout,
@@ -91,10 +91,17 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     using ComputeTypeA = ComputeType;
     using ComputeTypeB = ComputeType;
 
+#if 0
     static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ =
         CBlockTransferScalarPerVector_NWaveNPerXDL > 1
             ? (CBlockTransferScalarPerVector_NWaveNPerXDL / 2)
             : 1;
+#else
+    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ =
+        CBlockTransferScalarPerVector_NWaveNPerXDL;
+#endif
+
+    static constexpr index_t MAX_K_BATCH = 30;
 
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
@@ -148,25 +155,26 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using ReduceAdd   = ck::reduce::Add;
 
-    using DeviceReduceInstance = DeviceReduceThreadWise<CReduceType, // InDataType,
-                                                        AccDataType, // AccDataType,
-                                                        CDataType,   // OutDataType,
-                                                        4,           // Rank
-                                                        1,           // NumReduceDim
-                                                        ReduceAdd,
-                                                        PassThrough,
-                                                        PassThrough,
-                                                        false, // PropagateNan,
-                                                        false, // OutputIndex,
-                                                        false,
-                                                        false, // HaveIndexInputIfOutputIndex
-                                                        64,    // BlockSize_,
-                                                        3,     // MThreadSliceSize_,
-                                                        1,     // KThreadSliceSize_,
-                                                        0,     // InSrcVectorDim_,
-                                                        1,     // InSrcVectorSize_,
-                                                        1      // OutDstVectorSize_
-                                                        >;
+    using DeviceReduceInstance =
+        DeviceReduceThreadWise<CReduceType, // InDataType,
+                               AccDataType, // AccDataType,
+                               CDataType,   // OutDataType,
+                               4,           // Rank
+                               1,           // NumReduceDim
+                               ReduceAdd,
+                               PassThrough,
+                               PassThrough,
+                               false, // PropagateNan,
+                               false, // OutputIndex,
+                               false,
+                               false, // HaveIndexInputIfOutputIndex
+                               64,    // BlockSize_,
+                               CBlockTransferScalarPerVector_NWaveNPerXDL,  // MThreadSliceSize_,
+                               1,                                           // KThreadSliceSize_,
+                               0,                                           // InSrcVectorDim_,
+                               CBlockTransferScalarPerVector_NWaveNPerXDL_, // InSrcVectorSize_,
+                               CBlockTransferScalarPerVector_NWaveNPerXDL   // OutDstVectorSize_
+                               >;
 
     struct Argument : public GridwiseGemm::Argument
     {
@@ -227,12 +235,12 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         {
 
             const index_t KBatch                  = arg.k_batch;
-            const index_t NBlock                  = arg.NPadded / NPerBlock;
-            std::array<ck::index_t, 4> in_lengths = {arg.MPadded, NBlock, KBatch, NPerBlock};
+            const index_t NBlock                  = arg.N / NPerBlock;
+            std::array<ck::index_t, 4> in_lengths = {arg.M, NBlock, KBatch, NPerBlock};
             std::array<ck::index_t, 4> in_strides = {
                 NBlock * KBatch * NPerBlock, KBatch * NPerBlock, NPerBlock, 1};
 
-            std::array<ck::index_t, 3> out_lengths = {arg.MPadded, NBlock, NPerBlock};
+            std::array<ck::index_t, 3> out_lengths = {arg.M, NBlock, NPerBlock};
             std::array<ck::index_t, 3> out_strides = {NBlock * NPerBlock, NPerBlock, 1};
 
             std::array<int, 1> reduce_dims{2};
@@ -267,8 +275,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                     "The runtime parameters seems not supported by the device instance, exiting!");
             }
 
-            std::size_t num_bytes = arg.MPadded * arg.NPadded * KBatch * sizeof(CReduceType) +
-                                    arg.MPadded * arg.NPadded * sizeof(CDataType);
+            std::size_t num_bytes =
+                arg.M * arg.N * KBatch * sizeof(CReduceType) + arg.M * arg.N * sizeof(CDataType);
 
             float gb_per_sec = num_bytes / 1.E6 / ave_time;
 
@@ -407,6 +415,12 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             return false;
         }
 
+        if(karg.N % NPerBlock != 0)
+            return false;
+
+        if(karg.k_batch > MAX_K_BATCH)
+            return false;
+
         return GridwiseGemm::CheckValidity(karg);
     }
 
@@ -512,8 +526,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     {
         auto arg = *dynamic_cast<const Argument*>(p_arg);
 
-        const index_t MAX_K_BATCH = 30;
-
         return arg.MPadded * arg.NPadded * sizeof(CReduceType) * MAX_K_BATCH;
     }
 
@@ -531,7 +543,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 #endif
 
         auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(p_arg);
-        p_gemm_arg_->p_c_grid = static_cast<AccDataType*>(p_workspace);
+        p_gemm_arg_->p_c_grid = static_cast<CReduceType*>(p_workspace);
     }
 };
 
