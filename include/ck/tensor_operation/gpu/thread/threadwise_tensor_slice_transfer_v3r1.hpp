@@ -213,7 +213,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
 
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
-            // using dst_vector_t    = typename dst_vector_type::type;
+            using dst_vector_t    = typename dst_vector_type::type;
             dst_vector_type op_r_v;
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -238,22 +238,24 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
 
             using src_elem_op_vec_t =
-                typename vector_type<SrcData, elem_op_vec_len>::conversion_type;
+                typename vector_type<SrcData, elem_op_vec_len>::type;
             using dst_elem_op_vec_t =
-                typename vector_type<DstData, elem_op_vec_len>::conversion_type;
+                typename vector_type<DstData, elem_op_vec_len>::type;
+            using src_elem_conv_t = typename vector_type<SrcData, elem_op_vec_len>::conversion_type;
+
+            // static_assert(is_same_v<dst_vector_t, double>, "!!!!!");
 
             static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
                 // apply the src elementwise op and convert to DstData under the hood if needed
                 src_element_op_(
                     op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                    bit_cast<src_elem_op_vec_t>(
-                        src_vector_container.template AsType<src_elem_op_vec_t>()[idx]));
+                    bit_cast<src_elem_conv_t>(src_vector_container.template AsType<src_elem_op_vec_t>()[idx]));
             });
 
             // copy data from src_vector_container into src_thread_scratch_
             src_thread_scratch_tuple_(thread_scratch_id)
-                .template SetAsType<dst_elem_op_vec_t>(src_data_idx_seq,
-                                                  op_r_v.template AsType<dst_elem_op_vec_t>()[I0]);
+                .template SetAsType<dst_vector_t>(src_data_idx_seq,
+                                                  op_r_v.template AsType<dst_vector_t>()[I0]);
 
             constexpr auto move_on_dim = [&]() constexpr
             {
@@ -491,9 +493,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 DstData dst_v;
 
                 // apply DstElementwiseOperation
-                dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
+                dst_element_op_(dst_v, dst_vector_container.template AsType<typename vector_type<DstData,1 >::type>()[i]);
 
-                dst_vector_container.template AsType<DstData>()(i) = dst_v;
+                // if using custom data type, use data member
+                if constexpr(is_same_v<DstData, f8_t> || is_same_v<DstData, bf8_t>)
+                    dst_vector_container.template AsType<typename vector_type<DstData,1 >::type>()(i) = dst_v.data;
+                else
+                    dst_vector_container.template AsType<typename vector_type<DstData,1 >::type>()(i) = dst_v;
             });
 
             // copy data from dst_vector_container to dst_buf

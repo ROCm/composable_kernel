@@ -326,10 +326,20 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     vector_type<ComputeTypeB, KPack> b_thread_vec;
 
                     static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<ComputeTypeA>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<ComputeTypeB>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
+                        if constexpr(is_same_v<ComputeTypeA, f8_t> || is_same_v<ComputeTypeA, bf8_t>)
+                        {
+                        a_thread_vec.template AsType<typename vector_type<ComputeTypeA, 1>::type>()(i) = a_thread_buf
+                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}].data;
+                        }
+                        else{a_thread_vec.template AsType<typename vector_type<ComputeTypeA, 1>::type>()(i) = a_thread_buf
+                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];}
+                        if constexpr(is_same_v<ComputeTypeB, f8_t> || is_same_v<ComputeTypeB, bf8_t>)
+                        {
+                        b_thread_vec.template AsType<typename vector_type<ComputeTypeB, 1>::type>()(i) = b_thread_buf
+                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}].data;
+                        }
+                        else {b_thread_vec.template AsType<typename vector_type<ComputeTypeB, 1>::type>()(i) = b_thread_buf
+                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];}
                     });
 
                     using mfma_input_type_a =

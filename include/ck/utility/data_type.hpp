@@ -248,15 +248,13 @@ struct vector_type<f8_t, 2>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        using X_type = typename X::data_type;
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value, "wrong!");
 
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value, "wrong!");
-
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x2_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
         }
@@ -269,15 +267,13 @@ struct vector_type<f8_t, 2>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        using X_type = typename X::data_type;
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value, "wrong!");
 
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value, "wrong!");
-
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x2_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
         }
@@ -390,25 +386,23 @@ struct vector_type<f8_t, 8>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        using X_type = typename X::data_type;
-
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value ||
-                          is_same<X_type, d4_t>::value || is_same<X_type, d8_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
                       "wrong!");
 
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x8_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x4_;
         }
-        else if constexpr(is_same<X_type, d4_t>::value)
+        else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x2_;
         }
-        else if constexpr(is_same<X_type, d8_t>::value)
+        else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
         }
@@ -421,25 +415,23 @@ struct vector_type<f8_t, 8>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        using X_type = typename X::data_type;
-
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value ||
-                          is_same<X_type, d4_t>::value || is_same<X_type, d8_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
                       "wrong!");
 
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x8_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x4_;
         }
-        else if constexpr(is_same<X_type, d4_t>::value)
+        else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x2_;
         }
-        else if constexpr(is_same<X_type, d8_t>::value)
+        else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
         }
@@ -481,30 +473,28 @@ struct vector_type<f8_t, 16>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        using X_type = typename X::data_type;
-
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value ||
-                          is_same<X_type, d4_t>::value || is_same<X_type, d8_t>::value ||
-                          is_same<X_type, d16_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
+                          is_same<X, d16_t>::value,
                       "wrong!");
 
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x16_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x8_;
         }
-        else if constexpr(is_same<X_type, d4_t>::value)
+        else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x4_;
         }
-        else if constexpr(is_same<X_type, d8_t>::value)
+        else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x2_;
         }
-        else if constexpr(is_same<X_type, d16_t>::value)
+        else if constexpr(is_same<X, d16_t>::value)
         {
             return data_.d16x1_;
         }
@@ -517,30 +507,28 @@ struct vector_type<f8_t, 16>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        using X_type = typename X::data_type;
-
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value ||
-                          is_same<X_type, d4_t>::value || is_same<X_type, d8_t>::value ||
-                          is_same<X_type, d16_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
+                          is_same<X, d16_t>::value,
                       "wrong!");
 
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x16_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x8_;
         }
-        else if constexpr(is_same<X_type, d4_t>::value)
+        else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x4_;
         }
-        else if constexpr(is_same<X_type, d8_t>::value)
+        else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x2_;
         }
-        else if constexpr(is_same<X_type, d16_t>::value)
+        else if constexpr(is_same<X, d16_t>::value)
         {
             return data_.d16x1_;
         }
@@ -838,15 +826,13 @@ struct vector_type<bf8_t, 2>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        using X_type = typename X::data_type;
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value, "wrong!");
 
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value, "wrong!");
-
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x2_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
         }
@@ -859,15 +845,13 @@ struct vector_type<bf8_t, 2>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        using X_type = typename X::data_type;
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value, "wrong!");
 
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value, "wrong!");
-
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x2_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x1_;
         }
@@ -980,25 +964,23 @@ struct vector_type<bf8_t, 8>
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
     {
-        using X_type = typename X::data_type;
-
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value ||
-                          is_same<X_type, d4_t>::value || is_same<X_type, d8_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
                       "wrong!");
 
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x8_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x4_;
         }
-        else if constexpr(is_same<X_type, d4_t>::value)
+        else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x2_;
         }
-        else if constexpr(is_same<X_type, d8_t>::value)
+        else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
         }
@@ -1011,25 +993,23 @@ struct vector_type<bf8_t, 8>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        using X_type = typename X::data_type;
-
-        static_assert(is_same<X_type, d1_t>::value || is_same<X_type, d2_t>::value ||
-                          is_same<X_type, d4_t>::value || is_same<X_type, d8_t>::value,
+        static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
+                          is_same<X, d4_t>::value || is_same<X, d8_t>::value,
                       "wrong!");
 
-        if constexpr(is_same<X_type, d1_t>::value)
+        if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x8_;
         }
-        else if constexpr(is_same<X_type, d2_t>::value)
+        else if constexpr(is_same<X, d2_t>::value)
         {
             return data_.d2x4_;
         }
-        else if constexpr(is_same<X_type, d4_t>::value)
+        else if constexpr(is_same<X, d4_t>::value)
         {
             return data_.d4x2_;
         }
-        else if constexpr(is_same<X_type, d8_t>::value)
+        else if constexpr(is_same<X, d8_t>::value)
         {
             return data_.d8x1_;
         }

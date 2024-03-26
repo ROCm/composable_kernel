@@ -334,10 +334,10 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_t>(f8x2_t x)
     vector_type<float, 2> f32x2_v;
     f32x2_v.template AsType<float>()(Number<0>{}) =
         utils::cast_from_f8<f8_t, float, negative_zero_nan>(
-            f8x2_v.template AsType<f8_t>()[Number<0>{}]);
+            f8x2_v.template AsType<typename vector_type<f8_t, 1>::type>()[Number<0>{}]);
     f32x2_v.template AsType<float>()(Number<1>{}) =
         utils::cast_from_f8<f8_t, float, negative_zero_nan>(
-            f8x2_v.template AsType<f8_t>()[Number<1>{}]);
+            f8x2_v.template AsType<typename vector_type<f8_t, 1>::type>()[Number<1>{}]);
     return f32x2_v.template AsType<float2_t>()[Number<0>{}];
 #endif
 }

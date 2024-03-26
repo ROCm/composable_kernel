@@ -93,23 +93,23 @@ struct StaticBufferTupleOfVector
     // Get S
     // i is offset of S
     template <index_t I>
-    __host__ __device__ constexpr const S& operator[](Number<I> i) const
+    __host__ __device__ constexpr auto operator[](Number<I> i) const
     {
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_s = i % s_per_v;
 
-        return base::operator[](i_v).template AsType<S>()[i_s];
+        return S{base::operator[](i_v).template AsType<typename vector_type<S, 1>::type>()[i_s]};
     }
 
     // Set S
     // i is offset of S
     template <index_t I>
-    __host__ __device__ constexpr S& operator()(Number<I> i)
+    __host__ __device__ constexpr auto operator()(Number<I> i)
     {
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_s = i % s_per_v;
 
-        return base::operator()(i_v).template AsType<S>()(i_s);
+        return S{base::operator()(i_v).template AsType<typename vector_type<S, 1>::type>()(i_s)};
     }
 
     // Get X
@@ -130,11 +130,53 @@ struct StaticBufferTupleOfVector
         return base::operator[](i_v).template AsType<X>()[i_x];
     }
 
+    // custom type implementation
+    // Get X
+    // i is offset of S, not X. i should be aligned to X
+    template <typename X,
+              index_t I,
+              typename enable_if<!(has_same_scalar_type<S, X>::value), bool>::type = false>
+    __host__ __device__ constexpr auto GetAsType(Number<I> i) const
+    {
+        constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
+
+        static_assert(s_per_v % s_per_x == 0, "wrong! V must  one or multiple X");
+        static_assert(i % s_per_x == 0, "wrong!");
+
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_x = (i % s_per_v) / s_per_x;
+
+        return base::operator[](i_v).template AsType<X>()[i_x];
+    }
+
     // Set X
     // i is offset of S, not X. i should be aligned to X
     template <typename X,
               index_t I,
               typename enable_if<has_same_scalar_type<S, X>::value, bool>::type = false>
+    __host__ __device__ constexpr void SetAsType(Number<I> i, X x)
+    {
+        constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};
+
+        static_assert(s_per_v % s_per_x == 0, "wrong! V must contain one or multiple X");
+        static_assert(i % s_per_x == 0, "wrong!");
+
+        constexpr auto i_v = i / s_per_v;
+        constexpr auto i_x = (i % s_per_v) / s_per_x;
+
+        // if using custom data type, use data member
+        if constexpr(is_same_v<X, f8_t> || is_same_v<X, bf8_t>)
+            base::operator()(i_v).template AsType<X>()(i_x) = x.data;
+        else
+            base::operator()(i_v).template AsType<X>()(i_x) = x;
+    }
+
+    // custom type implementation
+    // Set X
+    // i is offset of S, not X. i should be aligned to X
+    template <typename X,
+              index_t I,
+              typename enable_if<!(has_same_scalar_type<S, X>::value), bool>::type = false>
     __host__ __device__ constexpr void SetAsType(Number<I> i, X x)
     {
         constexpr auto s_per_x = Number<scalar_type<remove_cvref_t<X>>::vector_size>{};

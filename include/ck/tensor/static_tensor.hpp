@@ -115,7 +115,7 @@ struct StaticTensorTupleOfVectorBuffer
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
-    __host__ __device__ constexpr const S& operator[](Idx) const
+    __host__ __device__ constexpr auto operator[](Idx) const
     {
         constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
 
@@ -145,7 +145,7 @@ struct StaticTensorTupleOfVectorBuffer
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
-    __host__ __device__ constexpr S& operator()(Idx)
+    __host__ __device__ constexpr auto operator()(Idx)
     {
         constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
 
@@ -197,12 +197,69 @@ struct StaticTensorTupleOfVectorBuffer
         }
     }
 
+    // custom type implementation
+    // Get X
+    // Idx is for S, not X. Idx should be aligned with X
+    template <typename X,
+              typename Idx,
+              typename enable_if<(!has_same_scalar_type<S, X>::value) &&
+                                     (is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_),
+                                 bool>::type = false>
+    __host__ __device__ constexpr X GetAsType(Idx) const
+    {
+        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
+
+        constexpr index_t offset = coord.GetOffset();
+
+        constexpr bool is_valid = coordinate_has_valid_offset(desc_, coord);
+
+        if constexpr(is_valid)
+        {
+            return data_.template GetAsType<X>(Number<offset>{});
+        }
+        else
+        {
+            if constexpr(InvalidElementUseNumericalZeroValue)
+            {
+                // TODO: is this right way to initialize a vector?
+                return X{0};
+            }
+            else
+            {
+                // TODO: is this right way to initialize a vector?
+                return X{invalid_element_scalar_value_};
+            }
+        }
+    }
+
     // Set X
     // Idx is for S, not X. Idx should be aligned with X
     template <typename X,
               typename Idx,
               typename enable_if<has_same_scalar_type<S, X>::value &&
                                      is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
+                                 bool>::type = false>
+    __host__ __device__ constexpr void SetAsType(Idx, X x)
+    {
+        constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
+
+        constexpr index_t offset = coord.GetOffset();
+
+        constexpr bool is_valid = coordinate_has_valid_offset(desc_, coord);
+
+        if constexpr(is_valid)
+        {
+            data_.template SetAsType<X>(Number<offset>{}, x);
+        }
+    }
+
+    // custom type implementation
+    // Set X
+    // Idx is for S, not X. Idx should be aligned with X
+    template <typename X,
+              typename Idx,
+              typename enable_if<!(has_same_scalar_type<S, X>::value &&
+                                     is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_),
                                  bool>::type = false>
     __host__ __device__ constexpr void SetAsType(Idx, X x)
     {

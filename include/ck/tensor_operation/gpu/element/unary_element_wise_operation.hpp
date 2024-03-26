@@ -219,6 +219,18 @@ struct PassThrough
     {
         y = x.data;
     }
+
+    template <>
+    __host__ __device__ void operator()<f8_t, _BitInt(8)>(f8_t& y, const _BitInt(8)& x) const
+    {
+        y = x;
+    }
+
+    template <>
+    __host__ __device__ void operator()<bf8_t, _BitInt(8)>(bf8_t& y, const _BitInt(8)& x) const
+    {
+        y = x;
+    }
 };
 
 struct UnaryConvert
