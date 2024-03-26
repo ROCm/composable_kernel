@@ -1,8 +1,12 @@
 # ck_tile
+## concept
 `ck_tile` provides a programming model with templated abstractions to enable users to implement performance-critical kernels for machine learning workloads. introduces following basic concepts to help users building your own operator
- - tensor coordinate transformation, the is the core concept of layout/index transform abstraction in both compiler time and run time.
+ - tensor coordinate transformation, this is the core concept of layout/index transform abstraction in both compiler time and run time.
  - tile-based programming model, including tile-level api and the concept of distributed tensor.
 
+`ck_tile` is independently from the old ck, located under [/include/ck_tile](/include/ck_tile). You don't need to include anything from old CK, `ck_tile` has similiar (indeed almost the same) implementations for users to build operators. We will have a transition period to pull everything from old ck into `ck_tile`, stay tuned.
+
+## component
 `ck_tile` is splitted into several componenets including `core`, `host`, `ops/gemm`, `ops/fmha`... each component you only need to include a single header (e.g `#include "ck_tile/core.hpp"`, `#include "ck_tile/ops/fmha.hpp"`) then you are able to use the function/structure inside (different from old `ck`)  
 
 **[core]**  
@@ -17,6 +21,7 @@
 `core/numeric`
  - gpu data type like `fp16_t`, `bf16_t`, `fp8_t`... and the conversion between each other
  - constexpr integer similiar to std::integral_constant to be used as compile time integer.
+ - math functions and numeric utilities
 
 `core/algorithm`
  - coordinate transformation system, used to build tensor transform and compile time indexing. This is the core idea introduced in old `ck` to describe how a tensor is build by several basic transform primitives like `merge`/`unmerge`/`embed` etc... and how we indexing into a ND tensor that finally mapped to 1D memory offset.
@@ -38,3 +43,6 @@ our implementation of different device operators.
 
 **[ops/epilogue]**  
 epilogue part of our kernel. We may extend this epilogue part to let users to build their own cutomized epilogues.
+
+## examples
+currently we put all ck_tile related example under [/example/ck_tile](/example/ck_tile/) folder. Please check each example's subfolder.
