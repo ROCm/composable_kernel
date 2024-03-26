@@ -54,7 +54,7 @@ class submodule_t:
                 for individual_header in include_list:
                     header_path = NS + '/' + str(individual_header)
                     f.write(f'#include \"{header_path}\"\n')
-                f.write('\n')
+                # f.write('\n') # otherwise clang-format will complain
         # print(self.m)
         # restructure common
         for k, v in self.m.items():
