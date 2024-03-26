@@ -477,7 +477,7 @@ struct TransformConvFwdToGemm
                                           is_same_v<CLayout, tensor_layout::convolution::GNHWK> ||
                                           is_same_v<CLayout, tensor_layout::convolution::GNDHWK>,
                                       bool>::type = false>
-    static auto
+    __host__ __device__ static auto
     MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
                         const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides */)
     {
@@ -502,8 +502,9 @@ struct TransformConvFwdToGemm
                                     is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
                                     is_same_v<CLayout, tensor_layout::convolution::NDHWGK>,
                                 bool>::type = false>
-    static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+    __host__ __device__ static auto
+    MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
+                        const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
     {
         const index_t N = c_g_n_k_wos_lengths[1];
         const index_t K = c_g_n_k_wos_lengths[2];
@@ -525,8 +526,9 @@ struct TransformConvFwdToGemm
     template <typename CLayout,
               typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::G_K>,
                                       bool>::type = false>
-    static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+    __host__ __device__ static auto
+    MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
+                        const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
     {
         const index_t N       = c_g_n_k_wos_lengths[1];
         const index_t K       = c_g_n_k_wos_lengths[2];

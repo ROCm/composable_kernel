@@ -36,9 +36,9 @@ void Operation_Conv::update_prologue(const std::string& prologue)
     if(!prologue.empty())
     {
         this->prologue = prologue;
-        std::cout << "changing to prologue" << std::endl;
+        // std::cout << "changing to prologue" << std::endl;
         this->cde_elem_op = "CDEElementOp";
-        std::cout << "New CDE(P): " << this->cde_elem_op << std::endl;
+        // std::cout << "New CDE(P): " << this->cde_elem_op << std::endl;
     }
     else
     {
@@ -51,9 +51,9 @@ void Operation_Conv::update_epilogue(const std::string& epilogue)
     if(!epilogue.empty())
     {
         this->epilogue = epilogue;
-        std::cout << "changing to epilogue" << std::endl;
+        // std::cout << "changing to epilogue" << std::endl;
         this->cde_elem_op = "CDEElementOp";
-        std::cout << "New CDE: " << this->cde_elem_op << std::endl;
+        // std::cout << "New CDE: " << this->cde_elem_op << std::endl;
     }
     else
     {
@@ -144,7 +144,7 @@ std::vector<Operation_Conv> CreateOperationsImpl(
         x.c_block_transfer = c_block_descriptions[i];
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
-        std::cout << "Check: " << x.cde_elem_op << std::endl;
+        // std::cout << "Check: " << x.cde_elem_op << std::endl;
         auto all = f(x);
         result.insert(result.end(), all.begin(), all.end());
     }

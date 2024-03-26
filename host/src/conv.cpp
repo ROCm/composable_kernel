@@ -15,7 +15,7 @@ namespace conv {
 std::string Problem_Conv::GetIncludeHeader() const
 {
     return "ck/tensor_operation/gpu/device/impl/"
-           "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp";
+           "device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp";
 }
 
 std::vector<Solution> Problem_Conv::GetSolutions(const std::string& arch,

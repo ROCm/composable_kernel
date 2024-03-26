@@ -73,7 +73,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
-__device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
+__device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     AsPointer p_as_grid,
     BsPointer p_bs_grid,
     DsPointer p_ds_grid,
@@ -224,7 +224,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 
-    device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
         GridwiseGemm,
         AsPointer, // tuples if multi AB, pointers if no
         BsPointer,
@@ -330,7 +330,7 @@ template <index_t NDimSpatial,
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
+struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
                                              BLayout,
@@ -345,7 +345,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              CDEElementwiseOperation,
                                              ComputeDataType>
 {
-    using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
+    using DeviceOp = copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
@@ -860,7 +860,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
+        str << "copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "

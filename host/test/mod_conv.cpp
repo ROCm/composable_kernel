@@ -8,7 +8,7 @@
 #include "ck/host/utils.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/math_v2.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -194,7 +194,7 @@ const std::string conv_compile_check = R"__ck__(
     float alpha_;
     float beta_;
 };
-using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+using DeviceConv = ck::tensor_operation::device::copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
       2, 
       ck::tensor_layout::convolution::GNHWC, 
       ck::tensor_layout::convolution::GKYXC, 
@@ -209,66 +209,50 @@ using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD
       2, 8, 8, 1, ck::Sequence<4, 64, 1>, ck::Sequence<1, 0, 2>, 
       ck::Sequence<1, 0, 2>, 2, 8, 8, 1, 1, 1, ck::Sequence<1, 32, 1, 8>, 8>;
 
-// TODO: can remove these declarations, stick with DeviceConv:: call?
-using AGridDesc_M_K  = ck::remove_cvref_t<decltype(DeviceConv::MakeAGridDescriptor_M_K<ck::tensor_layout::convolution::GNHWC>(
-        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
-using BGridDesc_N_K  = ck::remove_cvref_t<decltype(DeviceConv::MakeBGridDescriptor_N_K<ck::tensor_layout::convolution::GKYXC>({}, {}))>;
-using DsGridDesc_M_N = ck::remove_cvref_t<decltype(DeviceConv::MakeDsGridDescriptor_M_N({}, {}))>;
-using EGridDesc_M_N  = ck::remove_cvref_t<decltype(DeviceConv::MakeEGridDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>({}, {}))>;
-
-using GridwiseGemm = DeviceConv::GridwiseGemm;
-using AGridDesc_AK0_M_AK1 =
-     ck::remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
-         AGridDesc_M_K{}))>;
-using BGridDesc_BK0_N_BK1 =
-     ck::remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
-         BGridDesc_N_K{}))>;
-using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = ck::remove_cvref_t<
-    decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-         DsGridDesc_M_N{}))>;
-using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-    ck::remove_cvref_t<decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-         EGridDesc_M_N{}))>;
-using Block2ETileMap = 
-    ck::remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
-
-
     constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
     constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
 // TODO(Amber): fix parameters
 extern "C" __global__ void kernel_group_conv_fwd(
-        const ck::half_t* p_as,
-        const ck::half_t* p_bs,
-        DeviceConv::GridwiseGemm::DsGridPointer p_ds,
-        ck::half_t* __restrict__ p_e,
-        const std::array<ck::index_t, 5>& a_g_n_c_wis_lengths,
-        const std::array<ck::index_t, 5>& a_g_n_c_wis_strides,
-        const std::array<ck::index_t, 5>& b_g_k_c_xs_lengths,
-	const std::array<ck::index_t, 5>& b_g_k_c_xs_strides,
-        const std::array<std::array<ck::index_t, 5>, 0>& ds_g_n_k_wos_lengths,
-	const std::array<std::array<ck::index_t, 5>, 0>& ds_g_n_k_wos_strides,
-	const std::array<ck::index_t, 5>& e_g_n_k_wos_lengths,
-	const std::array<ck::index_t, 5>& e_g_n_k_wos_strides,
-	const std::array<ck::index_t, 2>& conv_filter_strides,
-	const std::array<ck::index_t, 2>& conv_filter_dilations,
-	const std::array<ck::index_t, 2>& input_left_pads,
-	const std::array<ck::index_t, 2>& input_right_pads,
-	const ck::tensor_operation::element_wise::PassThrough& a_element_op,
-	const ck::tensor_operation::element_wise::PassThrough& b_element_op,
-	const Prologue& cde_element_op,
-    
+
+    // TODO(Amber): Extract type from DeviceConv
+    const ck::half_t* p_as_grid,
+    const ck::half_t* p_bs_grid,
+    DeviceConv::GridwiseGemm::DsGridPointer p_ds_grid,
+    ck::half_t* __restrict__ p_e_grid,
+
+    // TODO(Amber): replace with valid element_wise operations
+    //
+    const ck::tensor_operation::element_wise::PassThrough a_element_op,
+    const ck::tensor_operation::element_wise::PassThrough b_element_op,
+    const Prologue cde_element_op,
     const ck::index_t batch_count,
-    const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
-    const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
-    const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+    const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
+    const DeviceConv::BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
+    const DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
         ds_grid_desc_mblock_mperblock_nblock_nperblock,
-    const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+    const DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
         e_grid_desc_mblock_mperblock_nblock_nperblock_,
-    const Block2ETileMap block_2_ctile_map,
-		const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch) {
+    const DeviceConv::Block2ETileMap block_2_ctile_map,
+		const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch,
+    const ck::half_t* p_as,
+    const ck::half_t* p_bs,
+    ck::half_t* __restrict__ out_dev,
+    const std::array<ck::index_t, 5>& a_g_n_c_wis_lengths,
+    const std::array<ck::index_t, 5>& a_g_n_c_wis_strides,
+    const std::array<ck::index_t, 5>& b_g_k_c_xs_lengths,
+    const std::array<ck::index_t, 5>& b_g_k_c_xs_strides,
+    const std::array<std::array<ck::index_t, 5>, 0>& ds_g_n_k_wos_lengths,
+    const std::array<std::array<ck::index_t, 5>, 0>& ds_g_n_k_wos_strides,
+    const std::array<ck::index_t, 5>& e_g_n_k_wos_lengths,
+    const std::array<ck::index_t, 5>& e_g_n_k_wos_strides,
+    const std::array<ck::index_t, 2>& conv_filter_strides,
+    const std::array<ck::index_t, 2>& conv_filter_dilations,
+    const std::array<ck::index_t, 2>& input_left_pads,
+    const std::array<ck::index_t, 2>& input_right_pads) {
 
     using CDEElementOp = Prologue; // TODO(Amber): replace with Prologue
+
 
     auto a_grid_desc_m_k_ = DeviceConv::MakeAGridDescriptor_M_K<ck::tensor_layout::convolution::GNHWC>(a_g_n_c_wis_lengths,
 		    a_g_n_c_wis_strides,
@@ -280,11 +264,26 @@ extern "C" __global__ void kernel_group_conv_fwd(
 		    conv_filter_dilations,
 		    input_left_pads,
 		    input_right_pads);
-    auto b_grid_desc_n_k_ = DeviceConv::MakeBGridDescriptor_N_K<ck::tensor_layout::convolution::GKYXC>(b_g_k_c_xs_lengths, 
-		    b_g_k_c_xs_strides);
+    auto b_grid_desc_n_k_ = DeviceConv::MakeBGridDescriptor_N_K<ck::tensor_layout::convolution::GKYXC>(b_g_k_c_xs_lengths, b_g_k_c_xs_strides);
+
+    auto e_grid_desc_m_n_ = DeviceConv::MakeEGridDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(e_g_n_k_wos_lengths, e_g_n_k_wos_strides);
+   // auto  ds_grid_desc_m_n_ = DeviceConv::MakeEGridDescriptor_M_N<>(
+		                        //e_g_n_k_wos_lengths,e_g_n_k_wos_strides);
+
+    using GridwiseGemm = DeviceConv::GridwiseGemm;
+
+    auto a_grid_desc_ak0_m_ak1_c = GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_);
+    auto b_grid_desc_bk0_n_bk1_c = GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_);
+    auto e_grid_desc_mblock_mperblock_nblock_nperblock_c =
+	                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
+    auto ds_grid_desc_mblock_mperblock_nblock_nperblock_c =
+				                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
+    auto block_2_etile_map_c = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_);
+    //p_as_grid_(I0) = static_cast<const ADataType*>(p_as);
+    //p_bs_grid_(I0) = static_cast<const BDataType*>(p_bs);
 
 
-    ck::tensor_operation::device::device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    ck::tensor_operation::device::copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ck::half_t*,
                     const ck::half_t*,
@@ -293,11 +292,11 @@ extern "C" __global__ void kernel_group_conv_fwd(
                     ck::tensor_operation::element_wise::PassThrough,
                     ck::tensor_operation::element_wise::PassThrough,
                     Prologue,
-                    AGridDesc_AK0_M_AK1,
-                    BGridDesc_BK0_N_BK1,
-                    DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                    Block2ETileMap,
+                    DeviceConv::AGridDesc_AK0_M_AK1,
+                    DeviceConv::BGridDesc_BK0_N_BK1,
+                    DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                    DeviceConv::Block2ETileMap,
 		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
 
                     // TODO(Amber): double check these bool flags
@@ -306,15 +305,16 @@ extern "C" __global__ void kernel_group_conv_fwd(
                     false> // isMultiB
                   (
 
-                  p_as,
-                  p_bs,
-                  p_ds,
-                  p_e,
+                  p_as_grid,
+                  p_bs_grid,
+                  p_ds_grid,
+                  p_e_grid,
                   a_element_op,
                   b_element_op,
                   cde_element_op,
                   batch_count,
-                  a_grid_desc_k0_m_k1,
+                  //a_grid_desc_ak0_m_ak1_c,
+		  a_grid_desc_k0_m_k1,
                   b_grid_desc_k0_n_k1,
                   ds_grid_desc_mblock_mperblock_nblock_nperblock,
                   e_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -368,52 +368,53 @@ struct Prologue
 
     using CDEElementOp = Prologue;
 
-    using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-        2,
-        ck::tensor_layout::convolution::GNHWC,
-        ck::tensor_layout::convolution::GKYXC,
-        ck::Tuple<>,
-        ck::tensor_layout::convolution::GNHWK,
-        ck::half_t,
-        ck::half_t,
-        float,
-        ck::half_t,
-        ck::Tuple<>,
-        ck::half_t,
-        ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough,
-        CDEElementOp,
-        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
-        ck::tensor_operation::device::GemmSpecialization::MNKPadding,
-        1,
-        256,
-        128,
-        256,
-        32,
-        8,
-        8,
-        32,
-        32,
-        4,
-        2,
-        ck::Sequence<4, 64, 1>,
-        ck::Sequence<1, 0, 2>,
-        ck::Sequence<1, 0, 2>,
-        2,
-        8,
-        8,
-        1,
-        ck::Sequence<4, 64, 1>,
-        ck::Sequence<1, 0, 2>,
-        ck::Sequence<1, 0, 2>,
-        2,
-        8,
-        8,
-        1,
-        1,
-        1,
-        ck::Sequence<1, 32, 1, 8>,
-        8>;
+    using DeviceConv =
+        ck::tensor_operation::device::copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+            2,
+            ck::tensor_layout::convolution::GNHWC,
+            ck::tensor_layout::convolution::GKYXC,
+            ck::Tuple<>,
+            ck::tensor_layout::convolution::GNHWK,
+            ck::half_t,
+            ck::half_t,
+            float,
+            ck::half_t,
+            ck::Tuple<>,
+            ck::half_t,
+            ck::tensor_operation::element_wise::PassThrough,
+            ck::tensor_operation::element_wise::PassThrough,
+            CDEElementOp,
+            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
+            ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+            1,
+            256,
+            128,
+            256,
+            32,
+            8,
+            8,
+            32,
+            32,
+            4,
+            2,
+            ck::Sequence<4, 64, 1>,
+            ck::Sequence<1, 0, 2>,
+            ck::Sequence<1, 0, 2>,
+            2,
+            8,
+            8,
+            1,
+            ck::Sequence<4, 64, 1>,
+            ck::Sequence<1, 0, 2>,
+            ck::Sequence<1, 0, 2>,
+            2,
+            8,
+            8,
+            1,
+            1,
+            1,
+            ck::Sequence<1, 32, 1, 8>,
+            8>;
 
     // length+stride arrays
     std::array<ck::index_t, 5> in_lengths{static_cast<int>(prob.G),
@@ -535,12 +536,14 @@ struct Prologue
 
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
-        auto src =
-            ck::host::InterpolateString(conv_compile_check, {{"include", prob.GetIncludeHeader()}});
+        auto src = ck::host::InterpolateString(
+            conv_compile_check,
+            {{"include",
+              "ck/tensor_operation/gpu/device/impl/"
+              "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"}});
 
         std::ofstream ofh("kernel.txt");
         ofh << src;
-        ofh.close();
 
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
@@ -550,18 +553,33 @@ struct Prologue
 
         auto grid_size =
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
-        // auto grid_size = 1296;
         auto block_size = 256; // TODO(Amber): pick from DeviceConv template params
 
+        ofh << "Grid Size: " << grid_size << std::endl;
+        ofh << "Block Size: " << block_size << std::endl;
+        ofh.close();
         // print arg kernels - host_side
-        // arg.Print();
+        arg.Print();
+	std::cout << "launched" << std::endl;
 
-        std::cout << "launched" << std::endl;
         k.launch(nullptr, grid_size * block_size, block_size)(
-            in_dev.data(),
-            wei_dev.data(),
-            std::array<const void*, 0>{},
-            out_dev.data(),
+            arg.p_as_grid_,
+            arg.p_bs_grid_,
+            arg.p_ds_grid_,
+            arg.p_e_grid_,
+            arg.a_element_op_,
+            arg.b_element_op_,
+            arg.cde_element_op_,
+            arg.a_g_n_c_wis_lengths_[0], // Group count
+            as_grid_desc_ak0_m_ak1,
+            bs_grid_desc_bk0_n_bk1,
+            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            arg.block_2_etile_map_,
+            arg.compute_ptr_offset_of_batch_,
+	    in_dev.data(),
+	    wei_dev.data(),
+	    out_dev.data(),
             in_lengths,
             in_strides,
             wei_lengths,
@@ -573,10 +591,7 @@ struct Prologue
             conv_filter_strides,
             conv_filter_dilations,
             input_left_pads,
-            input_right_pads,
-            ck::tensor_operation::element_wise::PassThrough{},
-            ck::tensor_operation::element_wise::PassThrough{},
-            CDEElementOp{1.0f, 1.0f});
+            input_right_pads);
 
         Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
@@ -615,7 +630,7 @@ struct Prologue
         std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
         ofh2 << "Check: " << pass << std::endl;
-        ofh2 << res.size();
+        ofh2 << res.size() << std::endl;
         for(int i = 0; i < res.size(); i++)
         {
             auto tmp = (res.data())[i];
