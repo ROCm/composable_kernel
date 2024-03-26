@@ -26,6 +26,7 @@ struct PassThroughPack2
         auto t = type_convert<float2_t>(x);
         y      = type_convert<half2_t>(t);
     }
+    constexpr const static bool is_pack2_invocable = true;
 };
 
 struct PassThrough
