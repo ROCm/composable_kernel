@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -727,6 +727,38 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instance
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 F8>>>& instances);
+
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                F8,
+                                                                F8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                F8>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_BF8
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                BF8,
+                                                                BF8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                BF8>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP32
@@ -1136,6 +1168,19 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             {
                 add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instances(
                     op_ptrs);
+            }
+
+            if constexpr(is_same_v<InDataType, ck::f8_t> && is_same_v<WeiDataType, ck::f8_t> &&
+                         is_same_v<OutDataType, ck::f8_t> && is_same_v<ComputeType, ck::f8_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_instances(op_ptrs);
+            }
+#endif
+#ifdef CK_ENABLE_BF8
+            if constexpr(is_same_v<InDataType, ck::bf8_t> && is_same_v<WeiDataType, ck::bf8_t> &&
+                         is_same_v<OutDataType, ck::f8_t> && is_same_v<ComputeType, ck::bf8_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instances(op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_FP16
