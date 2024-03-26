@@ -87,11 +87,11 @@ __global__ void
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
-          typename FloatA,
-          typename FloatB,
-          typename FloatGemmAcc,
-          typename FloatCShuffle,
-          typename FloatC,
+          typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CShuffleDataType,
+          typename CDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -128,7 +128,7 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
-          typename ComputeTypeA                       = FloatC,
+          typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA>
 struct GridwiseGemm_xdl_cshuffle_v3
 {
@@ -524,9 +524,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
-        __host__ Argument(const FloatA* p_a_grid_,
-                          const FloatB* p_b_grid_,
-                          FloatC* p_c_grid_,
+        __host__ Argument(const ADataType* p_a_grid_,
+                          const BDataType* p_b_grid_,
+                          CDataType* p_c_grid_,
                           index_t M_,
                           index_t N_,
                           index_t K_,
@@ -541,9 +541,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
         }
 
-        const FloatA* p_a_grid;
-        const FloatB* p_b_grid;
-        FloatC* p_c_grid;
+        const ADataType* p_a_grid;
+        const BDataType* p_b_grid;
+        CDataType* p_c_grid;
     };
 
     struct SplitKBatchOffset
@@ -595,7 +595,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(FloatA);
+            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(ADataType) < 1
+                                                  ? 1
+                                                  : 32 * 4 / KPerBlock / sizeof(ADataType);
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
@@ -633,9 +635,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
             // M0LdsLayer * M1 as logical Bank
             constexpr auto M1         = Number<ABlockTransferSrcScalarPerVector>{};
             constexpr auto M0         = MPerBlock / M1;
-            constexpr auto M0LdsLayer = 32 * 4 / (M1 * AK1Number * sizeof(FloatA)) <= 1
+            constexpr auto M0LdsLayer = 32 * 4 / (M1 * AK1Number * sizeof(ADataType)) <= 1
                                             ? 1
-                                            : 32 * 4 / (M1 * AK1Number * sizeof(FloatA));
+                                            : 32 * 4 / (M1 * AK1Number * sizeof(ADataType));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(make_tuple(
                 AK0Number, Number<M0 / M0LdsLayer>{}, Number<M0LdsLayer * M1>{}, AK1Number));
@@ -674,7 +676,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr auto NLdsLayer        = 32 * 4 / KPerBlock / sizeof(FloatB);
+            constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(BDataType) < 1
+                                           ? 1
+                                           : 32 * 4 / KPerBlock / sizeof(BDataType);
+            ;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
@@ -712,9 +717,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
             // N0LdsLayer * N1 as logical Bank
             constexpr auto N1         = Number<BBlockTransferSrcScalarPerVector>{};
             constexpr auto N0         = NPerBlock / N1;
-            constexpr auto N0LdsLayer = 32 * 4 / (N1 * BK1Number * sizeof(FloatB)) <= 1
+            constexpr auto N0LdsLayer = 32 * 4 / (N1 * BK1Number * sizeof(BDataType)) <= 1
                                             ? 1
-                                            : 32 * 4 / (N1 * BK1Number * sizeof(FloatB));
+                                            : 32 * 4 / (N1 * BK1Number * sizeof(BDataType));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(make_tuple(
                 BK0Number, Number<N0 / N0LdsLayer>{}, Number<N0LdsLayer * N1>{}, BK1Number));
@@ -761,8 +766,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 BlkGemmPipelineVer,
                                 BlkGemmPipeSched,
                                 BlockSize,
+                                ADataType,
+                                BDataType,
                                 ComputeTypeA,
-                                FloatGemmAcc,
+                                AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
                                 decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
@@ -802,9 +809,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(ComputeTypeA) +
-                          b_block_space_size_aligned * sizeof(ComputeTypeB)),
-                         c_block_size * sizeof(FloatCShuffle));
+        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
+                          b_block_space_size_aligned * sizeof(BDataType)),
+                         c_block_size * sizeof(CShuffleDataType));
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -1018,9 +1025,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run(const FloatA* p_a_grid,
-                               const FloatB* p_b_grid,
-                               FloatC* p_c_grid,
+    __device__ static void Run(const ADataType* p_a_grid,
+                               const BDataType* p_b_grid,
+                               CDataType* p_c_grid,
                                void* p_shared,
                                const Problem& problem)
     {
@@ -1088,8 +1095,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 Sequence<AK0Number, MPerBlock, AK1Number>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
-                                                FloatA,
-                                                ComputeTypeA,
+                                                ADataType,
+                                                ADataType,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -1119,8 +1126,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 Sequence<BK0Number, NPerBlock, BK1Number>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
-                                                FloatB,
-                                                ComputeTypeB,
+                                                BDataType,
+                                                BDataType,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -1145,11 +1152,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
+        // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeTypeB*>(p_shared) + a_block_space_size_aligned,
+            static_cast<BDataType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
@@ -1210,7 +1218,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
             auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatCShuffle*>(p_shared),
+                static_cast<CShuffleDataType*>(p_shared),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
@@ -1262,8 +1270,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             // shuffle: threadwise copy C from VGPR to LDS
             auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatGemmAcc,
-                                                   FloatCShuffle,
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                                   CShuffleDataType,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    ck::tensor_operation::element_wise::PassThrough,
@@ -1303,8 +1311,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                FloatCShuffle,        // typename SrcData,
-                FloatC,               // typename DstData,
+                CShuffleDataType,     // typename SrcData,
+                CDataType,            // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                 decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
                 Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
@@ -1380,9 +1388,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run_2Lds(const FloatA* p_a_grid,
-                                    const FloatB* p_b_grid,
-                                    FloatC* p_c_grid,
+    __device__ static void Run_2Lds(const ADataType* p_a_grid,
+                                    const BDataType* p_b_grid,
+                                    CDataType* p_c_grid,
                                     void* p_shared_0,
                                     void* p_shared_1,
                                     const Problem& problem)
@@ -1451,7 +1459,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 Sequence<AK0Number, MPerBlock, AK1Number>,
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
-                                                FloatA,
+                                                ADataType,
                                                 ComputeTypeA,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
@@ -1482,7 +1490,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 Sequence<BK0Number, NPerBlock, BK1Number>,
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
-                                                FloatB,
+                                                BDataType,
                                                 ComputeTypeB,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
@@ -1583,7 +1591,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
             auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<FloatCShuffle*>(p_shared_0),
+                static_cast<CShuffleDataType*>(p_shared_0),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(
@@ -1635,8 +1643,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             // shuffle: threadwise copy C from VGPR to LDS
             auto c_thread_copy_vgpr_to_lds =
-                ThreadwiseTensorSliceTransfer_v1r3<FloatGemmAcc,
-                                                   FloatCShuffle,
+                ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+                                                   CShuffleDataType,
                                                    decltype(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    decltype(c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2),
                                                    ck::tensor_operation::element_wise::PassThrough,
@@ -1676,8 +1684,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                FloatCShuffle,        // typename SrcData,
-                FloatC,               // typename DstData,
+                CShuffleDataType,     // typename SrcData,
+                CDataType,            // typename DstData,
                 decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                 decltype(c_grid_desc_mblock_mperblock_nblock_nperblock),
                 Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
