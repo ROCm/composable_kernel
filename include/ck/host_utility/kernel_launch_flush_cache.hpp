@@ -33,16 +33,14 @@ extern "C" __global__ void flush_icache()
 
 void run_flush_icache()
 {
-    hipStream_t stream;
     hipDeviceProp_t deviceProps;
-    hip_check_error(hipStreamCreate(&stream)); // initialized stream
     hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
     int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
     int flush_iter = 100000;
 
     for(int i = 0; i < flush_iter; i++)
-        hipLaunchKernelGGL(flush_icache, dim3(gpu_block3), dim3(64), 0, stream);
+        flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
     hip_check_error(hipGetLastError());
 }
 
