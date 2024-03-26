@@ -16,10 +16,6 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
-#include "ck/utility/reduction_enums.hpp"
-#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -66,8 +62,7 @@ template <typename ADataType,
           PipelineVersion PipelineVer = PipelineVersion::v1,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           typename LDSTypeA           = ComputeType,
-          typename LDSTypeB           = ComputeType,
-          typename CReduceType        = CDataType>
+          typename LDSTypeB           = ComputeType>
 
 struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                                              BLayout,
@@ -91,24 +86,12 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     using ComputeTypeA = ComputeType;
     using ComputeTypeB = ComputeType;
 
-#if 0
-    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ =
-        CBlockTransferScalarPerVector_NWaveNPerXDL > 1
-            ? (CBlockTransferScalarPerVector_NWaveNPerXDL / 2)
-            : 1;
-#else
-    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ =
-        CBlockTransferScalarPerVector_NWaveNPerXDL;
-#endif
-
-    static constexpr index_t MAX_K_BATCH = 30;
-
     using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType,
         BDataType,
         AccDataType,
-        CReduceType,
+        CDataType,
         ALayout,
         BLayout,
         CLayout,
@@ -143,40 +126,14 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         BBlockLdsAddExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
-        CBlockTransferScalarPerVector_NWaveNPerXDL_,
+        CBlockTransferScalarPerVector_NWaveNPerXDL,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         LoopSched,
         PipelineVer,
         ComputeTypeA,
         ComputeTypeB,
         LDSTypeA,
-        LDSTypeB,
-        false // disable atomic
-        >;
-
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    using ReduceAdd   = ck::reduce::Add;
-
-    using DeviceReduceInstance =
-        DeviceReduceThreadWise<CReduceType, // InDataType,
-                               AccDataType, // AccDataType,
-                               CDataType,   // OutDataType,
-                               4,           // Rank
-                               1,           // NumReduceDim
-                               ReduceAdd,
-                               PassThrough,
-                               PassThrough,
-                               false, // PropagateNan,
-                               false, // OutputIndex,
-                               false,
-                               false, // HaveIndexInputIfOutputIndex
-                               64,    // BlockSize_,
-                               CBlockTransferScalarPerVector_NWaveNPerXDL,  // MThreadSliceSize_,
-                               1,                                           // KThreadSliceSize_,
-                               0,                                           // InSrcVectorDim_,
-                               CBlockTransferScalarPerVector_NWaveNPerXDL_, // InSrcVectorSize_,
-                               CBlockTransferScalarPerVector_NWaveNPerXDL   // OutDstVectorSize_
-                               >;
+        LDSTypeB>;
 
     struct Argument : public GridwiseGemm::Argument
     {
@@ -199,7 +156,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                  CElementwiseOperation c_element_op_)
             : GridwiseGemm::Argument(p_a_grid_,
                                      p_b_grid_,
-                                     nullptr, // p_c_grid_,
+                                     p_c_grid_,
                                      M_,
                                      N_,
                                      K_,
@@ -211,14 +168,11 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                                      KPadded_,
                                      K0Padded_,
                                      k_batch_),
-              p_c_grid{p_c_grid_},
               a_element_op(a_element_op_),
               b_element_op(b_element_op_),
               c_element_op(c_element_op_)
         {
         }
-
-        CDataType* p_c_grid;
 
         AElementwiseOperation a_element_op;
         BElementwiseOperation b_element_op;
@@ -233,81 +187,14 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
         void Print(const Argument& karg) { karg.Print(); }
 
-        float RunReduce(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
-        {
-
-            const index_t KBatch                  = arg.k_batch;
-            const index_t NBlock                  = arg.N / NPerBlock;
-            std::array<ck::index_t, 4> in_lengths = {arg.M, NBlock, KBatch, NPerBlock};
-            std::array<ck::index_t, 4> in_strides = {
-                NBlock * KBatch * NPerBlock, KBatch * NPerBlock, NPerBlock, 1};
-
-            std::array<ck::index_t, 3> out_lengths = {arg.M, NBlock, NPerBlock};
-            std::array<ck::index_t, 3> out_strides = {NBlock * NPerBlock, NPerBlock, 1};
-
-            std::array<int, 1> reduce_dims{2};
-
-            auto reduce = DeviceReduceInstance{};
-
-            auto argument_ptr = reduce.MakeArgumentPointer(in_lengths,
-                                                           in_strides,
-                                                           out_lengths,
-                                                           out_strides,
-                                                           reduce_dims,
-                                                           1.0,
-                                                           0,
-                                                           arg.p_workspace_,
-                                                           nullptr,
-                                                           arg.p_c_grid,
-                                                           nullptr,
-                                                           PassThrough{},
-                                                           PassThrough{});
-
-            auto invoker_ptr = reduce.MakeInvokerPointer();
-
-            float ave_time = 0;
-
-            if(reduce.IsSupportedArgument(argument_ptr.get()))
-            {
-                ave_time = invoker_ptr->Run(argument_ptr.get(), stream_config);
-            }
-            else
-            {
-                throw std::runtime_error(
-                    "The runtime parameters seems not supported by the device instance, exiting!");
-            }
-
-            std::size_t num_bytes =
-                arg.M * arg.N * KBatch * sizeof(CReduceType) + arg.M * arg.N * sizeof(CDataType);
-
-            float gb_per_sec = num_bytes / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
-
-            return ave_time;
-        }
-
-        float Run(const Argument& karg_, const StreamConfig& stream_config = StreamConfig{})
+        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
-                Print(karg_);
+                Print(karg);
             }
-
-            auto karg = karg_;
 
             const auto kbatch = karg.k_batch;
-
-            if(kbatch > 1)
-            {
-                auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(&karg);
-                p_gemm_arg_->p_c_grid = static_cast<CReduceType*>(karg.p_workspace_);
-            }
-            else
-            {
-                auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(&karg);
-                p_gemm_arg_->p_c_grid = static_cast<CReduceType*>(karg.p_c_grid);
-            }
 
             if(!GridwiseGemm::CheckValidity(karg))
             {
@@ -326,6 +213,12 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             float ave_time = 0;
 
             const auto Run = [&](const auto& kernel) {
+                if(kbatch > 1)
+                    hipGetErrorString(hipMemsetAsync(karg.p_c_grid,
+                                                     0,
+                                                     karg.M * karg.N * sizeof(CDataType),
+                                                     stream_config.stream_id_));
+
                 ave_time =
                     launch_and_time_kernel(stream_config,
                                            kernel,
@@ -341,33 +234,62 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
             if(has_main_k0_block_loop)
             {
-                const auto kernel =
-                    kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                         true,
-                                                         InMemoryDataOperationEnum::Set,
-                                                         DefaultBlock2CTileMap,
-                                                         AElementwiseOperation,
-                                                         BElementwiseOperation,
-                                                         CElementwiseOperation>;
+                if(kbatch == 1)
+                {
+                    const auto kernel =
+                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::Set,
+                                                             DefaultBlock2CTileMap,
+                                                             AElementwiseOperation,
+                                                             BElementwiseOperation,
+                                                             CElementwiseOperation>;
 
-                Run(kernel);
+                    Run(kernel);
+                }
+                else
+                {
+                    const auto kernel =
+                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             DefaultBlock2CTileMap,
+                                                             AElementwiseOperation,
+                                                             BElementwiseOperation,
+                                                             CElementwiseOperation>;
+
+                    Run(kernel);
+                }
             }
             else
             {
-                const auto kernel =
-                    kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
-                                                         false,
-                                                         InMemoryDataOperationEnum::Set,
-                                                         DefaultBlock2CTileMap,
-                                                         AElementwiseOperation,
-                                                         BElementwiseOperation,
-                                                         CElementwiseOperation>;
+                if(kbatch == 1)
+                {
+                    const auto kernel =
+                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
+                                                             false,
+                                                             InMemoryDataOperationEnum::Set,
+                                                             DefaultBlock2CTileMap,
+                                                             AElementwiseOperation,
+                                                             BElementwiseOperation,
+                                                             CElementwiseOperation>;
 
-                Run(kernel);
+                    Run(kernel);
+                }
+                else
+                {
+                    const auto kernel =
+                        kernel_gemm_xdlops_v2r4r2_simplified<GridwiseGemm,
+                                                             false,
+                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             DefaultBlock2CTileMap,
+                                                             AElementwiseOperation,
+                                                             BElementwiseOperation,
+                                                             CElementwiseOperation>;
+
+                    Run(kernel);
+                }
             }
-
-            if(kbatch > 1)
-                ave_time += RunReduce(karg, stream_config);
 
             return ave_time;
         }
@@ -392,12 +314,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         {
             return false;
         }
-
-        if(karg.N % NPerBlock != 0)
-            return false;
-
-        if(karg.k_batch > MAX_K_BATCH)
-            return false;
 
         return GridwiseGemm::CheckValidity(karg);
     }
@@ -498,21 +414,6 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
             << ", PipelineVersion: " << PipelineVersionToString[PipelineVer];
 
         return str.str();
-    }
-
-    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
-    {
-        auto arg = *dynamic_cast<const Argument*>(p_arg);
-
-        return arg.MPadded * arg.NPadded * sizeof(CReduceType) * MAX_K_BATCH;
-    }
-
-    void SetWorkSpacePointer(BaseArgument* p_arg,
-                             void* p_workspace,
-                             const StreamConfig& = StreamConfig{}) const override
-    {
-        auto p_arg_          = dynamic_cast<Argument*>(p_arg);
-        p_arg_->p_workspace_ = p_workspace;
     }
 };
 
