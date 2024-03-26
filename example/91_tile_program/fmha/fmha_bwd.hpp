@@ -26,41 +26,41 @@ struct FmhaBwdTypeConfig;
 template <>
 struct FmhaBwdTypeConfig<ck::half_t>
 {
-    using QDataType        = ck::half_t;
-    using KDataType        = ck::half_t;
-    using VDataType        = ck::half_t;
-    using GemmDataType     = ck::half_t;
-    using BiasDataType     = ck::half_t;
-    using LSEDataType      = float;
-    using AccDataType      = float; // data type for gemm accumulation
-    using DDataType        = float;
-    using ZDataType        = unsigned short;
-    using ODataType        = ck::half_t;
-    using OGradDataType    = ck::half_t;
-    using QGradDataType    = ck::half_t;
-    using KGradDataType    = ck::half_t;
-    using VGradDataType    = ck::half_t;
-    using BiasGradDataType = ck::half_t;
+    using QDataType             = ck::half_t;
+    using KDataType             = ck::half_t;
+    using VDataType             = ck::half_t;
+    using GemmDataType          = ck::half_t;
+    using BiasDataType          = ck::half_t;
+    using LSEDataType           = float;
+    using AccDataType           = float; // data type for gemm accumulation
+    using DDataType             = float;
+    using RandValOutputDataType = uint8_t;
+    using ODataType             = ck::half_t;
+    using OGradDataType         = ck::half_t;
+    using QGradDataType         = ck::half_t;
+    using KGradDataType         = ck::half_t;
+    using VGradDataType         = ck::half_t;
+    using BiasGradDataType      = ck::half_t;
 };
 
 template <>
 struct FmhaBwdTypeConfig<ck::bhalf_t>
 {
-    using QDataType        = ck::bhalf_t;
-    using KDataType        = ck::bhalf_t;
-    using VDataType        = ck::bhalf_t;
-    using GemmDataType     = ck::bhalf_t;
-    using BiasDataType     = ck::bhalf_t;
-    using LSEDataType      = float;
-    using AccDataType      = float; // data type for gemm accumulation
-    using DDataType        = float;
-    using ZDataType        = unsigned short;
-    using ODataType        = ck::bhalf_t;
-    using OGradDataType    = ck::bhalf_t;
-    using QGradDataType    = ck::bhalf_t;
-    using KGradDataType    = ck::bhalf_t;
-    using VGradDataType    = ck::bhalf_t;
-    using BiasGradDataType = ck::bhalf_t;
+    using QDataType             = ck::bhalf_t;
+    using KDataType             = ck::bhalf_t;
+    using VDataType             = ck::bhalf_t;
+    using GemmDataType          = ck::bhalf_t;
+    using BiasDataType          = ck::bhalf_t;
+    using LSEDataType           = float;
+    using AccDataType           = float; // data type for gemm accumulation
+    using DDataType             = float;
+    using RandValOutputDataType = uint8_t;
+    using ODataType             = ck::bhalf_t;
+    using OGradDataType         = ck::bhalf_t;
+    using QGradDataType         = ck::bhalf_t;
+    using KGradDataType         = ck::bhalf_t;
+    using VGradDataType         = ck::bhalf_t;
+    using BiasGradDataType      = ck::bhalf_t;
 };
 
 struct FmhaMasks
@@ -381,7 +381,7 @@ struct fmha_bwd_args
     const void* lse_ptr;
     const void* do_ptr;
     const void* d_ptr;
-    // void* rand_val_ptr;
+    void* rand_val_ptr;
     void* dq_ptr;
     void* dk_ptr;
     void* dv_ptr;
@@ -402,6 +402,7 @@ struct fmha_bwd_args
     ck::index_t stride_k;
     ck::index_t stride_v;
     ck::index_t stride_bias;
+    ck::index_t stride_randval;
     ck::index_t stride_do;
     ck::index_t stride_dk;
     ck::index_t stride_dv;
@@ -410,6 +411,7 @@ struct fmha_bwd_args
     ck::index_t nhead_stride_k;
     ck::index_t nhead_stride_v;
     ck::index_t nhead_stride_bias;
+    ck::index_t nhead_stride_randval;
     ck::index_t nhead_stride_do;
     ck::index_t nhead_stride_lsed;
     ck::index_t nhead_stride_dbias;
@@ -417,6 +419,7 @@ struct fmha_bwd_args
     ck::index_t batch_stride_k;
     ck::index_t batch_stride_v;
     ck::index_t batch_stride_bias;
+    ck::index_t batch_stride_randval;
     ck::index_t batch_stride_do;
     ck::index_t batch_stride_lsed;
     ck::index_t batch_stride_dk;
@@ -424,6 +427,9 @@ struct fmha_bwd_args
     ck::index_t batch_stride_dbias;
     ck::index_t mask_y;
     ck::index_t mask_x;
+    float p_drop;
+    bool s_randval;
+    std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
 
 template <typename FmhaBwdKernel>
@@ -441,6 +447,7 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.lse_ptr,
                                             args.do_ptr,
                                             args.d_ptr,
+                                            args.rand_val_ptr,
                                             args.dq_ptr,
                                             args.dk_ptr,
                                             args.dv_ptr,
@@ -450,12 +457,14 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.seqlen_k_ptr,
                                             args.hdim_q,
                                             args.hdim_v,
+                                            args.nhead_q,
                                             args.nhead_q / args.nhead_k,
                                             args.scale,
                                             args.stride_q,
                                             args.stride_k,
                                             args.stride_v,
                                             args.stride_bias,
+                                            args.stride_randval,
                                             args.stride_do,
                                             args.stride_dk,
                                             args.stride_dv,
@@ -464,11 +473,15 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.nhead_stride_k,
                                             args.nhead_stride_v,
                                             args.nhead_stride_bias,
+                                            args.nhead_stride_randval,
                                             args.nhead_stride_do,
                                             args.nhead_stride_lsed,
                                             args.nhead_stride_dbias,
                                             args.mask_y,
-                                            args.mask_x);
+                                            args.mask_x,
+                                            args.p_drop,
+                                            args.s_randval,
+                                            args.drop_seed_offset);
         }
         else
         { // create batch mode kernel arguments
@@ -479,6 +492,7 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.lse_ptr,
                                             args.do_ptr,
                                             args.d_ptr,
+                                            args.rand_val_ptr,
                                             args.dq_ptr,
                                             args.dk_ptr,
                                             args.dv_ptr,
@@ -487,12 +501,14 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.seqlen_k,
                                             args.hdim_q,
                                             args.hdim_v,
+                                            args.nhead_q,
                                             args.nhead_q / args.nhead_k,
                                             args.scale,
                                             args.stride_q,
                                             args.stride_k,
                                             args.stride_v,
                                             args.stride_bias,
+                                            args.stride_randval,
                                             args.stride_do,
                                             args.stride_dk,
                                             args.stride_dv,
@@ -501,6 +517,7 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.nhead_stride_k,
                                             args.nhead_stride_v,
                                             args.nhead_stride_bias,
+                                            args.nhead_stride_randval,
                                             args.nhead_stride_do,
                                             args.nhead_stride_lsed,
                                             args.nhead_stride_dbias,
@@ -508,13 +525,17 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.batch_stride_k,
                                             args.batch_stride_v,
                                             args.batch_stride_bias,
+                                            args.batch_stride_randval,
                                             args.batch_stride_do,
                                             args.batch_stride_lsed,
                                             args.batch_stride_dk,
                                             args.batch_stride_dv,
                                             args.batch_stride_dbias,
                                             args.mask_y,
-                                            args.mask_x);
+                                            args.mask_x,
+                                            args.p_drop,
+                                            args.s_randval,
+                                            args.drop_seed_offset);
         }
     }();
 
@@ -528,6 +549,7 @@ struct fmha_bwd_dot_do_o_args
     const void* do_ptr;
     void* d_ptr;
     const void* seqstart_q_ptr;
+    float p_undrop;
     ck::index_t batch;
     ck::index_t nhead_q;
     ck::index_t seqlen_q;
@@ -550,6 +572,7 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_dot_do_o_args args)
             return FmhaBwdOGradDotOKernel::MakeKargs(args.o_ptr,
                                                      args.do_ptr,
                                                      args.d_ptr,
+                                                     args.p_undrop,
                                                      args.seqstart_q_ptr,
                                                      args.hdim_v,
                                                      args.stride_o,
@@ -561,6 +584,7 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_dot_do_o_args args)
             return FmhaBwdOGradDotOKernel::MakeKargs(args.o_ptr,
                                                      args.do_ptr,
                                                      args.d_ptr,
+                                                     args.p_undrop,
                                                      args.seqlen_q,
                                                      args.hdim_v,
                                                      args.stride_o,
@@ -580,7 +604,8 @@ template <ck::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
           typename FmhaMask_,
-          bool kHasBias_>
+          bool kHasBias_,
+          bool kHasDropout_>
 struct fmha_bwd_traits_
 {
     static constexpr ck::index_t HDim  = HDim_;
@@ -588,6 +613,7 @@ struct fmha_bwd_traits_
     static constexpr bool kIsGroupMode = kIsGroupMode_;
     using FmhaMask                     = ck::remove_cvref_t<FmhaMask_>;
     static constexpr bool kHasBias     = kHasBias_;
+    static constexpr bool kHasDropout  = kHasDropout_;
 };
 
 template <typename Traits_>
@@ -613,6 +639,7 @@ struct fmha_bwd_traits
     bool is_group_mode;
     mask_enum mask_type;
     bool has_bias;
+    bool has_dropout;
     // TODO: padding check is inside this api
 };
 float fmha_bwd(fmha_bwd_traits, fmha_bwd_args, const StreamConfig&);

@@ -30,20 +30,20 @@ struct FmhaBwdKernel
     static constexpr ck::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
 
-    using QDataType    = ck::remove_cvref_t<typename FmhaPipeline::QDataType>;
-    using KDataType    = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
-    using VDataType    = ck::remove_cvref_t<typename FmhaPipeline::VDataType>;
-    using BiasDataType = ck::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
-    using GemmDataType = ck::remove_cvref_t<typename FmhaPipeline::GemmDataType>;
-    using LSEDataType  = ck::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
-    using AccDataType  = ck::remove_cvref_t<typename FmhaPipeline::AccDataType>;
-    using DDataType    = ck::remove_cvref_t<typename FmhaPipeline::DDataType>;
-    // using ZDataType           = ck::remove_cvref_t<typename FmhaPipeline::ZDataType>;
-    using OGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::OGradDataType>;
-    using QGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::QGradDataType>;
-    using KGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::KGradDataType>;
-    using VGradDataType    = ck::remove_cvref_t<typename FmhaPipeline::VGradDataType>;
-    using BiasGradDataType = ck::remove_cvref_t<typename FmhaPipeline::BiasGradDataType>;
+    using QDataType             = ck::remove_cvref_t<typename FmhaPipeline::QDataType>;
+    using KDataType             = ck::remove_cvref_t<typename FmhaPipeline::KDataType>;
+    using VDataType             = ck::remove_cvref_t<typename FmhaPipeline::VDataType>;
+    using BiasDataType          = ck::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
+    using GemmDataType          = ck::remove_cvref_t<typename FmhaPipeline::GemmDataType>;
+    using LSEDataType           = ck::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
+    using AccDataType           = ck::remove_cvref_t<typename FmhaPipeline::AccDataType>;
+    using DDataType             = ck::remove_cvref_t<typename FmhaPipeline::DDataType>;
+    using RandValOutputDataType = ck::remove_cvref_t<typename FmhaPipeline::RandValOutputDataType>;
+    using OGradDataType         = ck::remove_cvref_t<typename FmhaPipeline::OGradDataType>;
+    using QGradDataType         = ck::remove_cvref_t<typename FmhaPipeline::QGradDataType>;
+    using KGradDataType         = ck::remove_cvref_t<typename FmhaPipeline::KGradDataType>;
+    using VGradDataType         = ck::remove_cvref_t<typename FmhaPipeline::VGradDataType>;
+    using BiasGradDataType      = ck::remove_cvref_t<typename FmhaPipeline::BiasGradDataType>;
 
     static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
@@ -51,6 +51,7 @@ struct FmhaBwdKernel
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
     static constexpr bool kHasBias     = FmhaPipeline::kHasBias;
+    static constexpr bool kHasDropout  = FmhaPipeline::kHasDropout;
     using FmhaMask                     = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask     = FmhaMask::IsMasking;
 
@@ -81,6 +82,7 @@ struct FmhaBwdKernel
 
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
+        ck::index_t num_head_q;
         ck::index_t nhead_ratio_qk;
         float raw_scale;
 #if CK_FMHA_FWD_FAST_EXP2
@@ -122,10 +124,42 @@ struct FmhaBwdKernel
         ck::index_t mask_y, mask_x;
     };
 
+    struct FmhaBwdCommonDropoutKargs
+    {
+        void init_dropout(const float p_drop,
+                          const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
+                          const float raw_scale)
+        {
+            float p_undrop = 1.0 - p_drop;
+            p_undrop_in_uint8_t =
+                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+            rp_undrop       = 1.0 / p_undrop;
+            scale_rp_undrop = rp_undrop * raw_scale;
+
+            drop_seed   = std::get<0>(drop_seed_offset);
+            drop_offset = std::get<1>(drop_seed_offset);
+        }
+        float rp_undrop             = 1;
+        float scale_rp_undrop       = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        bool is_store_randval       = false;
+        uint64_t drop_seed          = 1;
+        uint64_t drop_offset        = 0;
+        void* rand_val_ptr          = nullptr;
+
+        ck::index_t stride_randval       = 0;
+        ck::index_t nhead_stride_randval = 0;
+    };
+    struct FmhaBwdBatchModeDropoutKargs : FmhaBwdCommonDropoutKargs
+    {
+        ck::index_t batch_stride_randval = 0;
+    };
+
     struct FmhaBwdBatchModeKargs
         : FmhaBwdCommonKargs,
           std::conditional_t<kHasBias, FmhaBwdBatchModeBiasKargs, FmhaBwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<1>>
+          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<1>>,
+          std::conditional_t<kHasDropout, FmhaBwdBatchModeDropoutKargs, FmhaBwdEmptyKargs<2>>
     {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
@@ -139,7 +173,8 @@ struct FmhaBwdKernel
     struct FmhaBwdGroupModeKargs
         : FmhaBwdCommonKargs,
           std::conditional_t<kHasBias, FmhaBwdCommonBiasKargs, FmhaBwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<1>>
+          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<1>>,
+          std::conditional_t<kHasDropout, FmhaBwdCommonDropoutKargs, FmhaBwdEmptyKargs<2>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -157,6 +192,7 @@ struct FmhaBwdKernel
               const void* lse_ptr,
               const void* do_ptr,
               const void* d_ptr,
+              void* rand_val_ptr,
               void* dq_ptr,
               void* dk_ptr,
               void* dv_ptr,
@@ -165,12 +201,14 @@ struct FmhaBwdKernel
               ck::index_t seqlen_k,
               ck::index_t hdim_q,
               ck::index_t hdim_v,
+              ck::index_t num_head_q,
               ck::index_t nhead_ratio_qk,
               float scale,
               ck::index_t stride_q,
               ck::index_t stride_k,
               ck::index_t stride_v,
               ck::index_t stride_bias,
+              ck::index_t stride_randval,
               ck::index_t stride_do,
               ck::index_t stride_dk,
               ck::index_t stride_dv,
@@ -179,6 +217,7 @@ struct FmhaBwdKernel
               ck::index_t nhead_stride_k,
               ck::index_t nhead_stride_v,
               ck::index_t nhead_stride_bias,
+              ck::index_t nhead_stride_randval,
               ck::index_t nhead_stride_do,
               ck::index_t nhead_stride_lsed,
               ck::index_t nhead_stride_dbias,
@@ -186,13 +225,17 @@ struct FmhaBwdKernel
               ck::index_t batch_stride_k,
               ck::index_t batch_stride_v,
               ck::index_t batch_stride_bias,
+              ck::index_t batch_stride_randval,
               ck::index_t batch_stride_do,
               ck::index_t batch_stride_lsed,
               ck::index_t batch_stride_dk,
               ck::index_t batch_stride_dv,
               ck::index_t batch_stride_dbias,
               ck::index_t mask_y,
-              ck::index_t mask_x)
+              ck::index_t mask_x,
+              float p_drop,
+              bool s_randval,
+              std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -207,6 +250,7 @@ struct FmhaBwdKernel
                      seqlen_k,
                      hdim_q,
                      hdim_v,
+                     num_head_q,
                      nhead_ratio_qk,
                      scale,
 #if CK_FMHA_FWD_FAST_EXP2
@@ -225,6 +269,7 @@ struct FmhaBwdKernel
                      nhead_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
                     {},                  // placeholder for mask
+                    {},                  // placeholder for dropout
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -251,6 +296,16 @@ struct FmhaBwdKernel
             kargs.mask_x = mask_x;
         }
 
+        if constexpr(kHasDropout)
+        {
+            kargs.init_dropout(p_drop, drop_seed_offset, scale);
+            kargs.rand_val_ptr         = rand_val_ptr;
+            kargs.stride_randval       = stride_randval;
+            kargs.nhead_stride_randval = nhead_stride_randval;
+            kargs.batch_stride_randval = batch_stride_randval;
+            kargs.is_store_randval     = s_randval;
+        }
+
         return kargs;
     }
 
@@ -263,6 +318,7 @@ struct FmhaBwdKernel
               const void* lse_ptr,
               const void* do_ptr,
               const void* d_ptr,
+              void* rand_val_ptr,
               void* dq_ptr,
               void* dk_ptr,
               void* dv_ptr,
@@ -272,12 +328,14 @@ struct FmhaBwdKernel
               const void* seqlen_k_ptr,
               ck::index_t hdim_q,
               ck::index_t hdim_v,
+              ck::index_t num_head_q,
               ck::index_t nhead_ratio_qk,
               float scale,
               ck::index_t stride_q,
               ck::index_t stride_k,
               ck::index_t stride_v,
               ck::index_t stride_bias,
+              ck::index_t stride_randval,
               ck::index_t stride_do,
               ck::index_t stride_dk,
               ck::index_t stride_dv,
@@ -286,11 +344,15 @@ struct FmhaBwdKernel
               ck::index_t nhead_stride_k,
               ck::index_t nhead_stride_v,
               ck::index_t nhead_stride_bias,
+              ck::index_t nhead_stride_randval,
               ck::index_t nhead_stride_do,
               ck::index_t nhead_stride_lsed,
               ck::index_t nhead_stride_dbias,
               ck::index_t mask_y,
-              ck::index_t mask_x)
+              ck::index_t mask_x,
+              float p_drop,
+              bool s_randval,
+              std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -305,6 +367,7 @@ struct FmhaBwdKernel
                      -1, //
                      hdim_q,
                      hdim_v,
+                     num_head_q,
                      nhead_ratio_qk,
                      scale,
 #if CK_FMHA_FWD_FAST_EXP2
@@ -323,6 +386,7 @@ struct FmhaBwdKernel
                      nhead_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
                     {},                  // placeholder for mask
+                    {},                  // placeholder for dropout
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -340,6 +404,14 @@ struct FmhaBwdKernel
         {
             kargs.mask_y = mask_y;
             kargs.mask_x = mask_x;
+        }
+        if constexpr(kHasDropout)
+        {
+            kargs.init_dropout(p_drop, drop_seed_offset, scale);
+            kargs.rand_val_ptr         = rand_val_ptr;
+            kargs.stride_randval       = stride_randval;
+            kargs.nhead_stride_randval = nhead_stride_randval;
+            kargs.is_store_randval     = s_randval;
         }
 
         return kargs;
@@ -372,15 +444,16 @@ struct FmhaBwdKernel
 
         const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN0);
 
-        long_index_t batch_offset_q     = 0;
-        long_index_t batch_offset_k     = 0;
-        long_index_t batch_offset_v     = 0;
-        long_index_t batch_offset_bias  = 0;
-        long_index_t batch_offset_do    = 0;
-        long_index_t batch_offset_lsed  = 0;
-        long_index_t batch_offset_dk    = 0;
-        long_index_t batch_offset_dv    = 0;
-        long_index_t batch_offset_dbias = 0;
+        long_index_t batch_offset_q       = 0;
+        long_index_t batch_offset_k       = 0;
+        long_index_t batch_offset_v       = 0;
+        long_index_t batch_offset_bias    = 0;
+        long_index_t batch_offset_randval = 0;
+        long_index_t batch_offset_do      = 0;
+        long_index_t batch_offset_lsed    = 0;
+        long_index_t batch_offset_dk      = 0;
+        long_index_t batch_offset_dv      = 0;
+        long_index_t batch_offset_dbias   = 0;
 
         if constexpr(kIsGroupMode)
         {
@@ -404,6 +477,10 @@ struct FmhaBwdKernel
             {
                 batch_offset_bias  = key_start;
                 batch_offset_dbias = key_start;
+            }
+            if constexpr(kHasDropout)
+            {
+                batch_offset_randval = query_start * kargs.stride_randval;
             }
 
             // get real # queries & # keys under group mode
@@ -439,6 +516,11 @@ struct FmhaBwdKernel
             {
                 batch_offset_bias  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
                 batch_offset_dbias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dbias;
+            }
+            if constexpr(kHasDropout)
+            {
+                batch_offset_randval =
+                    static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
             }
         }
 
@@ -817,6 +899,64 @@ struct FmhaBwdKernel
             }
         }();
 
+        // dropout
+        float rp_undrop             = 1;
+        float scale_rp_undrop       = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+        uint64_t drop_seed          = 0;
+        uint64_t drop_offset        = 0;
+        bool is_store_randval       = false;
+
+        if constexpr(kHasDropout)
+        {
+            rp_undrop           = kargs.rp_undrop;
+            scale_rp_undrop     = kargs.scale_rp_undrop;
+            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
+            drop_seed           = kargs.drop_seed;
+            drop_offset         = kargs.drop_offset;
+            is_store_randval    = kargs.is_store_randval;
+        }
+        BlockDropout dropout(i_batch,
+                             i_nhead,
+                             kargs.num_head_q,
+                             drop_seed,
+                             drop_offset,
+                             rp_undrop,
+                             p_undrop_in_uint8_t,
+                             is_store_randval);
+
+        auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
+            constexpr auto randval_dram_window_lengths =
+                make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kN0>{});
+            if constexpr(kHasDropout)
+            {
+                RandValOutputDataType* rand_val_ptr =
+                    reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
+                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_randval +
+                    batch_offset_randval;
+
+                const auto randval_dram = [&]() {
+                    const auto randval_dram_naive =
+                        make_naive_tensor_view<AddressSpaceEnum::Global>(
+                            rand_val_ptr,
+                            make_tuple(kargs.seqlen_q, kargs.seqlen_k),
+                            make_tuple(kargs.stride_randval, 1),
+                            Number<1>{},
+                            Number<1>{});
+
+                    return pad_tensor_view(randval_dram_naive,
+                                           randval_dram_window_lengths,
+                                           Sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                }();
+
+                return make_tile_window(randval_dram, randval_dram_window_lengths, {0, i_n0});
+            }
+            else
+            {
+                return make_null_tile_window(randval_dram_window_lengths);
+            }
+        }();
+
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
@@ -830,6 +970,7 @@ struct FmhaBwdKernel
                                                          kt_dram_window,
                                                          v_dram_window,
                                                          bias_dram_window,
+                                                         randval_dram_window,
                                                          do_dram_window,
                                                          dot_dram_window,
                                                          lse_dram_window,
@@ -841,7 +982,10 @@ struct FmhaBwdKernel
 #if CK_FMHA_FWD_FAST_EXP2
                                                          kargs.scale,
 #endif
-                                                         smem_ptr);
+                                                         rp_undrop,
+                                                         scale_rp_undrop,
+                                                         smem_ptr,
+                                                         dropout);
 
         auto dk_dram = [&]() {
             const auto dk_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
@@ -912,6 +1056,8 @@ struct FmhaBwdOGradDotOKernel
         const void* do_ptr;
         void* d_ptr;
 
+        float p_undrop;
+
         ck::index_t seqlen_q;
         ck::index_t hdim_v;
 
@@ -939,6 +1085,7 @@ struct FmhaBwdOGradDotOKernel
     __host__ static constexpr std::enable_if_t<Cond, Kargs> MakeKargs(const void* o_ptr,
                                                                       const void* do_ptr,
                                                                       void* d_ptr,
+                                                                      float p_undrop,
                                                                       ck::index_t seqlen_q,
                                                                       ck::index_t hdim_v,
                                                                       ck::index_t stride_o,
@@ -947,10 +1094,17 @@ struct FmhaBwdOGradDotOKernel
                                                                       ck::index_t batch_stride_o,
                                                                       ck::index_t batch_stride_d)
     {
-        Kargs kargs{
-            {o_ptr, do_ptr, d_ptr, seqlen_q, hdim_v, stride_o, nhead_stride_o, nhead_stride_d},
-            batch_stride_o,
-            batch_stride_d};
+        Kargs kargs{{o_ptr,
+                     do_ptr,
+                     d_ptr,
+                     p_undrop,
+                     seqlen_q,
+                     hdim_v,
+                     stride_o,
+                     nhead_stride_o,
+                     nhead_stride_d},
+                    batch_stride_o,
+                    batch_stride_d};
 
         return kargs;
     }
@@ -959,6 +1113,7 @@ struct FmhaBwdOGradDotOKernel
     __host__ static constexpr std::enable_if_t<Cond, Kargs> MakeKargs(const void* o_ptr,
                                                                       const void* do_ptr,
                                                                       void* d_ptr,
+                                                                      float p_undrop,
                                                                       const void* seqstart_q_ptr,
                                                                       ck::index_t hdim_v,
                                                                       ck::index_t stride_o,
@@ -968,6 +1123,7 @@ struct FmhaBwdOGradDotOKernel
         Kargs kargs{{o_ptr,
                      do_ptr,
                      d_ptr,
+                     p_undrop,
                      -1, // seqlen will be updated by another pointer
                      hdim_v,
                      stride_o,
@@ -1075,6 +1231,6 @@ struct FmhaBwdOGradDotOKernel
 
         auto d_dram_window = make_tile_window(d_dram, make_tuple(Number<kM0>{}), {i_m0});
 
-        FmhaBwdOGradDotO{}(o_dram_window, do_dram_window, d_dram_window);
+        FmhaBwdOGradDotO{}(o_dram_window, do_dram_window, d_dram_window, kargs.p_undrop);
     }
 };

@@ -19,6 +19,7 @@
 #include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
+#include "ck/tile_program/block_tile/block_dropout.hpp"
 
 namespace ck {
 namespace tile_program {
@@ -27,22 +28,22 @@ namespace block {
 template <typename Problem, typename Policy = BlockFmhaBwdPipelineDefaultPolicy>
 struct BlockFmhaBwdPipelineV10
 {
-    using QDataType    = remove_cvref_t<typename Problem::QDataType>;
-    using KDataType    = remove_cvref_t<typename Problem::KDataType>;
-    using VDataType    = remove_cvref_t<typename Problem::VDataType>;
-    using GemmDataType = remove_cvref_t<typename Problem::GemmDataType>;
-    using BiasDataType = remove_cvref_t<typename Problem::BiasDataType>;
-    using LSEDataType  = remove_cvref_t<typename Problem::LSEDataType>;
-    using AccDataType  = remove_cvref_t<typename Problem::AccDataType>;
-    using DDataType    = remove_cvref_t<typename Problem::DDataType>;
-    // using ZDataType        = remove_cvref_t<typename Problem::ZDataType>;
-    using ODataType        = remove_cvref_t<typename Problem::ODataType>;
-    using OGradDataType    = remove_cvref_t<typename Problem::OGradDataType>;
-    using QGradDataType    = remove_cvref_t<typename Problem::QGradDataType>;
-    using KGradDataType    = remove_cvref_t<typename Problem::KGradDataType>;
-    using VGradDataType    = remove_cvref_t<typename Problem::VGradDataType>;
-    using BiasGradDataType = remove_cvref_t<typename Problem::BiasGradDataType>;
-    using FmhaMask         = remove_cvref_t<typename Problem::FmhaMask>;
+    using QDataType             = remove_cvref_t<typename Problem::QDataType>;
+    using KDataType             = remove_cvref_t<typename Problem::KDataType>;
+    using VDataType             = remove_cvref_t<typename Problem::VDataType>;
+    using GemmDataType          = remove_cvref_t<typename Problem::GemmDataType>;
+    using BiasDataType          = remove_cvref_t<typename Problem::BiasDataType>;
+    using LSEDataType           = remove_cvref_t<typename Problem::LSEDataType>;
+    using AccDataType           = remove_cvref_t<typename Problem::AccDataType>;
+    using DDataType             = remove_cvref_t<typename Problem::DDataType>;
+    using RandValOutputDataType = remove_cvref_t<typename Problem::RandValOutputDataType>;
+    using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using OGradDataType         = remove_cvref_t<typename Problem::OGradDataType>;
+    using QGradDataType         = remove_cvref_t<typename Problem::QGradDataType>;
+    using KGradDataType         = remove_cvref_t<typename Problem::KGradDataType>;
+    using VGradDataType         = remove_cvref_t<typename Problem::VGradDataType>;
+    using BiasGradDataType      = remove_cvref_t<typename Problem::BiasGradDataType>;
+    using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape = remove_cvref_t<typename Problem::BlockFmhaShape>;
 
@@ -73,6 +74,7 @@ struct BlockFmhaBwdPipelineV10
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr bool kHasBias     = Problem::kHasBias;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -85,6 +87,7 @@ struct BlockFmhaBwdPipelineV10
               typename KTDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename OGradDramBlockWindowTmp,
               typename OGradTDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
@@ -98,6 +101,7 @@ struct BlockFmhaBwdPipelineV10
                const KTDramBlockWindowTmp& /*kt_dram_block_window_tmp*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+               const RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
                const OGradTDramBlockWindowTmp& /*dot_dram_block_window_tmp*/,
                const LSEDramBlockWindowTmp& lse_dram_block_window_tmp,
@@ -109,7 +113,10 @@ struct BlockFmhaBwdPipelineV10
 #if CK_FMHA_FWD_FAST_EXP2
                float scale,
 #endif
-               void* smem_ptr) const
+               float rp_undrop,
+               float scale_rp_undrop,
+               void* smem_ptr,
+               BlockDropout& dropout) const
     {
         static_assert(
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -319,6 +326,9 @@ struct BlockFmhaBwdPipelineV10
                              biast_lds_shuffle_window.GetWindowOrigin(),
                              Policy::template MakeBiasTTileDistribution<decltype(gemm_0)>());
 
+        auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0), false>(
+            randval_dram_block_window_tmp, seqlen_q_start);
+
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kM0 / kK1;
@@ -388,7 +398,7 @@ struct BlockFmhaBwdPipelineV10
                 block_sync_lds();
             }
 
-            // STAGE 2, Scale, Add bias, Mask, Softmax
+            // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
             if constexpr(kHasBias)
             {
                 block_sync_lds();
@@ -474,11 +484,21 @@ struct BlockFmhaBwdPipelineV10
                 });
             });
 
+            if constexpr(kHasDropout)
+            {
+                dropout.Run<decltype(gemm_0), RandValOutputDataType>(
+                    seqlen_q_start + i_total_loops * kM0, pt, randval_dram_window);
+            }
+
             // STAGE 3, P^T@OGrad^T Gemm1
             block_sync_lds();
             store_tile(do_lds_window, do_block_tile); // store the prefetch
 
-            const auto pt_gemm = cast_tile<GemmDataType>(pt);
+            auto pt_gemm = cast_tile<GemmDataType>(pt);
+            if constexpr(kHasDropout)
+            {
+                tile_elementwise_inout([](auto& x) { x = x > 0 ? x : 0; }, pt_gemm);
+            }
 
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 block_sync_lds();
@@ -515,7 +535,10 @@ struct BlockFmhaBwdPipelineV10
                 constexpr auto i_idx = make_tuple(idx0);
                 sweep_tile_span(dst_spans[Number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    dst(i_j_idx)           = pt[i_j_idx] * (dpt_acc[i_j_idx] - d[i_idx]);
+                    bool undrop_flag       = pt[i_j_idx] >= 0;
+                    dst(i_j_idx) =
+                        pt[i_j_idx] *
+                        (!kHasDropout || undrop_flag ? (dpt_acc[i_j_idx] - d[i_idx]) : d[i_idx]);
                 });
             });
 
@@ -528,6 +551,11 @@ struct BlockFmhaBwdPipelineV10
                 auto dbiast_shuffle_tmp = make_static_distributed_tensor<BiasGradDataType>(
                     Policy::template MakeBiasTileDistribution<Problem>());
                 shuffle_distributed_tensor(dbiast_shuffle_tmp, dbiast_tile);
+                if constexpr(kHasDropout)
+                {
+                    tile_elementwise_inout([&rp_undrop](auto& x) { x = x * rp_undrop; },
+                                           dbiast_shuffle_tmp);
+                }
                 store_tile(dbias_dram_block_window, dbiast_shuffle_tmp);
                 move_tile_window(dbias_dram_block_window, {kM0, 0});
             }
@@ -566,7 +594,15 @@ struct BlockFmhaBwdPipelineV10
             });
 
             // QGrad Scale
-            tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
+            if constexpr(kHasDropout)
+            {
+                tile_elementwise_inout([&scale_rp_undrop](auto& x) { x = x * scale_rp_undrop; },
+                                       dq_acc);
+            }
+            else
+            {
+                tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
+            }
             const auto dq = cast_tile<QGradDataType>(dq_acc);
             update_tile(dq_dram_block_window, dq);
 
@@ -579,7 +615,20 @@ struct BlockFmhaBwdPipelineV10
         } while(++i_total_loops < num_total_loop);
 
         // KGrad Scale
-        tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
+        if constexpr(kHasDropout)
+        {
+            tile_elementwise_inout([&scale_rp_undrop](auto& x) { x = x * scale_rp_undrop; },
+                                   dk_acc);
+        }
+        else
+        {
+            tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
+        }
+        // VGrad Scale
+        if constexpr(kHasDropout)
+        {
+            tile_elementwise_inout([&rp_undrop](auto& x) { x = x * rp_undrop; }, dv_acc);
+        }
 
         return ck::make_tuple(dk_acc, dv_acc);
     }

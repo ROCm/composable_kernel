@@ -32,6 +32,7 @@
 #include "reference/reference_batched_gemm.hpp"
 #include "reference/reference_batched_masking.hpp"
 #include "reference/reference_batched_softmax.hpp"
+#include "reference/reference_batched_dropout.hpp"
 #include "utils.hpp"
 
 auto create_args(int argc, char* argv[])
@@ -69,6 +70,9 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 to use "
                 "non-deterministic random number as seed")
+        .insert("p_drop", "0", "0~1 probability of dropout")
+        .insert("drop_seed", "1", "seed for random number generator")
+        .insert("drop_offset", "0", "offset for random number generator")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -119,7 +123,25 @@ bool run(const ArgParser& arg_parser)
     if(scale == .0f)
         scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q));
 
-    bool use_bias = arg_parser.get_bool("bias");
+    bool use_bias        = arg_parser.get_bool("bias");
+    float p_drop         = arg_parser.get_float("p_drop");
+    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
+    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    float p_undrop       = 1.0 - p_drop;
+    uint8_t p_undrop_in_uint8_t =
+        uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+    float rp_undrop = 1.0 / p_undrop;
+    if(p_drop < 0.0f || p_drop > 1.0f)
+    {
+        std::cerr << "The value of p_drop should be 0~1" << std::endl;
+        return false;
+    }
+
+    bool s_randval = false;
+    if(p_drop > 0.0f && do_validation)
+    {
+        s_randval = true;
+    }
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
@@ -142,21 +164,21 @@ bool run(const ArgParser& arg_parser)
 
     using TypeConfig = FmhaBwdTypeConfig<DataType>;
 
-    using QDataType    = typename TypeConfig::QDataType;
-    using KDataType    = typename TypeConfig::KDataType;
-    using VDataType    = typename TypeConfig::VDataType;
-    using GemmDataType = typename TypeConfig::GemmDataType;
-    using BiasDataType = typename TypeConfig::BiasDataType;
-    using LSEDataType  = typename TypeConfig::LSEDataType;
-    using AccDataType  = typename TypeConfig::AccDataType;
-    using DDataType    = typename TypeConfig::DDataType;
-    // using ZDataType        = typename TypeConfig::ZDataType;
-    using ODataType        = typename TypeConfig::ODataType;
-    using OGradDataType    = typename TypeConfig::OGradDataType;
-    using QGradDataType    = typename TypeConfig::QGradDataType;
-    using KGradDataType    = typename TypeConfig::KGradDataType;
-    using VGradDataType    = typename TypeConfig::VGradDataType;
-    using BiasGradDataType = typename TypeConfig::BiasGradDataType;
+    using QDataType             = typename TypeConfig::QDataType;
+    using KDataType             = typename TypeConfig::KDataType;
+    using VDataType             = typename TypeConfig::VDataType;
+    using GemmDataType          = typename TypeConfig::GemmDataType;
+    using BiasDataType          = typename TypeConfig::BiasDataType;
+    using LSEDataType           = typename TypeConfig::LSEDataType;
+    using AccDataType           = typename TypeConfig::AccDataType;
+    using DDataType             = typename TypeConfig::DDataType;
+    using RandValOutputDataType = typename TypeConfig::RandValOutputDataType;
+    using ODataType             = typename TypeConfig::ODataType;
+    using OGradDataType         = typename TypeConfig::OGradDataType;
+    using QGradDataType         = typename TypeConfig::QGradDataType;
+    using KGradDataType         = typename TypeConfig::KGradDataType;
+    using VGradDataType         = typename TypeConfig::VGradDataType;
+    using BiasGradDataType      = typename TypeConfig::BiasGradDataType;
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
@@ -227,8 +249,9 @@ bool run(const ArgParser& arg_parser)
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
     Tensor<LSEDataType> lse_host(std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     Tensor<DDataType> d_host(std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
-    // Tensor<ZDataType> z_host(
-    //     std::array<ck::index_t, 4>{shape_batch, nhead, shape_seqlen_q, shape_seqlen_k});
+    Tensor<RandValOutputDataType> randval_host(
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
+                   : std::array<ck::index_t, 4>{1, 1, 1, 1});
     Tensor<QGradDataType> dq_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
     Tensor<KGradDataType> dk_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_q));
     Tensor<VGradDataType> dv_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_v));
@@ -269,7 +292,7 @@ bool run(const ArgParser& arg_parser)
     DeviceMem o_buf(o_host.GetElementSpaceSizeInBytes());
     DeviceMem lse_buf(lse_host.GetElementSpaceSizeInBytes());
     DeviceMem d_buf(d_host.GetElementSpaceSizeInBytes());
-    // DeviceMem z_buf(z_host.GetElementSpaceSizeInBytes());
+    DeviceMem randval_buf(randval_host.GetElementSpaceSizeInBytes());
     DeviceMem dq_buf(dq_host.GetElementSpaceSizeInBytes());
     DeviceMem dk_buf(dk_host.GetElementSpaceSizeInBytes());
     DeviceMem dv_buf(dv_host.GetElementSpaceSizeInBytes());
@@ -301,7 +324,7 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", mask:" << mask << std::flush;
+              << ", mask:" << mask << ", p_drop:" << p_drop << std::flush;
 
     auto fmha_dot_do_o_traits =
         fmha_bwd_dot_do_o_traits{hdim_v, data_type, mode == mode_enum::group};
@@ -316,6 +339,7 @@ bool run(const ArgParser& arg_parser)
                                       do_buf.GetDeviceBuffer(),
                                       d_buf.GetDeviceBuffer(),
                                       seqstart_q.GetDeviceBuffer(),
+                                      p_undrop,
                                       batch,
                                       nhead,
                                       shape_seqlen_q,
@@ -328,42 +352,45 @@ bool run(const ArgParser& arg_parser)
                                       batch_stride_d};
     }();
 
-    auto fmha_traits =
-        fmha_bwd_traits{hdim_q, hdim_v, data_type, mode == mode_enum::group, mask.type, use_bias};
+    auto fmha_traits = fmha_bwd_traits{
+        hdim_q, hdim_v, data_type, mode == mode_enum::group, mask.type, use_bias, p_drop > 0.0f};
     auto fmha_args = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
         // setup stride_* arguments
-        const ck::index_t stride_q     = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck::index_t stride_k     = (i_perm ? hdim_q : nhead_k * hdim_q);
-        const ck::index_t stride_v     = (i_perm ? hdim_v : nhead_k * hdim_v);
-        const ck::index_t stride_bias  = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
-        const ck::index_t stride_do    = (o_perm ? hdim_v : nhead * hdim_v);
-        const ck::index_t stride_dk    = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck::index_t stride_dv    = (i_perm ? hdim_v : nhead * hdim_v);
-        const ck::index_t stride_dbias = (i_perm ? shape_seqlen_k : nhead * shape_seqlen_k);
+        const ck::index_t stride_q       = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck::index_t stride_k       = (i_perm ? hdim_q : nhead_k * hdim_q);
+        const ck::index_t stride_v       = (i_perm ? hdim_v : nhead_k * hdim_v);
+        const ck::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck::index_t stride_randval = (max_seqlen_k);
+        const ck::index_t stride_do      = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
+        const ck::index_t stride_dbias   = (i_perm ? shape_seqlen_k : nhead * shape_seqlen_k);
         // setup nhead_stride_* arguments
         const ck::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
         const ck::index_t nhead_stride_v = (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
         const ck::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
-        const ck::index_t nhead_stride_do   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_lsed = (shape_seqlen_q);
+        const ck::index_t nhead_stride_randval = (seqlen_q * max_seqlen_k);
+        const ck::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck::index_t nhead_stride_lsed    = (shape_seqlen_q);
         const ck::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * shape_seqlen_k : shape_seqlen_k);
         // setup batch_stride_* arguments
-        const ck::index_t batch_stride_q     = (nhead * shape_seqlen_q * hdim_q);
-        const ck::index_t batch_stride_k     = (nhead_k * shape_seqlen_k * hdim_q);
-        const ck::index_t batch_stride_v     = (nhead_k * shape_seqlen_k * hdim_v);
-        const ck::index_t batch_stride_bias  = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
-        const ck::index_t batch_stride_do    = (nhead * shape_seqlen_q * hdim_v);
-        const ck::index_t batch_stride_lsed  = (nhead * shape_seqlen_q);
-        const ck::index_t batch_stride_dk    = (nhead * shape_seqlen_k * hdim_q);
-        const ck::index_t batch_stride_dv    = (nhead * shape_seqlen_k * hdim_v);
-        const ck::index_t batch_stride_dbias = (nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
+        const ck::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
+        const ck::index_t batch_stride_v       = (nhead_k * shape_seqlen_k * hdim_v);
+        const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck::index_t batch_stride_randval = (nhead * seqlen_q * max_seqlen_k);
+        const ck::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
+        const ck::index_t batch_stride_lsed    = (nhead * shape_seqlen_q);
+        const ck::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
+        const ck::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
+        const ck::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * shape_seqlen_k);
 
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
@@ -372,6 +399,7 @@ bool run(const ArgParser& arg_parser)
                              lse_buf.GetDeviceBuffer(),
                              do_buf.GetDeviceBuffer(),
                              d_buf.GetDeviceBuffer(),
+                             randval_buf.GetDeviceBuffer(),
                              dq_buf.GetDeviceBuffer(),
                              dk_buf.GetDeviceBuffer(),
                              dv_buf.GetDeviceBuffer(),
@@ -392,6 +420,7 @@ bool run(const ArgParser& arg_parser)
                              stride_k,
                              stride_v,
                              stride_bias,
+                             stride_randval,
                              stride_do,
                              stride_dk,
                              stride_dv,
@@ -400,6 +429,7 @@ bool run(const ArgParser& arg_parser)
                              nhead_stride_k,
                              nhead_stride_v,
                              nhead_stride_bias,
+                             nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
                              nhead_stride_dbias,
@@ -407,13 +437,17 @@ bool run(const ArgParser& arg_parser)
                              batch_stride_k,
                              batch_stride_v,
                              batch_stride_bias,
+                             batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
                              batch_stride_dk,
                              batch_stride_dv,
                              batch_stride_dbias,
                              mask.y,
-                             mask.x};
+                             mask.x,
+                             p_drop,
+                             s_randval,
+                             {drop_seed, drop_offset}};
     }();
 
     float ave_time = 0;
@@ -446,9 +480,11 @@ bool run(const ArgParser& arg_parser)
     std::vector<Tensor<KDataType>> k_host_refs;
     std::vector<Tensor<VDataType>> v_host_refs;
     std::vector<Tensor<ODataType>> o_host_refs;
-    // std::vector<Tensor<ZDataType>> z_host_refs;
+    std::vector<Tensor<RandValOutputDataType>> randval_host_refs;
     std::vector<Tensor<AccDataType>> p_hp_host_refs;
     std::vector<Tensor<GemmDataType>> p_lp_host_refs;
+
+    randval_buf.FromDevice(randval_host.data());
 
     for(ck::index_t wb = 0; wb < batch; ++wb)
     {
@@ -465,7 +501,8 @@ bool run(const ArgParser& arg_parser)
         Tensor<VDataType> v_host_ref({nhead, hdim_v, real_seqlen_k}); // v_g_o_n
         Tensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v}); // o_g_m_o
         Tensor<LSEDataType> lse_host_ref({nhead, real_seqlen_q});     // lse_g_m
-        // Tensor<ZDataType> z_host_ref({nhead, real_seqlen_q, real_seqlen_k}); // z_g_m_n
+        Tensor<RandValOutputDataType> randval_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k});                            // randval_g_m_n
         Tensor<AccDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k}); // s_g_m_n
         Tensor<AccDataType> p_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // p_hp_g_m_n high precision
@@ -529,6 +566,15 @@ bool run(const ArgParser& arg_parser)
         reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
             s_host_ref, p_hp_host_ref, lse_host_ref);
 
+        if(p_drop > 0)
+        {
+            randval_host_ref.ForEach([&](auto& self, auto idx) {
+                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
+            });
+            reference_batched_dropout(
+                p_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
+        }
+
         p_hp_host_ref.ForEach([&](auto& self, auto idx) {
             p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
         });
@@ -551,6 +597,7 @@ bool run(const ArgParser& arg_parser)
         o_host_refs.push_back(o_host_ref);
         p_hp_host_refs.push_back(p_hp_host_ref);
         p_lp_host_refs.push_back(p_lp_host_ref);
+        randval_host_refs.push_back(randval_host_ref);
     }
 
     o_buf.ToDevice(o_host.data());
@@ -600,7 +647,12 @@ bool run(const ArgParser& arg_parser)
         reference_batched_gemm<OGradDataType, VDataType, AccDataType, AccDataType>(
             do_host_ref, v_t_host_ref, dp_hp_host_ref); // dp_g_m_n = do_g_m_o@v_g_n_o
 
-        // TODO: dP = dP_dropout x Z
+        // dP = dP_dropout x Z
+        if(p_drop > 0)
+        {
+            reference_batched_dropout(
+                dp_hp_host_ref, randval_host_refs[wb], p_undrop_in_uint8_t, rp_undrop);
+        }
 
         // dS_i_j = P_i_j .* (dP_i_j - dO_i dot O_i)
         ds_hp_host_ref.ForEach([&](auto& self, auto idx_gmn) {

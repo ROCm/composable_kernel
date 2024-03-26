@@ -45,7 +45,8 @@ struct BlockFmhaBwdOGradDotO
               typename DDramBlockWindowTmp>
     __host__ __device__ void operator()(const ODramBlockWindowTmp& o_dram_block_window_tmp,
                                         const OGradDramBlockWindowTmp& do_dram_block_window_tmp,
-                                        DDramBlockWindowTmp& d_dram_block_window_tmp) const
+                                        DDramBlockWindowTmp& d_dram_block_window_tmp,
+                                        float p_undrop) const
     {
         static_assert(
             is_same_v<ODataType, remove_cvref_t<typename ODramBlockWindowTmp::DataType>> &&
@@ -93,6 +94,8 @@ struct BlockFmhaBwdOGradDotO
                     (type_convert<DDataType>(o[i_j_idx]) * type_convert<DDataType>(do_[i_j_idx]));
             });
         });
+
+        tile_elementwise_inout([&p_undrop](auto& x) { x = x * p_undrop; }, d);
 
         store_tile(d_dram_block_window_tmp, d);
     }
