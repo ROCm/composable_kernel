@@ -49,18 +49,14 @@ Best Perf: 1.42509 ms, 102.988 TFlops, 234.086 GB/s
 
 ## Profile contraction kernels
 ```bash
-#arg1: tensor operation ( OP_NAME :  OP_DESC )
+#arg1: tensor operation (contraction_bilinear=CONTRACTION+Bilinear)
 #arg2: data type (0: fp32; 1: f64; 2: f16; 3: bf16)
 #arg3: compute data type (0: fp32; 1: f64; 2: f16; 3: bf16)
 #arg4: Number of dimension for M, N and K (one for all)
-#arg5: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + 
-#                 D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
-#                     1: A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + 
-#                 D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
-#                     2: A[k0, k1, m0, m1] * B[k0, k1, n0, n1] + 
-#                 D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
-#                     3: A[k0, k1, m0, m1] * B[n0, n1, k0, k1] + 
-#                 D[m0, m1, n0, n1] = E[m0, m1, n0, n1])
+#arg5: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
+#                     1: A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
+#                     2: A[k0, k1, m0, m1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
+#                     3: A[k0, k1, m0, m1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1])
 #arg6: verification (0: no; 1: yes)
 #arg7: initialization (0: no init; 1: integer value; 2: decimal 
 #      value)
