@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
+#include "ck/utility/flush_icache.hpp"
 #include "ck/host_utility/kernel_launch_flush_cache.hpp"
 
 namespace ck {
@@ -156,9 +157,25 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                      0,
                                                      arg.M * arg.N * sizeof(CDataType),
                                                      stream_config.stream_id_));
+                auto run_flush_icache = []() {
+                    hipDeviceProp_t deviceProps;
+                    hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
+                    int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-                ave_time = launch_and_time_kernel_flush_cache(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    int flush_iter = 100000;
+
+                    for(int i = 0; i < flush_iter; i++)
+                        ck::flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
+                    hip_check_error(hipGetLastError());
+                };
+
+                ave_time = launch_and_time_kernel_with_preprocess(stream_config,
+                                                                  run_flush_icache,
+                                                                  kernel,
+                                                                  dim3(gdx, gdy, gdz),
+                                                                  dim3(BlockSize),
+                                                                  0,
+                                                                  arg);
             };
 
             constexpr index_t minimum_occupancy =
