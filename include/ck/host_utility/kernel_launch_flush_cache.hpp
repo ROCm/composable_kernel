@@ -9,7 +9,7 @@
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
-extern "C" __global__ void flush_icache()
+static __global__ void flush_icache()
 {
     asm __volatile__("s_icache_inv \n\t"
                      "s_nop 0 \n\t"
@@ -31,7 +31,7 @@ extern "C" __global__ void flush_icache()
                          :);
 }
 
-void run_flush_icache()
+static void run_flush_icache()
 {
     hipDeviceProp_t deviceProps;
     hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
