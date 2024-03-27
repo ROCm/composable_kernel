@@ -13,7 +13,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
-#include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
+#include "ck/tensor_operation/operator_transform/copy_transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"

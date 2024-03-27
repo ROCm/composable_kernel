@@ -203,7 +203,7 @@ using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD
       ck::tensor_operation::element_wise::PassThrough, 
       ck::tensor_operation::element_wise::PassThrough, Prologue, 
       ck::tensor_operation::device::ConvolutionForwardSpecialization::Default, 
-      ck::tensor_operation::device::GemmSpecialization::MNKPadding, 
+      ck::tensor_operation::device::GemmSpecialization::MNPadding, 
       1, 256, 128, 256, 32, 8, 8, 32, 32, 2, 4, 
       ck::Sequence<4, 64, 1>, ck::Sequence<1, 0, 2>, ck::Sequence<1, 0, 2>, 
       2, 8, 8, 1, ck::Sequence<4, 64, 1>, ck::Sequence<1, 0, 2>, 

@@ -13,4 +13,14 @@ __host__ __device__ auto accumulate_n(ForwardIterator first, Size count, T init,
 {
     return std::accumulate(first, std::next(first, count), init, op);
 }
+
+template <typename T, typename ForwardIterator, typename Size>
+__host__ __device__ auto copy_accumulate_n(ForwardIterator first, Size count, T init)
+{
+    for(ForwardIterator x = first; x != first + count; x++)
+    {
+        init *= *x;
+    }
+    return init;
+}
 } // namespace ck
