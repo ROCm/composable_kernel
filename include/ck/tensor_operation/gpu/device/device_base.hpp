@@ -21,6 +21,8 @@ struct BaseArgument
     virtual ~BaseArgument() {}
 
     void* p_workspace_ = nullptr;
+
+    std::size_t workspace_size_ = 0;
 };
 
 struct BaseInvoker
@@ -61,10 +63,12 @@ struct BaseOperator
 
     virtual void SetWorkSpacePointer(BaseArgument* p_arg,
                                      void* p_workspace,
-                                     const StreamConfig& = StreamConfig{}) const
+                                     const StreamConfig&              = StreamConfig{},
+                                     const std::size_t workspace_size = 0) const
     {
         assert(p_arg);
-        p_arg->p_workspace_ = p_workspace;
+        p_arg->p_workspace_    = p_workspace;
+        p_arg->workspace_size_ = workspace_size;
     }
 
     virtual ~BaseOperator() {}

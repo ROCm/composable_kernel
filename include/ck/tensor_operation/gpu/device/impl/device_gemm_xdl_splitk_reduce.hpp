@@ -70,15 +70,15 @@ template <typename ADataType,
           typename CReduceType        = CDataType>
 
 struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
-                                                             BLayout,
-                                                             CLayout,
-                                                             ADataType,
-                                                             BDataType,
-                                                             CDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CElementwiseOperation,
-                                                             ComputeType>
+                                                           BLayout,
+                                                           CLayout,
+                                                           ADataType,
+                                                           BDataType,
+                                                           CDataType,
+                                                           AElementwiseOperation,
+                                                           BElementwiseOperation,
+                                                           CElementwiseOperation,
+                                                           ComputeType>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -298,6 +298,13 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
 
             const auto kbatch = karg.k_batch;
 
+            if(karg.p_workspace_ == nullptr ||
+               karg.workspace_size_ <
+                   (sizeof(CReduceType) * karg.MPadded * karg.NPadded * karg.k_batch))
+            {
+                throw std::runtime_error("please set workspace_ptr and workspaec_size properly!");
+            }
+
             if(kbatch > 1)
             {
                 auto p_gemm_arg_      = dynamic_cast<typename GridwiseGemm::Argument*>(&karg);
@@ -389,6 +396,13 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
     static bool IsSupportedArgument(const Argument& karg)
     {
         if(!ck::is_xdl_supported())
+        {
+            return false;
+        }
+
+        if(karg.p_workspace_ == nullptr ||
+           karg.workspace_size_ <
+               (sizeof(CReduceType) * karg.MPadded * karg.NPadded * karg.k_batch))
         {
             return false;
         }
@@ -494,7 +508,8 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
         std::map<PipelineVersion, std::string> PipelineVersionToString{{PipelineVersion::v1, "v1"},
                                                                        {PipelineVersion::v2, "v2"}};
 
-        str << GridwiseGemm::GetTypeString() << " with Reduce, LoopScheduler: " << LoopSchedToString[LoopSched]
+        str << GridwiseGemm::GetTypeString()
+            << "_Reduce, LoopScheduler: " << LoopSchedToString[LoopSched]
             << ", PipelineVersion: " << PipelineVersionToString[PipelineVer];
 
         return str.str();
@@ -509,10 +524,17 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
                              void* p_workspace,
-                             const StreamConfig& = StreamConfig{}) const override
+                             const StreamConfig&              = StreamConfig{},
+                             const std::size_t workspace_size = 0) const override
     {
-        auto p_arg_          = dynamic_cast<Argument*>(p_arg);
-        p_arg_->p_workspace_ = p_workspace;
+        auto p_arg_             = dynamic_cast<Argument*>(p_arg);
+        p_arg_->p_workspace_    = p_workspace;
+        p_arg_->workspace_size_ = workspace_size;
+
+        if(p_workspace == nullptr || workspace_size == 0)
+        {
+            throw std::runtime_error("please set workspace_ptr and workspaec_size properly!");
+        }
     }
 };
 

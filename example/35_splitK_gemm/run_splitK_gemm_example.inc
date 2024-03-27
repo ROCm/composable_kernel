@@ -116,7 +116,7 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         KBatch);
 
     DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
-    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer());
+    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer(), StreamConfig{}, gemm.GetWorkSpaceSize(&argument));
 
 
     if(!gemm.IsSupportedArgument(argument))
