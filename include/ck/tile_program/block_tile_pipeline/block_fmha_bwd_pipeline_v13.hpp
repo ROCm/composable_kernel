@@ -644,18 +644,26 @@ struct BlockFmhaBwdPipelineV13
 
             if constexpr(kHasBias)
             {
-                const auto dbiast = cast_tile<BiasGradDataType>(dst);
+                const auto dbiast = [&]() {
+                    if constexpr(kHasDropout)
+                    {
+                        return tile_elementwise_in(
+                            [&rp_undrop](const auto& x) {
+                                return type_convert<BiasGradDataType>(x * rp_undrop);
+                            },
+                            dst);
+                    }
+                    else
+                    {
+                        return cast_tile<BiasGradDataType>(dst);
+                    }
+                }();
                 store_tile(biast_lds_shuffle_window, dbiast);
                 block_sync_lds();
                 auto dbiast_tile        = load_tile(dbiast_lds_shuffle_window);
                 auto dbiast_shuffle_tmp = make_static_distributed_tensor<BiasGradDataType>(
                     Policy::template MakeBiasTileDistribution<Problem>());
                 shuffle_distributed_tensor(dbiast_shuffle_tmp, dbiast_tile);
-                if constexpr(kHasDropout)
-                {
-                    tile_elementwise_inout([&rp_undrop](auto& x) { x = x * rp_undrop; },
-                                           dbiast_shuffle_tmp);
-                }
                 store_tile(dbias_dram_block_window, dbiast_shuffle_tmp);
                 move_tile_window(dbias_dram_block_window, {kM0, 0});
             }
