@@ -31,7 +31,9 @@ template <ck::index_t NDimSpatial,
           typename OutLayout,
           typename InDataType,
           typename WeiDataType,
-          typename OutDataType>
+          typename OutDataType,
+          typename AComputeType = InDataType,
+          typename BComputeType = AComputeType>
 bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
@@ -209,7 +211,9 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                                                    OutDataType,
                                                                                    InElementOp,
                                                                                    WeiElementOp,
-                                                                                   OutElementOp>;
+                                                                                   OutElementOp,
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
