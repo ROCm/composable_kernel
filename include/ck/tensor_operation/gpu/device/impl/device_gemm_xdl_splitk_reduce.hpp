@@ -530,19 +530,18 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
         return arg.MPadded * arg.NPadded * sizeof(CReduceType) * MAX_K_BATCH;
     }
 
-    void SetWorkSpacePointer(BaseArgument* p_arg,
-                             void* p_workspace,
-                             const StreamConfig&              = StreamConfig{},
-                             const std::size_t workspace_size = 0) const override
+    void SetWorkSpaceSize(BaseArgument* p_arg, const std::size_t workspace_size) const override
     {
         auto p_arg_             = dynamic_cast<Argument*>(p_arg);
-        p_arg_->p_workspace_    = p_workspace;
         p_arg_->workspace_size_ = workspace_size;
+    }
 
-        if(p_workspace == nullptr || workspace_size == 0)
-        {
-            throw std::runtime_error("please set workspace_ptr and workspace_size properly!");
-        }
+    void SetWorkSpacePointer(BaseArgument* p_arg,
+                             void* p_workspace,
+                             const StreamConfig& = StreamConfig{}) const override
+    {
+        auto p_arg_          = dynamic_cast<Argument*>(p_arg);
+        p_arg_->p_workspace_ = p_workspace;
     }
 };
 
