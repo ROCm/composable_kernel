@@ -182,8 +182,6 @@ struct BlockwiseGemmXdlops_pipeline_base
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
-
-        // HotLoopInstList::Print();
     }
 
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'

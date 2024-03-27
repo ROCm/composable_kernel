@@ -715,6 +715,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else // RowMajor B
         {
             // N0LdsLayer * N1 as logical Bank
+            // Conflict when BK1 != 8
             constexpr auto N1         = Number<BBlockTransferSrcScalarPerVector>{};
             constexpr auto N0         = NPerBlock / N1;
             constexpr auto N0LdsLayer = 32 * 4 / (N1 * BK1Number * sizeof(BDataType)) <= 1

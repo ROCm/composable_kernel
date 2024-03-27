@@ -211,10 +211,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
 
-            // copy data from src_buf into src_vector_container
-            // auto src_vector_container = src_vector_type{
-            //     src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid)};
-            // Delay OOB check to RunWrite call by set is_src_valid flag to unconditional true
             auto src_vector_container =
                 src_vector_type{src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), true)};
 

@@ -12,7 +12,6 @@ enum struct BlockGemmPipelineScheduler
 {
     Intrawave,
     Interwave,
-    Hybrid,
 };
 
 enum struct TailNumber
