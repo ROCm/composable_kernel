@@ -12,8 +12,10 @@
 namespace ck {
 
 template <index_t BlockSize,
-          typename FloatAB,
-          typename FloatAcc,
+          typename ADataType,
+          typename BDataType,
+          typename ComputeDataType,
+          typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
           typename AMmaTileDesc,
@@ -47,7 +49,7 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t B_K1 = BTileDesc{}.GetLength(I2);
 
     static constexpr auto xdlops_gemm =
-        XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, FloatAB, TransposeC>{};
+        XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
 
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
@@ -65,10 +67,10 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                       KPerBlock,
                                                       ABlockTransferSrcScalarPerVector,
                                                       BBlockTransferSrcScalarPerVector,
-                                                      KPack,
-                                                      KPack,
-                                                      KPack,
-                                                      KPack,
+                                                      A_K1,
+                                                      B_K1,
+                                                      A_K1,
+                                                      B_K1,
                                                       MRepeat,
                                                       NRepeat,
                                                       MPerXDL,
@@ -79,7 +81,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
-                              FloatAcc,
+                              AccDataType,
                               MRepeat * NRepeat,
                               xdlops_gemm.GetRegSizePerXdlops(),
                               true>
@@ -327,8 +329,8 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
 
-    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
-                                                         FloatAB,
+    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
+                                                         ComputeDataType,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
                                                          Sequence<1, 1, 1, KPack>,
@@ -337,8 +339,8 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          A_K1,
                                                          A_K1>;
 
-    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatAB,
-                                                         FloatAB,
+    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
+                                                         ComputeDataType,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
                                                          Sequence<1, 1, 1, KPack>,
