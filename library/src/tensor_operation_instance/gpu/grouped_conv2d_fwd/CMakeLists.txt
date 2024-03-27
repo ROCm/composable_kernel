@@ -1,3 +1,4 @@
+# XDL_DL_WMMA_KERNELS
 add_instance_library(device_grouped_conv2d_fwd_instance
    #xdl
    # GNHWC, GKYXC, GNHWK
