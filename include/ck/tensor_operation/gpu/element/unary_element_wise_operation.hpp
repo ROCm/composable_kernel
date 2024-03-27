@@ -182,9 +182,21 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<int32_t, int8_t>(int32_t& y, const int8_t& x) const
+    {
+        y = type_convert<int32_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
     {
         y = type_convert<int8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, int8_t>(float& y, const int8_t& x) const
+    {
+        y = type_convert<float>(x);
     }
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
