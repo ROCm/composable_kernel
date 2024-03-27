@@ -400,10 +400,18 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
             return false;
         }
 
-        if(karg.p_workspace_ == nullptr ||
-           karg.workspace_size_ <
-               (sizeof(CReduceType) * karg.MPadded * karg.NPadded * karg.k_batch))
+        if(karg.p_workspace_ == nullptr)
         {
+            std::cerr << "karg.p_workspace_ == nullpr" << std::endl;
+            return false;
+        }
+
+        if(karg.workspace_size_ <
+           (sizeof(CReduceType) * karg.MPadded * karg.NPadded * karg.k_batch))
+        {
+            std::cerr << "workspace_size_ = " << karg.workspace_size_ << " less than "
+                      << sizeof(CReduceType) * karg.MPadded * karg.NPadded * karg.k_batch
+                      << std::endl;
             return false;
         }
 
@@ -533,7 +541,7 @@ struct DeviceGemmXdlSplitKReduce : public DeviceGemmSplitK<ALayout,
 
         if(p_workspace == nullptr || workspace_size == 0)
         {
-            throw std::runtime_error("please set workspace_ptr and workspaec_size properly!");
+            throw std::runtime_error("please set workspace_ptr and workspace_size properly!");
         }
     }
 };

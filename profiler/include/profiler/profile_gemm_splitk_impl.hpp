@@ -75,8 +75,8 @@ bool profile_gemm_splitk_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -173,19 +173,17 @@ bool profile_gemm_splitk_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
+            DeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(),
+                                        gemm_workspace_dev.GetDeviceBuffer(),
+                                        StreamConfig{},
+                                        op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
-
-                DeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
-                op_ptr->SetWorkSpacePointer(argument_ptr.get(),
-                                            gemm_workspace_dev.GetDeviceBuffer(),
-                                            StreamConfig{},
-                                            op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
                 std::string op_name = op_ptr->GetTypeString();
 
                 std::cout << op_name << std::endl;
