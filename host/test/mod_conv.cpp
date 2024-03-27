@@ -251,9 +251,9 @@ extern "C" __global__ void kernel_group_conv_fwd(
     using CDEElementOp = Prologue; // TODO(Amber): replace with Prologue
 
     static constexpr auto I0 = ck::Number<0>{};
-        static constexpr auto I1 = ck::Number<1>{};
-	    static constexpr auto I2 = ck::Number<2>{};
-	        static constexpr auto I3 = ck::Number<3>{};
+    static constexpr auto I1 = ck::Number<1>{};
+    static constexpr auto I2 = ck::Number<2>{};
+    static constexpr auto I3 = ck::Number<3>{};
 
     //if(blockIdx.x == 0 && threadIdx.x == 0){
     DeviceConv::AGridDesc_M_K a_grid_desc_m_k_ = DeviceConv::MakeAGridDescriptor_M_K<ck::tensor_layout::convolution::GNHWC>(a_g_n_c_wis_lengths,
@@ -281,9 +281,18 @@ extern "C" __global__ void kernel_group_conv_fwd(
   //  auto ds_grid_desc_mblock_mperblock_nblock_nperblock_c =
 //				                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
     auto block_2_etile_map_c = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_);
-    //auto p_as_grid_(I0) = static_cast<const ck::half_t*>(p_as);
-    //auto p_bs_grid_(I0) = static_cast<const ck::half_t*>(p_bs);
-    auto p_e_grid_ = static_cast<const ck::half_t*>(out_dev);
+    //DeviceConv::AGridPointer p_a_grid;
+    //DeviceConv::BGridPointer p_b_grid;
+    auto p_a_grid = static_cast<const ck::half_t*>(p_as);
+    auto p_b_grid = static_cast<const ck::half_t*>(p_bs);
+    auto p_es_grid_ = static_cast<const ck::half_t*>(out_dev);
+
+    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch_c;
+    //compute_ptr_offset_of_batch_c.BatchStrideA_ = a_g_n_c_wis_strides[0];
+    //compute_ptr_offset_of_batch_c.BatchStrideB_ = b_g_k_c_xs_strides[0];
+    //compute_ptr_offset_of_batch_c.BatchStrideE_ = e_g_n_k_wos_strides[0];
+
+
     //if(a_grid_desc_ak0_m_ak1_c == a_grid_desc_k0_m_k1){
 //	    std::cout << "Match" << std::endl;
   //  }
