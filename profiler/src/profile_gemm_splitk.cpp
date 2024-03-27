@@ -232,6 +232,14 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(BF16{}, I8{}, F32{}, BF16{}, Row{}, Col{}, Row{}, BF16{});
     }
+    else if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::KM_KN_MN)
+    {
+        return profile(BF16{}, I8{}, F32{}, BF16{}, Col{}, Row{}, Row{}, BF16{});
+    }
+    else if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::KM_NK_MN)
+    {
+        return profile(BF16{}, I8{}, F32{}, BF16{}, Col{}, Col{}, Row{}, BF16{});
+    }
 #endif
 
     {

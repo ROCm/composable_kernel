@@ -12,9 +12,9 @@
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_splitk.hpp"
 
-using I8  = int8_t;
+using I8   = int8_t;
 using BF16 = ck::bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -133,8 +133,6 @@ int main(int argc, char* argv[])
     // profile device operation instances
     std::cout << "Run all instances and do timing" << std::endl;
 
-
-
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
         auto& op_ptr = op_ptrs[i];
@@ -153,13 +151,11 @@ int main(int argc, char* argv[])
                                                         c_element_op,
                                                         KBatch);
 
-	SimpleDeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        SimpleDeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
-	op_ptr->SetWorkSpaceSize(argument_ptr.get(),
-			op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        op_ptr->SetWorkSpaceSize(argument_ptr.get(), op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
-	op_ptr->SetWorkSpacePointer(
-			argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer());
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer());
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -222,15 +218,11 @@ int main(int argc, char* argv[])
                                                         c_element_op,
                                                         KBatch);
 
-SimpleDeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        SimpleDeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
-	op_ptr->SetWorkSpaceSize(argument_ptr.get(),
-			op_ptr->GetWorkSpaceSize(argument_ptr.get()));
+        op_ptr->SetWorkSpaceSize(argument_ptr.get(), op_ptr->GetWorkSpaceSize(argument_ptr.get()));
 
-	op_ptr->SetWorkSpacePointer(
-			argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer());
-
-
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer());
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
