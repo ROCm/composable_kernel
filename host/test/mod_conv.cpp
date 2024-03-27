@@ -220,9 +220,6 @@ extern "C" __global__ void kernel_group_conv_fwd(
     const ck::half_t* p_bs_grid,
     DeviceConv::GridwiseGemm::DsGridPointer p_ds_grid,
     ck::half_t* __restrict__ p_e_grid,
-
-    // TODO(Amber): replace with valid element_wise operations
-    //
     const ck::tensor_operation::element_wise::PassThrough a_element_op,
     const ck::tensor_operation::element_wise::PassThrough b_element_op,
     const Prologue cde_element_op,
@@ -234,7 +231,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
     const DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
         e_grid_desc_mblock_mperblock_nblock_nperblock_,
     const DeviceConv::Block2ETileMap block_2_ctile_map,
-		const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch,
+    const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch,
     const ck::half_t* p_as,
     const ck::half_t* p_bs,
     ck::half_t* __restrict__ out_dev,
@@ -253,8 +250,13 @@ extern "C" __global__ void kernel_group_conv_fwd(
 
     using CDEElementOp = Prologue; // TODO(Amber): replace with Prologue
 
+    static constexpr auto I0 = ck::Number<0>{};
+        static constexpr auto I1 = ck::Number<1>{};
+	    static constexpr auto I2 = ck::Number<2>{};
+	        static constexpr auto I3 = ck::Number<3>{};
 
-    auto a_grid_desc_m_k_ = DeviceConv::MakeAGridDescriptor_M_K<ck::tensor_layout::convolution::GNHWC>(a_g_n_c_wis_lengths,
+    //if(blockIdx.x == 0 && threadIdx.x == 0){
+    DeviceConv::AGridDesc_M_K a_grid_desc_m_k_ = DeviceConv::MakeAGridDescriptor_M_K<ck::tensor_layout::convolution::GNHWC>(a_g_n_c_wis_lengths,
 		    a_g_n_c_wis_strides,
 		    b_g_k_c_xs_lengths,
 		    b_g_k_c_xs_strides,
@@ -264,23 +266,27 @@ extern "C" __global__ void kernel_group_conv_fwd(
 		    conv_filter_dilations,
 		    input_left_pads,
 		    input_right_pads);
+    //}
     auto b_grid_desc_n_k_ = DeviceConv::MakeBGridDescriptor_N_K<ck::tensor_layout::convolution::GKYXC>(b_g_k_c_xs_lengths, b_g_k_c_xs_strides);
 
     auto e_grid_desc_m_n_ = DeviceConv::MakeEGridDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(e_g_n_k_wos_lengths, e_g_n_k_wos_strides);
-   // auto  ds_grid_desc_m_n_ = DeviceConv::MakeEGridDescriptor_M_N<>(
-		                        //e_g_n_k_wos_lengths,e_g_n_k_wos_strides);
+    //auto  ds_grid_desc_m_n_ = DeviceConv::MakeEGridDescriptor_M_N<>(e_g_n_k_wos_lengths,e_g_n_k_wos_strides);
 
     using GridwiseGemm = DeviceConv::GridwiseGemm;
 
-    auto a_grid_desc_ak0_m_ak1_c = GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_);
+    const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_c = GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_);
     auto b_grid_desc_bk0_n_bk1_c = GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_);
     auto e_grid_desc_mblock_mperblock_nblock_nperblock_c =
 	                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
-    auto ds_grid_desc_mblock_mperblock_nblock_nperblock_c =
-				                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
+  //  auto ds_grid_desc_mblock_mperblock_nblock_nperblock_c =
+//				                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n_);
     auto block_2_etile_map_c = GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_);
-    //p_as_grid_(I0) = static_cast<const ADataType*>(p_as);
-    //p_bs_grid_(I0) = static_cast<const BDataType*>(p_bs);
+    //auto p_as_grid_(I0) = static_cast<const ck::half_t*>(p_as);
+    //auto p_bs_grid_(I0) = static_cast<const ck::half_t*>(p_bs);
+    auto p_e_grid_ = static_cast<const ck::half_t*>(out_dev);
+    //if(a_grid_desc_ak0_m_ak1_c == a_grid_desc_k0_m_k1){
+//	    std::cout << "Match" << std::endl;
+  //  }
 
 
     ck::tensor_operation::device::copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
@@ -502,6 +508,21 @@ struct Prologue
     std::cout << in.size() << std::endl;
     std::cout << wei.size() << std::endl;
 
+    auto a_grid_desc_m_k_ =
+        DeviceConv::MakeAGridDescriptor_M_K<ck::tensor_layout::convolution::GNHWC>(
+            in_lengths,
+            in_strides,
+            wei_lengths,
+            wei_strides,
+            out_lengths,
+            out_strides,
+            conv_filter_strides,
+            conv_filter_dilations,
+            input_left_pads,
+            input_right_pads);
+
+    auto a_grid_desc_ak0_m_ak1_c =
+        DeviceConv::GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_);
     // populated arg call
     auto arg = DeviceConv::Argument(in_dev.data(),
                                     wei_dev.data(),
@@ -534,8 +555,12 @@ struct Prologue
     auto bs_grid_desc_bk0_n_bk1 =
         generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
+    std::cout << "NumA: " << NumATensor << " NumB: " << NumBTensor << std::endl;
+    int num = 0;
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
+        std::cout << "Num: " << num << std::endl;
+        num++;
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include",
@@ -560,7 +585,9 @@ struct Prologue
         ofh.close();
         // print arg kernels - host_side
         arg.Print();
-	std::cout << "launched" << std::endl;
+        // std::cout << "A Match: " << ck::is_same_v<decltype(a_grid_desc_ak0_m_ak1_c),
+        // decltype(arg.a_grid_desc_ak0_m_ak1_)>;
+        std::cout << "launched" << std::endl;
 
         k.launch(nullptr, grid_size * block_size, block_size)(
             arg.p_as_grid_,
@@ -571,15 +598,16 @@ struct Prologue
             arg.b_element_op_,
             arg.cde_element_op_,
             arg.a_g_n_c_wis_lengths_[0], // Group count
-            as_grid_desc_ak0_m_ak1,
+                                         // a_grid_desc_ak0_m_ak1_c,
+            // arg.a_grid_desc_ak0_m_ak1_,
             bs_grid_desc_bk0_n_bk1,
             arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
             arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
             arg.block_2_etile_map_,
             arg.compute_ptr_offset_of_batch_,
-	    in_dev.data(),
-	    wei_dev.data(),
-	    out_dev.data(),
+            in_dev.data(),
+            wei_dev.data(),
+            out_dev.data(),
             in_lengths,
             in_strides,
             wei_lengths,

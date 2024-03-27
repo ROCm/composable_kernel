@@ -94,6 +94,7 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
     // offset base pointer for each work-group
+    printf("entered kernel \n");
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -112,6 +113,7 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
+    printf("Made it to first check \n");
     if constexpr(isMultiA || isMultiB)
     {
         AsPointer p_as_grid_grp;
@@ -393,6 +395,7 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
+        printf("Device: A desc called \n");
         return in_gemmm_gemmk_desc;
     }
 
@@ -407,6 +410,8 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
+
+        printf("Device: B desc called \n");
 
         return wei_gemmn_gemmk_desc;
     }
@@ -423,6 +428,7 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
 
+        printf("Device: E desc called \n");
         return out_gemmm_gemmn_desc;
     }
 
