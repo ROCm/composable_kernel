@@ -25,20 +25,20 @@ void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v2_instances(
     add_device_operation_instances(
         instances,
         device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_instances<GemmDefault,
-                                                             PipelineVersion::v2,
-                                                             LoopScheduler::Default>{});
+                                                               PipelineVersion::v2,
+                                                               LoopScheduler::Default>{});
 
     add_device_operation_instances(
         instances,
         device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_instances<GemmMNPadding,
-                                                             PipelineVersion::v2,
-                                                             LoopScheduler::Default>{});
+                                                               PipelineVersion::v2,
+                                                               LoopScheduler::Default>{});
 
     add_device_operation_instances(
         instances,
         device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_instances<GemmMNKPadding,
-                                                             PipelineVersion::v2,
-                                                             LoopScheduler::Default>{});
+                                                               PipelineVersion::v2,
+                                                               LoopScheduler::Default>{});
 }
 
 } // namespace instance
