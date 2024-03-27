@@ -312,8 +312,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
         {
 #ifdef CK_ENABLE_INT8
-            else if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                              is_same_v<OutDataType, int8_t> && is_same_v<ComputeType, int8_t>)
+            if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
+                         is_same_v<OutDataType, int8_t> && is_same_v<ComputeType, int8_t>)
             {
                 add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_i8_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_i8_1x1p0_instances(op_ptrs);
