@@ -66,6 +66,7 @@ endif()
 
 if(DL_KERNELS)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
+  list(APPEND PROFILER_SOURCES profile_grouped_conv_bwd_weight.cpp)
 endif()
 
 set(PROFILER_EXECUTABLE ckProfiler)
@@ -140,6 +141,9 @@ endif()
 
 if(DL_KERNELS)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv1d_bwd_weight_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_weight_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_bwd_weight_instance)
 endif()
 
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
