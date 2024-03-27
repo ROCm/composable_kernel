@@ -127,15 +127,16 @@ bool run(const ArgParser& arg_parser)
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
-    float p_undrop       = 1.0 - p_drop;
-    uint8_t p_undrop_in_uint8_t =
-        uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
-    float rp_undrop = 1.0 / p_undrop;
+
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
         return false;
     }
+    float p_undrop = 1.0 - p_drop;
+    uint8_t p_undrop_in_uint8_t =
+        uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+    float rp_undrop = 1.0 / p_undrop;
 
     bool s_randval = false;
     if(p_drop > 0.0f && do_validation)
@@ -506,6 +507,8 @@ bool run(const ArgParser& arg_parser)
         Tensor<AccDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k}); // s_g_m_n
         Tensor<AccDataType> p_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // p_hp_g_m_n high precision
+        Tensor<AccDataType> p_dropped_hp_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k}); // p_dropped_hp_g_m_n high precision
         Tensor<GemmDataType> p_lp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // p_lp_g_m_n low precision
 
@@ -568,16 +571,23 @@ bool run(const ArgParser& arg_parser)
 
         if(p_drop > 0)
         {
+            p_hp_host_ref.ForEach(
+                [&](auto& self, auto idx) { p_dropped_hp_host_ref(idx) = self(idx); });
             randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
             reference_batched_dropout(
-                p_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
+                p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
+            p_dropped_hp_host_ref.ForEach([&](auto& self, auto idx) {
+                p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+            });
         }
-
-        p_hp_host_ref.ForEach([&](auto& self, auto idx) {
-            p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
-        });
+        else
+        {
+            p_hp_host_ref.ForEach([&](auto& self, auto idx) {
+                p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+            });
+        }
 
         // O = P * V
         reference_batched_gemm<GemmDataType, VDataType, AccDataType, ODataType>(
@@ -597,7 +607,10 @@ bool run(const ArgParser& arg_parser)
         o_host_refs.push_back(o_host_ref);
         p_hp_host_refs.push_back(p_hp_host_ref);
         p_lp_host_refs.push_back(p_lp_host_ref);
-        randval_host_refs.push_back(randval_host_ref);
+        if(p_drop > 0)
+        {
+            randval_host_refs.push_back(randval_host_ref);
+        }
     }
 
     o_buf.ToDevice(o_host.data());
@@ -641,13 +654,12 @@ bool run(const ArgParser& arg_parser)
         else       do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[1] + query_offset, i[0], i[2]); });
         // clang-format on
 
-        // dP_dropout = dO@V
-        // dP = dO@V w/o dropout
+        // dP = dO@V x Z w/  dropout
+        // dP = dO@V     w/o dropout
         auto v_t_host_ref = v_host_refs[wb].Transpose({0, 2, 1}); // v_g_o_n -> v_g_n_o
         reference_batched_gemm<OGradDataType, VDataType, AccDataType, AccDataType>(
             do_host_ref, v_t_host_ref, dp_hp_host_ref); // dp_g_m_n = do_g_m_o@v_g_n_o
 
-        // dP = dP_dropout x Z
         if(p_drop > 0)
         {
             reference_batched_dropout(
