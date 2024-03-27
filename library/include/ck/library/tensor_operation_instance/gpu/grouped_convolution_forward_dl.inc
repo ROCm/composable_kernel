@@ -67,7 +67,6 @@ void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f16_instances(
                                                                 PassThrough>>>& instances);
 #endif
 
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

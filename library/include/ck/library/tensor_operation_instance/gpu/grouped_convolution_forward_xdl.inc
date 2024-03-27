@@ -203,7 +203,6 @@ void add_device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instances(
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
 
-
 #endif
 
 #ifdef CK_ENABLE_FP32

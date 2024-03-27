@@ -68,7 +68,6 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-
 #ifdef __gfx9__
         if constexpr(NumDimSpatial == 2)
         {
