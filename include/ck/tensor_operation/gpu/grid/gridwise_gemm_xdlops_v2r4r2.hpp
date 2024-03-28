@@ -767,7 +767,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         const index_t k_batch_id = blockIdx.z;
 
-
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
