@@ -619,6 +619,8 @@ def process_results(Map conf=[:]){
                 dir("script"){
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
+                        unstash "ckprofiler_0.2.0_amd64.deb"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         unstash "perf_gemm.log"
                         unstash "perf_resnet50_N256.log"
                         unstash "perf_resnet50_N4.log"
@@ -632,8 +634,6 @@ def process_results(Map conf=[:]){
                         unstash "perf_onnx_gemm.log"
                         unstash "perf_mixed_gemm.log"
                         sh "./process_qa_data.sh"
-                        unstash "ckprofiler_0.2.0_amd64.deb"
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
@@ -645,9 +645,12 @@ def process_results(Map conf=[:]){
                 }
             }
             catch(e){
-                echo "throwing error exception while processing performance test results"
+                echo "Throwing error exception while processing performance test results"
                 echo 'Exception occurred: ' + e.toString()
                 throw e
+            }
+            finally{
+                echo "Finished processing performance test results"
             }
         }
     }
