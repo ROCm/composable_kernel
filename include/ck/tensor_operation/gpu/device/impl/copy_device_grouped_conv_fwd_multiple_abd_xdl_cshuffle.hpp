@@ -94,7 +94,9 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
     // offset base pointer for each work-group
-    printf("entered kernel \n");
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+      printf("entered kernel \n");
+    }
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -113,7 +115,9 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
-    printf("Made it to first check \n");
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+      printf("Made it to first check \n");
+    }
     if constexpr(isMultiA || isMultiB)
     {
         AsPointer p_as_grid_grp;
@@ -332,7 +336,7 @@ template <index_t NDimSpatial,
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
+struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
                                              BLayout,
@@ -347,7 +351,7 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              CDEElementwiseOperation,
                                              ComputeDataType>
 {
-    using DeviceOp = copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
+    using DeviceOp = CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
@@ -369,16 +373,16 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     template <typename ALay>
     __host__ __device__ static auto
-    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                            const std::array<index_t, NDimSpatial>& input_left_pads,
-                            const std::array<index_t, NDimSpatial>& input_right_pads)
+    MakeAGridDescriptor_M_K(const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                            const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
+                            const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
+                            const ck::Array<index_t, NDimSpatial>& input_left_pads,
+                            const ck::Array<index_t, NDimSpatial>& input_right_pads)
     {
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
@@ -395,14 +399,14 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
-        printf("Device: A desc called \n");
+        // printf("Device: A desc called \n");
         return in_gemmm_gemmk_desc;
     }
 
     template <typename BLay>
     __host__ __device__ static auto
-    MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    MakeBGridDescriptor_N_K(const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>(b_g_k_c_xs_lengths,
@@ -411,15 +415,15 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
 
-        printf("Device: B desc called \n");
+        // printf("Device: B desc called \n");
 
         return wei_gemmn_gemmk_desc;
     }
 
     template <typename ELay>
     __host__ __device__ static auto
-    MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
+    MakeEGridDescriptor_M_N(const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
     {
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(e_g_n_k_wos_lengths,
@@ -428,15 +432,15 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
 
-        printf("Device: E desc called \n");
+        // printf("Device: E desc called \n");
         return out_gemmm_gemmn_desc;
     }
 
     // Shape of Ds and E must be aligned. Strides can be different.
     // Pass e_g_n_k_wos_lengths for logical broadcast.
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
+        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
     {
         return generate_tuple(
             [&](auto i) {
@@ -481,11 +485,11 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                            GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmTemplateParameters>,
                            GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
 
-    // If ADataTypes or BDataTypes is tuple, user has to pass std::array with pointers.
+    // If ADataTypes or BDataTypes is tuple, user has to pass ck::Array with pointers.
     using APointers =
-        std::conditional_t<isMultiA, std::array<const void*, NumATensor>&, const void*>;
+        std::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
     using BPointers =
-        std::conditional_t<isMultiB, std::array<const void*, NumBTensor>&, const void*>;
+        std::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
     // Use Tuple for the both cases for GridPointer to initialize it in Argument constructor (not
     // in initializer list what is required for single const pointer).
     using AGridPointer = remove_cvref_t<
@@ -512,26 +516,26 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
-    struct Argument : public BaseArgument
+    struct Argument
     {
-        Argument(APointers p_as,
+        __device__ __host__ Argument(APointers p_as,
                  BPointers p_bs,
-                 const std::array<const void*, NumDTensor>& p_ds,
+                 const ck::Array<const void*, NumDTensor>& p_ds,
                  void* p_e,
-                 const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                 const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                 const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+                 const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                 const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                 const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                 const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                 const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>&
                      ds_g_n_k_wos_lengths,
-                 const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
+                 const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>&
                      ds_g_n_k_wos_strides,
-                 const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                 const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                 const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                 const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                 const std::array<index_t, NDimSpatial>& input_left_pads,
-                 const std::array<index_t, NDimSpatial>& input_right_pads,
+                 const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                 const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                 const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
+                 const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
+                 const ck::Array<index_t, NDimSpatial>& input_left_pads,
+                 const ck::Array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
                  const CDEElementwiseOperation& cde_element_op)
@@ -758,42 +762,38 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEElementwiseOperation cde_element_op_;
 
         // for checking IsSupportedArgument()
-        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_;
-        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
-        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_;
-        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_;
-        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_;
-        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_;
-        std::array<index_t, NDimSpatial> conv_filter_strides_;
-        std::array<index_t, NDimSpatial> conv_filter_dilations_;
-        std::array<index_t, NDimSpatial> input_left_pads_;
-        std::array<index_t, NDimSpatial> input_right_pads_;
+        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_;
+        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_;
+        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
+        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
+        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_;
+        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_;
+        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_;
+        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_;
+        ck::Array<index_t, NDimSpatial> conv_filter_strides_;
+        ck::Array<index_t, NDimSpatial> conv_filter_dilations_;
+        ck::Array<index_t, NDimSpatial> input_left_pads_;
+        ck::Array<index_t, NDimSpatial> input_right_pads_;
     };
+    
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
-    {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
-    }
-
-    static auto MakeArgument(
+    static __device__ __host__ auto MakeArgument(
         APointers p_as,
         BPointers p_bs,
-        const std::array<const void*, NumDTensor>& p_ds,
+        const ck::Array<const void*, NumDTensor>& p_ds,
         void* p_e,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<index_t, NDimSpatial>& input_left_pads,
-        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+        const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+        const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+        const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
+        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
+        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
+        const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
+        const ck::Array<index_t, NDimSpatial>& input_left_pads,
+        const ck::Array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op)
@@ -819,75 +819,8 @@ struct copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         cde_element_op};
     }
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        APointers p_a,
-        BPointers p_b,
-        const std::array<const void*, NumDTensor>& p_ds,
-        void* p_e,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<index_t, NDimSpatial>& input_left_pads,
-        const std::array<index_t, NDimSpatial>& input_right_pads,
-        const AElementwiseOperation& a_element_op,
-        const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) override
-    {
-        return std::make_unique<Argument>(p_a,
-                                          p_b,
-                                          p_ds,
-                                          p_e,
-                                          a_g_n_c_wis_lengths,
-                                          a_g_n_c_wis_strides,
-                                          b_g_k_c_xs_lengths,
-                                          b_g_k_c_xs_strides,
-                                          ds_g_n_k_wos_lengths,
-                                          ds_g_n_k_wos_strides,
-                                          e_g_n_k_wos_lengths,
-                                          e_g_n_k_wos_strides,
-                                          conv_filter_strides,
-                                          conv_filter_dilations,
-                                          input_left_pads,
-                                          input_right_pads,
-                                          a_element_op,
-                                          b_element_op,
-                                          cde_element_op);
-    }
-
-    std::string GetTypeString() const override
-    {
-        auto str = std::stringstream();
-
-        // clang-format off
-        str << "copyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
-            << "<"
-            << BlockSize << ", "
-            << MPerBlock << ", "
-            << NPerBlock << ", "
-            << KPerBlock << ", "
-            << getConvForwardSpecializationString(ConvForwardSpecialization) << ", "
-            << MPerXDL << ", "
-            << NPerXDL << ", "
-            << MXdlPerWave << ", "
-            << NXdlPerWave << ", "
-            << ABlockTransferSrcScalarPerVector << ", "
-            << BBlockTransferSrcScalarPerVector << ", "
-            << CDEBlockTransferScalarPerVector_NPerBlock << ", "
-            << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle
-            << ">";
-        // clang-format on
-
-        return str.str();
-    }
 };
+
 
 } // namespace device
 } // namespace tensor_operation
