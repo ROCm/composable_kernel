@@ -81,7 +81,9 @@ int profile_gemm_splitk(int argc, char* argv[])
 
     using F32 = float;
     using F16 = ck::half_t;
-    // using F8 = ck::f8_t;
+#if defined CK_ENABLE_FP8
+    using F8 = ck::f8_t;
+#endif
     using BF16 = ck::bhalf_t;
     using I8   = int8_t;
 
@@ -136,7 +138,7 @@ int profile_gemm_splitk(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-#if 0
+
     if(data_type == GemmDataType::F32_F32_F32 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F32{}, F32{}, F32{}, F32{}, Row{}, Row{}, Row{}, F32{});
@@ -153,7 +155,6 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(F32{}, F32{}, F32{}, F32{}, Col{}, Col{}, Row{}, F32{});
     }
-#endif
 
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
@@ -172,7 +173,6 @@ int profile_gemm_splitk(int argc, char* argv[])
         return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
     }
 
-#if 0 
     if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{}, F16{});
@@ -189,7 +189,8 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(F8{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
     }
-    else if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    
+    if(data_type == GemmDataType::F16_F8_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F16{}, F8{}, F32{}, F16{}, Row{}, Row{}, Row{}, F16{});
     }
@@ -205,7 +206,8 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(F16{}, F8{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
     }
-    else if(data_type == GemmDataType::F16_F16_F16_F8 && layout == GemmMatrixLayout::MK_KN_MN)
+    
+    if(data_type == GemmDataType::F16_F16_F16_F8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{}, F8{});
     }
@@ -221,9 +223,7 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F8{});
     }
-#endif
 
-#if 1
     if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(BF16{}, I8{}, F32{}, BF16{}, Row{}, Row{}, Row{}, BF16{});
@@ -240,7 +240,6 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(BF16{}, I8{}, F32{}, BF16{}, Col{}, Col{}, Row{}, BF16{});
     }
-#endif
 
     {
         std::cout << "this data_type & layout is not implemented" << std::endl;
