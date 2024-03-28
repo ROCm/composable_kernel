@@ -237,10 +237,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
             constexpr index_t elem_op_vec_len = get_elem_op_vec_len();
 
-            using src_elem_op_vec_t =
-                typename vector_type<SrcData, elem_op_vec_len>::type;
-            using dst_elem_op_vec_t =
-                typename vector_type<DstData, elem_op_vec_len>::type;
+            using src_elem_op_vec_t = typename vector_type<SrcData, elem_op_vec_len>::type;
+            using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
             using src_elem_conv_t = typename vector_type<SrcData, elem_op_vec_len>::conversion_type;
 
             // static_assert(is_same_v<dst_vector_t, double>, "!!!!!");
@@ -249,7 +247,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 // apply the src elementwise op and convert to DstData under the hood if needed
                 src_element_op_(
                     op_r_v.template AsType<dst_elem_op_vec_t>()(idx),
-                    bit_cast<src_elem_conv_t>(src_vector_container.template AsType<src_elem_op_vec_t>()[idx]));
+                    bit_cast<src_elem_conv_t>(
+                        src_vector_container.template AsType<src_elem_op_vec_t>()[idx]));
             });
 
             // copy data from src_vector_container into src_thread_scratch_
@@ -493,13 +492,17 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 DstData dst_v;
 
                 // apply DstElementwiseOperation
-                dst_element_op_(dst_v, dst_vector_container.template AsType<typename vector_type<DstData,1 >::type>()[i]);
+                dst_element_op_(dst_v,
+                                dst_vector_container
+                                    .template AsType<typename vector_type<DstData, 1>::type>()[i]);
 
                 // if using custom data type, use data member
                 if constexpr(is_same_v<DstData, f8_t> || is_same_v<DstData, bf8_t>)
-                    dst_vector_container.template AsType<typename vector_type<DstData,1 >::type>()(i) = dst_v.data;
+                    dst_vector_container.template AsType<typename vector_type<DstData, 1>::type>()(
+                        i) = dst_v.data;
                 else
-                    dst_vector_container.template AsType<typename vector_type<DstData,1 >::type>()(i) = dst_v;
+                    dst_vector_container.template AsType<typename vector_type<DstData, 1>::type>()(
+                        i) = dst_v;
             });
 
             // copy data from dst_vector_container to dst_buf

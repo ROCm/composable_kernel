@@ -259,7 +259,7 @@ struct StaticTensorTupleOfVectorBuffer
     template <typename X,
               typename Idx,
               typename enable_if<!(has_same_scalar_type<S, X>::value &&
-                                     is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_),
+                                   is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_),
                                  bool>::type = false>
     __host__ __device__ constexpr void SetAsType(Idx, X x)
     {

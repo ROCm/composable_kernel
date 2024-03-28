@@ -410,7 +410,7 @@ struct DynamicBuffer
     // custom type implementation
     template <typename X,
               typename enable_if<!(is_same<typename scalar_type<remove_cvref_t<X>>::type,
-                                         typename scalar_type<remove_cvref_t<T>>::type>::value),
+                                           typename scalar_type<remove_cvref_t<T>>::type>::value),
                                  bool>::type = false>
     __host__ __device__ void Set(index_t i, bool is_valid_element, const X& x)
     {

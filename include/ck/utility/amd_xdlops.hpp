@@ -379,8 +379,10 @@ struct intrin_mfma_f32_32x32x16f8f8<32, 32>
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -410,8 +412,10 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -442,8 +446,10 @@ struct intrin_mfma_f32_32x32x16bf8bf8<32, 32>
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -473,8 +479,10 @@ struct intrin_mfma_f32_16x16x32bf8bf8<16, 16>
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -505,8 +513,10 @@ struct intrin_mfma_f32_32x32x16f8bf8<32, 32>
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -536,8 +546,10 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
         vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -568,8 +580,10 @@ struct intrin_mfma_f32_32x32x16bf8f8<32, 32>
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_32x32x2f32<32, 32>::Run(reg_a_f32, reg_b_f32, reg_c);
         });
@@ -599,8 +613,10 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
         vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
-            float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
-            float reg_b_f32 = type_convert<float>(reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
+            float reg_a_f32 = type_convert<float>(
+                reg_a_v.template AsType<typename bf8_t::data_type>()[Number<k>{}]);
+            float reg_b_f32 = type_convert<float>(
+                reg_b_v.template AsType<typename f8_t::data_type>()[Number<k>{}]);
 
             intrin_mfma_f32_16x16x4f32<16, 16>::Run(reg_a_f32, reg_b_f32, reg_c);
         });

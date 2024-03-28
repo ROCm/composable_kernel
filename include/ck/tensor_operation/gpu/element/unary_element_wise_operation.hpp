@@ -209,25 +209,25 @@ struct PassThrough
     }
 
     template <>
-    __host__ __device__ void operator()<_BitInt(8), f8_t>(_BitInt(8)& y, const f8_t& x) const
+    __host__ __device__ void operator()<_BitInt(8), f8_t>(_BitInt(8) & y, const f8_t& x) const
     {
         y = x.data;
     }
 
     template <>
-    __host__ __device__ void operator()<_BitInt(8), bf8_t>(_BitInt(8)& y, const bf8_t& x) const
+    __host__ __device__ void operator()<_BitInt(8), bf8_t>(_BitInt(8) & y, const bf8_t& x) const
     {
         y = x.data;
     }
 
     template <>
-    __host__ __device__ void operator()<f8_t, _BitInt(8)>(f8_t& y, const _BitInt(8)& x) const
+    __host__ __device__ void operator()<f8_t, _BitInt(8)>(f8_t& y, const _BitInt(8) & x) const
     {
         y = x;
     }
 
     template <>
-    __host__ __device__ void operator()<bf8_t, _BitInt(8)>(bf8_t& y, const _BitInt(8)& x) const
+    __host__ __device__ void operator()<bf8_t, _BitInt(8)>(bf8_t& y, const _BitInt(8) & x) const
     {
         y = x;
     }
