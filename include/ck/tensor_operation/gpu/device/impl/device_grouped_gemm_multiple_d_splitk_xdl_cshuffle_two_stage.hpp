@@ -20,7 +20,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d_splitk.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_dynamic_vector_dims.hpp"
-
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_splitk_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
@@ -237,12 +236,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
     using Block2ETileMapKSplit =
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
+    using Block2TileMap = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
     using GridwiseElementwise =
         GridwiseElementwise<CDGridDesc_M_N,
                             ck::Tuple<EGridDesc_M_N>,
                             CDDataTypes,
                             ck::Tuple<EDataType*>,
-                            Block2ETileMapKSplit,
+                            Block2TileMap,
                             CDEElementwiseOperation,
                             BlockSize,
                             MPerBlock,
@@ -737,7 +737,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                                                ck::Tuple<EGridDesc_M_N>,
                                                                CDDataTypes,
                                                                ck::Tuple<EDataType*>,
-                                                               Block2ETileMapKSplit,
+                                                               Block2TileMap,
                                                                CDEElementwiseOperation>;
             return LaunchKernel(gemm_kernel,
                                 elementwise_kernel,
@@ -791,8 +791,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                     concat_tuple(make_tuple(arg.gemm_kernel_args_[i].karg_.p_c_grid),
                                  arg.ds_grid_pointer_[i]),
                     type_convert<EDataType*>(arg.e_ptrs_[i]),
-                    Block2ETileMapKSplit{
-                        arg.elementwise_c_grid_descs_m_n_[i], B2E_M01, arg.K_BATCH},
+                    Block2TileMap{arg.elementwise_c_grid_descs_m_n_[i].GetLength(I0),
+                                  arg.elementwise_c_grid_descs_m_n_[i].GetLength(I1)},
                     arg.cde_element_op_);
             }
             return time;

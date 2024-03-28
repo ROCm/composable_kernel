@@ -99,7 +99,6 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
         n_iter   = std::stoi(argv[17]);
     }
 
-#ifdef CK_ENABLE_FP16
     if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_two_stage_impl<ck::half_t,
@@ -150,7 +149,6 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
     {
         throw std::runtime_error("wrong! this GEMM data_type & layout is not implemented");
     }
-#endif
     return 0;
 }
 
