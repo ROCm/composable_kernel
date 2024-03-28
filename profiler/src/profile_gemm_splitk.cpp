@@ -172,6 +172,7 @@ int profile_gemm_splitk(int argc, char* argv[])
         return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F16{});
     }
 
+#if defined CK_ENABLE_FP8
     if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{}, F16{});
@@ -222,6 +223,7 @@ int profile_gemm_splitk(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F32{}, F16{}, Col{}, Col{}, Row{}, F8{});
     }
+#endif
 
     if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
