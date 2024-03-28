@@ -767,31 +767,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
 
         const index_t k_batch_id = blockIdx.z;
 
-#if 1
+
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, karg.StrideC, karg.k_batch, k_batch_id);
-#else
-
-        const auto c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock =
-            MakeCGridDescriptor_MBlock_MPerBlock_NBlock_KBatch_NPerBlock(
-                karg.M, karg.N, karg.StrideC, karg.k_batch);
-
-        const index_t MBlock = c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock.GetLength(I0);
-        const index_t NBlock = c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock.GetLength(I2);
-
-        const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
-            c_grid_desc_mblock_mperblock_nblock_kbatch_nperblock,
-            make_tuple(make_pass_through_transform(MBlock),
-                       make_pass_through_transform(MPerBlock),
-                       make_pass_through_transform(NBlock),
-                       make_freeze_transform(k_batch_id),
-                       make_pass_through_transform(NPerBlock)),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<>{}, Sequence<3>{}));
-#endif
 
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
