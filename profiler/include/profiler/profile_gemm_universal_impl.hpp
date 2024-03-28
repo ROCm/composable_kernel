@@ -23,6 +23,61 @@
 
 namespace ck {
 namespace profiler {
+struct DeviceRotatingMem
+{
+    DeviceRotatingMem(std::size_t mem_size, int rotating_count)
+        : mMemSize(mem_size), mRotatingCount(rotating_count)
+    {
+        hip_check_error(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize * mRotatingCount));
+    }
+
+    void ToDevice(const void* p) const
+    {
+        if(mpDeviceBuf)
+        {
+            for(std::size_t i = 0; i < mRotatingCount; i++)
+            {
+                char* pBuf = static_cast<char*>(mpDeviceBuf) + i * mMemSize;
+                hip_check_error(hipMemcpy(static_cast<void*>(pBuf),
+                                          const_cast<void*>(p),
+                                          mMemSize,
+                                          hipMemcpyHostToDevice));
+            }
+        }
+        else
+        {
+            throw std::runtime_error("ToDevice with an empty pointer");
+        }
+    }
+
+    void* GetDeviceBuffer() const { return mpDeviceBuf; }
+
+    void SetZero() const
+    {
+        if(mpDeviceBuf)
+        {
+            hip_check_error(hipMemset(mpDeviceBuf, 0, mMemSize * mRotatingCount));
+        }
+    }
+
+    void FromDevice(void* p, size_t idx = 0) const
+    {
+        if(mpDeviceBuf && idx < mRotatingCount)
+        {
+            char* pBuf = static_cast<char*>(mpDeviceBuf) + idx * mMemSize;
+            hip_check_error(
+                hipMemcpy(p, static_cast<void*>(pBuf), mMemSize, hipMemcpyDeviceToHost));
+        }
+        else
+        {
+            throw std::runtime_error("FromDevice with an empty pointer");
+        }
+    }
+
+    void* mpDeviceBuf;
+    std::size_t mMemSize;
+    std::size_t mRotatingCount;
+};
 
 template <typename ADataType,
           typename BDataType,
@@ -43,7 +98,8 @@ bool profile_gemm_universal_impl(int do_verification,
                                  int StrideC,
                                  int KBatch,
                                  int n_warmup,
-                                 int n_iter)
+                                 int n_iter,
+                                 int rotating_count)
 {
     bool pass = true;
 
@@ -90,9 +146,12 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceRotatingMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize(),
+                                   rotating_count);
+    DeviceRotatingMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize(),
+                                   rotating_count);
+    DeviceRotatingMem c_device_buf(
+        sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize(), rotating_count);
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -181,7 +240,8 @@ bool profile_gemm_universal_impl(int do_verification,
 
                 if(do_verification)
                 {
-                    c_device_buf.FromDevice(c_m_n_device_result.mData.data());
+                    int idx = 0; //(n_iter - 1) % rotating_count;
+                    c_device_buf.FromDevice(c_m_n_device_result.mData.data(), idx >= 0 ? idx : 0);
 
                     pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 

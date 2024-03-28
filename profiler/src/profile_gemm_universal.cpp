@@ -77,6 +77,8 @@ int profile_gemm_universal(int argc, char* argv[])
         n_warmup = std::stoi(argv[15]);
         n_iter   = std::stoi(argv[16]);
     }
+    const int rotating_count = 5;
+    std::cout << "rotating_count : " << rotating_count << std::endl;
 
     using F32 = float;
     using F16 = ck::half_t;
@@ -123,7 +125,8 @@ int profile_gemm_universal(int argc, char* argv[])
             (StrideC < 0) ? DefaultStrideC : StrideC,
             KBatch,
             n_warmup,
-            n_iter);
+            n_iter,
+            rotating_count);
 
         return pass ? 0 : 1;
     };
