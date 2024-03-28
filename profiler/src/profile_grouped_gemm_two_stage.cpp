@@ -17,7 +17,8 @@ enum struct GemmMatrixLayout
 enum struct GemmDataType
 {
     F16_F16_F16,   // 0
-    BF16_INT8_BF16 // 1
+    BF16_INT8_BF16,// 1
+    BF16_BF16_BF16 // 2
 };
 
 #define OP_NAME "grouped_gemm_two_stage"
@@ -47,7 +48,7 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
     {
         std::cout
             << "arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n"
-            << "arg2: data type (0: fp16; 1: bf16@int8)\n"
+            << "arg2: data type (0: fp16; 1: bf16@int8; 2: bf16)\n"
             << "arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n]);\n"
             << "arg4: verification (0: no; 1: yes)\n"
             << "arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n"
@@ -126,6 +127,29 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
     {
         ck::profiler::profile_grouped_gemm_two_stage_impl<ck::bhalf_t,
                                                           int8_t,
+                                                          ck::bhalf_t,
+                                                          float,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatch,
+            n_warmup,
+            n_iter);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        ck::profiler::profile_grouped_gemm_two_stage_impl<ck::bhalf_t,
+                                                          ck::bhalf_t,
                                                           ck::bhalf_t,
                                                           float,
                                                           ck::tensor_layout::gemm::RowMajor,
