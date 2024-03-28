@@ -428,7 +428,7 @@ def get_blobs(kernel_filter : Optional[str]) -> tuple[FmhaFwdApiPool, List[FmhaF
             for mask, bias in itertools.product(MASK_MAP.keys(), ["t", "f"]):
                 pipelines.append(FmhaFwdPipeline('qr_fp8', 'col', 'f', 'f', 'f', 'f', bias, 'f', mask))
         else:
-            assert Fasle
+            assert False
         return pipelines
 
     gen = list()
