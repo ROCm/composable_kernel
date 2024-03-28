@@ -494,11 +494,18 @@ struct BlockFmhaBwdPipelineV10
             block_sync_lds();
             store_tile(do_lds_window, do_block_tile); // store the prefetch
 
-            auto pt_gemm = cast_tile<GemmDataType>(pt);
-            if constexpr(kHasDropout)
-            {
-                tile_elementwise_inout([](auto& x) { x = x > 0 ? x : 0; }, pt_gemm);
-            }
+            const auto pt_gemm = [&]() {
+                if constexpr(kHasDropout)
+                {
+                    return tile_elementwise_in(
+                        [](const auto& x) { return type_convert<GemmDataType>(x > 0.f ? x : 0.f); },
+                        pt);
+                }
+                else
+                {
+                    return cast_tile<GemmDataType>(pt);
+                }
+            }();
 
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 block_sync_lds();

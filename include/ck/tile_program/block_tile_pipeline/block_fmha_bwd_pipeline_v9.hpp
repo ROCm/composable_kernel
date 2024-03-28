@@ -568,11 +568,18 @@ struct BlockFmhaBwdPipelineV9
             }
 
             // STAGE 3, P^T@OGrad^T Gemm1
-            auto pt_gemm = cast_tile<GemmDataType>(pt);
-            if constexpr(kHasDropout)
-            {
-                tile_elementwise_inout([](auto& x) { x = x > 0 ? x : 0; }, pt_gemm);
-            }
+            const auto pt_gemm = [&]() {
+                if constexpr(kHasDropout)
+                {
+                    return tile_elementwise_in(
+                        [](const auto& x) { return type_convert<GemmDataType>(x > 0.f ? x : 0.f); },
+                        pt);
+                }
+                else
+                {
+                    return cast_tile<GemmDataType>(pt);
+                }
+            }();
 
             if constexpr(k1_loops > 1)
             {
