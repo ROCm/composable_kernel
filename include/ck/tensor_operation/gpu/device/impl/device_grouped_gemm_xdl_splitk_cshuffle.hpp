@@ -34,12 +34,11 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_gemm_xdl_splitk(
-            const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-            const index_t group_count,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CElementwiseOperation c_element_op)
+        kernel_grouped_gemm_xdl_splitk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+                                       const index_t group_count,
+                                       const AElementwiseOperation a_element_op,
+                                       const BElementwiseOperation b_element_op,
+                                       const CElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -206,7 +205,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     static constexpr index_t B2E_M01 = 8;
     using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
     using KernelArgument             = typename GridwiseGemm::Argument;
-    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using PassThrough                = ck::tensor_operation::element_wise::PassThrough;
     struct GemmTransKernelArg
     {
         KernelArgument karg_;

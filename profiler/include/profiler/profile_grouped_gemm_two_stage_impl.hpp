@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,18 +34,18 @@ template <typename ADataType,
           typename BLayout,
           typename CLayout>
 bool profile_grouped_gemm_two_stage_impl(int do_verification,
-                               int init_method,
-                               bool do_log,
-                               bool time_kernel,
-                               const std::vector<int>& Ms,
-                               const std::vector<int>& Ns,
-                               const std::vector<int>& Ks,
-                               const std::vector<int>& StrideAs,
-                               const std::vector<int>& StrideBs,
-                               const std::vector<int>& StrideCs,
-                               int kbatch   = 1,
-                               int n_warmup = 1,
-                               int n_iter   = 10)
+                                         int init_method,
+                                         bool do_log,
+                                         bool time_kernel,
+                                         const std::vector<int>& Ms,
+                                         const std::vector<int>& Ns,
+                                         const std::vector<int>& Ks,
+                                         const std::vector<int>& StrideAs,
+                                         const std::vector<int>& StrideBs,
+                                         const std::vector<int>& StrideCs,
+                                         int kbatch   = 1,
+                                         int n_warmup = 1,
+                                         int n_iter   = 10)
 {
     bool pass = true;
 
@@ -226,17 +226,18 @@ bool profile_grouped_gemm_two_stage_impl(int do_verification,
 
         std::string gemm_name = gemm_ptr->GetTypeString();
 
-        using DeviceOpSplitK = ck::tensor_operation::device::DeviceGroupedGemmMultipleDSplitK<ALayout,
-                                                                                     BLayout,
-                                                                                     ck::Tuple<>,
-                                                                                     CLayout,
-                                                                                     ADataType,
-                                                                                     BDataType,
-                                                                                     ck::Tuple<>,
-                                                                                     CDataType,
-                                                                                     AElementOp,
-                                                                                     BElementOp,
-                                                                                     CElementOp>;
+        using DeviceOpSplitK =
+            ck::tensor_operation::device::DeviceGroupedGemmMultipleDSplitK<ALayout,
+                                                                           BLayout,
+                                                                           ck::Tuple<>,
+                                                                           CLayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           ck::Tuple<>,
+                                                                           CDataType,
+                                                                           AElementOp,
+                                                                           BElementOp,
+                                                                           CElementOp>;
 
         // skip non-splitk grouped_gemm
         if(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get()) == nullptr)
@@ -258,8 +259,10 @@ bool profile_grouped_gemm_two_stage_impl(int do_verification,
             dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
                 ->SetKBatchSize(argument_ptr.get(), kbatch_curr);
 
-            DeviceMem gemm_arg_dev_mem(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())->GetDeviceKernelArgSize(argument_ptr.get()));
-            dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())->SetDeviceKernelArgs(argument_ptr.get(), gemm_arg_dev_mem.GetDeviceBuffer());
+            DeviceMem gemm_arg_dev_mem(dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                                           ->GetDeviceKernelArgSize(argument_ptr.get()));
+            dynamic_cast<DeviceOpSplitK*>(gemm_ptr.get())
+                ->SetDeviceKernelArgs(argument_ptr.get(), gemm_arg_dev_mem.GetDeviceBuffer());
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
