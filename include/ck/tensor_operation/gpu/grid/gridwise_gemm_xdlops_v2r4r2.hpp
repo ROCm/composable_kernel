@@ -1101,10 +1101,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                                      n_thread_data_on_block_idx[I2]),
                     ck::tensor_operation::element_wise::PassThrough{}};
 
-            static_assert(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set &&
-                            UseAtomicAdd == false),
-                          "Cannot use AtomicAdd");
-
             // LDS to global
             auto c_block_copy_lds_to_global = ThreadGroupTensorSliceTransfer_v6r1<
                 ThisThreadBlock,            // index_t BlockSize,
