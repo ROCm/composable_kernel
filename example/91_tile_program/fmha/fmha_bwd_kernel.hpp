@@ -854,7 +854,7 @@ struct FmhaBwdKernel
                         bias_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),
                         make_tuple(kargs.stride_bias, 1),
-                        Number<32>{},
+                        Number<FmhaPipeline::kAlignmentBias>{},
                         Number<1>{});
 
                     return pad_tensor_view(bias_dram_naive,
@@ -883,7 +883,7 @@ struct FmhaBwdKernel
                         dbias_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),
                         make_tuple(kargs.stride_dbias, 1),
-                        Number<32>{},
+                        Number<FmhaPipeline::kAlignmentBias>{},
                         Number<1>{});
 
                     return pad_tensor_view(dbias_dram_naive,

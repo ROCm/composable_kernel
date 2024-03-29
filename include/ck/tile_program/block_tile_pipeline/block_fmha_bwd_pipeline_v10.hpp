@@ -76,6 +76,9 @@ struct BlockFmhaBwdPipelineV10
     static constexpr bool kHasBias     = Problem::kHasBias;
     static constexpr bool kHasDropout  = Problem::kHasDropout;
 
+    static constexpr index_t kAlignmentBias =
+        kPadSeqLenK ? 1 : Policy::template GetTransposedVectorloadBias<Problem>();
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
