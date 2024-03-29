@@ -17,6 +17,7 @@ template <typename QDataType_,
           typename PDataType_,
           typename OaccDataType_,
           typename ODataType_,
+          typename ElementFunctions_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           typename FmhaMask_,
@@ -33,6 +34,7 @@ struct BlockFmhaPipelineProblem
     using PDataType           = remove_cvref_t<PDataType_>;
     using OaccDataType        = remove_cvref_t<OaccDataType_>;
     using ODataType           = remove_cvref_t<ODataType_>;
+    using ElementFunctions    = remove_cvref_t<ElementFunctions_>;
     using BlockFmhaShape      = remove_cvref_t<BlockFmhaShape_>;
     using FmhaMask            = remove_cvref_t<FmhaMask_>;
     using Traits              = remove_cvref_t<Traits_>;

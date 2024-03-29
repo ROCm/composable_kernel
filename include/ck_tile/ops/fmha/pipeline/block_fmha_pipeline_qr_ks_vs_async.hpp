@@ -654,39 +654,6 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         return o_acc;
     }
-
-    template <typename QDramBlockWindowTmp,
-              typename KDramBlockWindowTmp,
-              typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp>
-    CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
-               FmhaMask mask,
-               float scale,
-               void* smem_ptr) const
-    {
-        return operator()(q_dram_block_window_tmp,
-                          identity{},
-                          k_dram_block_window_tmp,
-                          identity{},
-                          v_dram_block_window_tmp,
-                          identity{},
-                          bias_dram_block_window_tmp,
-                          identity{},
-                          lse_dram_block_window_tmp,
-                          identity{},
-                          identity{},
-                          identity{},
-                          identity{},
-                          mask,
-                          scale,
-                          smem_ptr);
-    }
 };
 
 } // namespace ck_tile

@@ -37,6 +37,23 @@ struct FmhaFwdKernel
 
     using VLayout = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
 
+    using QElementFunction =
+        ck_tile::remove_cvref_t<typename FmhaPipeline::Problem::ElementFunctions::QElementFunction>;
+    using KElementFunction =
+        ck_tile::remove_cvref_t<typename FmhaPipeline::Problem::ElementFunctions::KElementFunction>;
+    using VElementFunction =
+        ck_tile::remove_cvref_t<typename FmhaPipeline::Problem::ElementFunctions::VElementFunction>;
+    using BiasElementFunction = ck_tile::remove_cvref_t<
+        typename FmhaPipeline::Problem::ElementFunctions::BiasElementFunction>;
+    using LSEElementFunction = ck_tile::remove_cvref_t<
+        typename FmhaPipeline::Problem::ElementFunctions::LSEElementFunction>;
+    using SAccElementFunction = ck_tile::remove_cvref_t<
+        typename FmhaPipeline::Problem::ElementFunctions::SAccElementFunction>;
+    using PComputeElementFunction = ck_tile::remove_cvref_t<
+        typename FmhaPipeline::Problem::ElementFunctions::PComputeElementFunction>;
+    using OAccElementFunction = ck_tile::remove_cvref_t<
+        typename FmhaPipeline::Problem::ElementFunctions::OAccElementFunction>;
+
     static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
@@ -77,7 +94,7 @@ struct FmhaFwdKernel
             "_" + (kIsGroupMode ? "group" : "batch") + "_" +
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kK0BlockLength) + "_" +
-            "r" + _TS_(gbr::at(ck_tile::number<0>{})) + "x" + _TS_(gbr::at(ck_tile::number<1>{})) + "x" + _TS_(gbr::at(ck_tile::number<2>{})) + "_" + 
+            "r" + _TS_(gbr::at(ck_tile::number<0>{})) + "x" + _TS_(gbr::at(ck_tile::number<1>{})) + "x" + _TS_(gbr::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt::at(ck_tile::number<0>{})) + "x" + _TS_(gwt::at(ck_tile::number<1>{})) + "x" + _TS_(gwt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
@@ -122,6 +139,15 @@ struct FmhaFwdKernel
         ck_tile::index_t nhead_stride_k;
         ck_tile::index_t nhead_stride_v;
         ck_tile::index_t nhead_stride_o;
+
+        QElementFunction q_element_func;
+        KElementFunction k_element_func;
+        VElementFunction v_element_func;
+        BiasElementFunction bias_element_func;
+        LSEElementFunction lse_element_func;
+        SAccElementFunction s_acc_element_func;
+        PComputeElementFunction p_compute_element_func;
+        OAccElementFunction o_acc_element_func;
     };
 
     struct FmhaFwdCommonBiasKargs
@@ -219,6 +245,14 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t mask_y,
               ck_tile::index_t mask_x,
+              QElementFunction q_element_func,
+              KElementFunction k_element_func,
+              VElementFunction v_element_func,
+              BiasElementFunction bias_element_func,
+              LSEElementFunction lse_element_func,
+              SAccElementFunction s_acc_element_func,
+              PComputeElementFunction p_compute_element_func,
+              OAccElementFunction o_acc_element_func,
               float descale_qk,
               float descale_sv)
     {
@@ -243,11 +277,19 @@ struct FmhaFwdKernel
                      nhead_stride_q,
                      nhead_stride_k,
                      nhead_stride_v,
-                     nhead_stride_o}, // args for common karg
-                    {},               // placeholder for bias
-                    {},               // placeholder for mask
-                    {},               // placeholder for lse
-                    {},               // placeholder for fp8 args
+                     nhead_stride_o,
+                     q_element_func,
+                     k_element_func,
+                     v_element_func,
+                     bias_element_func,
+                     lse_element_func,
+                     s_acc_element_func,
+                     p_compute_element_func,
+                     o_acc_element_func}, // args for common karg
+                    {},                   // placeholder for bias
+                    {},                   // placeholder for mask
+                    {},                   // placeholder for lse
+                    {},                   // placeholder for fp8 args
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -308,6 +350,14 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t mask_y,
               ck_tile::index_t mask_x,
+              QElementFunction q_element_func,
+              KElementFunction k_element_func,
+              VElementFunction v_element_func,
+              BiasElementFunction bias_element_func,
+              LSEElementFunction lse_element_func,
+              SAccElementFunction s_acc_element_func,
+              PComputeElementFunction p_compute_element_func,
+              OAccElementFunction o_acc_element_func,
               float descale_qk,
               float descale_sv)
     {
@@ -332,11 +382,19 @@ struct FmhaFwdKernel
                      nhead_stride_q,
                      nhead_stride_k,
                      nhead_stride_v,
-                     nhead_stride_o}, // args for common karg
-                    {},               // placeholder for bias
-                    {},               // placeholder for mask
-                    {},               // placeholder for lse
-                    {},               // placeholder for fp8 args
+                     nhead_stride_o,
+                     q_element_func,
+                     k_element_func,
+                     v_element_func,
+                     bias_element_func,
+                     lse_element_func,
+                     s_acc_element_func,
+                     p_compute_element_func,
+                     o_acc_element_func}, // args for common karg
+                    {},                   // placeholder for bias
+                    {},                   // placeholder for mask
+                    {},                   // placeholder for lse
+                    {},                   // placeholder for fp8 args
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -661,10 +719,18 @@ struct FmhaFwdKernel
             else
             {
                 return FmhaPipeline{}(q_dram_window,
+                                      kargs.q_element_func,
                                       k_dram_window,
+                                      kargs.k_element_func,
                                       v_dram_window,
+                                      kargs.v_element_func,
                                       bias_dram_window,
+                                      kargs.bias_element_func,
                                       lse_dram_window,
+                                      kargs.lse_element_func,
+                                      kargs.s_acc_element_func,
+                                      kargs.p_compute_element_func,
+                                      kargs.o_acc_element_func,
                                       mask,
                                       kargs.scale,
                                       smem_ptr);

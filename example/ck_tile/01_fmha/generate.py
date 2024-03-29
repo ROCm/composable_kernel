@@ -84,6 +84,16 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_occupancy}>;
 using fmha_mask_{F_idx} = {F_mask};
 
+using fmha_element_function_{F_idx} = ck_tile::FmhaElementFunctions<
+    typename FmhaDefaultElementFunctions::QElementFunction,
+    typename FmhaDefaultElementFunctions::KElementFunction,
+    typename FmhaDefaultElementFunctions::VElementFunction,
+    typename FmhaDefaultElementFunctions::BiasElementFunction,
+    typename FmhaDefaultElementFunctions::LSEElementFunction,
+    typename FmhaDefaultElementFunctions::SAccElementFunction,
+    typename FmhaDefaultElementFunctions::PComputeElementFunction,
+    typename FmhaDefaultElementFunctions::OAccElementFunction>;
+
 using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
@@ -95,6 +105,7 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
+    fmha_element_function_{F_idx},
     fmha_shape_{F_idx},
     {F_mode},
     fmha_mask_{F_idx},
@@ -108,7 +119,7 @@ using fmha_epilogue_{F_idx} =
                                            typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel_{F_idx} = 
+using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdKernel<ck_tile::FmhaFwdTilePartitioner<fmha_shape_{F_idx}>,
                   fmha_pipeline_{F_idx},
                   fmha_epilogue_{F_idx}>;
@@ -118,7 +129,7 @@ using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F
 #include <iostream>
 
 template<>
-float fmha_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
+float fmha_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args<FmhaDefaultElementFunctions> a)
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -132,7 +143,7 @@ float fmha_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 
 FMHA_FWD_API_FILENAME="fmha_fwd_api.cpp"
 FMHA_FWD_API="""
-float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config& s){{
+float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args<FmhaDefaultElementFunctions> a, const ck_tile::stream_config& s){{
     float r = -1;
 {F_dispatch}
     return r;
