@@ -10,10 +10,10 @@
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
 #include "grouped_convolution_backward_data_xdl.inc"
 #endif
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
 #include "grouped_convolution_backward_data_wmma.inc"
 #endif
 
@@ -68,7 +68,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
         if constexpr(NumDimSpatial == 2)
         {
             if constexpr(is_same_v<InLayout, GNHWC> && is_same_v<WeiLayout, GKYXC> &&
@@ -204,9 +204,9 @@ struct DeviceOperationInstanceFactory<
 #endif
             }
         }
-#endif // __gfx9__
+#endif
 
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
         if constexpr(NumDimSpatial == 2)
         {
             if constexpr(is_same_v<InLayout, GNHWC> && is_same_v<WeiLayout, GKYXC> &&
@@ -315,7 +315,7 @@ struct DeviceOperationInstanceFactory<
 #endif
             }
         }
-#endif // __gfx11__
+#endif
 
         return op_ptrs;
     }

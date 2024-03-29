@@ -15,10 +15,10 @@
 #ifdef DL_KERNELS
 #include "gemm_dl.inc"
 #endif
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
 #include "gemm_wmma.inc"
 #endif
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
 #include "gemm_xdl.inc"
 #endif
 
@@ -153,7 +153,7 @@ struct DeviceOperationInstanceFactory<
 #endif
 #endif // DL_KERNELS
 
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<CDataType, half_t>)
@@ -180,9 +180,9 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#endif // __gfx11__
+#endif
 
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
         if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
                      is_same_v<CDataType, float>)
         {
@@ -343,7 +343,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#endif // __gfx9__
+#endif
         return op_ptrs;
     }
 };

@@ -15,10 +15,10 @@
 #ifdef DL_KERNELS
 #include "grouped_convolution_backward_weight_dl.inc"
 #endif
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
 #include "grouped_convolution_backward_weight_xdl.inc"
 #endif
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
 #include "grouped_convolution_backward_weight_wmma.inc"
 #endif
 namespace ck {
@@ -265,7 +265,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
         }
 #endif // DL_KERNELS
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
         if constexpr(NumDimSpatial == 1)
         {
             if constexpr(is_same_v<InLayout, GNWC> && is_same_v<WeiLayout, GKXC> &&
@@ -442,8 +442,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
             }
         }
-#endif // __gfx9__
-#ifdef __gfx11__
+#endif
+#ifdef CK_USE_WMMA
         if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
@@ -501,7 +501,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
             }
         }
-#endif // gfx11__
+#endif
 
         return op_ptrs;
     }

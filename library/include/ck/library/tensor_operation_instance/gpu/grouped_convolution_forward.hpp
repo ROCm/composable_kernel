@@ -15,10 +15,10 @@
 #ifdef DL_KERNELS
 #include "grouped_convolution_forward_dl.inc"
 #endif
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
 #include "grouped_convolution_forward_xdl.inc"
 #endif
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
 #include "grouped_convolution_forward_wmma.inc"
 #endif
 
@@ -109,7 +109,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 #endif // DL_KERNELS
 
-#ifdef __gfx9__
+#ifdef CK_USE_XDL
         if constexpr(NumDimSpatial == 1 && is_same_v<InLayout, GNWC> &&
                      is_same_v<WeiLayout, GKXC> && is_same_v<OutLayout, GNWK>)
         {
@@ -280,9 +280,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
-#endif // __gfx9__
+#endif
 
-#ifdef __gfx11__
+#ifdef CK_USE_WMMA
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, GNHWC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, GNHWK>)
         {
@@ -378,7 +378,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
-#endif // __gfx11__
+#endif
 
         return op_ptrs;
     }
