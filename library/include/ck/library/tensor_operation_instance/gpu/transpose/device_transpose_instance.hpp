@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_3d_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
@@ -22,18 +22,23 @@ using S = ck::Sequence<Is...>;
 
 using device_transpose_f16_instances = std::tuple<
     // clang-format off
-    DeviceElementwise3dImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 2, 2, 1, 8, 8, 8, ck::Sequence<8>, ck::Sequence<8>>,
-    DeviceElementwise3dImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 2, 2, 1, 8, 8, 8, ck::Sequence<8>, ck::Sequence<4>>,
-    DeviceElementwise3dImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 2, 2, 1, 4, 4, 8, ck::Sequence<4>, ck::Sequence<4>>,
-    DeviceElementwise3dImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 2, 2, 1, 4, 4, 4, ck::Sequence<1>, ck::Sequence<1>>
+    DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5, 256, 128, 128, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+    DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5, 64,   64,  64, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+    DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5, 256,  64,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+    DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5, 64,   32,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+    DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5, 256,  64,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+    DeviceElementwiseImpl<ck::Tuple<F16>, ck::Tuple<F16>, PassThrough, 5, 64,   32,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>
     // clang-format on
     >;
 
 using device_transpose_f32_instances = std::tuple<
     // clang-format off
-    DeviceElementwise3dImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 2, 2, 1, 4, 4, 4, ck::Sequence<1>, ck::Sequence<1>>,
-    DeviceElementwise3dImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 2, 2, 1, 4, 4, 4, ck::Sequence<4>, ck::Sequence<1>>,
-    DeviceElementwise3dImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 2, 2, 1, 4, 4, 4, ck::Sequence<4>, ck::Sequence<4>>
+    DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5, 256, 128, 128, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+    DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5, 64,   64,  64, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+    DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5, 256,  64,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+    DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5, 64,   32,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+    DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5, 256,  64,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+    DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, PassThrough, 5, 64,   32,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>
     // clang-format on
     >;
 

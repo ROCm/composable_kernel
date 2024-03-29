@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -9,7 +9,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_multiple_r_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/utility/device_memory.hpp"
@@ -102,7 +102,12 @@ using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwiseI
     ck::Tuple<LayerNormOutDataType>, // y
     NormalizeFunctor,
     2,
+    256,                         // BlockSize
+    128,                         // MPerBlock
+    128,                         // NPerBlock
     8,                           // MPerthread
+    8,                           // NPerthread
+    ck::Sequence<1, 0>,          // ThreadClusterArrangeOrder
     ck::Sequence<8, 1, 1, 8, 8>, // scalarPerVector: x(gemm_out), mean, meansquare, gamma, beta
     ck::Sequence<8>>;            // scalarPerVector: y(layerNorm_out)
 
