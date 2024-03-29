@@ -396,48 +396,48 @@ struct Prologue
 
     // length+stride arrays
     ck::Array<ck::index_t, 5> in_lengths{static_cast<int>(prob.G),
-                                          static_cast<int>(prob.N),
-                                          static_cast<int>(prob.C),
-                                          static_cast<int>(prob.Hi),
-                                          static_cast<int>(prob.Wi)};
+                                         static_cast<int>(prob.N),
+                                         static_cast<int>(prob.C),
+                                         static_cast<int>(prob.Hi),
+                                         static_cast<int>(prob.Wi)};
     ck::Array<ck::index_t, 5> out_lengths{static_cast<int>(prob.G),
-                                           static_cast<int>(prob.N),
-                                           static_cast<int>(prob.K),
-                                           static_cast<int>(prob.Ho),
-                                           static_cast<int>(prob.Wo)};
+                                          static_cast<int>(prob.N),
+                                          static_cast<int>(prob.K),
+                                          static_cast<int>(prob.Ho),
+                                          static_cast<int>(prob.Wo)};
     ck::Array<ck::index_t, 5> wei_lengths{static_cast<int>(prob.G),
-                                           static_cast<int>(prob.K),
-                                           static_cast<int>(prob.C),
-                                           static_cast<int>(prob.Y),
-                                           static_cast<int>(prob.X)};
+                                          static_cast<int>(prob.K),
+                                          static_cast<int>(prob.C),
+                                          static_cast<int>(prob.Y),
+                                          static_cast<int>(prob.X)};
     ck::Array<ck::index_t, 5> d_lengths = {};
 
     ck::Array<ck::index_t, 5> in_strides{123887616,
-                                          static_cast<int>(prob.Hi * prob.Wi * prob.G * prob.C),
-                                          1,
-                                          static_cast<int>(prob.Wi * prob.G * prob.C),
-                                          static_cast<int>(prob.G * prob.C)};
+                                         static_cast<int>(prob.Hi * prob.Wi * prob.G * prob.C),
+                                         1,
+                                         static_cast<int>(prob.Wi * prob.G * prob.C),
+                                         static_cast<int>(prob.G * prob.C)};
     ck::Array<ck::index_t, 5> out_strides{42467328,
-                                           static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
-                                           1,
-                                           static_cast<int>(prob.Wo * prob.G * prob.K),
+                                          static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
+                                          1,
+                                          static_cast<int>(prob.Wo * prob.G * prob.K),
 
-                                           static_cast<int>(prob.G * prob.K)};
+                                          static_cast<int>(prob.G * prob.K)};
     ck::Array<ck::index_t, 5> wei_strides{442368,
-                                           static_cast<int>(prob.Y * prob.X * prob.C),
-                                           1,
-                                           static_cast<int>(prob.X * prob.C),
-                                           static_cast<int>(prob.C)};
+                                          static_cast<int>(prob.Y * prob.X * prob.C),
+                                          1,
+                                          static_cast<int>(prob.X * prob.C),
+                                          static_cast<int>(prob.C)};
     ck::Array<ck::index_t, 5> d_strides = {};
 
     ck::Array<ck::index_t, 2> conv_filter_strides   = {2, 2};
-    std::vector<ck::index_t> conv_filter_strides_    = {2, 2};
+    std::vector<ck::index_t> conv_filter_strides_   = {2, 2};
     ck::Array<ck::index_t, 2> conv_filter_dilations = {1, 1};
-    std::vector<ck::index_t> conv_filter_dilations_  = {1, 1};
+    std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
     ck::Array<ck::index_t, 2> input_left_pads       = {1, 1};
-    std::vector<ck::index_t> input_left_pads_        = {1, 1};
+    std::vector<ck::index_t> input_left_pads_       = {1, 1};
     ck::Array<ck::index_t, 2> input_right_pads      = {1, 1};
-    std::vector<ck::index_t> input_right_pads_       = {1, 1};
+    std::vector<ck::index_t> input_right_pads_      = {1, 1};
 
     auto get_num_elems = [](const auto& tensor_lens) {
         return std::reduce(
@@ -547,20 +547,19 @@ struct Prologue
         // decltype(arg.a_grid_desc_ak0_m_ak1_)>;
         std::cout << "launched" << std::endl;
 
-        k.launch(nullptr, grid_size * block_size, block_size)(
-            in_dev.data(),
-            wei_dev.data(),
-            out_dev.data(),
-            in_lengths,
-            in_strides,
-            wei_lengths,
-            wei_strides,
-            out_lengths,
-            out_strides,
-            conv_filter_strides,
-            conv_filter_dilations,
-            input_left_pads,
-            input_right_pads);
+        k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),
+                                                              wei_dev.data(),
+                                                              out_dev.data(),
+                                                              in_lengths,
+                                                              in_strides,
+                                                              wei_lengths,
+                                                              wei_strides,
+                                                              out_lengths,
+                                                              out_strides,
+                                                              conv_filter_strides,
+                                                              conv_filter_dilations,
+                                                              input_left_pads,
+                                                              input_right_pads);
 
         Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
@@ -610,14 +609,17 @@ struct Prologue
         ofh2.close();
         */
 
-        if (pass) {
-          std::cout << "%%%%%%%%%%%%%%% VERIFICATION PASSED! %%%%%%%%%%%%%\n";
-        } else {
-          std::cout << "!!!!!!!!!!!! ERROR !!!!!!!!!!!\n";
-          std::abort();
+        if(pass)
+        {
+            std::cout << "%%%%%%%%%%%%%%% VERIFICATION PASSED! %%%%%%%%%%%%%\n";
+        }
+        else
+        {
+            std::cout << "!!!!!!!!!!!! ERROR !!!!!!!!!!!\n";
+            std::abort();
         }
 
-        // CHECK(report(solution, check(res)));
+        CHECK(report(solution, check(res)));
     }
 }
 
