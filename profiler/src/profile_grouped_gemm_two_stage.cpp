@@ -12,6 +12,7 @@
 enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
+    MK_NK_MN, // 1
 };
 
 enum struct GemmDataType
@@ -146,6 +147,29 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
             n_warmup,
             n_iter);
     }
+    else if(data_type == GemmDataType::BF16_INT8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_grouped_gemm_two_stage_impl<ck::bhalf_t,
+                                                          int8_t,
+                                                          ck::bhalf_t,
+                                                          float,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::ColumnMajor,
+                                                          ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatch,
+            n_warmup,
+            n_iter);
+    }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         ck::profiler::profile_grouped_gemm_two_stage_impl<ck::bhalf_t,
@@ -154,6 +178,29 @@ int profile_grouped_gemm_two_stage(int argc, char* argv[])
                                                           float,
                                                           ck::tensor_layout::gemm::RowMajor,
                                                           ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::RowMajor>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatch,
+            n_warmup,
+            n_iter);
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        ck::profiler::profile_grouped_gemm_two_stage_impl<ck::bhalf_t,
+                                                          ck::bhalf_t,
+                                                          ck::bhalf_t,
+                                                          float,
+                                                          ck::tensor_layout::gemm::RowMajor,
+                                                          ck::tensor_layout::gemm::ColumnMajor,
                                                           ck::tensor_layout::gemm::RowMajor>(
             do_verification,
             init_method,
