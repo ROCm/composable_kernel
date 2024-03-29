@@ -74,9 +74,17 @@ struct DeviceRotatingMem
         }
     }
 
-    void* mpDeviceBuf;
-    std::size_t mMemSize;
-    std::size_t mRotatingCount;
+    ~DeviceRotatingMem()
+    {
+        if(mpDeviceBuf)
+        {
+            hip_check_error(hipFree(mpDeviceBuf));
+        }
+    }
+
+    void* mpDeviceBuf          = nullptr;
+    std::size_t mMemSize       = 0;
+    std::size_t mRotatingCount = 1;
 };
 
 template <typename ADataType,
@@ -146,12 +154,13 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceRotatingMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize(),
-                                   rotating_count);
-    DeviceRotatingMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize(),
-                                   rotating_count);
-    DeviceRotatingMem c_device_buf(
-        sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize(), rotating_count);
+    size_t size_a = sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize();
+    size_t size_b = sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize();
+    size_t size_c = sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize();
+
+    DeviceRotatingMem a_device_buf(size_a, rotating_count);
+    DeviceRotatingMem b_device_buf(size_b, rotating_count);
+    DeviceRotatingMem c_device_buf(size_c, rotating_count);
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -240,8 +249,7 @@ bool profile_gemm_universal_impl(int do_verification,
 
                 if(do_verification)
                 {
-                    int idx = 0; //(n_iter - 1) % rotating_count;
-                    c_device_buf.FromDevice(c_m_n_device_result.mData.data(), idx >= 0 ? idx : 0);
+                    c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
                     pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
 
@@ -260,8 +268,17 @@ bool profile_gemm_universal_impl(int do_verification,
 
                 std::string op_name = op_ptr->GetTypeString();
 
-                float ave_time = invoker_ptr->Run(
-                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
+                float ave_time = invoker_ptr->Run(argument_ptr.get(),
+                                                  StreamConfig{nullptr,
+                                                               time_kernel,
+                                                               0,
+                                                               n_warmup,
+                                                               n_iter,
+                                                               false,
+                                                               rotating_count,
+                                                               size_a,
+                                                               size_b,
+                                                               size_c});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
 
