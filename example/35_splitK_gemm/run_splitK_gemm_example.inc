@@ -2,9 +2,9 @@
 
 struct ProblemSize final
 {
-    ck::index_t M = 3840;
-    ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t M = 128;
+    ck::index_t N = 1024;
+    ck::index_t K = 512;
 
     ck::index_t stride_A = K;
     ck::index_t stride_B = K;
@@ -16,7 +16,7 @@ struct ProblemSize final
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 1;
+    int init_method      = 2;
     bool time_kernel     = false;
 };
 
