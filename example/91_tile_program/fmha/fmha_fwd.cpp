@@ -359,7 +359,7 @@ bool run(const ArgParser& arg_parser)
         }();
         const ck::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
-        const ck::index_t nhead_stride_randval = (seqlen_q * max_seqlen_k);
+        const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck::index_t nhead_stride_lse     = (shape_seqlen_q * 1);
         const ck::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
@@ -367,7 +367,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
         const ck::index_t batch_stride_v       = (nhead_k * hdim_v * shape_seqlen_k);
         const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
-        const ck::index_t batch_stride_randval = (nhead * seqlen_q * max_seqlen_k);
+        const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck::index_t batch_stride_lse     = (nhead * shape_seqlen_q * 1);
         const ck::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
 
