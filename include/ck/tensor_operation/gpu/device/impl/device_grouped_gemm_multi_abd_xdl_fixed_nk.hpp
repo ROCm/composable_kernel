@@ -199,7 +199,7 @@ template <typename AsLayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          typename ComputeType,
+          typename ComputeType    = EDataType,
           LoopScheduler LoopSched = make_default_loop_scheduler()>
 struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
     : public DeviceGroupedGemmMultiABDFixedNK<AsLayout,
