@@ -10,18 +10,18 @@ namespace device {
 namespace instance {
 
 void add_device_grouped_conv2d_fwd_dl_gnhwc_gkyxc_gnhwk_f32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<2,
-                                                              GNHWC,
-                                                              GKYXC,
-                                                              Empty_Tuple,
-                                                              GNHWK,
-                                                              F32,
-                                                              F32,
-                                                              Empty_Tuple,
-                                                              F32,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
+                                                                GNHWC,
+                                                                GKYXC,
+                                                                Empty_Tuple,
+                                                                GNHWK,
+                                                                F32,
+                                                                F32,
+                                                                Empty_Tuple,
+                                                                F32,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_grouped_conv2d_fwd_dl_f32_instances<GNHWC,

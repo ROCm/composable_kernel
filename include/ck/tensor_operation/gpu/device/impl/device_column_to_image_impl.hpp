@@ -263,19 +263,18 @@ struct DeviceColumnToImageImpl
         decltype(BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, KPerBlock, InputGridDesc>(
             InputGridDesc{}))>;
 
-    using GridwiseTensorRearrangeKernel =
-        GridwiseTensorRearrange<InputGridDesc,
-                                InputDataType,
-                                OutputGridDesc,
-                                OutputDataType,
-                                BlockSize,
-                                MPerBlock,
-                                KPerBlock,
-                                ThreadClusterLengths,
-                                ScalarPerVector,
-                                InMemoryDataOperationEnum::Add,
-                                Block2ETileMap,
-                                ComputePtrOffsetOfStridedBatch<I0>>;
+    using GridwiseTensorRearrangeKernel = GridwiseTensorRearrange<InputGridDesc,
+                                                                  InputDataType,
+                                                                  OutputGridDesc,
+                                                                  OutputDataType,
+                                                                  BlockSize,
+                                                                  MPerBlock,
+                                                                  KPerBlock,
+                                                                  ThreadClusterLengths,
+                                                                  ScalarPerVector,
+                                                                  InMemoryDataOperationEnum::Add,
+                                                                  Block2ETileMap,
+                                                                  ComputePtrOffsetOfStridedBatch<>>;
 
     struct Argument : public BaseArgument
     {
@@ -453,7 +452,7 @@ struct DeviceColumnToImageImpl
         std::vector<const InputDataType*> p_in_container_;
         std::vector<OutputDataType*> p_out_container_;
 
-        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
     };
 
     struct Invoker : public BaseInvoker
@@ -471,7 +470,7 @@ struct DeviceColumnToImageImpl
                                                         OutputGridDesc,
                                                         OutputDataType,
                                                         Block2ETileMap,
-                                                        ComputePtrOffsetOfStridedBatch<I0>,
+                                                        ComputePtrOffsetOfStridedBatch<>,
                                                         GridwiseTensorRearrangeKernel>;
 
             // Execute each set of independent filters

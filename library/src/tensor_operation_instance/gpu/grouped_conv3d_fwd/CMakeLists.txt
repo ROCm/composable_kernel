@@ -22,11 +22,22 @@ set(GROUPED_CONV3D_FWD
    wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_oddc_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_i8_oddc_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_oddc_instance.cpp
-   wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_i8_oddc_instance.cpp)
+   wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_i8_oddc_instance.cpp
+)
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_fp8_instance.cpp)
+endif()
+
+if(DTYPES MATCHES "fp8" OR NOT DEFINED DTYPES)
+    list(APPEND GROUPED_CONV3D_FWD
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp)
+endif()
+
+if(DTYPES MATCHES "bf8" OR NOT DEFINED DTYPES)
+    list(APPEND GROUPED_CONV3D_FWD
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instance.cpp)
 endif()
 
 add_instance_library(device_grouped_conv3d_fwd_instance ${GROUPED_CONV3D_FWD})

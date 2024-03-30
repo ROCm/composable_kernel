@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_dl_multiple_d.hpp"
@@ -90,9 +90,8 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) ||           \
-    defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx940__) || defined(__gfx1100__) || \
-    defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx103__) || \
+    defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx94__) || defined(__gfx11__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -216,18 +215,18 @@ template <index_t NDimSpatial,
           index_t CThreadTransferSrcDstVectorDim,
           index_t CThreadTransferDstScalarPerVector>
 struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
-    : public DeviceGroupedConvFwdMultipleD<NDimSpatial,
-                                           ALayout,
-                                           BLayout,
-                                           DsLayout,
-                                           ELayout,
-                                           ADataType,
-                                           BDataType,
-                                           DsDataType,
-                                           EDataType,
-                                           AElementwiseOperation,
-                                           BElementwiseOperation,
-                                           CDEElementwiseOperation>
+    : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                             ALayout,
+                                             BLayout,
+                                             DsLayout,
+                                             ELayout,
+                                             ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             EDataType,
+                                             AElementwiseOperation,
+                                             BElementwiseOperation,
+                                             CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK;
 
@@ -537,7 +536,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         DefaultBlock2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -601,7 +600,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                     DeviceOp::DsGridDesc_M0_M10_M11_N0_N10_N11,
                     DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11,
                     DefaultBlock2CTileMap,
-                    ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                     has_main_loop,
                     has_double_loop>;
 
@@ -666,11 +665,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(!(ck::get_device_name() == "gfx906" || ck::get_device_name() == "gfx1030" ||
-             ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx908" ||
-             ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx1100" ||
-             ck::get_device_name() == "gfx1101" || ck::get_device_name() == "gfx1102" ||
-             ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942"))
+        if(!(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
+             ck::is_navi2_supported() || ck::is_navi3_supported()))
         {
             return false;
         }

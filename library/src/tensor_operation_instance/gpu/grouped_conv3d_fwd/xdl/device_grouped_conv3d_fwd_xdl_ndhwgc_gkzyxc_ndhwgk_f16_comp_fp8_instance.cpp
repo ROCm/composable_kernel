@@ -10,19 +10,19 @@ namespace device {
 namespace instance {
 
 void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleD<3,
-                                                              NDHWGC,
-                                                              GKZYXC,
-                                                              Empty_Tuple,
-                                                              NDHWGK,
-                                                              F16,
-                                                              F16,
-                                                              Empty_Tuple,
-                                                              F16,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              F8>>>& instances)
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                F16,
+                                                                F16,
+                                                                Empty_Tuple,
+                                                                F16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                F8>>>& instances)
 {
     add_device_operation_instances(
         instances,

@@ -393,12 +393,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
+    using CShuffleDataType = AccDataType;
+
+    using GridwiseGemm = GridwiseGemmMultipleD_Wmma<
         // DataType Family
         ADataType,
         BDataType,
         AccDataType,
-        CDataType,
+        CShuffleDataType,
         Tuple<>,
         CDataType,
         // InMemory Data Descriptor
@@ -414,7 +416,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         // Tiling Family
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
         MPerWMMA,
         NPerWMMA,
         K1,
@@ -429,6 +431,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false,
+        true,
         ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
@@ -437,6 +440,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
         false,
+        true,
         BBlockLdsAddExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
@@ -565,7 +569,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
 
         OutElementwiseOperation a_element_op_;
         InElementwiseOperation b_element_op_;
@@ -647,7 +651,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
                     DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<I0>,
+                    ComputePtrOffsetOfStridedBatch<>,
                     has_main_loop>;
 
                 using EmptyTuple = Tuple<>;
@@ -698,8 +702,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         // check device
-        if(get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
-           get_device_name() == "gfx1102")
+        if(ck::is_navi3_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

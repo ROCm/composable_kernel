@@ -87,7 +87,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -677,7 +677,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         std::vector<Block2ETileMap> block_2_etile_map_container_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOp a_element_op_;
@@ -746,7 +746,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         Block2ETileMap,
-                        ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                         has_main_loop>;
 
                     return launch_and_time_kernel(

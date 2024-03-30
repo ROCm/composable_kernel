@@ -48,9 +48,8 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx1030__) ||           \
-    defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx940__) || defined(__gfx1100__) || \
-    defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx103__) || \
+    defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx94__) || defined(__gfx11__))
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -927,7 +926,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
         Block2CTileMap block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<I0> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<> compute_ptr_offset_of_batch_;
 
         // element-wise op
         OutElementwiseOperation a_element_op_;
@@ -999,7 +998,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
                     remove_reference_t<DeviceOp::BGridDesc_B_K0_N0_N1_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_M0_M10_M11_N0_N10_N11>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<I0>,
+                    ComputePtrOffsetOfStridedBatch<>,
                     has_main_loop,
                     has_double_loop>;
 

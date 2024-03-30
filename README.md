@@ -32,7 +32,6 @@ python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 ```
 
 You can find a list of our developers and contributors on our [Contributors](/CONTRIBUTORS.md) page.
-page.
 
 ```note
 If you use CK, cite us as follows:
@@ -71,7 +70,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 3. Clone CK source code from the GitHub repository and start the build:
 
     ```bash
-    git clone https://github.com/ROCmSoftwarePlatform/composable_kernel.git && \
+    git clone https://github.com/ROCm/composable_kernel.git && \
     cd composable_kernel && \
     mkdir build && \
     cd build

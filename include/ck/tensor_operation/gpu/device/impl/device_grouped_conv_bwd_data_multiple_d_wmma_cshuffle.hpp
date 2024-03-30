@@ -196,7 +196,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
     using EGridDesc_M_N       = remove_cvref_t<tuple_element_t<3, ABDsEGridDesc>>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
+    using GridwiseGemm = GridwiseGemmMultipleD_Wmma<
         // DataType Family
         ADataType,
         BDataType,
@@ -217,7 +217,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         // Tiling Family
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
         MPerWMMA,
         NPerWMMA,
         K1,
@@ -232,6 +232,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_AK1,
         false,
+        true,
         ABlockLdsExtraM,
         BBlockTransferThreadClusterLengths_BK0_N_BK1,
         BBlockTransferThreadClusterArrangeOrder,
@@ -240,6 +241,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_BK1,
         false,
+        true,
         BBlockLdsExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
@@ -517,7 +519,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
         std::vector<typename GridwiseGemm::DefaultBlock2CTileMap> block_2_ctile_map_container_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOp a_element_op_;
@@ -579,7 +581,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                         typename GridwiseGemm::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                         remove_reference_t<typename GridwiseGemm::DefaultBlock2CTileMap>,
-                        ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                         has_main_loop>;
 
                     return launch_and_time_kernel(
@@ -627,8 +629,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         // check device
-        if(get_device_name() == "gfx1100" || get_device_name() == "gfx1101" ||
-           ck::get_device_name() == "gfx1102")
+        if(ck::is_navi3_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_contraction_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_contraction_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -55,7 +56,7 @@ __global__ void
             const Block2ETileMap block_2_etile_map)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_as_grid,
@@ -385,9 +386,11 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
 
     // desc for blockwise copy
     using AsGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(AsGridDesc_M_K{}))>;
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAsGridDescriptor_AK0_M_AK1(
+            AsGridDesc_M_K{}))>;
     using BsGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(BsGridDesc_N_K{}))>;
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBsGridDescriptor_BK0_N_BK1(
+            BsGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
         decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}))>;
@@ -397,7 +400,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
 
     // block-to-e-tile map
     using Block2ETileMap =
-        remove_cvref_t<decltype(GridwiseGemm::MakeBlock2ETileMap(EGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -429,7 +432,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
               bs_grid_desc_bk0_n_bk1_{},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_etile_map_{GridwiseGemm::MakeBlock2ETileMap(e_grid_desc_m_n_)},
+              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
@@ -481,10 +484,10 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                                            block_2_etile_map_))
             {
                 as_grid_desc_ak0_m_ak1_ =
-                    GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(as_grid_desc_m_k_);
+                    GridwiseGemm::MakeDefaultAsGridDescriptor_AK0_M_AK1(as_grid_desc_m_k_);
 
                 bs_grid_desc_bk0_n_bk1_ =
-                    GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(bs_grid_desc_n_k_);
+                    GridwiseGemm::MakeDefaultBsGridDescriptor_BK0_N_BK1(bs_grid_desc_n_k_);
 
                 ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -498,22 +501,29 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             // for sanity check of vector memory access
             for(index_t i = 0; i < NumATensor; ++i)
             {
-                a_mz_stride_[i] = a_ms_ks_strides[i][NumDimM - 1];
-                a_kz_stride_[i] = a_ms_ks_strides[i][NumDimM + NumDimK - 1];
+                as_mz_consecutive_[i] = a_ms_ks_strides[i][NumDimM - 1] == 1;
+                as_kz_consecutive_[i] = a_ms_ks_strides[i][NumDimM + NumDimK - 1] == 1;
+                as_max_read_elems_[i] =
+                    CalculateMaxRead<NumDimM, NumDimK>(a_ms_ks_lengths[i], a_ms_ks_strides[i]);
             }
 
             for(index_t i = 0; i < NumBTensor; ++i)
             {
-                b_nz_stride_[i] = b_ns_ks_strides[i][NumDimN - 1];
-                b_kz_stride_[i] = b_ns_ks_strides[i][NumDimN + NumDimK - 1];
+                bs_nz_consecutive_[i] = b_ns_ks_strides[i][NumDimN - 1] == 1;
+                bs_kz_consecutive_[i] = b_ns_ks_strides[i][NumDimN + NumDimK - 1] == 1;
+                bs_max_read_elems_[i] =
+                    CalculateMaxRead<NumDimN, NumDimK>(b_ns_ks_lengths[i], b_ns_ks_strides[i]);
             }
 
             for(index_t i = 0; i < NumDTensor; ++i)
             {
-                ds_nz_stride_[i] = d_ms_ns_strides[i][NumDimM + NumDimN - 1];
+                ds_nz_consecutive_[i] = d_ms_ns_strides[i][NumDimM + NumDimN - 1] == 1;
+                ds_max_read_elems_[i] =
+                    CalculateMaxRead<NumDimM, NumDimN>(d_ms_ns_lengths[i], d_ms_ns_strides[i]);
             }
 
-            e_nz_stride_ = e_ms_ns_stride[NumDimM + NumDimN - 1];
+            e_nz_consecutive_  = e_ms_ns_stride[NumDimM + NumDimN - 1] == 1;
+            e_max_write_elems_ = CalculateMaxRead<NumDimM, NumDimN>(e_ms_ns_length, e_ms_ns_stride);
         }
 
         // pointers
@@ -543,16 +553,19 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
 
-        // Strides for the last M/N/K dimensions of A/B/Ds/E
-        //   for sanity check of vector load/store
-        std::array<index_t, NumATensor> a_mz_stride_;
-        std::array<index_t, NumATensor> a_kz_stride_;
+        // Describe whether the last part of a given dimension of A/B/D/E is consecutive
+        // in the memory or not.
+        std::array<bool, NumATensor> as_mz_consecutive_;
+        std::array<bool, NumATensor> as_kz_consecutive_;
+        std::array<bool, NumBTensor> bs_nz_consecutive_;
+        std::array<bool, NumBTensor> bs_kz_consecutive_;
+        std::array<bool, NumDTensor> ds_nz_consecutive_;
+        bool e_nz_consecutive_;
 
-        std::array<index_t, NumBTensor> b_nz_stride_;
-        std::array<index_t, NumBTensor> b_kz_stride_;
-
-        std::array<index_t, NumDTensor> ds_nz_stride_;
-        index_t e_nz_stride_;
+        std::array<index_t, NumATensor> as_max_read_elems_;
+        std::array<index_t, NumBTensor> bs_max_read_elems_;
+        std::array<index_t, NumDTensor> ds_max_read_elems_;
+        index_t e_max_write_elems_;
     };
 
     // Invoker
@@ -641,8 +654,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
 
         // check vector load/store
         {
-            bool all_valid = true;
-
+            bool valid_as_access = true;
             static_for<0, NumATensor, 1>{}([&](auto i) {
                 // vector memory access of A: could be on M or AK1 dimension
                 if constexpr(ABlockTransferSrcVectorDim == 1)
@@ -666,10 +678,21 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                     }
                 }
             });
+            if(!valid_as_access)
+            {
+                return false;
+            }
 
-            // vector memory access of B: could be on N or BK1 dimension
+            bool valid_bs_access = true;
             static_for<0, NumBTensor, 1>{}([&](auto i) {
-                if constexpr(BBlockTransferSrcVectorDim == 1)
+                const bool valid_b_vector_size =
+                    arg.bs_max_read_elems_[i] % BBlockTransferSrcScalarPerVector == 0;
+                const bool valid_b_access_dim_n =
+                    BBlockTransferSrcVectorDim == 1 && arg.bs_nz_consecutive_[i];
+                const bool valid_b_access_dim_k =
+                    BBlockTransferSrcVectorDim == 2 && arg.bs_kz_consecutive_[i];
+                const bool valid_b_access_dim = valid_b_access_dim_n || valid_b_access_dim_k;
+                if(!(valid_b_vector_size && valid_b_access_dim))
                 {
                     if(!(arg.b_nz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I1) %
                                                              BBlockTransferSrcScalarPerVector ==
@@ -690,8 +713,12 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                     }
                 }
             });
+            if(!valid_bs_access)
+            {
+                return false;
+            }
 
-            // check vector load of Ds
+            bool valid_ds_access = true;
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 if(!(arg.ds_nz_stride_[i] == 1 &&
                      arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
@@ -699,7 +726,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                          0) &&
                    CDEBlockTransferScalarPerVector_NPerBlock != 1)
                 {
-                    all_valid = false;
+                    valid_ds_access = false;
                 }
             });
 
@@ -710,10 +737,14 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                      0) &&
                CDEBlockTransferScalarPerVector_NPerBlock != 1)
             {
-                all_valid = false;
+                return false;
             }
 
-            if(!all_valid)
+            const bool valid_e_vector_size =
+                arg.e_max_write_elems_ % CDEBlockTransferScalarPerVector_NPerBlock == 0;
+            // Vector write of E is always on N dimension.
+            const bool valid_e_access_dim = arg.e_nz_consecutive_;
+            if(!(valid_e_vector_size && valid_e_access_dim))
             {
                 return false;
             }

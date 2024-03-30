@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iomanip>
@@ -100,18 +100,18 @@ int main()
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * X * C);
     SimpleDeviceMem out(sizeof(OutDataType) * G * N * Wo * K);
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD<NumDimSpatial,
-                                                                                 InLayout,
-                                                                                 WeiLayout,
-                                                                                 ck::Tuple<>,
-                                                                                 OutLayout,
-                                                                                 InDataType,
-                                                                                 WeiDataType,
-                                                                                 ck::Tuple<>,
-                                                                                 OutDataType,
-                                                                                 PassThrough,
-                                                                                 PassThrough,
-                                                                                 PassThrough>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   PassThrough,
+                                                                                   PassThrough,
+                                                                                   PassThrough>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<

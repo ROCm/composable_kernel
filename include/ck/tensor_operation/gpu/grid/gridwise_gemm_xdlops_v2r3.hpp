@@ -39,7 +39,7 @@ __global__ void
                                 const CGridDesc_M_N c_grid_desc_m_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -70,7 +70,7 @@ __global__ void
         kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const auto a_grid_desc_k0_m_k1 =
@@ -991,6 +991,17 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
         {
             if(!(problem.N % NPerBlock == 0))
+            {
+                return false;
+            }
+        }
+
+        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        {
+            if(!(problem.K0 % K0PerBlock == 0))
             {
                 return false;
             }
