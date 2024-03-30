@@ -4,13 +4,13 @@ struct ProblemSize final
 {
     ck::index_t M = 256;
     ck::index_t N = 1024;
-    ck::index_t K = 128;
+    ck::index_t K = 512;
 
     ck::index_t stride_A = K;
     ck::index_t stride_B = K;
     ck::index_t stride_C = N;
 
-    ck::index_t k_batch = 4;
+    ck::index_t k_batch = 2;
 };
 
 struct ExecutionConfig final
@@ -58,7 +58,7 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{0, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     case 2:
