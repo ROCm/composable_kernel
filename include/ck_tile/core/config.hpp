@@ -20,6 +20,8 @@
 #define CK_TILE_DEVICE_EXTERN
 #endif
 
+// minimal arch
+
 #ifndef CK_TILE_USE_CUSTOM_DATA_TYPE
 #define CK_TILE_USE_CUSTOM_DATA_TYPE 0 // custom data type will generate extra move/bfi code
 #endif
