@@ -30,7 +30,7 @@ struct GroupedGemmMultiABDKernelArgument
     index_t StrideE;
 };
 
-/**
+/*
  * \brief Grouped Gemm Multi ABD Fixed NK
  *
  * C = a_op(A, A1...) * b_op(B, B1...)

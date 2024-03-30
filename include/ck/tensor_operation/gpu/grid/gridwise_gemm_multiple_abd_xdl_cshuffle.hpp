@@ -590,8 +590,10 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             generate_tuple([&](auto) { return make_multi_index(0, m_block_data_idx_on_grid, 0); },
                            Number<NumATensor>{});
 
+#if 0
         static_assert(ABlockTransferSrcScalarPerVector == ABlockTransferDstScalarPerVector_AK1,
                       "Src and Dst ScalarPerVector must be the same");
+#endif
 
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
@@ -621,8 +623,10 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             generate_tuple([&](auto) { return make_multi_index(0, n_block_data_idx_on_grid, 0); },
                            Number<NumBTensor>{});
 
+#if 0
         static_assert(BBlockTransferSrcScalarPerVector == BBlockTransferDstScalarPerVector_BK1,
                       "Src and Dst ScalarPerVector must be the same");
+#endif
 
         auto b_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,

@@ -841,12 +841,15 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                sizeof(GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>);
     }
 
-    void SetWorkSpacePointer(BaseArgument* p_arg, void* p_workspace) const override
+    void SetWorkSpacePointer(BaseArgument* p_arg,
+                             void* p_workspace,
+                             const StreamConfig& stream_config = StreamConfig{}) const override
     {
         auto p_arg_          = dynamic_cast<Argument*>(p_arg);
         p_arg_->p_workspace_ = p_workspace;
 
-        hip_check_error(hipMemset(p_workspace, 0, GetWorkSpaceSize(p_arg)));
+        hip_check_error(
+            hipMemsetAsync(p_workspace, 0, GetWorkSpaceSize(p_arg), stream_config.stream_id_));
     }
 
     static void SetKBatch(Argument& arg, index_t k_batch) { arg.UpdateKBatch(k_batch); }

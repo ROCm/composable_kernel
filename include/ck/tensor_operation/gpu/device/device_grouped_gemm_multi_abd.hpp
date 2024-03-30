@@ -23,7 +23,7 @@ struct GemmMultiABDDesc
     ck::index_t stride_C_;
 };
 
-/**
+/*
  * \brief Grouped Gemm Multi ABD
  *
  * C = a_op(A, A1...) * b_op(B, B1...)
@@ -62,7 +62,7 @@ struct DeviceGroupedGemmMultiABD : public BaseOperator
     static_assert(BsLayout::Size() == BsDataType::Size(), "wrong! inconsistent NumBTensor");
     static_assert(DsLayout::Size() == DsDataType::Size(), "wrong! inconsistent NumDTensor");
 
-    /**
+    /*
      * \brief Make argument pointer for grouped gemm multi abd.
      *
      * \param p_as A pointers to the A.
@@ -83,7 +83,7 @@ struct DeviceGroupedGemmMultiABD : public BaseOperator
                         std::vector<GemmMultiABDDesc>& gemm_desc,
                         AElementwiseOperation a_element_op   = AElementwiseOperation{},
                         BElementwiseOperation b_element_op   = BElementwiseOperation{},
-                        CDEElementwiseOperation c_element_op = CElementwiseOperation{}) = 0;
+                        CDEElementwiseOperation c_element_op = CDEElementwiseOperation{}) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 
