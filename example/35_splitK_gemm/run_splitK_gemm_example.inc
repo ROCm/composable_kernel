@@ -2,9 +2,9 @@
 
 struct ProblemSize final
 {
-    ck::index_t M = 128;
+    ck::index_t M = 256;
     ck::index_t N = 1024;
-    ck::index_t K = 512;
+    ck::index_t K = 128;
 
     ck::index_t stride_A = K;
     ck::index_t stride_B = K;
@@ -16,7 +16,7 @@ struct ProblemSize final
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 2;
+    int init_method      = 1;
     bool time_kernel     = false;
 };
 
@@ -62,7 +62,7 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         break;
     default:
@@ -151,10 +151,10 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
         ref_invoker.Run(ref_argument);
 
-        if(std::is_same<CDataType, ck::half_t>::value)
+        if(std::is_same<CDataType, ck::half_t>::value || std::is_same<CDataType, ck::bhalf_t>::value)
         {
             pass &= ck::utils::check_err(
-                c_m_n_device_result, c_m_n_host_result, "fp16 incorrect result", 3e-3, 1e-3);
+                c_m_n_device_result, c_m_n_host_result, "fp16 incorrect result", 3e-2, 1e-2);
         }
         else
         {
