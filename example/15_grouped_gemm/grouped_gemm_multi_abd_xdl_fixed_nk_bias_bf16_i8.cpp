@@ -23,7 +23,7 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using BF16 = ck::half_t;
+using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using F32  = float;
 
@@ -57,7 +57,7 @@ struct Scale
     __host__ __device__ constexpr void
     operator()(B1DataType& b, const B0DataType& b0, const B1DataType& b1) const
     {
-        b = b0 * b1;
+        b = ck::type_convert<BF16>(b0 * ck::type_convert<float>(b1));
     }
 };
 
@@ -191,7 +191,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         case 1:
             a0_tensors[i].GenerateTensorValue(GeneratorTensor_2<A0DataType>{-5, 5});
             b0_tensors[i].GenerateTensorValue(GeneratorTensor_2<B0DataType>{-5, 5});
-            b1_tensors[i].GenerateTensorValue(GeneratorTensor_2<B1DataType>{-5, 5});
+            b1_tensors[i].GenerateTensorValue(GeneratorTensor_2<B1DataType>{0, 5});
             break;
         case 2:
             a0_tensors[i].GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
