@@ -39,8 +39,8 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_grouped_gemm_xdl_fixed_nk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                         uint32_t* barrier_count,
-                                         const index_t barrier_size_grp,
+                                         // uint32_t* barrier_count,
+                                         // const index_t barrier_size_grp,
                                          const index_t group_count,
                                          const index_t grid_size_grp,
                                          // const index_t KBatch,
@@ -111,16 +111,15 @@ __global__ void
     index_t id_off   = 0;
     index_t id_local = get_block_1d_id() - BlockStart;
 
-    const index_t mn_blocks = local_grid_size / KBatch;
+    // const index_t mn_blocks = local_grid_size / KBatch;
 
     while(id_local < local_grid_size)
     {
         const auto block_2_etile_map =
             GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
 
-        auto barrier_count_finished =
-            barrier_count + group_id * barrier_size_grp + id_local % mn_blocks;
-        ignore = barrier_count_finished;
+        // auto barrier_count_finished =
+        //  barrier_count + group_id * barrier_size_grp + id_local % mn_blocks;
 
         GridwiseGemm::
             template Run<HasMainKBlockLoop, GemmSpec, AsLayout, BsLayout, DsLayout, ELayout>(
@@ -640,8 +639,8 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                     dim3(BlockSize),
                     0,
                     cast_pointer_to_constant_address_space(arg.grouped_gemm_kernel_args_dev),
-                    reinterpret_cast<uint32_t*>(arg.p_workspace_),
-                    arg.barrier_size_grp_,
+                    // reinterpret_cast<uint32_t*>(arg.p_workspace_),
+                    // arg.barrier_size_grp_,
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.grid_size_grp_,
                     // arg.k_batch_,
@@ -826,19 +825,20 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
             *dynamic_cast<Argument*>(p_arg), a_element_op, b_element_op, c_element_op);
     }
 
-    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
-    {
-        auto arg = *dynamic_cast<const Argument*>(p_arg);
-
-        return arg.group_count_ * arg.barrier_size_grp_ * sizeof(uint32_t);
-    }
-
     size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
     {
         auto arg = *dynamic_cast<const Argument*>(p_arg);
 
         return arg.group_count_ *
                sizeof(GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>);
+    }
+
+#if 0
+    size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
+    {
+        auto arg = *dynamic_cast<const Argument*>(p_arg);
+
+        return arg.group_count_ * arg.barrier_size_grp_ * sizeof(uint32_t);
     }
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
@@ -851,6 +851,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
         hip_check_error(
             hipMemsetAsync(p_workspace, 0, GetWorkSpaceSize(p_arg), stream_config.stream_id_));
     }
+#endif
 
     static void SetKBatch(Argument& arg, index_t k_batch) { arg.UpdateKBatch(k_batch); }
 

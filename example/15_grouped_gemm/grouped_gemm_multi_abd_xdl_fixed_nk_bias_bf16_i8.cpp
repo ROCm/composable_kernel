@@ -23,7 +23,7 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using BF16 = ck::bhalf_t;
+using BF16 = ck::half_t;
 using I8   = int8_t;
 using F32  = float;
 
@@ -47,7 +47,7 @@ using EDataType        = BF16;
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
 using B0Layout = Col;
-using B1Layout = B0Layout;
+using B1Layout = Row;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using DsLayout = ck::Tuple<Row>;
 using ELayout  = Row;
@@ -124,6 +124,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         };
 
     std::vector<Tensor<A0DataType>> a0_tensors;
+    std::vector<Tensor<B1DataType>> b_tensors;
     std::vector<Tensor<B0DataType>> b0_tensors;
     std::vector<Tensor<B1DataType>> b1_tensors;
     std::vector<Tensor<D0DataType>> d0_tensors;
@@ -131,6 +132,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::vector<Tensor<EDataType>> c_device_tensors;
 
     a0_tensors.reserve(group_count);
+    b_tensors.reserve(group_count);
     b0_tensors.reserve(group_count);
     b1_tensors.reserve(group_count);
     d0_tensors.reserve(group_count);
@@ -153,18 +155,25 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     for(int i = 0; i < group_count; i++)
     {
         sum_of_m += problem_size.Ms[i];
+
         a0_tensors.push_back(Tensor<A0DataType>(f_host_tensor_descriptor(
             problem_size.Ms[i], problem_size.Ks[i], problem_size.stride_As[i], A0Layout{})));
+
+        b_tensors.push_back(Tensor<B1DataType>(f_host_tensor_descriptor(
+            problem_size.Ks[i], problem_size.Ns[i], problem_size.stride_Bs[i], B0Layout{})));
         b0_tensors.push_back(Tensor<B0DataType>(f_host_tensor_descriptor(
             problem_size.Ks[i], problem_size.Ns[i], problem_size.stride_Bs[i], B0Layout{})));
-        b1_tensors.push_back(Tensor<B1DataType>(f_host_tensor_descriptor(
-            problem_size.Ks[i], problem_size.Ns[i], problem_size.stride_Bs[i], B1Layout{})));
+        b1_tensors.push_back(Tensor<B1DataType>(
+            f_host_tensor_descriptor(problem_size.Ks[i], problem_size.Ns[i], 0, B1Layout{})));
+
         d0_tensors.push_back(Tensor<D0DataType>(
             f_host_tensor_descriptor(problem_size.Ms[i], problem_size.Ns[i], 0, ELayout{})));
+
         c_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             problem_size.Ms[i], problem_size.Ns[i], problem_size.stride_Cs[i], ELayout{})));
         c_device_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             problem_size.Ms[i], problem_size.Ns[i], problem_size.stride_Cs[i], ELayout{})));
+
         std::cout << "gemm[" << i << "] a_m_k: " << a0_tensors[i].mDesc
                   << " b_k_n: " << b0_tensors[i].mDesc << " d_m_n: " << d0_tensors[i].mDesc
                   << " c_m_n: " << c_device_tensors[i].mDesc << std::endl;
@@ -186,7 +195,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             break;
         case 2:
             a0_tensors[i].GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
-            b0_tensors[i].GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+            b0_tensors[i].GenerateTensorValue(GeneratorTensor_3<B0DataType>{-5, 5});
             b1_tensors[i].GenerateTensorValue(GeneratorTensor_3<B1DataType>{-0.5, 0.5});
             break;
         default:
@@ -216,8 +225,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         b0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(B0DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
-        b1_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(B1DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
+        b1_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(B1DataType) * problem_size.Ns[i]));
 
         d0_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(D0DataType) * problem_size.Ns[i]));
@@ -240,13 +249,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
 
-        gemm_descs.push_back({sum_of_m,
-                              problem_size.Ns[i],
-                              problem_size.Ks[i],
-                              {1, 1},
-                              {problem_size.stride_Bs[i]},
-                              {0},
-                              1});
+        gemm_descs.push_back(
+            {sum_of_m, problem_size.Ns[i], problem_size.Ks[i], {1}, {1, 1}, {0}, 1});
 
         grouped_gemm_kernel_args_.push_back(
             {std::array<const void*, NumATensor>{a0_tensors_device[i]->GetDeviceBuffer()},
@@ -258,8 +262,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
              problem_size.Ns[i],
              problem_size.Ks[i],
              std::array<ck::index_t, NumATensor>{problem_size.stride_As[i]},
-             std::array<ck::index_t, NumBTensor>{problem_size.stride_Bs[i],
-                                                 problem_size.stride_Bs[i]},
+             std::array<ck::index_t, NumBTensor>{problem_size.stride_Bs[i], 0},
              std::array<ck::index_t, NumDTensor>{0},
              problem_size.stride_Cs[i]});
     }
@@ -317,20 +320,19 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     {
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
-                                                                                B0DataType,
+                                                                                B1DataType,
                                                                                 EDataType,
                                                                                 AccDataType,
                                                                                 PassThrough,
                                                                                 PassThrough,
                                                                                 PassThrough>;
-
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
             for(int n = 0; n < problem_size.Ns[i]; ++n)
             {
                 for(int k = 0; k < problem_size.Ks[i]; ++k)
                 {
-                    b_element_op(b1_tensors[i](k, n), b0_tensors[i](k, n), b1_tensors[i](k, n));
+                    b_element_op(b_tensors[i](k, n), b0_tensors[i](k, n), b1_tensors[i](k, n));
                 }
             }
 
@@ -342,7 +344,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             auto ref_invoker = ref_gemm.MakeInvoker();
 
             auto ref_argument = ref_gemm.MakeArgument(a0_tensors[i],
-                                                      b1_tensors[i],
+                                                      b_tensors[i],
                                                       c_host_tensors[i],
                                                       PassThrough{},
                                                       PassThrough{},
