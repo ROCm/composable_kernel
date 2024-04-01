@@ -5,8 +5,8 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3.hpp"
 
-using ADataType        = ck::half_t;
-using BDataType        = ck::f8_t;
+using ADataType        = ck::f8_t;
+using BDataType        = ck::half_t;
 using AccDataType      = float;
 using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
@@ -19,7 +19,7 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmV2Instance = 
@@ -27,17 +27,17 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
-        256,
-        224, 256, 
-        64, 8, 16,
+        64,
+        16, 16, 
+        64, 16, 8,
         16,   16,
-        7,    8, 
-        S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
-        2, 8, 8, 0,
-        S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        1,    1, 
+        S<4, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 16, 16, 0,
-        1, 2, S<1, 32, 1, 8>, 8,
-        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
+        S<8, 8, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 8, 8, 0,
+        1, 1, S<1, 16, 1, 4>, 4,
+        ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,

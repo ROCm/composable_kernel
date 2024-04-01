@@ -60,32 +60,32 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     switch(config.init_method)
     {
     case 0:
-        ck::utils::FillConstant<ADataType>{static_cast<ADataType>(1.f)}(a_m_k);
-        ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     case 1:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         break;
     case 2:
-        ck::utils::FillConstant<ADataType>{static_cast<ADataType>(1.f)}(a_m_k);
-        ck::utils::FillUniformDistributionIntegerValue<BDataType>{-2.f, 2.f}(b_k_n);
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         break;
     case 3:
-        ck::utils::FillUniformDistributionIntegerValue<ADataType>{-2.f, 2.f}(a_m_k);
-        ck::utils::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_k_n);
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
         break;
     default:
-        ck::utils::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
-        ck::utils::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
 #if 0
-    printf("A matrix:\n");
-    for (int im = 0; im < M; im++)
+    printf("B matrix:\n");
+    for (int in = 0; in < N; in++)
     {
         for (int ik = 0; ik < K; ik++)
         {
-            printf("%04x ", *(reinterpret_cast<uint16_t*>(&a_m_k(im,ik))));
+            printf("%02x ", *(reinterpret_cast<uint8_t*>(&b_k_n(ik,in))));
             if(ik%8==7) printf("|");
         }
         printf("\n");

@@ -479,7 +479,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
               KRead{CalculateKRead(K_, KBatch_)},
               KPadded{CalculateKPadded(K_, KBatch_)},
               AK0{CalculateAK0Padded(K_, KBatch_)},
-              BK0{CalculateAK0Padded(K_, KBatch_)},
+              BK0{CalculateBK0Padded(K_, KBatch_)},
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)}
         {
@@ -715,6 +715,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else // RowMajor B
         {
             // N0LdsLayer * N1 as logical Bank
+            // Conflict when BK1 != 8
             constexpr auto N1         = Number<BBlockTransferSrcScalarPerVector>{};
             constexpr auto N0         = NPerBlock / N1;
             constexpr auto N0LdsLayer = 32 * 4 / (N1 * BK1Number * sizeof(BDataType)) <= 1
@@ -1157,7 +1158,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared) + a_block_space_size_aligned,
+            static_cast<BDataType*>(p_shared) +
+                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
@@ -1460,7 +1462,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 ABlockTransferThreadClusterLengths_AK0_M_AK1,
                                                 ABlockTransferThreadClusterArrangeOrder,
                                                 ADataType,
-                                                ComputeTypeA,
+                                                ADataType,
                                                 decltype(a_grid_desc_ak0_m_ak1),
                                                 decltype(a_block_desc_ak0_m_ak1),
                                                 ABlockTransferSrcAccessOrder,
@@ -1491,7 +1493,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 BBlockTransferThreadClusterLengths_BK0_N_BK1,
                                                 BBlockTransferThreadClusterArrangeOrder,
                                                 BDataType,
-                                                ComputeTypeB,
+                                                BDataType,
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
@@ -1517,17 +1519,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeTypeA*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeTypeB*>(p_shared_0) + a_block_space_size_aligned,
+            static_cast<BDataType*>(p_shared_0) +
+                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-        // ignore = p_shared_1;
+
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeTypeA*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ComputeTypeB*>(p_shared_1) + a_block_space_size_aligned,
+            static_cast<BDataType*>(p_shared_1) +
+                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);

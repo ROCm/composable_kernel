@@ -161,7 +161,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
     {
         // A/B split schedule
         constexpr auto num_ds_read_inst =
-            2 * (HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num);
+            HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
         constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num;
 
@@ -171,7 +171,12 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
 
         // stage 1
-        constexpr auto num_mfma_stage1 = num_mfma_inst - num_ds_read_inst;
+        // Separate this part?
+        constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
+                                                      sizeof(ComputeDataType) / sizeof(BDataType)
+                                                  ? sizeof(ComputeDataType) / sizeof(ADataType)
+                                                  : sizeof(ComputeDataType) / sizeof(BDataType);
+        constexpr auto num_mfma_stage1 = num_mfma_inst - num_mfma_per_ds_read * num_ds_read_inst;
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
         constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
@@ -203,8 +208,8 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // stage 2
         static_for<0, num_ds_read_inst, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 2, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x100, 1, 0);                    // DS read
+            __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_ds_read, 0); // MFMA
         });
     }
 
@@ -254,7 +259,6 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
-        // asm volatile("s_endpgm");
 
         // Global prefetch 2
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);

@@ -38,7 +38,7 @@ def getDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.0.1"){
+    if (params.ROCMVERSION != "6.1"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -104,7 +104,7 @@ def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm")
     def no_cache = conf.get("no_cache", false)
-    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
     if(no_cache)
     {
         dockerArgs = dockerArgs + " --no-cache "
@@ -117,7 +117,9 @@ def getDockerImage(Map conf=[:]){
     {
         echo "Pulling down image: ${image}"
         retimage = docker.image("${image}")
-        retimage.pull()
+        withDockerRegistry([ credentialsId: "docker_test_cred", url: "" ]) {
+            retimage.pull()
+        }
     }
     catch(Exception ex)
     {
@@ -132,7 +134,7 @@ def buildDocker(install_prefix){
     checkout scm
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
-    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
+    def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
 
     echo "Build Args: ${dockerArgs}"
     try{
@@ -309,7 +311,7 @@ def buildHipClangJob(Map conf=[:]){
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
-        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
+        def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
@@ -365,9 +367,6 @@ def runCKProfiler(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
-            dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
-        }
 
         def variant = env.STAGE_NAME
         def retimage
@@ -406,7 +405,7 @@ def runCKProfiler(Map conf=[:]){
 
 					dir("script"){
                         if (params.RUN_FULL_QA){
-                            sh "./run_full_performance_tests.sh 1 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME}"
                             archiveArtifacts "perf_gemm.log"
                             archiveArtifacts "perf_resnet50_N256.log"
                             archiveArtifacts "perf_resnet50_N4.log"
@@ -416,9 +415,9 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_conv_bwd_data.log"
                             archiveArtifacts "perf_gemm_bilinear.log"
                             archiveArtifacts "perf_reduction.log"
-                            archiveArtifacts "perf_splitK_gemm_verify.log"
                             archiveArtifacts "perf_splitK_gemm.log"
                             archiveArtifacts "perf_onnx_gemm.log"
+                            archiveArtifacts "perf_mixed_gemm.log"
                            // stash perf files to master
                             stash name: "perf_gemm.log"
                             stash name: "perf_resnet50_N256.log"
@@ -431,6 +430,7 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_reduction.log"
                             stash name: "perf_splitK_gemm.log"
                             stash name: "perf_onnx_gemm.log"
+                            stash name: "perf_mixed_gemm.log"
                             //we will process results on the master node
                         }
                         else{
@@ -493,9 +493,6 @@ def Build_CK(Map conf=[:]){
 
         def variant = env.STAGE_NAME
         def retimage
-        def navi_node = 0
-        def mi300_node = 0
-
         gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
@@ -508,14 +505,6 @@ def Build_CK(Map conf=[:]){
                         else{
                             echo "GPU is OK"
                         }
-                        if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') ){
-                            navi_node = 1
-                            echo "This is a Navi node"
-                        }
-                        if ( runShell('grep -n "gfx942" rocminfo.log') ){
-                            mi300_node = 1
-                            echo "This is MI300 node"
-                        }
                     }
                 }
             }
@@ -526,15 +515,27 @@ def Build_CK(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
+                    //check whether running on Navi or MI300 node
+                    def navi_node = 0
+                    def mi300_node = 0
+                    sh 'rocminfo | tee rocminfo.log'
+                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') ){
+                        navi_node = 1
+                        echo "This is a Navi node"
+                    }
+                    if ( runShell('grep -n "gfx942" rocminfo.log') ){
+                        mi300_node = 1
+                        echo "This is MI300 node"
+                    }
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
                         sh 'make -j check'
-                        if (navi_node == 0 ){
+                        if (params.RUN_PERFORMANCE_TESTS && navi_node == 0 && mi300_node == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                            //do not stash profiler on Navi nodes
+                            //do not stash profiler on Navi or MI300 nodes
                            sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
-                           stash "ckProfiler.tar.gz"
+                           stash name: "ckProfiler.tar.gz"
                         }
                         if (params.RUN_FULL_QA && mi300_node == 0 ){
                            // build deb packages for all MI100/200/300 targets and prepare to export
@@ -542,7 +543,7 @@ def Build_CK(Map conf=[:]){
                            archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                            archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
                            sh 'mv composablekernel-ckprofiler_*.deb ckprofiler_0.2.0_amd64.deb'
-                           stash "ckprofiler_0.2.0_amd64.deb"
+                           stash name: "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
                     if (params.hipTensor_test && navi_node == 0 ){
@@ -618,6 +619,8 @@ def process_results(Map conf=[:]){
                 dir("script"){
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
+                        unstash "ckprofiler_0.2.0_amd64.deb"
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         unstash "perf_gemm.log"
                         unstash "perf_resnet50_N256.log"
                         unstash "perf_resnet50_N4.log"
@@ -629,9 +632,8 @@ def process_results(Map conf=[:]){
                         unstash "perf_reduction.log"
                         unstash "perf_splitK_gemm.log"
                         unstash "perf_onnx_gemm.log"
+                        unstash "perf_mixed_gemm.log"
                         sh "./process_qa_data.sh"
-                        unstash "ckprofiler_0.2.0_amd64.deb"
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no ckprofiler_0.2.0_amd64.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
@@ -643,9 +645,12 @@ def process_results(Map conf=[:]){
                 }
             }
             catch(e){
-                echo "throwing error exception while processing performance test results"
+                echo "Throwing error exception while processing performance test results"
                 echo 'Exception occurred: ' + e.toString()
                 throw e
+            }
+            finally{
+                echo "Finished processing performance test results"
             }
         }
     }
@@ -716,8 +721,8 @@ pipeline {
             description: "Run the cppcheck static analysis (default: OFF)")
         booleanParam(
             name: "RUN_PERFORMANCE_TESTS",
-            defaultValue: false,
-            description: "Run the performance tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the performance tests (default: ON)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
             defaultValue: true,
