@@ -126,19 +126,18 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     using Argument = typename GridwiseGemm::Argument;
 
-    // template<typename Args>
     struct RotatingMem
     {
         RotatingMem() = delete;
-        RotatingMem(Argument& args_, uint rotating_count_, uint size_a_, uint size_b_, uint size_c_)
-            : args(args_),
+        RotatingMem(Argument& arg_, uint rotating_count_, uint size_a_, uint size_b_, uint size_c_)
+            : arg(arg_),
               rotating_count(rotating_count_),
               size_a(size_a_),
               size_b(size_b_),
               size_c(size_c_),
-              p_a_grid(reinterpret_cast<const char*>(args.p_a_grid)),
-              p_b_grid(reinterpret_cast<const char*>(args.p_b_grid)),
-              p_c_grid(reinterpret_cast<char*>(args.p_c_grid))
+              p_a_grid(reinterpret_cast<const char*>(arg.p_a_grid)),
+              p_b_grid(reinterpret_cast<const char*>(arg.p_b_grid)),
+              p_c_grid(reinterpret_cast<char*>(arg.p_c_grid))
 
         {
         }
@@ -147,19 +146,19 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             if(rotating_count > 1)
             {
-                using ArgADataType = decltype(args.p_a_grid);
-                using ArgBDataType = decltype(args.p_b_grid);
-                using ArgCDataType = decltype(args.p_c_grid);
+                using ArgADataType = decltype(arg.p_a_grid);
+                using ArgBDataType = decltype(arg.p_b_grid);
+                using ArgCDataType = decltype(arg.p_c_grid);
 
-                int idx       = iter++ % rotating_count;
-                args.p_a_grid = reinterpret_cast<ArgADataType>(p_a_grid + idx * size_a);
-                args.p_b_grid = reinterpret_cast<ArgBDataType>(p_b_grid + idx * size_b);
-                args.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grid + idx * size_c);
+                int idx      = iter++ % rotating_count;
+                arg.p_a_grid = reinterpret_cast<ArgADataType>(p_a_grid + idx * size_a);
+                arg.p_b_grid = reinterpret_cast<ArgBDataType>(p_b_grid + idx * size_b);
+                arg.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grid + idx * size_c);
             }
         }
 
         private:
-        Argument& args;
+        Argument& arg;
         uint iter            = 0;
         uint rotating_count  = 1;
         uint size_a          = 0;
