@@ -14,7 +14,7 @@ struct StreamConfig
     int cold_niters_       = 5;
     int nrepeat_           = 50;
 
-    bool flush_icache  = false;
+    bool flush_cache   = false;
     int rotating_count = 1;
     size_t size_a      = 0;
     size_t size_b      = 0;

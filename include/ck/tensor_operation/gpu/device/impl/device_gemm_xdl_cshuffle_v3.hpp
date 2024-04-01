@@ -15,7 +15,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/utility/flush_icache.hpp"
-#include "ck/host_utility/kernel_launch_flush_cache.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -126,6 +126,50 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     using Argument = typename GridwiseGemm::Argument;
 
+    // template<typename Args>
+    struct RotatingMem
+    {
+        RotatingMem() = delete;
+        RotatingMem(Argument& args_, uint rotating_count_, uint size_a_, uint size_b_, uint size_c_)
+            : args(args_),
+              rotating_count(rotating_count_),
+              size_a(size_a_),
+              size_b(size_b_),
+              size_c(size_c_),
+              p_a_grid(reinterpret_cast<const char*>(args.p_a_grid)),
+              p_b_grid(reinterpret_cast<const char*>(args.p_b_grid)),
+              p_c_grid(reinterpret_cast<char*>(args.p_c_grid))
+
+        {
+        }
+
+        void Next()
+        {
+            if(rotating_count > 1)
+            {
+                using ArgADataType = decltype(args.p_a_grid);
+                using ArgBDataType = decltype(args.p_b_grid);
+                using ArgCDataType = decltype(args.p_c_grid);
+
+                int idx       = iter++ % rotating_count;
+                args.p_a_grid = reinterpret_cast<ArgADataType>(p_a_grid + idx * size_a);
+                args.p_b_grid = reinterpret_cast<ArgBDataType>(p_b_grid + idx * size_b);
+                args.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grid + idx * size_c);
+            }
+        }
+
+        private:
+        Argument& args;
+        uint iter            = 0;
+        uint rotating_count  = 1;
+        uint size_a          = 0;
+        uint size_b          = 0;
+        uint size_c          = 0;
+        const char* p_a_grid = nullptr;
+        const char* p_b_grid = nullptr;
+        char* p_c_grid       = nullptr;
+    };
+
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -157,25 +201,44 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                      0,
                                                      arg.M * arg.N * sizeof(CDataType),
                                                      stream_config.stream_id_));
-                auto run_flush_icache = []() {
-                    hipDeviceProp_t deviceProps;
-                    hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
-                    int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-                    int flush_iter = 100000;
+                if(stream_config.flush_cache)
+                {
+                    Argument arg_ = arg;
+                    RotatingMem rotating_mem(arg_,
+                                             stream_config.rotating_count,
+                                             stream_config.size_a,
+                                             stream_config.size_b,
+                                             stream_config.size_c);
+                    auto run_flush_cache = [&rotating_mem]() {
+                        // flush icache
+                        hipDeviceProp_t deviceProps;
+                        hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
+                        int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-                    for(int i = 0; i < flush_iter; i++)
-                        ck::flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
-                    hip_check_error(hipGetLastError());
-                };
+                        int flush_iter = 100000;
 
-                ave_time = launch_and_time_kernel_flush_cache(stream_config,
-                                                              run_flush_icache,
-                                                              kernel,
-                                                              dim3(gdx, gdy, gdz),
-                                                              dim3(BlockSize),
-                                                              0,
-                                                              arg);
+                        for(int i = 0; i < flush_iter; i++)
+                            ck::flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
+                        hip_check_error(hipGetLastError());
+
+                        // rotating mem
+                        rotating_mem.Next();
+                    };
+
+                    ave_time = launch_and_time_kernel_without_preprocess(stream_config,
+                                                                         run_flush_cache,
+                                                                         kernel,
+                                                                         dim3(gdx, gdy, gdz),
+                                                                         dim3(BlockSize),
+                                                                         0,
+                                                                         arg_);
+                }
+                else
+                {
+                    ave_time = launch_and_time_kernel(
+                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                }
             };
 
             constexpr index_t minimum_occupancy =
