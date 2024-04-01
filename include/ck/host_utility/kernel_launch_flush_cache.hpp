@@ -10,13 +10,13 @@
 #include "ck/host_utility/hip_check_error.hpp"
 
 template <typename Args, typename F, typename PreProcessFunc>
-float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
-                                             PreProcessFunc preprocess,
-                                             F kernel,
-                                             dim3 grid_dim,
-                                             dim3 block_dim,
-                                             std::size_t lds_byte,
-                                             Args args)
+float launch_and_time_kernel_flush_cache(const StreamConfig& stream_config,
+                                         PreProcessFunc preprocess,
+                                         F kernel,
+                                         dim3 grid_dim,
+                                         dim3 block_dim,
+                                         std::size_t lds_byte,
+                                         Args args)
 {
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
@@ -78,7 +78,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             // run real kernel
             if(stream_config.rotating_count > 1)
             {
-                int idx       = i % stream_config.rotating_count;
+                int idx       = (stream_config.cold_niters_ + i) % stream_config.rotating_count;
                 args.p_a_grid = reinterpret_cast<ADataType>(p_a_grid + idx * stream_config.size_a);
                 args.p_b_grid = reinterpret_cast<BDataType>(p_b_grid + idx * stream_config.size_b);
                 args.p_c_grid = reinterpret_cast<CDataType>(p_c_grid + idx * stream_config.size_c);

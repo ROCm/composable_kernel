@@ -169,13 +169,13 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                     hip_check_error(hipGetLastError());
                 };
 
-                ave_time = launch_and_time_kernel_with_preprocess(stream_config,
-                                                                  run_flush_icache,
-                                                                  kernel,
-                                                                  dim3(gdx, gdy, gdz),
-                                                                  dim3(BlockSize),
-                                                                  0,
-                                                                  arg);
+                ave_time = launch_and_time_kernel_flush_cache(stream_config,
+                                                              run_flush_icache,
+                                                              kernel,
+                                                              dim3(gdx, gdy, gdz),
+                                                              dim3(BlockSize),
+                                                              0,
+                                                              arg);
             };
 
             constexpr index_t minimum_occupancy =

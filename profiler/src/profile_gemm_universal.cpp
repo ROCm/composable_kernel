@@ -33,7 +33,7 @@ enum struct GemmDataType
 
 int profile_gemm_universal(int argc, char* argv[])
 {
-    if(argc != 15 && argc != 17)
+    if(argc != 15 && argc != 18)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: f16, "
@@ -51,6 +51,7 @@ int profile_gemm_universal(int argc, char* argv[])
         printf("optional:\n");
         printf("arg15: number of warm-up cycles (default 1)\n");
         printf("arg16: number of iterations (default 10)\n");
+        printf("arg17: number of rotating buffer (default 1)\n");
         exit(1);
     }
 
@@ -70,15 +71,15 @@ int profile_gemm_universal(int argc, char* argv[])
     const int StrideC = std::stoi(argv[13]);
     const int KBatch  = std::stoi(argv[14]);
 
-    int n_warmup = 1;
-    int n_iter   = 10;
-    if(argc == 17)
+    int n_warmup       = 1;
+    int n_iter         = 10;
+    int rotating_count = 1;
+    if(argc == 18)
     {
-        n_warmup = std::stoi(argv[15]);
-        n_iter   = std::stoi(argv[16]);
+        n_warmup       = std::stoi(argv[15]);
+        n_iter         = std::stoi(argv[16]);
+        rotating_count = std::stoi(argv[17]);
     }
-    const int rotating_count = 5;
-    std::cout << "rotating_count : " << rotating_count << std::endl;
 
     using F32 = float;
     using F16 = ck::half_t;
