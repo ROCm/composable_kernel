@@ -656,26 +656,16 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         {
             bool valid_as_access = true;
             static_for<0, NumATensor, 1>{}([&](auto i) {
-                // vector memory access of A: could be on M or AK1 dimension
-                if constexpr(ABlockTransferSrcVectorDim == 1)
+                const bool valid_a_vector_size =
+                    arg.as_max_read_elems_[i] % ABlockTransferSrcScalarPerVector == 0;
+                const bool valid_a_access_dim_m =
+                    ABlockTransferSrcVectorDim == 1 && arg.as_mz_consecutive_[i];
+                const bool valid_a_access_dim_k =
+                    ABlockTransferSrcVectorDim == 2 && arg.as_kz_consecutive_[i];
+                const bool valid_a_access_dim = valid_a_access_dim_m || valid_a_access_dim_k;
+                if(!(valid_a_vector_size && valid_a_access_dim))
                 {
-                    if(!(arg.a_mz_stride_[i] == 1 && arg.as_grid_desc_ak0_m_ak1_[i].GetLength(I1) %
-                                                             ABlockTransferSrcScalarPerVector ==
-                                                         0) &&
-                       ABlockTransferSrcScalarPerVector != 1)
-                    {
-                        all_valid = false;
-                    }
-                }
-                else
-                {
-                    if(!(arg.a_kz_stride_[i] == 1 && arg.as_grid_desc_ak0_m_ak1_[i].GetLength(I2) %
-                                                             ABlockTransferSrcScalarPerVector ==
-                                                         0) &&
-                       ABlockTransferSrcScalarPerVector != 1)
-                    {
-                        all_valid = false;
-                    }
+                    valid_as_access = false;
                 }
             });
             if(!valid_as_access)
@@ -694,23 +684,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 const bool valid_b_access_dim = valid_b_access_dim_n || valid_b_access_dim_k;
                 if(!(valid_b_vector_size && valid_b_access_dim))
                 {
-                    if(!(arg.b_nz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I1) %
-                                                             BBlockTransferSrcScalarPerVector ==
-                                                         0) &&
-                       BBlockTransferSrcScalarPerVector != 1)
-                    {
-                        all_valid = false;
-                    }
-                }
-                else
-                {
-                    if(!(arg.b_kz_stride_[i] == 1 && arg.bs_grid_desc_bk0_n_bk1_[i].GetLength(I2) %
-                                                             BBlockTransferSrcScalarPerVector ==
-                                                         0) &&
-                       BBlockTransferSrcScalarPerVector != 1)
-                    {
-                        all_valid = false;
-                    }
+                    valid_bs_access = false;
                 }
             });
             if(!valid_bs_access)
@@ -720,22 +694,16 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
 
             bool valid_ds_access = true;
             static_for<0, NumDTensor, 1>{}([&](auto i) {
-                if(!(arg.ds_nz_stride_[i] == 1 &&
-                     arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_[i].GetLength(I3) %
-                             CDEBlockTransferScalarPerVector_NPerBlock ==
-                         0) &&
-                   CDEBlockTransferScalarPerVector_NPerBlock != 1)
+                const bool valid_d_vector_size =
+                    arg.ds_max_read_elems_[i] % CDEBlockTransferScalarPerVector_NPerBlock == 0;
+                // Vector read of Ds is always on N dimension.
+                const bool valid_d_access_dim = arg.ds_nz_consecutive_[i];
+                if(!(valid_d_vector_size && valid_d_access_dim))
                 {
                     valid_ds_access = false;
                 }
             });
-
-            // vector memory access of E: always on NPerBlock dimension
-            if(!(arg.e_nz_stride_ == 1 &&
-                 arg.e_grid_desc_mblock_mperblock_nblock_nperblock_.GetLength(I3) %
-                         CDEBlockTransferScalarPerVector_NPerBlock ==
-                     0) &&
-               CDEBlockTransferScalarPerVector_NPerBlock != 1)
+            if(!valid_ds_access)
             {
                 return false;
             }

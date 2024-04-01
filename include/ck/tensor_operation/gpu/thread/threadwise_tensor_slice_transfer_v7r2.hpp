@@ -10,40 +10,9 @@
 #include "ck/utility/is_detected.hpp"
 #include "ck/tensor/static_tensor.hpp"
 
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_util.hpp"
+
 namespace ck {
-
-namespace detail {
-// TODO: How to fix this? It uses an struct instead of lambda because lambda
-// doesn't have constructor
-template <index_t SrcVectorDim,
-          index_t SrcScalarPerVector,
-          index_t DstVectorDim,
-          index_t DstScalarPerVector>
-struct lambda_scalar_per_access_for_src_and_dst
-{
-    __host__ __device__ constexpr auto operator()(index_t i) const
-    {
-        if(i == SrcVectorDim && i == DstVectorDim)
-        {
-            return math::lcm(SrcScalarPerVector, DstScalarPerVector);
-        }
-        else if(i == SrcVectorDim)
-        {
-            return SrcScalarPerVector;
-        }
-        else if(i == DstVectorDim)
-        {
-            return DstScalarPerVector;
-        }
-        else
-        {
-            return 1;
-        }
-    }
-};
-
-} // namespace detail
-
 // Thread-level multi-source, multi-destination tensor slice data movement
 // Assume:
 //   1. All sources and destinations are DynamicBuffer

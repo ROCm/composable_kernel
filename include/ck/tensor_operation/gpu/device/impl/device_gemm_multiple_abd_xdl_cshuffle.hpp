@@ -169,78 +169,6 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-#if 0
-    static constexpr auto matrix_padder =
-        MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
-
-    static auto MakeAGridDescriptor_M_K(index_t MRaw, index_t KRaw, index_t StrideAs)
-    {
-        const auto a_grid_desc_mraw_kraw = [&]() {
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, AsLayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(StrideAs, I1));
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, AsLayout>)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, KRaw),
-                                                    make_tuple(I1, StrideAs));
-            }
-        }();
-
-        return matrix_padder.PadADescriptor_M_K(a_grid_desc_mraw_kraw);
-    }
-
-    static auto MakeBGridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideBs)
-    {
-        const auto b_grid_desc_nraw_kraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, BsLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(I1, StrideBs));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BsLayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(NRaw, KRaw),
-                                                    make_tuple(StrideBs, I1));
-            }
-        }();
-
-        return matrix_padder.PadBDescriptor_N_K(b_grid_desc_nraw_kraw);
-    }
-
-    template <typename ELay>
-    static auto MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
-    {
-        const auto e_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, ELay>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(StrideE, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, ELay>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(I1, StrideE));
-            }
-        }();
-
-        return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
-    }
-
-    static auto MakeDsGridDescriptor_M_N(const std::array<index_t, NumDTensor>& MRaws,
-                                         const std::array<index_t, NumDTensor>& NRaws,
-                                         const std::array<index_t, NumDTensor>& DsStride)
-    {
-        return generate_tuple(
-            [&](auto i) {
-                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
-                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(MRaws[i], NRaws[i], DsStride[i]);
-            },
-            Number<NumDTensor>{});
-    }
-#endif
     using ComputeDataType = EDataType;
 
     // GridwiseGemm
@@ -422,15 +350,6 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                     GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
             }
-        }
-
-        void Print() const
-        {
-            // std::cout << "A[M, K]: " << as_grid_desc_m_k_ << std::endl;
-            // std::cout << "B[N, K]: " << bs_grid_desc_n_k_ << std::endl;
-            // static_for<0, NumDTensor, 1>{}(
-            //[&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
-            // std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
         }
 
         //  private:
