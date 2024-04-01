@@ -513,12 +513,8 @@ struct Prologue
     // auto bs_grid_desc_bk0_n_bk1 =
     //  generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
-    std::cout << "NumA: " << NumATensor << " NumB: " << NumBTensor << std::endl;
-    int num = 0;
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
-        std::cout << "Num: " << num << std::endl;
-        num++;
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include",
@@ -576,19 +572,19 @@ struct Prologue
         // decltype(arg.a_grid_desc_ak0_m_ak1_)>;
         std::cout << "launched" << std::endl;
 
-        k.launch(nullptr, 1296 * block_size, block_size)(in_dev.data(),
-                                                         wei_dev.data(),
-                                                         out_dev.data(),
-                                                         in_lengths,
-                                                         in_strides,
-                                                         wei_lengths,
-                                                         wei_strides,
-                                                         out_lengths,
-                                                         out_strides,
-                                                         conv_filter_strides,
-                                                         conv_filter_dilations,
-                                                         input_left_pads,
-                                                         input_right_pads);
+        k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),
+                                                              wei_dev.data(),
+                                                              out_dev.data(),
+                                                              in_lengths,
+                                                              in_strides,
+                                                              wei_lengths,
+                                                              wei_strides,
+                                                              out_lengths,
+                                                              out_strides,
+                                                              conv_filter_strides,
+                                                              conv_filter_dilations,
+                                                              input_left_pads,
+                                                              input_right_pads);
 
         Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
