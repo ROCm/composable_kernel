@@ -334,6 +334,23 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instances(
                                                                 PassThrough>>>& instances);
 #endif
 
+#ifdef CK_ENABLE_BF8
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                BF8,
+                                                                BF8,
+                                                                Empty_Tuple,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                BF8>>>& instances);
+#endif
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
