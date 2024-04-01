@@ -215,6 +215,69 @@ void add_device_gemm_xdl_splitk_f16_f16_f16_comp_f8_mk_nk_mn_instances(
         instances);
 #endif
 
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_kn_mn_v1_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_kn_mn_v1_interwave_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_kn_mn_v2_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v1_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Col, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v1_interwave_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Col, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v2_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Row, Col, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_km_kn_mn_v1_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_km_kn_mn_v1_interwave_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_km_kn_mn_v2_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_km_nk_mn_v1_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Col, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_km_nk_mn_v1_interwave_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Col, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_splitk_bf16_i8_bf16_km_nk_mn_v2_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmSplitK<Col, Col, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+#endif
+
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -396,6 +459,41 @@ struct DeviceOperationInstanceFactory<
         }
 
 #endif
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_I8))
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<CDataType, bhalf_t> && is_same_v<ComputeType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_kn_mn_v1_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_kn_mn_v1_interwave_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_kn_mn_v2_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v1_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v1_interwave_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_mk_nk_mn_v2_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_km_kn_mn_v1_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_km_kn_mn_v1_interwave_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_km_kn_mn_v2_instances(op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
+                              is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_km_nk_mn_v1_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_km_nk_mn_v1_interwave_instances(op_ptrs);
+                add_device_gemm_xdl_splitk_bf16_i8_bf16_km_nk_mn_v2_instances(op_ptrs);
+            }
+        }
+#endif
+
         return op_ptrs;
     }
 };
