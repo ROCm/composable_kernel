@@ -9,18 +9,13 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_permute_scale_3d_f16_instances(
-    std::vector<std::unique_ptr<
-        DeviceElementwise<ck::Tuple<F16>, ck::Tuple<F16>, Pass, UnaryOp, Scale, 3>>>& instances)
-{
-    add_device_operation_instances(instances, device_permute_scale_f16_instances<3>{});
-}
+using Scale = element_wise::Scale;
 
 void add_device_permute_scale_3d_f32_instances(
-    std::vector<std::unique_ptr<
-        DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, Pass, UnaryOp, Scale, 3>>>& instances)
+    std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, Scale, 3>>>&
+        instances)
 {
-    add_device_operation_instances(instances, device_permute_scale_f32_instances<3>{});
+    add_device_operation_instances(instances, device_permute_scale_f32_instances<3, Scale>{});
 }
 
 } // namespace instance
