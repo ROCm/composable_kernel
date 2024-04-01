@@ -346,7 +346,7 @@ struct Prologue
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
 
-    using DeviceConv =
+    /**using DeviceConv =
         ck::tensor_operation::device::CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
             2,
             ck::tensor_layout::convolution::GNHWC,
@@ -392,7 +392,7 @@ struct Prologue
             1,
             1,
             ck::Sequence<1, 32, 1, 8>,
-            8>;
+            8>;**/
 
     // length+stride arrays
     ck::Array<ck::index_t, 5> in_lengths{static_cast<int>(prob.G),
@@ -482,7 +482,7 @@ struct Prologue
     std::cout << wei.size() << std::endl;
 
     // populated arg call
-    auto arg = DeviceConv::Argument(in_dev.data(),
+    /**auto arg = DeviceConv::Argument(in_dev.data(),
                                     wei_dev.data(),
                                     ck::Array<const void*, 0>{},
                                     out_dev.data(),
@@ -500,7 +500,7 @@ struct Prologue
                                     input_right_pads,
                                     ck::tensor_operation::element_wise::PassThrough{},
                                     ck::tensor_operation::element_wise::PassThrough{},
-                                    Prologue{1.0f, 1.0f});
+                                    Prologue{1.0f, 1.0f});**/
 
     constexpr ck::index_t NumATensor =
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
@@ -508,10 +508,10 @@ struct Prologue
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
     // Amber: removed const because compiler makes it an r-value
-    auto as_grid_desc_ak0_m_ak1 =
-        generate_tuple([&](auto) { return arg.a_grid_desc_ak0_m_ak1_; }, ck::Number<NumATensor>{});
-    auto bs_grid_desc_bk0_n_bk1 =
-        generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
+    // auto as_grid_desc_ak0_m_ak1 =
+    //  generate_tuple([&](auto) { return arg.a_grid_desc_ak0_m_ak1_; }, ck::Number<NumATensor>{});
+    // auto bs_grid_desc_bk0_n_bk1 =
+    //  generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
     std::cout << "NumA: " << NumATensor << " NumB: " << NumBTensor << std::endl;
     int num = 0;
@@ -534,9 +534,38 @@ struct Prologue
         options.kernel_name = "kernel_group_conv_fwd";
         auto k              = rtc::compile_kernel(srcs, options);
 
-        auto grid_size =
-            arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
-        auto block_size = 256; // TODO(Amber): pick from DeviceConv template params
+        auto m_per_block = solution.GetTemplateParameter<std::size_t>("MPerBlock");
+        auto n_per_block = solution.GetTemplateParameter<std::size_t>("NPerBlock");
+        auto num_dim     = solution.GetTemplateParameter<std::size_t>("NumDim");
+        auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+
+        // E grid desc + block 2 etile
+        const ck::index_t N = out_lengths[1];
+        const ck::index_t K = out_lengths[2];
+
+        const auto KStride         = I1;
+        const ck::index_t WoStride = out_strides[num_dim + 2];
+
+        const ck::index_t NHoWo = N * ck::accumulate_n<ck::index_t>(
+                                          out_lengths.begin() + 3, num_dim, 1, std::multiplies<>());
+
+        const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor(
+            ck::make_tuple(NHoWo, K), ck::make_tuple(WoStride, KStride));
+        // hard-code PadM/N = true for now: MNK Padding
+        auto out = ck::tensor_operation::device::PadTensorDescriptor(
+            out_gemmm_gemmn_desc,
+            ck::make_tuple(m_per_block, n_per_block),
+            ck::Sequence<true, true>{});
+
+        // Grid size calculation
+        const ck::index_t M0 = ck::math::integer_divide_ceil(out.GetLength(I0), m_per_block);
+        const ck::index_t N0 = ck::math::integer_divide_ceil(out.GetLength(I1), n_per_block);
+
+        auto grid_size = M0 * N0 * in_lengths[1];
+        // std::cout << "grid pt1: " <<
+        // arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) << std::endl; std::cout <<
+        // "num_group: " << arg.num_group_ << std::endl; auto block_size = 256; // TODO(Amber): pick
+        // from DeviceConv template params
 
         ofh << "Grid Size: " << grid_size << std::endl;
         ofh << "Block Size: " << block_size << std::endl;
@@ -547,19 +576,19 @@ struct Prologue
         // decltype(arg.a_grid_desc_ak0_m_ak1_)>;
         std::cout << "launched" << std::endl;
 
-        k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),
-                                                              wei_dev.data(),
-                                                              out_dev.data(),
-                                                              in_lengths,
-                                                              in_strides,
-                                                              wei_lengths,
-                                                              wei_strides,
-                                                              out_lengths,
-                                                              out_strides,
-                                                              conv_filter_strides,
-                                                              conv_filter_dilations,
-                                                              input_left_pads,
-                                                              input_right_pads);
+        k.launch(nullptr, 1296 * block_size, block_size)(in_dev.data(),
+                                                         wei_dev.data(),
+                                                         out_dev.data(),
+                                                         in_lengths,
+                                                         in_strides,
+                                                         wei_lengths,
+                                                         wei_strides,
+                                                         out_lengths,
+                                                         out_strides,
+                                                         conv_filter_strides,
+                                                         conv_filter_dilations,
+                                                         input_left_pads,
+                                                         input_right_pads);
 
         Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
