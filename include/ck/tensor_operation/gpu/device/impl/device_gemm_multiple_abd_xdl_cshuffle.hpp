@@ -497,7 +497,10 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                 }
                 else
                 {
-                    all_valid = false;
+                    if(ABlockTransferSrcScalarPerVector != 1)
+                    {
+                        all_valid = false;
+                    }
                 }
             });
 
@@ -521,7 +524,10 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                 }
                 else
                 {
-                    all_valid = false;
+                    if(BBlockTransferSrcScalarPerVector != 1)
+                    {
+                        all_valid = false;
+                    }
                 }
             });
 
