@@ -316,8 +316,8 @@ struct BlockFmhaPipelineQSKSVS
             // STAGE 2, scale, add bias, mask, softmax
             if constexpr(kHasBias)
             {
-                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
                 tile_elementwise_inout(s_acc_element_func, s_acc);
+                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
@@ -332,9 +332,9 @@ struct BlockFmhaPipelineQSKSVS
             }
             else
             {
+                tile_elementwise_inout(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
-                tile_elementwise_inout(s_acc_element_func, s_acc);
 #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
