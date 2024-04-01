@@ -9,6 +9,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <functional>
 
 #include "ck_tile/core/container/span.hpp"
 
