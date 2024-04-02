@@ -34,7 +34,6 @@ set(PROFILER_SOURCES
     profile_conv_tensor_rearrange.cpp
     profile_transpose.cpp
     profile_permute_scale.cpp
-    profile_gemm_universal.cpp
 )
 
 # if(DL_KERNELS)
