@@ -14,6 +14,8 @@
 
 #include "ck/library/tensor_operation_instance/gpu/permute_scale.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_elementwise.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -21,14 +23,6 @@
 #include "ck/library/utility/literals.hpp"
 
 namespace ck {
-template <typename HostTensorA, typename HostTensorB, typename ElementOp>
-void reference_permute_scale(HostTensorB& b_tensor,
-                             const HostTensorA& a_tensor,
-                             ElementOp tensor_op)
-{
-    b_tensor.ForEach([&](auto& self, auto idx) { tensor_op(self(idx), a_tensor(idx)); });
-}
-
 namespace profiler {
 
 template <typename ADataType, typename BDataType, index_t NumDim>
@@ -46,7 +40,8 @@ bool profile_permute_scale_impl(int do_verification,
     using ElementOp = ck::tensor_operation::element_wise::Scale;
     float scale     = 2.f;
 
-    Tensor<ADataType> a(lengths_vector, input_strides_vector);
+    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(lengths_vector, input_strides_vector)};
+    Tensor<ADataType>& a                = as[0];
     Tensor<BDataType> b(lengths_vector, output_strides_vector);
     Tensor<BDataType> host_b(lengths_vector, output_strides_vector);
 
@@ -83,7 +78,14 @@ bool profile_permute_scale_impl(int do_verification,
 
     if(do_verification)
     {
-        reference_permute_scale(host_b, a, ElementOp{scale});
+        using ReferenceElementwiseInstance =
+            ck::tensor_operation::host::ReferenceElementwise<1, ADataType, BDataType, ElementOp>;
+        auto ref_elementwise = ReferenceElementwiseInstance{};
+        auto ref_invoker     = ref_elementwise.MakeInvoker();
+
+        auto ref_argument = ref_elementwise.MakeArgument(as, host_b, ElementOp{scale});
+
+        ref_invoker.Run(ref_argument);
     }
 
     auto copy = [](const auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };

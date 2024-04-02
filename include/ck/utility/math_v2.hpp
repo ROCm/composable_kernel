@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,10 @@
 
 namespace ck {
 namespace math {
+
+#if CK_WORKAROUND_SWDEV_383542
+extern "C" __device__ float __ocml_native_recip_f32(float);
+#endif
 
 // math functions for the host,  some are implemented by calling C++ std functions
 
@@ -109,6 +113,276 @@ template <>
 inline __host__ double tanh<double>(double x)
 {
     return std::tanh(x);
+};
+
+template <typename T>
+inline __host__ T acos(T x)
+{
+    return ck::type_convert<T>(std::acosf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float acos<float>(float x)
+{
+    return std::acosf(x);
+};
+
+template <>
+inline __host__ double acos<double>(double x)
+{
+    return std::acos(x);
+};
+
+template <typename T>
+inline __host__ T neg(T x)
+{
+    return ck::type_convert<T>(-(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float neg<float>(float x)
+{
+    return -x;
+};
+
+template <>
+inline __host__ double neg<double>(double x)
+{
+    return -x;
+};
+
+template <>
+inline __host__ int32_t neg<int32_t>(int32_t x)
+{
+    return -x;
+};
+
+template <>
+inline __host__ int8_t neg<int8_t>(int8_t x)
+{
+    return -x;
+};
+
+template <typename T>
+inline __host__ T atan(T x)
+{
+    return ck::type_convert<T>(std::atanf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float atan<float>(float x)
+{
+    return std::atanf(x);
+};
+
+template <>
+inline __host__ double atan<double>(double x)
+{
+    return std::atan(x);
+};
+
+template <typename T>
+inline __host__ T sin(T x)
+{
+    return ck::type_convert<T>(std::sinf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float sin<float>(float x)
+{
+    return std::sinf(x);
+};
+
+template <>
+inline __host__ double sin<double>(double x)
+{
+    return std::sin(x);
+};
+
+template <typename T>
+inline __host__ T asin(T x)
+{
+    return ck::type_convert<T>(std::asinf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float asin<float>(float x)
+{
+    return std::asinf(x);
+};
+
+template <>
+inline __host__ double asin<double>(double x)
+{
+    return std::asin(x);
+};
+
+template <typename T>
+inline __host__ T asinh(T x)
+{
+    return ck::type_convert<T>(std::asinhf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float asinh<float>(float x)
+{
+    return std::asinhf(x);
+};
+
+template <>
+inline __host__ double asinh<double>(double x)
+{
+    return std::asinh(x);
+};
+
+template <typename T>
+inline __host__ T cos(T x)
+{
+    return ck::type_convert<T>(std::cosf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float cos<float>(float x)
+{
+    return std::cosf(x);
+};
+
+template <>
+inline __host__ double cos<double>(double x)
+{
+    return std::cos(x);
+};
+
+template <typename T>
+inline __host__ T acosh(T x)
+{
+    return ck::type_convert<T>(std::acoshf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float acosh<float>(float x)
+{
+    return std::acoshf(x);
+};
+
+template <>
+inline __host__ double acosh<double>(double x)
+{
+    return std::acosh(x);
+};
+
+template <typename T>
+inline __host__ T tan(T x)
+{
+    return ck::type_convert<T>(std::tanf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float tan<float>(float x)
+{
+    return std::tanf(x);
+};
+
+template <>
+inline __host__ double tan<double>(double x)
+{
+    return std::tan(x);
+};
+
+template <typename T>
+inline __host__ T atanh(T x)
+{
+    return ck::type_convert<T>(std::atanhf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float atanh<float>(float x)
+{
+    return std::atanhf(x);
+};
+
+template <>
+inline __host__ double atanh<double>(double x)
+{
+    return std::atanh(x);
+};
+
+template <typename T>
+inline __host__ T sinh(T x)
+{
+    return ck::type_convert<T>(std::sinhf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float sinh<float>(float x)
+{
+    return std::sinhf(x);
+};
+
+template <>
+inline __host__ double sinh<double>(double x)
+{
+    return std::sinh(x);
+};
+
+template <typename T>
+inline __host__ T ceil(T x)
+{
+    return ck::type_convert<T>(std::ceilf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float ceil<float>(float x)
+{
+    return std::ceilf(x);
+};
+
+template <>
+inline __host__ double ceil<double>(double x)
+{
+    return std::ceil(x);
+};
+
+template <typename T>
+inline __host__ T cosh(T x)
+{
+    return ck::type_convert<T>(std::coshf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float cosh<float>(float x)
+{
+    return std::coshf(x);
+};
+
+template <>
+inline __host__ double cosh<double>(double x)
+{
+    return std::cosh(x);
+};
+
+template <typename T>
+inline __host__ T floor(T x)
+{
+    return ck::type_convert<T>(std::floorf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __host__ float floor<float>(float x)
+{
+    return std::floorf(x);
+};
+
+template <>
+inline __host__ double floor<double>(double x)
+{
+    return std::floor(x);
+};
+
+template <typename T>
+inline __host__ T rcp(T x)
+{
+    return ck::type_convert<T>(1.f / ck::type_convert<float>(x));
 };
 
 template <typename T>
@@ -280,6 +554,286 @@ template <>
 inline __device__ double tanh<double>(double x)
 {
     return ::tanh(x);
+};
+
+template <typename T>
+inline __device__ T acos(T x)
+{
+    return ck::type_convert<T>(::acosf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float acos<float>(float x)
+{
+    return ::acosf(x);
+};
+
+template <>
+inline __device__ double acos<double>(double x)
+{
+    return ::acos(x);
+};
+
+template <typename T>
+inline __device__ T neg(T x)
+{
+    return ck::type_convert<T>(-(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float neg<float>(float x)
+{
+    return -x;
+};
+
+template <>
+inline __device__ double neg<double>(double x)
+{
+    return -x;
+};
+
+template <>
+inline __device__ int32_t neg<int32_t>(int32_t x)
+{
+    return -x;
+};
+
+template <>
+inline __device__ int8_t neg<int8_t>(int8_t x)
+{
+    return -x;
+};
+
+template <>
+inline __device__ half_t neg<half_t>(half_t x)
+{
+    return __hneg(x);
+};
+
+template <typename T>
+inline __device__ T atan(T x)
+{
+    return ck::type_convert<T>(::atanf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float atan<float>(float x)
+{
+    return ::atanf(x);
+};
+
+template <>
+inline __device__ double atan<double>(double x)
+{
+    return ::atan(x);
+};
+
+template <typename T>
+inline __device__ T sin(T x)
+{
+    return ck::type_convert<T>(::sinf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float sin<float>(float x)
+{
+    return ::sinf(x);
+};
+
+template <>
+inline __device__ double sin<double>(double x)
+{
+    return ::sin(x);
+};
+
+template <>
+inline __device__ half_t sin<half_t>(half_t x)
+{
+    return ::hsin(x);
+};
+
+template <typename T>
+inline __device__ T asin(T x)
+{
+    return ck::type_convert<T>(::asinf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float asin<float>(float x)
+{
+    return ::asinf(x);
+};
+
+template <>
+inline __device__ double asin<double>(double x)
+{
+    return ::asin(x);
+};
+
+template <typename T>
+inline __device__ T asinh(T x)
+{
+    return ck::type_convert<T>(::asinhf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float asinh<float>(float x)
+{
+    return ::asinhf(x);
+};
+
+template <>
+inline __device__ double asinh<double>(double x)
+{
+    return ::asinh(x);
+};
+
+template <typename T>
+inline __device__ T acosh(T x)
+{
+    return ck::type_convert<T>(::acoshf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float acosh<float>(float x)
+{
+    return ::acoshf(x);
+};
+
+template <>
+inline __device__ double acosh<double>(double x)
+{
+    return ::acosh(x);
+};
+
+template <typename T>
+inline __device__ T tan(T x)
+{
+    return ck::type_convert<T>(::tanf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float tan<float>(float x)
+{
+    return ::tanf(x);
+};
+
+template <>
+inline __device__ double tan<double>(double x)
+{
+    return ::tan(x);
+};
+
+template <typename T>
+inline __device__ T atanh(T x)
+{
+    return ck::type_convert<T>(::atanhf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float atanh<float>(float x)
+{
+    return ::atanhf(x);
+};
+
+template <>
+inline __device__ double atanh<double>(double x)
+{
+    return ::atanh(x);
+};
+
+template <typename T>
+inline __device__ T sinh(T x)
+{
+    return ck::type_convert<T>(::sinhf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float sinh<float>(float x)
+{
+    return ::sinhf(x);
+};
+
+template <>
+inline __device__ double sinh<double>(double x)
+{
+    return ::sinh(x);
+};
+
+template <typename T>
+inline __device__ T ceil(T x)
+{
+    return ck::type_convert<T>(::ceilf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float ceil<float>(float x)
+{
+    return ::ceilf(x);
+};
+
+template <>
+inline __device__ double ceil<double>(double x)
+{
+    return ::ceil(x);
+};
+
+template <>
+inline __device__ half_t ceil<half_t>(half_t x)
+{
+    return ::hceil(x);
+};
+
+template <typename T>
+inline __device__ T cosh(T x)
+{
+    return ck::type_convert<T>(::coshf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float cosh<float>(float x)
+{
+    return ::coshf(x);
+};
+
+template <>
+inline __device__ double cosh<double>(double x)
+{
+    return ::cosh(x);
+};
+
+template <typename T>
+inline __device__ T floor(T x)
+{
+    return ck::type_convert<T>(::floorf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float floor<float>(float x)
+{
+    return ::floorf(x);
+};
+
+template <>
+inline __device__ double floor<double>(double x)
+{
+    return ::floor(x);
+};
+
+template <>
+inline __device__ half_t floor<half_t>(half_t x)
+{
+    return ::hfloor(x);
+};
+
+template <typename T>
+inline __device__ T rcp(T x)
+{
+#if !CK_WORKAROUND_SWDEV_383542
+    return __frcp_rn(x);
+#else
+    return __ocml_native_recip_f32(x);
+#endif
 };
 
 template <typename T>
