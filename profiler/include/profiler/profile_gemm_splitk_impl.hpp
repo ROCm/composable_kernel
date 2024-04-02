@@ -75,8 +75,8 @@ bool profile_gemm_splitk_impl(int do_verification,
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-1, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-1, 2});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -145,7 +145,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 30};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
 
         if(KBatch > 0)
         {
@@ -173,21 +173,11 @@ bool profile_gemm_splitk_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            DeviceMem gemm_workspace_dev(op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
-            op_ptr->SetWorkSpaceSize(argument_ptr.get(),
-                                     op_ptr->GetWorkSpaceSize(argument_ptr.get()));
-
-            op_ptr->SetWorkSpacePointer(
-                argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer(), StreamConfig{});
-
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
-                std::string op_name = op_ptr->GetTypeString();
-
-                std::cout << op_name << std::endl;
 
                 invoker_ptr->Run(argument_ptr.get(),
                                  StreamConfig{nullptr, false, 0, n_warmup, n_iter});
@@ -210,6 +200,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                             << std::endl;
                     }
                 }
+
+                std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(
                     argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});

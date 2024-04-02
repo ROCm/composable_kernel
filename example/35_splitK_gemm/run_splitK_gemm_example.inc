@@ -2,15 +2,15 @@
 
 struct ProblemSize final
 {
-    ck::index_t M = 256;
-    ck::index_t N = 1024;
-    ck::index_t K = 512;
+    ck::index_t M = 3840;
+    ck::index_t N = 4096;
+    ck::index_t K = 4096;
 
     ck::index_t stride_A = K;
     ck::index_t stride_B = K;
     ck::index_t stride_C = N;
 
-    ck::index_t k_batch = 2;
+    ck::index_t k_batch = 4;
 };
 
 struct ExecutionConfig final
@@ -58,11 +58,11 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     {
     case 0: break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{0, 5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1.0, 1.0});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
         break;
     default:
@@ -92,10 +92,8 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     // do GEMM
     auto gemm     = DeviceGemmInstance{};
-
     auto invoker  = gemm.MakeInvoker();
     auto argument = gemm.MakeArgument(
-
 #ifdef BUILD_INT4_EXAMPLE
         static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
@@ -114,11 +112,6 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
         b_element_op,
         c_element_op,
         KBatch);
-
-    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
-    gemm.SetWorkSpaceSize(&argument, gemm.GetWorkSpaceSize(&argument));
-    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer(), StreamConfig{});
-
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -151,10 +144,10 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
         ref_invoker.Run(ref_argument);
 
-        if(std::is_same<CDataType, ck::half_t>::value || std::is_same<CDataType, ck::bhalf_t>::value)
+        if(std::is_same<CDataType, ck::half_t>::value)
         {
             pass &= ck::utils::check_err(
-                c_m_n_device_result, c_m_n_host_result, "fp16 incorrect result", 3e-2, 1e-2);
+                c_m_n_device_result, c_m_n_host_result, "fp16 incorrect result", 3e-3, 1e-3);
         }
         else
         {
