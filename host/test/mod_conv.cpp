@@ -322,7 +322,7 @@ TEST_CASE(test_problem_kernel)
     std::string prologue = R"(
 struct Prologue
 {
-    Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+    __host_- __device__ Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
     template <typename E, typename D>
     __host__ __device__ constexpr void operator()(E& e, const D& d) const;
@@ -345,54 +345,6 @@ struct Prologue
     static constexpr auto I1 = ck::Number<1>{};
     static constexpr auto I2 = ck::Number<2>{};
     static constexpr auto I3 = ck::Number<3>{};
-
-    /**using DeviceConv =
-        ck::tensor_operation::device::CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-            2,
-            ck::tensor_layout::convolution::GNHWC,
-            ck::tensor_layout::convolution::GKYXC,
-            ck::Tuple<>,
-            ck::tensor_layout::convolution::GNHWK,
-            ck::half_t,
-            ck::half_t,
-            float,
-            ck::half_t,
-            ck::Tuple<>,
-            ck::half_t,
-            ck::tensor_operation::element_wise::PassThrough,
-            ck::tensor_operation::element_wise::PassThrough,
-            Prologue,
-            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
-            ck::tensor_operation::device::GemmSpecialization::MNKPadding,
-            1,
-            256,
-            128,
-            256,
-            32,
-            8,
-            8,
-            32,
-            32,
-            4,
-            2,
-            ck::Sequence<4, 64, 1>,
-            ck::Sequence<1, 0, 2>,
-            ck::Sequence<1, 0, 2>,
-            2,
-            8,
-            8,
-            1,
-            ck::Sequence<4, 64, 1>,
-            ck::Sequence<1, 0, 2>,
-            ck::Sequence<1, 0, 2>,
-            2,
-            8,
-            8,
-            1,
-            1,
-            1,
-            ck::Sequence<1, 32, 1, 8>,
-            8>;**/
 
     // length+stride arrays
     ck::Array<ck::index_t, 5> in_lengths{static_cast<int>(prob.G),
@@ -461,16 +413,6 @@ struct Prologue
     auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
     auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));
 
-    // std::ofstream data("data.txt");
-    /** for(int i = 0; i < out_dev.size(); i++)
-               {
-                           auto tmp = out_dev[i];
-                                       data << std::to_string(static_cast<int>(tmp));
-               }**/
-    // data << "wei: " << wei_dev << std::endl;
-    // data << "out: " << out_dev << std::endl;
-    // data.close();
-
     auto out = generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2);
     auto in  = generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0);
     auto wei = generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1);
@@ -481,31 +423,10 @@ struct Prologue
     std::cout << in.size() << std::endl;
     std::cout << wei.size() << std::endl;
 
-    // populated arg call
-    /**auto arg = DeviceConv::Argument(in_dev.data(),
-                                    wei_dev.data(),
-                                    ck::Array<const void*, 0>{},
-                                    out_dev.data(),
-                                    in_lengths,
-                                    in_strides,
-                                    wei_lengths,
-                                    wei_strides,
-                                    ck::Array<ck::Array<ck::index_t, 5>, 0>{},
-                                    ck::Array<ck::Array<ck::index_t, 5>, 0>{},
-                                    out_lengths,
-                                    out_strides,
-                                    conv_filter_strides,
-                                    conv_filter_dilations,
-                                    input_left_pads,
-                                    input_right_pads,
-                                    ck::tensor_operation::element_wise::PassThrough{},
-                                    ck::tensor_operation::element_wise::PassThrough{},
-                                    Prologue{1.0f, 1.0f});**/
-
-    constexpr ck::index_t NumATensor =
-        ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
-    constexpr ck::index_t NumBTensor =
-        ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    // constexpr ck::index_t NumATensor =
+    //    ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+    // constexpr ck::index_t NumBTensor =
+    //    ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
     // Amber: removed const because compiler makes it an r-value
     // auto as_grid_desc_ak0_m_ak1 =
@@ -558,18 +479,12 @@ struct Prologue
         const ck::index_t N0 = ck::math::integer_divide_ceil(out.GetLength(I1), n_per_block);
 
         auto grid_size = M0 * N0 * in_lengths[1];
-        // std::cout << "grid pt1: " <<
-        // arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) << std::endl; std::cout <<
-        // "num_group: " << arg.num_group_ << std::endl; auto block_size = 256; // TODO(Amber): pick
-        // from DeviceConv template params
 
-        ofh << "Grid Size: " << grid_size << std::endl;
-        ofh << "Block Size: " << block_size << std::endl;
+        // ofh << "Grid Size: " << grid_size << std::endl;
+        // ofh << "Block Size: " << block_size << std::endl;
         ofh.close();
         // print arg kernels - host_side
         // arg.Print();
-        // std::cout << "A Match: " << ck::is_same_v<decltype(a_grid_desc_ak0_m_ak1_c),
-        // decltype(arg.a_grid_desc_ak0_m_ak1_)>;
         std::cout << "launched" << std::endl;
 
         k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),

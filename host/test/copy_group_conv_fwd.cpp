@@ -221,54 +221,6 @@ struct Epilogue
 
     using CDEElementOp = Epilogue;
 
-    using DeviceConv =
-        ck::tensor_operation::device::CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-            2,
-            ck::tensor_layout::convolution::GNHWC,
-            ck::tensor_layout::convolution::GKYXC,
-            ck::Tuple<>,
-            ck::tensor_layout::convolution::GNHWK,
-            ck::half_t,
-            ck::half_t,
-            float,
-            ck::half_t,
-            ck::Tuple<>,
-            ck::half_t,
-            ck::tensor_operation::element_wise::PassThrough,
-            ck::tensor_operation::element_wise::PassThrough,
-            CDEElementOp, // FIXME: replace with prologue
-            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
-            ck::tensor_operation::device::GemmSpecialization::MNKPadding,
-            1,
-            256,
-            128,
-            256,
-            32,
-            8,
-            8,
-            32,
-            32,
-            4,
-            2,
-            ck::Sequence<4, 64, 1>,
-            ck::Sequence<1, 0, 2>,
-            ck::Sequence<1, 0, 2>,
-            2,
-            8,
-            8,
-            1,
-            ck::Sequence<4, 64, 1>,
-            ck::Sequence<1, 0, 2>,
-            ck::Sequence<1, 0, 2>,
-            2,
-            8,
-            8,
-            1,
-            1,
-            1,
-            ck::Sequence<1, 32, 1, 8>,
-            8>;
-
     // length+stride arrays
     ck::Array<ck::index_t, 5> in_lengths{static_cast<int>(prob.G),
                                          static_cast<int>(prob.N),
@@ -322,35 +274,15 @@ struct Epilogue
     auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
     auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));
 
-    // populated arg call
-    auto arg = DeviceConv::Argument(in_dev.data(),
-                                    wei_dev.data(),
-                                    ck::Array<const void*, 0>{},
-                                    out_dev.data(),
-                                    in_lengths,
-                                    in_strides,
-                                    wei_lengths,
-                                    wei_strides,
-                                    ck::Array<ck::Array<ck::index_t, 5>, 0>{},
-                                    ck::Array<ck::Array<ck::index_t, 5>, 0>{},
-                                    out_lengths,
-                                    out_strides,
-                                    conv_filter_strides,
-                                    conv_filter_dilations,
-                                    input_left_pads,
-                                    input_right_pads,
-                                    ck::tensor_operation::element_wise::PassThrough{},
-                                    ck::tensor_operation::element_wise::PassThrough{},
-                                    CDEElementOp{1.0f, 1.0f});
-
-    constexpr ck::index_t NumATensor =
+    /**constexpr ck::index_t NumATensor =
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
     constexpr ck::index_t NumBTensor =
         ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
     auto as_grid_desc_ak0_m_ak1 =
         generate_tuple([&](auto) { return arg.a_grid_desc_ak0_m_ak1_; }, ck::Number<NumATensor>{});
     auto bs_grid_desc_bk0_n_bk1 =
-        generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
+        generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; },
+    ck::Number<NumBTensor>{});**/
 
     std::cout << "entering loop" << std::endl;
 
@@ -375,21 +307,39 @@ struct Epilogue
         auto name           = solution.GetTemplateParameter<std::string>("name");
         options.kernel_name = "run_" + name;
         auto k              = rtc::compile_kernel(srcs, options);
-        auto grid_size =
-            arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
-        auto block_size = 256;
-        // auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+
+        auto block_size  = solution.GetTemplateParameter<ck::index_t>("BlockSize");
         auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
         auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
-        auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
-        auto cde_op      = solution.GetTemplateParameter<std::string>("CDEElementwiseOperation");
-        std::cout << cde_op << std::endl;
+        auto num_dim     = solution.GetTemplateParameter<ck::index_t>("NumDim");
         // auto a_layout       =
         // solution.GetTemplateParameter<ck::tensor_layout::convolution::NHWGC>("ALayout");
 
         // decltype(arg)::foo = 1;
         // decltype(arg.a_grid_desc_ak0_m_ak1_)::foo = 1;
         // DeviceConv::AGridDesc_AK0_M_AK1::foo = 1;
+        // E grid desc + block 2 etile
+        const ck::index_t N = out_lengths[1];
+        const ck::index_t K = out_lengths[2];
+
+        const auto KStride         = I1;
+        const ck::index_t WoStride = out_strides[num_dim + 2];
+
+        const ck::index_t NHoWo = N * ck::accumulate_n<ck::index_t>(
+                                          out_lengths.begin() + 3, num_dim, 1, std::multiplies<>());
+        const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor(
+            ck::make_tuple(NHoWo, K), ck::make_tuple(WoStride, KStride));
+        // hard-code PadM/N = true for now: MNK Padding
+        auto out = ck::tensor_operation::device::PadTensorDescriptor(
+            out_gemmm_gemmn_desc,
+            ck::make_tuple(m_per_block, n_per_block),
+            ck::Sequence<true, true>{});
+        // Grid size calculation
+        const ck::index_t M0 = ck::math::integer_divide_ceil(out.GetLength(I0), m_per_block);
+        const ck::index_t N0 = ck::math::integer_divide_ceil(out.GetLength(I1), n_per_block);
+
+        auto grid_size = M0 * N0 * in_lengths[1];
+
         k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),
                                                               wei_dev.data(),
                                                               out_dev.data(),
