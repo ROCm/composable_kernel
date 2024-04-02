@@ -154,13 +154,12 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    size_t size_a = sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize();
-    size_t size_b = sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize();
-    size_t size_c = sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize();
-
-    DeviceRotatingMem a_device_buf(size_a, rotating_count);
-    DeviceRotatingMem b_device_buf(size_b, rotating_count);
-    DeviceRotatingMem c_device_buf(size_c, rotating_count);
+    DeviceRotatingMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize(),
+                                   rotating_count);
+    DeviceRotatingMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize(),
+                                   rotating_count);
+    DeviceRotatingMem c_device_buf(
+        sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize(), rotating_count);
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
@@ -275,10 +274,7 @@ bool profile_gemm_universal_impl(int do_verification,
                                                                n_warmup,
                                                                n_iter,
                                                                rotating_count > 1,
-                                                               rotating_count,
-                                                               size_a,
-                                                               size_b,
-                                                               size_c});
+                                                               rotating_count});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
 

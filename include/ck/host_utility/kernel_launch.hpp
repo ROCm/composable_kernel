@@ -223,14 +223,12 @@ float launch_and_time_kernel_without_preprocess(const StreamConfig& stream_confi
     }
     else
     {
-        preprocess();
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
         hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
-    preprocess();
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
     hip_check_error(hipGetLastError());
 

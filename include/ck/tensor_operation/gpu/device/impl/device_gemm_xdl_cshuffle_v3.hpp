@@ -126,10 +126,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     using Argument = typename GridwiseGemm::Argument;
 
-    struct RotatingMem
+    struct RotatingMemWrapper
     {
-        RotatingMem() = delete;
-        RotatingMem(Argument& arg_, uint rotating_count_, uint size_a_, uint size_b_, uint size_c_)
+        RotatingMemWrapper() = delete;
+        RotatingMemWrapper(Argument& arg_,
+                           std::size_t rotating_count_,
+                           std::size_t size_a_,
+                           std::size_t size_b_,
+                           std::size_t size_c_)
             : arg(arg_),
               rotating_count(rotating_count_),
               size_a(size_a_),
@@ -156,17 +160,36 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 arg.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grid + idx * size_c);
             }
         }
+        void Print()
+        {
+            std::cout << "RotatingMemWrapper{" << size_a << "," << size_b << "," << size_c << "}"
+                      << std::endl;
+        }
+        ~RotatingMemWrapper()
+        {
+            // restore ptr
+            if(rotating_count > 1)
+            {
+                using ArgADataType = decltype(arg.p_a_grid);
+                using ArgBDataType = decltype(arg.p_b_grid);
+                using ArgCDataType = decltype(arg.p_c_grid);
+
+                arg.p_a_grid = reinterpret_cast<ArgADataType>(p_a_grid);
+                arg.p_b_grid = reinterpret_cast<ArgBDataType>(p_b_grid);
+                arg.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grid);
+            }
+        }
 
         private:
         Argument& arg;
-        uint iter            = 0;
-        uint rotating_count  = 1;
-        uint size_a          = 0;
-        uint size_b          = 0;
-        uint size_c          = 0;
-        const char* p_a_grid = nullptr;
-        const char* p_b_grid = nullptr;
-        char* p_c_grid       = nullptr;
+        std::size_t iter           = 0;
+        std::size_t rotating_count = 1;
+        std::size_t size_a         = 0;
+        std::size_t size_b         = 0;
+        std::size_t size_c         = 0;
+        const char* p_a_grid       = nullptr;
+        const char* p_b_grid       = nullptr;
+        char* p_c_grid             = nullptr;
     };
 
     // Invoker
@@ -203,12 +226,26 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
                 if(stream_config.flush_cache)
                 {
+                    auto get_matrix_size =
+                        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+                            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+                            {
+                                return row * stride;
+                            }
+                            else
+                            {
+                                return col * stride;
+                            }
+                        };
+
                     Argument arg_ = arg;
-                    RotatingMem rotating_mem(arg_,
-                                             stream_config.rotating_count,
-                                             stream_config.size_a,
-                                             stream_config.size_b,
-                                             stream_config.size_c);
+                    RotatingMemWrapper rotating_mem(
+                        arg_,
+                        stream_config.rotating_count,
+                        get_matrix_size(arg.M, arg.K, arg.StrideA, ALayout{}) * sizeof(ADataType),
+                        get_matrix_size(arg.K, arg.N, arg.StrideB, BLayout{}) * sizeof(BDataType),
+                        get_matrix_size(arg.M, arg.N, arg.StrideC, CLayout{}) * sizeof(CDataType));
+
                     auto run_flush_cache = [&rotating_mem]() {
                         // flush icache
                         hipDeviceProp_t deviceProps;

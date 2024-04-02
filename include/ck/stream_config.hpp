@@ -16,7 +16,4 @@ struct StreamConfig
 
     bool flush_cache   = false;
     int rotating_count = 1;
-    size_t size_a      = 0;
-    size_t size_b      = 0;
-    size_t size_c      = 0;
 };

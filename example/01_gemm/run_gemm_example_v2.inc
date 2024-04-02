@@ -206,7 +206,6 @@ bool run_gemm_splitk_example(int argc, char* argv[])
 {
     ProblemSizeSplitK problem_size;
     ExecutionConfig config;
-    config.time_kernel = true;
 
     return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
 }
