@@ -104,7 +104,6 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_inst
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_permute_scale_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_universal_instance)
 
 # if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
 #   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
