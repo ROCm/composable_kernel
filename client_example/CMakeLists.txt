@@ -48,7 +48,10 @@ else()
     endif()
 endif()
 
-find_package(composable_kernel COMPONENTS device_other_operations device_gemm_operations device_conv_operations device_contraction_operations device_reduction_operations)
+find_package(composable_kernel COMPONENTS device_other_operations device_gemm_operations device_conv_operations  device_reduction_operations)
+if(GPU_TARGETS MATCHES "gfx9")
+    find_package(composable_kernel COMPONENTS device_contraction_operations)
+endif()
 find_package(hip REQUIRED PATHS /opt/rocm)
 message(STATUS "Build with HIP ${hip_VERSION}")
 

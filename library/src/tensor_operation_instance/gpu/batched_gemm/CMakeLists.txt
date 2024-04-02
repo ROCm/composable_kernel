@@ -1,3 +1,4 @@
+# ONLY XDL_KERNELS
 set(BATCHED_GEMM_INSTANCES)
 list(APPEND BATCHED_GEMM_INSTANCES device_batched_gemm_xdl_f16_f16_f16_gmk_gkn_gmn_instance.cpp
                                       device_batched_gemm_xdl_f16_f16_f16_gmk_gnk_gmn_instance.cpp
