@@ -1,3 +1,4 @@
+# ONLY XDL_KERNELS
 set(GROUPED_GEMM_FIXED_NK_INSTANCES)
 
 list(APPEND GROUPED_GEMM_FIXED_NK_INSTANCES device_grouped_gemm_xdl_fixed_nk_f16_f16_f16_mk_kn_mn_instance.cpp
