@@ -1,3 +1,4 @@
+# ONLY XDL_AND_WMMA_KERNELS
 add_instance_library(device_gemm_bilinear_instance
    device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_km_kn_mn_mn_instance.cpp
    device_gemm_bilinear_xdl_c_shuffle_f16_f16_f16_f16_km_nk_mn_mn_instance.cpp
