@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck/utility/data_type.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -379,6 +379,19 @@ struct AddFastGelu
                                                                                          x0_f);
 
         e = type_convert<half_t>(x1_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t, bhalf_t, bhalf_t>(bhalf_t& e, const bhalf_t& c, const bhalf_t& d) const
+    {
+        const float x0_f = type_convert<float>(c) + type_convert<float>(d);
+
+        float x1_f = 0;
+
+        FastGelu{}.template operator()<float, float>(x1_f, x0_f);
+
+        e = type_convert<bhalf_t>(x1_f);
     }
 
     template <>

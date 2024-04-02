@@ -495,6 +495,26 @@ struct FastGelu
 
         y = type_convert<half_t>(y_f);
     }
+
+    template <>
+    __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, x);
+
+        y = type_convert<bhalf_t>(y_f);
+    }
+
+    template <>
+    __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, type_convert<float>(x));
+
+        y = type_convert<bhalf_t>(y_f);
+    }
 };
 
 // https://paperswithcode.com/method/gelu

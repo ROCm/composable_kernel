@@ -312,7 +312,7 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                 // B desc
                 bs_grid_desc_n_k_(i) =
                     GridwiseGemm::template MakeBGridDescriptor_N_K<BLayout, GemmSpec>(
-                        KRaw, NRaw, StrideBs[i]);
+                        NRaw, KRaw, StrideBs[i]);
             });
 
             // populate pointer, desc for Ds
@@ -533,7 +533,6 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
 
             // check vector load of Ds
             // only support RowMajor for now
-
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
@@ -543,21 +542,21 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                 }
             });
 
-            if(!all_valid)
-            {
-                return false;
-            }
-
             // check vector store of E
             // only support RowMajor for now
             if constexpr(is_same_v<ELayout, Row>)
             {
                 if(arg.NRaw_ % CDEBlockTransferScalarPerVector_NPerBlock != 0)
                 {
-                    return false;
+                    all_valid = false;
                 }
             }
             else
+            {
+                all_valid = false;
+            }
+
+            if(!all_valid)
             {
                 return false;
             }

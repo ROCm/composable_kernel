@@ -28,9 +28,6 @@ using F32  = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add         = ck::tensor_operation::element_wise::Add;
-
 using A0DataType       = BF16;
 using AsDataType       = ck::Tuple<A0DataType>;
 using B0DataType       = I8;
@@ -60,9 +57,12 @@ struct Scale
     }
 };
 
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+
 using AElementOp   = PassThrough;
 using BElementOp   = Scale;
-using CDEElementOp = Add;
+using CDEElementOp = AddFastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
