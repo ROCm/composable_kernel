@@ -61,9 +61,13 @@ struct Scale
     }
 };
 
+using Scales      = ck::tensor_operation::element_wise::Scales;
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+
 using AElementOp   = PassThrough;
-using BElementOp   = Scale;
-using CDEElementOp = Add;
+using BElementOp   = Scales;
+using CDEElementOp = AddFastGelu;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
