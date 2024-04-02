@@ -36,9 +36,9 @@ set(PROFILER_SOURCES
     profile_permute_scale.cpp
 )
 
-# if(DL_KERNELS)
-#   list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
-# endif()
+if(DL_KERNELS)
+  list(APPEND PROFILER_SOURCES profile_batched_gemm_multi_d.cpp)
+endif()
 
 if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   list(APPEND PROFILER_SOURCES profile_batched_gemm_gemm.cpp)
@@ -57,10 +57,10 @@ if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   list(APPEND PROFILER_SOURCES profile_grouped_gemm_fastgelu.cpp)
 endif()
 
-# if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
-#   list(APPEND PROFILER_SOURCES profile_contraction_bilinear.cpp)
-#   list(APPEND PROFILER_SOURCES profile_contraction_scale.cpp)
-# endif()
+if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
+  list(APPEND PROFILER_SOURCES profile_contraction_bilinear.cpp)
+  list(APPEND PROFILER_SOURCES profile_contraction_scale.cpp)
+endif()
 
 set(PROFILER_EXECUTABLE ckProfiler)
 
@@ -105,16 +105,16 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_inst
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_permute_scale_instance)
 
-# if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
-#   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
-#   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
-# endif()
+if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_bilinear_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_contraction_scale_instance)
+endif()
 
 
 
-# if(DL_KERNELS)
-#   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
-# endif()
+if(DL_KERNELS)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batched_gemm_multi_d_instance)
+endif()
 
 if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_add_instance)

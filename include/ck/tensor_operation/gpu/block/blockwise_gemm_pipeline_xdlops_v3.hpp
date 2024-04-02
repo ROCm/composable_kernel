@@ -162,7 +162,7 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // A/B split schedule
         constexpr auto num_ds_read_inst_a = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_ds_read_inst_b = HotLoopInstList::B_LDS_Read_Inst_Num;
-        
+
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
         constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num;
 
@@ -171,11 +171,15 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
         constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
 
-        constexpr auto mfma_cycle = NPerXDL == 16? 16 : 32;
-        constexpr auto ds_read_a_issue_cycle = HotLoopInstList::A_LDS_Read_Width *sizeof(ADataType) == 16? 8:4;
-        constexpr auto ds_read_b_issue_cycle = HotLoopInstList::B_LDS_Read_Width *sizeof(BDataType) == 16? 8:4;
-        constexpr auto ds_read_a_mfma_rate =  (mfma_cycle-8+ds_read_a_issue_cycle-1)/ds_read_a_issue_cycle;
-        constexpr auto ds_read_b_mfma_rate =  (mfma_cycle-8+ds_read_b_issue_cycle-1)/ds_read_b_issue_cycle;
+        constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
+        constexpr auto ds_read_a_issue_cycle =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16 ? 8 : 4;
+        constexpr auto ds_read_b_issue_cycle =
+            HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
+        constexpr auto ds_read_a_mfma_rate =
+            (mfma_cycle - 8 + ds_read_a_issue_cycle - 1) / ds_read_a_issue_cycle;
+        constexpr auto ds_read_b_mfma_rate =
+            (mfma_cycle - 8 + ds_read_b_issue_cycle - 1) / ds_read_b_issue_cycle;
 
         // stage 1
         // Separate this part?
@@ -183,7 +187,9 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                                                       sizeof(ComputeDataType) / sizeof(BDataType)
                                                   ? sizeof(ComputeDataType) / sizeof(ADataType)
                                                   : sizeof(ComputeDataType) / sizeof(BDataType);
-        constexpr auto num_mfma_stage1 = num_mfma_inst - num_mfma_per_ds_read * (num_ds_read_inst_a/ds_read_a_mfma_rate+num_ds_read_inst_b/ds_read_b_mfma_rate);
+        constexpr auto num_mfma_stage1 =
+            num_mfma_inst - num_mfma_per_ds_read * (num_ds_read_inst_a / ds_read_a_mfma_rate +
+                                                    num_ds_read_inst_b / ds_read_b_mfma_rate);
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
         constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
@@ -213,15 +219,15 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         });
 
         // stage 2
-        static_for<0, num_ds_read_inst_a/ds_read_a_mfma_rate, 1>{}([&](auto i) {
+        static_for<0, num_ds_read_inst_a / ds_read_a_mfma_rate, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0);                    // DS read
+            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0);  // DS read
             __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_ds_read, 0); // MFMA
         });
 
-        static_for<0, num_ds_read_inst_b/ds_read_b_mfma_rate, 1>{}([&](auto i) {
+        static_for<0, num_ds_read_inst_b / ds_read_b_mfma_rate, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0);                    // DS read
+            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0);  // DS read
             __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_ds_read, 0); // MFMA
         });
     }
