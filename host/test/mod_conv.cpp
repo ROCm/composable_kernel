@@ -538,16 +538,14 @@ struct Prologue
         std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
 
-        /*
-        ofh2 << "Check: " << pass << std::endl;
-        ofh2 << res.size() << std::endl;
-        for(int i = 0; i < res.size(); i++)
-        {
-            auto tmp = (res.data())[i];
-            ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
-        }
-        ofh2.close();
-        */
+        // ofh2 << "Check: " << pass << std::endl;
+        // ofh2 << res.size() << std::endl;
+        // for(int i = 0; i < res.size(); i++)
+        //{
+        //    auto tmp = (res.data())[i];
+        //    ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
+        //}
+        // ofh2.close();
 
         if(pass)
         {
@@ -558,7 +556,6 @@ struct Prologue
             std::cout << "!!!!!!!!!!!! ERROR !!!!!!!!!!!\n";
             std::abort();
         }
-
         CHECK(report(solution, check(res)));
     }
 }

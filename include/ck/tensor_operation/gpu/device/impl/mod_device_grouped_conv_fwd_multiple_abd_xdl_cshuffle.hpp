@@ -372,16 +372,16 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     template <typename ALay>
     static auto
-    MakeAGridDescriptor_M_K(const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                            const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                            const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
-                            const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
-                            const ck::Array<index_t, NDimSpatial>& input_left_pads,
-                            const ck::Array<index_t, NDimSpatial>& input_right_pads)
+    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                            const std::array<index_t, NDimSpatial>& input_left_pads,
+                            const std::array<index_t, NDimSpatial>& input_right_pads)
     {
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
@@ -403,8 +403,8 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     template <typename BLay>
     static auto
-    MakeBGridDescriptor_N_K(const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>(b_g_k_c_xs_lengths,
@@ -418,8 +418,8 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     template <typename ELay>
     static auto
-    MakeEGridDescriptor_M_N(const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
+    MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
     {
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(e_g_n_k_wos_lengths,
@@ -434,8 +434,8 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     // Shape of Ds and E must be aligned. Strides can be different.
     // Pass e_g_n_k_wos_lengths for logical broadcast.
     static auto MakeDsGridDescriptor_M_N(
-        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
     {
         return generate_tuple(
             [&](auto i) {
@@ -482,9 +482,9 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     // If ADataTypes or BDataTypes is tuple, user has to pass std::array with pointers.
     using APointers =
-        std::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
+        std::conditional_t<isMultiA, std::array<const void*, NumATensor>&, const void*>;
     using BPointers =
-        std::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
+        std::conditional_t<isMultiB, std::array<const void*, NumBTensor>&, const void*>;
     // Use Tuple for the both cases for GridPointer to initialize it in Argument constructor (not
     // in initializer list what is required for single const pointer).
     using AGridPointer = remove_cvref_t<
@@ -511,26 +511,26 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
-    struct Argument
+    struct Argument : public BaseArgument
     {
-        __device__ __host__ Argument(APointers p_as,
+        Argument(APointers p_as,
                  BPointers p_bs,
-                 const ck::Array<const void*, NumDTensor>& p_ds,
+                 const std::array<const void*, NumDTensor>& p_ds,
                  void* p_e,
-                 const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                 const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                 const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                 const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                 const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>&
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                 const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                 const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
                      ds_g_n_k_wos_lengths,
-                 const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>&
+                 const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>&
                      ds_g_n_k_wos_strides,
-                 const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                 const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                 const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
-                 const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
-                 const ck::Array<index_t, NDimSpatial>& input_left_pads,
-                 const ck::Array<index_t, NDimSpatial>& input_right_pads,
+                 const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                 const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                 const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                 const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                 const std::array<index_t, NDimSpatial>& input_left_pads,
+                 const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
                  const CDEElementwiseOperation& cde_element_op)
@@ -690,7 +690,6 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 }
             }
         }
-
         template <typename T>
         std::string type()
         {
@@ -758,18 +757,18 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEElementwiseOperation cde_element_op_;
 
         // for checking IsSupportedArgument()
-        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_;
-        ck::Array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_;
-        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
-        ck::Array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
-        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_;
-        ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_;
-        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_;
-        ck::Array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_;
-        ck::Array<index_t, NDimSpatial> conv_filter_strides_;
-        ck::Array<index_t, NDimSpatial> conv_filter_dilations_;
-        ck::Array<index_t, NDimSpatial> input_left_pads_;
-        ck::Array<index_t, NDimSpatial> input_right_pads_;
+        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_;
+        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_;
+        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
+        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
+        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_;
+        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_;
+        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_;
+        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_;
+        std::array<index_t, NDimSpatial> conv_filter_strides_;
+        std::array<index_t, NDimSpatial> conv_filter_dilations_;
+        std::array<index_t, NDimSpatial> input_left_pads_;
+        std::array<index_t, NDimSpatial> input_right_pads_;
     };
 
     // Invoker
@@ -1104,23 +1103,23 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    __device __host__ static auto MakeArgument(
+    static auto MakeArgument(
         APointers p_as,
         BPointers p_bs,
-        const ck::Array<const void*, NumDTensor>& p_ds,
+        const std::array<const void*, NumDTensor>& p_ds,
         void* p_e,
-        const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-        const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-        const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-        const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-        const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
-        const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
-        const ck::Array<index_t, NDimSpatial>& input_left_pads,
-        const ck::Array<index_t, NDimSpatial>& input_right_pads,
+        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op)
@@ -1151,20 +1150,20 @@ struct ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     std::unique_ptr<BaseArgument> MakeArgumentPointer(
         APointers p_a,
         BPointers p_b,
-        const ck::Array<const void*, NumDTensor>& p_ds,
+        const std::array<const void*, NumDTensor>& p_ds,
         void* p_e,
-        const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-        const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-        const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-        const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
-        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-        const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
-        const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
-        const ck::Array<index_t, NDimSpatial>& input_left_pads,
-        const ck::Array<index_t, NDimSpatial>& input_right_pads,
+        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_strides,
+        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+        const std::array<index_t, NDimSpatial>& input_left_pads,
+        const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op) override

@@ -8,7 +8,7 @@
 #include "ck/host/utils.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/math_v2.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/mod_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -194,7 +194,7 @@ const std::string conv_compile_check = R"__ck__(
     float alpha_;
     float beta_;
 };
-using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+using DeviceConv = ck::tensor_operation::device::ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
       2, 
       ck::tensor_layout::convolution::GNHWC, 
       ck::tensor_layout::convolution::GKYXC, 
@@ -241,7 +241,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
 
     using GridwiseGemm = DeviceConv::GridwiseGemm;
 
-    ck::tensor_operation::device::device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    ck::tensor_operation::device::mod_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ck::half_t*,
                     const ck::half_t*,
@@ -325,52 +325,53 @@ struct Prologue
 
     using CDEElementOp = Prologue;
 
-    using DeviceConv = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
-        2,
-        ck::tensor_layout::convolution::GNHWC,
-        ck::tensor_layout::convolution::GKYXC,
-        ck::Tuple<>,
-        ck::tensor_layout::convolution::GNHWK,
-        ck::half_t,
-        ck::half_t,
-        float,
-        ck::half_t,
-        ck::Tuple<>,
-        ck::half_t,
-        ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough,
-        CDEElementOp,
-        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
-        ck::tensor_operation::device::GemmSpecialization::MNKPadding,
-        1,
-        256,
-        128,
-        256,
-        32,
-        8,
-        8,
-        32,
-        32,
-        4,
-        2,
-        ck::Sequence<4, 64, 1>,
-        ck::Sequence<1, 0, 2>,
-        ck::Sequence<1, 0, 2>,
-        2,
-        8,
-        8,
-        1,
-        ck::Sequence<4, 64, 1>,
-        ck::Sequence<1, 0, 2>,
-        ck::Sequence<1, 0, 2>,
-        2,
-        8,
-        8,
-        1,
-        1,
-        1,
-        ck::Sequence<1, 32, 1, 8>,
-        8>;
+    using DeviceConv =
+        ck::tensor_operation::device::ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+            2,
+            ck::tensor_layout::convolution::GNHWC,
+            ck::tensor_layout::convolution::GKYXC,
+            ck::Tuple<>,
+            ck::tensor_layout::convolution::GNHWK,
+            ck::half_t,
+            ck::half_t,
+            float,
+            ck::half_t,
+            ck::Tuple<>,
+            ck::half_t,
+            ck::tensor_operation::element_wise::PassThrough,
+            ck::tensor_operation::element_wise::PassThrough,
+            CDEElementOp,
+            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
+            ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+            1,
+            256,
+            128,
+            256,
+            32,
+            8,
+            8,
+            32,
+            32,
+            4,
+            2,
+            ck::Sequence<4, 64, 1>,
+            ck::Sequence<1, 0, 2>,
+            ck::Sequence<1, 0, 2>,
+            2,
+            8,
+            8,
+            1,
+            ck::Sequence<4, 64, 1>,
+            ck::Sequence<1, 0, 2>,
+            ck::Sequence<1, 0, 2>,
+            2,
+            8,
+            8,
+            1,
+            1,
+            1,
+            ck::Sequence<1, 32, 1, 8>,
+            8>;
 
     // length+stride arrays
     std::array<ck::index_t, 5> in_lengths{static_cast<int>(prob.G),
@@ -575,8 +576,7 @@ struct Prologue
         }
         ofh2.close();
         assert(pass);
-
-        // CHECK(report(solution, check(res)));
+        CHECK(report(solution, check(res)));
     }
 }
 
