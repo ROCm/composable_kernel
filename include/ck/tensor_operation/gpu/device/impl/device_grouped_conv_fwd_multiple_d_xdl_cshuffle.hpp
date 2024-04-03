@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -75,13 +75,14 @@ template <index_t NDimSpatial,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          typename ComputeDataType =
+          typename AComputeDataType =
               decltype(UnpackDataType<is_detected<is_tuple, ADataType>::value,
                                       Number<0>,
                                       ADataType>()), // ComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          typename BComputeDataType = AComputeDataType,
+          LoopScheduler LoopSched   = make_default_loop_scheduler()>
 using DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
     NDimSpatial,
     ALayout,
@@ -128,7 +129,8 @@ using DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle = DeviceGroupedConvFwdMultipl
     CShuffleNXdlPerWavePerShuffle,
     CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
     CDEBlockTransferScalarPerVector_NPerBlock,
-    ComputeDataType,
+    AComputeDataType,
+    BComputeDataType,
     LoopSched>;
 
 } // namespace device
