@@ -529,7 +529,7 @@ using fmha_bwd_kernel_{F_idx} =
                   fmha_bwd_pipeline_{F_idx},
                   fmha_bwd_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dropout}>;
+using trait_{F_idx} = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 template<>
 float fmha_bwd_<trait_{F_idx}>(const StreamConfig& s, fmha_bwd_args a)
@@ -565,8 +565,8 @@ FMHA_BWD_API_PER_HDIM_CASE="""            case {F_hdim}: {{
             break;
 """
 
-FMHA_BWD_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dropout == {F_dropout})) {{
-                    using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dropout}>;
+FMHA_BWD_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dropout == {F_dropout}) && ({F_scheck}) && ({F_skcheck})) {{
+                    using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                     return fmha_bwd_<trait_>(s, a);
                 }}
 """
@@ -577,13 +577,41 @@ class FmhaBwdApiTrait:
     hdim      : str
     dtype     : str  # data type
     mode      : str  # value from MODE_MAP
+    bm0       : int  # tile size along q seqlen (block size)
+    bn0       : int  # tile size along k seqlen
     mask      : str
     bias      : str  # true/false
-    dropout   : str  # true/false
+    dropout   : str
+    spad      : str
+    skpad     : str
+    dpad      : str
+    dvpad     : str
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.mask}-{self.bias}-{self.dropout}'
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.mask}-{self.bias}-{self.dropout}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
+
+    @property
+    def scheck(self) -> str:
+        if self.mode == 'group' and (self.bias == 't' or self.dropout == 't'):
+            return 'true' # always support
+        elif self.bias == 'f' and self.dropout == 'f':
+            return 'true' # always support
+        elif self.spad == 't':
+            return f'a.seqlen_q % {self.bm0} != 0'
+        else:
+            return f'a.seqlen_q % {self.bm0} == 0'
+    
+    @property
+    def skcheck(self) -> str:
+        if self.mode == 'group' and (self.bias == 't' or self.dropout == 't'):
+            return 'true' # always support
+        elif self.bias == 'f' and self.dropout == 'f':
+            return 'true' # always support
+        elif self.skpad == 't':
+            return f'a.seqlen_k % {self.bn0} != 0'
+        else:
+            return f'a.seqlen_k % {self.bn0} == 0'
 
 class FmhaBwdApiPool:
     def __init__(self):
@@ -609,7 +637,9 @@ class FmhaBwdApiPool:
                 for j, trait in enumerate(traits):
                     if0 = 'if' if j == 0 else 'else if'
                     inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if0, F_mode=MODE_MAP[trait.mode], F_mask=MASK_MAP[trait.mask],
-                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dropout=BOOL_MAP[trait.dropout], F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dropout=BOOL_MAP[trait.dropout],
+                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
+                                   F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad])
             
                 per_hdim_case = per_hdim_case + FMHA_BWD_API_PER_HDIM_CASE.format(F_hdim=hdim, F_inner_dispatch=inners)
             if1 = 'if' if i == 0 else 'else if'
@@ -734,7 +764,7 @@ class FmhaBwdKernel:
         # TODO: we don't encode idx here
         return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name +\
             f"_p{BOOL_MAP[self.F_spad][0]}{BOOL_MAP[self.F_skpad][0]}{BOOL_MAP[self.F_dpad][0]}{BOOL_MAP[self.F_dvpad][0]}" +\
-            f"_b{BOOL_MAP[self.F_bias][0]}_m{self.F_mask[0]}_d{BOOL_MAP[self.F_dropout][0]}_" + self.F_loadst.name
+            f"_b{BOOL_MAP[self.F_bias][0]}_d{BOOL_MAP[self.F_dropout][0]}_m{self.F_mask[0]}_" + self.F_loadst.name
 
     @property
     def filename(self) -> str:
@@ -744,9 +774,15 @@ class FmhaBwdKernel:
         return FmhaBwdApiTrait(hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 mode=self.F_mode,
+                bm0=self.F_tile.F_bm0,
+                bn0=self.F_tile.F_bn0,
                 mask=self.F_mask,
                 bias=self.F_bias,
-                dropout=self.F_dropout)
+                dropout=self.F_dropout,
+                spad=self.F_spad,
+                skpad=self.F_skpad,
+                dpad=self.F_dpad,
+                dvpad=self.F_dvpad)
 
 # TODO: design a more practical way to do it
 # this is current supported tile size & load strategy.
@@ -779,12 +815,16 @@ def get_bwd_blobs() -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
         d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode, mask, bias, dropout in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+        for hdim_str, mode, mask, bias, dropout, spad, skpad in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
             tile = d[hdim_str][0]
             loadst = d[hdim_str][1]
             hdim = int(hdim_str)
+            if (bias == "f" and dropout == "f") and (spad == "t" or skpad == "t"):
+                continue
+            if (mode == "group") and (bias == "t" or dropout == "t") and (spad == "f" or skpad == "f"):
+                continue
             k = FmhaBwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
-                                F_spad=get_pad(dtype, hdim), F_skpad=get_pad(dtype, hdim), F_dpad=get_pad(dtype, hdim),
+                                F_spad=spad, F_skpad=skpad, F_dpad=get_pad(dtype, hdim),
                                 F_dvpad=get_pad(dtype, hdim), F_bias=bias, F_dropout=dropout, F_mask=mask, F_mode=mode,
                                 F_loadst=loadst)
             api_pool.register_traits(k.api_trait())

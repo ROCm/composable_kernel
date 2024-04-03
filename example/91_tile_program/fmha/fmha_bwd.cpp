@@ -325,7 +325,7 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", mask:" << mask << ", p_drop:" << p_drop << std::flush;
+              << ", p_drop:" << p_drop << ", mask:" << mask << std::flush;
 
     auto fmha_dot_do_o_traits =
         fmha_bwd_dot_do_o_traits{hdim_v, data_type, mode == mode_enum::group};
