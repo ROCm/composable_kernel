@@ -22,15 +22,15 @@ template <index_t Rank>
 using device_batchnorm_infer_f64_instances =
      std::tuple <
         // Tuple<XDataType, MeanDataType, VarDataType, ScaleDataType, BiasDataType>, Tuple<YDataType>, NormalizeOp, Rank, BlockSize, MPerBlock, NPerBlock, MPerThread, NPerThread, ThreadClusterArrangerOrder, Sequence<XVectorSize, MeanDataType, VarDataType, ScaleVectorSize, BiasVectorSize>, Sequence<YVectorSize> 
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 1, 1, ck::Sequence<1, 0>, Sequence<1, 1, 1, 1, 1>, Sequence<1> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 2, 2, ck::Sequence<1, 0>, Sequence<1, 1, 1, 1, 1>, Sequence<1> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 2, 2, ck::Sequence<1, 0>, Sequence<2, 1, 1, 1, 1>, Sequence<2> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 2, 2, ck::Sequence<1, 0>, Sequence<1, 2, 2, 2, 2>, Sequence<1> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 2, 2, ck::Sequence<1, 0>, Sequence<2, 2, 2, 2, 2>, Sequence<2> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 4, 4, ck::Sequence<1, 0>, Sequence<1, 1, 1, 1, 1>, Sequence<1> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 4, 4, ck::Sequence<1, 0>, Sequence<2, 1, 1, 1, 1>, Sequence<2> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 4, 4, ck::Sequence<1, 0>, Sequence<1, 2, 2, 2, 2>, Sequence<1> >,
-        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 8, 8, 4, 4, ck::Sequence<1, 0>, Sequence<2, 2, 2, 2, 2>, Sequence<2> >
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64,  8,  8, 1, 1, ck::Sequence<1, 0>, Sequence<1, 1, 1, 1, 1>, Sequence<1> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 16, 16, 2, 2, ck::Sequence<1, 0>, Sequence<1, 1, 1, 1, 1>, Sequence<1> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 16, 16, 2, 2, ck::Sequence<1, 0>, Sequence<2, 1, 1, 1, 1>, Sequence<2> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 16, 16, 2, 2, ck::Sequence<1, 0>, Sequence<1, 2, 2, 2, 2>, Sequence<1> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 16, 16, 2, 2, ck::Sequence<1, 0>, Sequence<2, 2, 2, 2, 2>, Sequence<2> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 32, 32, 4, 4, ck::Sequence<1, 0>, Sequence<1, 1, 1, 1, 1>, Sequence<1> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 32, 32, 4, 4, ck::Sequence<1, 0>, Sequence<2, 1, 1, 1, 1>, Sequence<2> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 32, 32, 4, 4, ck::Sequence<1, 0>, Sequence<1, 2, 2, 2, 2>, Sequence<1> >,
+        DeviceElementwiseImpl<Tuple<F64, F64, F64, F64, F64>, Tuple<F64>, Normalize, Rank, 64, 32, 32, 4, 4, ck::Sequence<1, 0>, Sequence<2, 2, 2, 2, 2>, Sequence<2> >
      >;
 // clang-format on
 

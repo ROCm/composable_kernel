@@ -25,14 +25,14 @@ using DeviceElementwiseAddInstance =
                                                         ck::Tuple<CDataType>,
                                                         Add,
                                                         1,
-                                                        256,
-                                                        128,
-                                                        128,
-                                                        8,
-                                                        8,
+                                                        64,
+                                                        16,
+                                                        16,
+                                                        2,
+                                                        2,
                                                         ck::Sequence<1, 0>,
-                                                        ck::Sequence<8, 8>,
-                                                        ck::Sequence<8>>;
+                                                        ck::Sequence<2, 2>,
+                                                        ck::Sequence<2>>;
 
 template <typename HostTensorA, typename HostTensorB, typename HostTensorC, typename Functor>
 void host_elementwise1D(

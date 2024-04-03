@@ -102,14 +102,14 @@ using DeviceNormalizeInstance = ck::tensor_operation::device::DeviceElementwiseI
     ck::Tuple<LayerNormOutDataType>, // y
     NormalizeFunctor,
     2,
-    256,                         // BlockSize
-    128,                         // MPerBlock
-    128,                         // NPerBlock
-    8,                           // MPerthread
-    8,                           // NPerthread
+    64,                          // BlockSize
+    16,                          // MPerBlock
+    16,                          // NPerBlock
+    2,                           // MPerthread
+    2,                           // NPerthread
     ck::Sequence<1, 0>,          // ThreadClusterArrangeOrder
-    ck::Sequence<8, 1, 1, 8, 8>, // scalarPerVector: x(gemm_out), mean, meansquare, gamma, beta
-    ck::Sequence<8>>;            // scalarPerVector: y(layerNorm_out)
+    ck::Sequence<2, 1, 1, 2, 2>, // scalarPerVector: x(gemm_out), mean, meansquare, gamma, beta
+    ck::Sequence<2>>;            // scalarPerVector: y(layerNorm_out)
 
 auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
     return HostTensorDescriptor({len}, {stride});
