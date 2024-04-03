@@ -36,7 +36,7 @@ using D0DataType       = BF16;
 using DsDataType       = ck::Tuple<>;
 using EDataType        = BF16;
 
-using A0Layout = Row;
+using A0Layout = Col;
 using AsLayout = ck::Tuple<A0Layout>;
 using B0Layout = Row;
 using B1Layout = B0Layout;
