@@ -53,11 +53,11 @@ using ELayout  = Row;
 
 using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 using AElementOp   = PassThrough;
 using BElementOp   = Scales;
-using CDEElementOp = AddFastGelu;
+using CDEElementOp = Add;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 

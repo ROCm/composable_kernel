@@ -17,9 +17,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using CDEElementOp = AddFastGelu;
-
-void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances(
+void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bias_gelu_bf16_i8_bf16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmMultiABDFixedNK<AsLayout,
                                                                  BsLayout,
                                                                  DsLayout,
@@ -30,11 +28,30 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instan
                                                                  EDataType,
                                                                  AElementOp,
                                                                  BElementOp,
-                                                                 CDEElementOp>>>& instances)
+                                                                 AddFastGelu>>>& instances)
 {
     add_device_operation_instances(
         instances,
-        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<CDEElementOp,
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<AddFastGelu,
+                                                                                   GemmDefault>{});
+}
+
+void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bias_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmMultiABDFixedNK<AsLayout,
+                                                                 BsLayout,
+                                                                 DsLayout,
+                                                                 ELayout,
+                                                                 AsDataType,
+                                                                 BsDataType,
+                                                                 DsDataType,
+                                                                 EDataType,
+                                                                 AElementOp,
+                                                                 BElementOp,
+                                                                 Add>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<Add,
                                                                                    GemmDefault>{});
 }
 

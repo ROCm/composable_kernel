@@ -17,40 +17,93 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using CDEElementOp = AddFastGelu;
-
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
                                                       BsLayout,
-                                                      DsLayout,
+                                                      ck::Tuple<D0Layout>,
                                                       ELayout,
                                                       AsDataType,
                                                       BsDataType,
-                                                      DsDataType,
+                                                      ck::Tuple<D0DataType>,
                                                       EDataType,
                                                       AElementOp,
                                                       BElementOp,
-                                                      CDEElementOp>>>& instances)
+                                                      AddFastGelu>>>& instances)
 {
-#if 0
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<CDEElementOp,
-                                                                  GemmDefault,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<D0Layout>,
+                                                                  ck::Tuple<D0DataType>,
+                                                                  AddFastGelu,
+                                                                  GemmMNKPadding,
                                                                   PipelineVersion::v1,
                                                                   LoopScheduler::Default>{});
+}
 
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
+                                                      BsLayout,
+                                                      ck::Tuple<D0Layout>,
+                                                      ELayout,
+                                                      AsDataType,
+                                                      BsDataType,
+                                                      ck::Tuple<D0DataType>,
+                                                      EDataType,
+                                                      AElementOp,
+                                                      BElementOp,
+                                                      Add>>>& instances)
+{
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<CDEElementOp,
-                                                                  GemmMNPadding,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<D0Layout>,
+                                                                  ck::Tuple<D0DataType>,
+                                                                  Add,
+                                                                  GemmMNKPadding,
                                                                   PipelineVersion::v1,
                                                                   LoopScheduler::Default>{});
-#endif
+}
 
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
+                                                      BsLayout,
+                                                      ck::Tuple<>,
+                                                      ELayout,
+                                                      AsDataType,
+                                                      BsDataType,
+                                                      ck::Tuple<>,
+                                                      EDataType,
+                                                      AElementOp,
+                                                      BElementOp,
+                                                      PassThrough>>>& instances)
+{
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<CDEElementOp,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<>,
+                                                                  ck::Tuple<>,
+                                                                  PassThrough,
+                                                                  GemmMNKPadding,
+                                                                  PipelineVersion::v1,
+                                                                  LoopScheduler::Default>{});
+}
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
+                                                      BsLayout,
+                                                      ck::Tuple<>,
+                                                      ELayout,
+                                                      AsDataType,
+                                                      BsDataType,
+                                                      ck::Tuple<>,
+                                                      EDataType,
+                                                      AElementOp,
+                                                      BElementOp,
+                                                      FastGelu>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<>,
+                                                                  ck::Tuple<>,
+                                                                  FastGelu,
                                                                   GemmMNKPadding,
                                                                   PipelineVersion::v1,
                                                                   LoopScheduler::Default>{});

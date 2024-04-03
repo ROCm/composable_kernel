@@ -34,7 +34,46 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
                                                       Scales,
                                                       AddFastGelu>>>& instances);
 
-// Multiply + GEMM + Add + Gelu
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<Row>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<BF16>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      Add>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      FastGelu>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      PassThrough>>>& instances);
+
+// GEMM + Add + Gelu
 template <typename AsLayout,
           typename BsLayout,
           typename DsLayout,
@@ -81,6 +120,168 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
             {
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(op_ptrs);
+            }
+        }
+
+        return op_ptrs;
+    }
+};
+
+// GEMM + Add
+template <typename AsLayout,
+          typename BsLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename AsDataType,
+          typename BsDataType,
+          typename DsDataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGemmMultipleABD<AsLayout,
+                                                        BsLayout,
+                                                        DsLayout,
+                                                        ELayout,
+                                                        AsDataType,
+                                                        BsDataType,
+                                                        DsDataType,
+                                                        EDataType,
+                                                        PassThrough,
+                                                        Scales,
+                                                        Add>>
+{
+    using DeviceOp = DeviceGemmMultipleABD<AsLayout,
+                                           BsLayout,
+                                           DsLayout,
+                                           ELayout,
+                                           AsDataType,
+                                           BsDataType,
+                                           DsDataType,
+                                           EDataType,
+                                           PassThrough,
+                                           Scales,
+                                           Add>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
+                     is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
+                     is_same_v<DsDataType, ck::Tuple<BF16>> && is_same_v<EDataType, BF16>)
+        {
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(op_ptrs);
+            }
+        }
+
+        return op_ptrs;
+    }
+};
+
+// GEMM + Gelu
+template <typename AsLayout,
+          typename BsLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename AsDataType,
+          typename BsDataType,
+          typename DsDataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGemmMultipleABD<AsLayout,
+                                                        BsLayout,
+                                                        DsLayout,
+                                                        ELayout,
+                                                        AsDataType,
+                                                        BsDataType,
+                                                        DsDataType,
+                                                        EDataType,
+                                                        PassThrough,
+                                                        Scales,
+                                                        FastGelu>>
+{
+    using DeviceOp = DeviceGemmMultipleABD<AsLayout,
+                                           BsLayout,
+                                           DsLayout,
+                                           ELayout,
+                                           AsDataType,
+                                           BsDataType,
+                                           DsDataType,
+                                           EDataType,
+                                           PassThrough,
+                                           Scales,
+                                           FastGelu>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
+                     is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
+                     is_same_v<DsDataType, ck::Tuple<>> && is_same_v<EDataType, BF16>)
+        {
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(op_ptrs);
+            }
+        }
+
+        return op_ptrs;
+    }
+};
+
+// GEMM
+template <typename AsLayout,
+          typename BsLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename AsDataType,
+          typename BsDataType,
+          typename DsDataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGemmMultipleABD<AsLayout,
+                                                        BsLayout,
+                                                        DsLayout,
+                                                        ELayout,
+                                                        AsDataType,
+                                                        BsDataType,
+                                                        DsDataType,
+                                                        EDataType,
+                                                        PassThrough,
+                                                        Scales,
+                                                        PassThrough>>
+{
+    using DeviceOp = DeviceGemmMultipleABD<AsLayout,
+                                           BsLayout,
+                                           DsLayout,
+                                           ELayout,
+                                           AsDataType,
+                                           BsDataType,
+                                           DsDataType,
+                                           EDataType,
+                                           PassThrough,
+                                           Scales,
+                                           PassThrough>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
+                     is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
+                     is_same_v<DsDataType, ck::Tuple<>> && is_same_v<EDataType, BF16>)
+        {
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(op_ptrs);
             }
         }
 

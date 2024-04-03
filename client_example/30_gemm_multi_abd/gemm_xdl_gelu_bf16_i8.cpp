@@ -38,8 +38,7 @@ using B1DataType       = BF16;
 using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
 using AccDataType      = F32;
 using CShuffleDataType = BF16;
-using D0DataType       = BF16;
-using DsDataType       = ck::Tuple<D0DataType>;
+using DsDataType       = ck::Tuple<>;
 using EDataType        = BF16;
 
 using A0Layout = Row;
@@ -48,16 +47,16 @@ using B0Layout = Col;
 using B1Layout = Row;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<>;
 using ELayout  = Row;
 
 using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AElementOp   = PassThrough;
 using BElementOp   = Scales;
-using CDEElementOp = AddFastGelu;
+using CDEElementOp = FastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -91,7 +90,6 @@ int main(int argc, char* argv[])
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = N;
-    ck::index_t StrideD = N;
     ck::index_t StrideE = N;
 
     if(argc == 1)
@@ -104,7 +102,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 11)
+    else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -116,15 +114,14 @@ int main(int argc, char* argv[])
 
         StrideA = std::stoi(argv[7]);
         StrideB = std::stoi(argv[8]);
-        StrideD = std::stoi(argv[9]);
-        StrideE = std::stoi(argv[10]);
+        StrideE = std::stoi(argv[9]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
         exit(0);
     }
 
@@ -147,8 +144,6 @@ int main(int argc, char* argv[])
     SimpleDeviceMem b0_device_buf(sizeof(B0DataType) *
                                   f_matrix_space_size(K, N, StrideB, B0Layout{}));
     SimpleDeviceMem b1_device_buf(sizeof(B1DataType) * f_matrix_space_size(K, N, 0, B1Layout{}));
-    SimpleDeviceMem d0_device_buf(sizeof(D0DataType) *
-                                  f_matrix_space_size(M, N, StrideD, ELayout{}));
     SimpleDeviceMem e_device_buf(sizeof(EDataType) * f_matrix_space_size(M, N, StrideE, ELayout{}));
 
     auto a_element_op   = AElementOp{};
@@ -157,15 +152,15 @@ int main(int argc, char* argv[])
 
     constexpr ck::index_t NumATensor = 1;
     constexpr ck::index_t NumBTensor = 2;
-    constexpr ck::index_t NumDTensor = 1;
+    constexpr ck::index_t NumDTensor = 0;
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleABD<ck::Tuple<Row>,
                                                                          ck::Tuple<Row, Row>,
-                                                                         ck::Tuple<Row>,
+                                                                         ck::Tuple<>,
                                                                          Row,
                                                                          ck::Tuple<BF16>,
                                                                          ck::Tuple<I8, BF16>,
-                                                                         ck::Tuple<BF16>,
+                                                                         ck::Tuple<>,
                                                                          BF16,
                                                                          AElementOp,
                                                                          BElementOp,
@@ -194,14 +189,14 @@ int main(int argc, char* argv[])
             std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
             std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
                                                 b1_device_buf.GetDeviceBuffer()},
-            std::array<const void*, NumDTensor>{d0_device_buf.GetDeviceBuffer()},
+            std::array<const void*, NumDTensor>{},
             e_device_buf.GetDeviceBuffer(),
             M,
             N,
             K,
             std::array<ck::index_t, NumATensor>{StrideA},
             std::array<ck::index_t, NumBTensor>{StrideB, 0},
-            std::array<ck::index_t, NumDTensor>{StrideD},
+            std::array<ck::index_t, NumDTensor>{},
             StrideE,
             a_element_op,
             b_element_op,
@@ -258,14 +253,14 @@ int main(int argc, char* argv[])
             std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
             std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
                                                 b1_device_buf.GetDeviceBuffer()},
-            std::array<const void*, NumDTensor>{d0_device_buf.GetDeviceBuffer()},
+            std::array<const void*, NumDTensor>{},
             e_device_buf.GetDeviceBuffer(),
             M,
             N,
             K,
             std::array<ck::index_t, NumATensor>{StrideA},
             std::array<ck::index_t, NumBTensor>{StrideB, 0},
-            std::array<ck::index_t, NumDTensor>{StrideD},
+            std::array<ck::index_t, NumDTensor>{},
             StrideE,
             a_element_op,
             b_element_op,
