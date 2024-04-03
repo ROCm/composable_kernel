@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -40,7 +40,8 @@ using is_tuple = decltype(std::declval<T&>().IsTuple());
  * \tparam AElementwiseOperation A elementwise operation.
  * \tparam BElementwiseOperation B elementwise operation.
  * \tparam CDEElementwiseOperation CDE elementwise operation.
- * \tparam ComputeType Compute data type (default: ADataType, first if tuple passed).
+ * \tparam AComputeType Compute data type for A tensor (default: ADataType, first if tuple passed).
+ * \tparam BComputeType Compute data type for B tensor (default: AComputeType).
  */
 template <index_t NDimSpatial,
           typename ALayout,
@@ -54,12 +55,13 @@ template <index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          typename ComputeType =
+          typename AComputeType =
               decltype(UnpackDataType<is_detected<is_tuple, ADataType>::value,
                                       Number<0>,
-                                      ADataType>())> // ComputeType is InputType by default (first
+                                      ADataType>()), // AComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
+          typename BComputeType = AComputeType>
 struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
 {
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
