@@ -165,7 +165,7 @@ float launch_and_time_kernel_without_preprocess(const StreamConfig& stream_confi
                                                 dim3 grid_dim,
                                                 dim3 block_dim,
                                                 std::size_t lds_byte,
-                                                Args... args)
+                                                Args&... args)
 {
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
