@@ -27,9 +27,6 @@ using F32  = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add         = ck::tensor_operation::element_wise::Add;
-
 using A0DataType       = BF16;
 using AsDataType       = ck::Tuple<A0DataType>;
 using B0DataType       = I8;
@@ -38,20 +35,23 @@ using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
 using AccDataType      = F32;
 using CShuffleDataType = BF16;
 using D0DataType       = BF16;
-using DsDataType       = ck::Tuple<D0DataType>;
-using EDataType        = BF16;
+// using DsDataType       = ck::Tuple<D0DataType>;
+using EDataType = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Col;
-using B1Layout = Row;
+using B0Layout = Row;
+using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
-using DsLayout = ck::Tuple<Row>;
-using ELayout  = Row;
+using D0Layout = Row;
+// using DsLayout = ck::Tuple<Row>;
+using ELayout = Row;
 
 using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using Add         = ck::tensor_operation::element_wise::Add;
+using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AElementOp = PassThrough;
 using BElementOp = Scales;
@@ -61,7 +61,10 @@ static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecial
 static constexpr auto GemmMNPadding  = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-template <typename CDEElementOp, ck::tensor_operation::device::GemmSpecialization GemmSpec>
+template <typename DsLayout,
+          typename DsDataType,
+          typename CDEElementOp,
+          ck::tensor_operation::device::GemmSpecialization GemmSpec>
 using device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances = std::tuple<
     // clang-format off
         //######################################|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM|NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|

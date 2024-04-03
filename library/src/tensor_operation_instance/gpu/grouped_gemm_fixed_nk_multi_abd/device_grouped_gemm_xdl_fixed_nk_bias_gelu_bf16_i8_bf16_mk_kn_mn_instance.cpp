@@ -17,14 +17,14 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bias_gelu_bf16_i8_bf16_mk_kn_mn_instances(
+void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmMultiABDFixedNK<AsLayout,
                                                                  BsLayout,
-                                                                 DsLayout,
+                                                                 ck::Tuple<D0Layout>,
                                                                  ELayout,
                                                                  AsDataType,
                                                                  BsDataType,
-                                                                 DsDataType,
+                                                                 ck::Tuple<D0DataType>,
                                                                  EDataType,
                                                                  AElementOp,
                                                                  BElementOp,
@@ -32,18 +32,21 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bias_gelu_bf16_i8_bf16_mk_kn
 {
     add_device_operation_instances(
         instances,
-        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<AddFastGelu,
-                                                                                   GemmDefault>{});
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<
+            ck::Tuple<D0Layout>,
+            ck::Tuple<D0DataType>,
+            AddFastGelu,
+            GemmDefault>{});
 }
 
-void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bias_bf16_i8_bf16_mk_kn_mn_instances(
+void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmMultiABDFixedNK<AsLayout,
                                                                  BsLayout,
-                                                                 DsLayout,
+                                                                 ck::Tuple<D0Layout>,
                                                                  ELayout,
                                                                  AsDataType,
                                                                  BsDataType,
-                                                                 DsDataType,
+                                                                 ck::Tuple<D0DataType>,
                                                                  EDataType,
                                                                  AElementOp,
                                                                  BElementOp,
@@ -51,7 +54,52 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bias_bf16_i8_bf16_mk_kn_mn_i
 {
     add_device_operation_instances(
         instances,
-        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<Add,
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<
+            ck::Tuple<D0Layout>,
+            ck::Tuple<D0DataType>,
+            Add,
+            GemmDefault>{});
+}
+
+void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmMultiABDFixedNK<AsLayout,
+                                                                 BsLayout,
+                                                                 ck::Tuple<>,
+                                                                 ELayout,
+                                                                 AsDataType,
+                                                                 BsDataType,
+                                                                 ck::Tuple<>,
+                                                                 EDataType,
+                                                                 AElementOp,
+                                                                 BElementOp,
+                                                                 PassThrough>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<>,
+                                                                                   ck::Tuple<>,
+                                                                                   PassThrough,
+                                                                                   GemmDefault>{});
+}
+
+void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmMultiABDFixedNK<AsLayout,
+                                                                 BsLayout,
+                                                                 ck::Tuple<>,
+                                                                 ELayout,
+                                                                 AsDataType,
+                                                                 BsDataType,
+                                                                 ck::Tuple<>,
+                                                                 EDataType,
+                                                                 AElementOp,
+                                                                 BElementOp,
+                                                                 FastGelu>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<>,
+                                                                                   ck::Tuple<>,
+                                                                                   FastGelu,
                                                                                    GemmDefault>{});
 }
 

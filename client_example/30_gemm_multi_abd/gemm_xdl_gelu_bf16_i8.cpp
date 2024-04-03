@@ -2,6 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
+#include <iomanip>
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
@@ -13,13 +14,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/gemm_multi_abd.hpp"
-
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-#include "ck/library/utility/check_err.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -44,7 +38,7 @@ using EDataType        = BF16;
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
 using B0Layout = Col;
-using B1Layout = Row;
+using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<>;
@@ -96,32 +90,19 @@ int main(int argc, char* argv[])
     {
         // use default case
     }
-    else if(argc == 4)
+    else if(argc == 7)
     {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
-    }
-    else if(argc == 10)
-    {
-        do_verification = std::stoi(argv[1]);
-        init_method     = std::stoi(argv[2]);
-        time_kernel     = std::stoi(argv[3]);
+        M = std::stoi(argv[1]);
+        N = std::stoi(argv[2]);
+        K = std::stoi(argv[3]);
 
-        M = std::stoi(argv[4]);
-        N = std::stoi(argv[5]);
-        K = std::stoi(argv[6]);
-
-        StrideA = std::stoi(argv[7]);
-        StrideB = std::stoi(argv[8]);
-        StrideE = std::stoi(argv[9]);
+        StrideA = std::stoi(argv[4]);
+        StrideB = std::stoi(argv[5]);
+        StrideE = std::stoi(argv[6]);
     }
     else
     {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n");
+        printf("arg1 to 7: M, N, K, StrideA, StrideB, StrideE\n");
         exit(0);
     }
 
