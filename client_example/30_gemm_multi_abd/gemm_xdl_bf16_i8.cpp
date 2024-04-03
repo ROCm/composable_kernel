@@ -154,13 +154,13 @@ int main(int argc, char* argv[])
     constexpr ck::index_t NumBTensor = 2;
     constexpr ck::index_t NumDTensor = 0;
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleABD<ck::Tuple<Row>,
-                                                                         ck::Tuple<Row, Row>,
-                                                                         ck::Tuple<>,
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleABD<AsLayout,
+                                                                         BsLayout,
+                                                                         DsLayout,
                                                                          Row,
-                                                                         ck::Tuple<BF16>,
-                                                                         ck::Tuple<I8, BF16>,
-                                                                         ck::Tuple<>,
+                                                                         AsDataType,
+                                                                         BsDataType,
+                                                                         DsDataType,
                                                                          BF16,
                                                                          AElementOp,
                                                                          BElementOp,

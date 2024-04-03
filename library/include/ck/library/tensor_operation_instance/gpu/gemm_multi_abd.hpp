@@ -21,6 +21,7 @@ using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
+// RRR
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
                                                       ck::Tuple<Row, Row>,
@@ -62,6 +63,112 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      PassThrough>>>& instances);
+
+// RCR
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_gelu_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Col, Col>,
+                                                      ck::Tuple<Row>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<BF16>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      AddFastGelu>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Col, Col>,
+                                                      ck::Tuple<Row>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<BF16>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      Add>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Col, Col>,
+                                                      ck::Tuple<>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      FastGelu>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
+                                                      ck::Tuple<Col, Col>,
+                                                      ck::Tuple<>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      PassThrough>>>& instances);
+
+// CRR
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_bias_gelu_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Col>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<Row>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<BF16>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      AddFastGelu>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_bias_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Col>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<Row>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<BF16>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      Add>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_gelu_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Col>,
+                                                      ck::Tuple<Row, Row>,
+                                                      ck::Tuple<>,
+                                                      Row,
+                                                      ck::Tuple<BF16>,
+                                                      ck::Tuple<I8, BF16>,
+                                                      ck::Tuple<>,
+                                                      BF16,
+                                                      PassThrough,
+                                                      Scales,
+                                                      FastGelu>>>& instances);
+
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_v1_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Col>,
                                                       ck::Tuple<Row, Row>,
                                                       ck::Tuple<>,
                                                       Row,
@@ -121,6 +228,20 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(op_ptrs);
             }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Col>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_bias_gelu_v1_instances(op_ptrs);
+            }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Col, Col>> &&
+                         is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_gelu_v1_instances(op_ptrs);
+            }
         }
 
         return op_ptrs;
@@ -174,6 +295,20 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
             {
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(op_ptrs);
+            }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Col>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_bias_v1_instances(op_ptrs);
+            }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Col, Col>> &&
+                         is_same_v<DsLayout, ck::Tuple<Row>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_v1_instances(op_ptrs);
             }
         }
 
@@ -229,6 +364,20 @@ struct DeviceOperationInstanceFactory<
             {
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(op_ptrs);
             }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Col>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_gelu_v1_instances(op_ptrs);
+            }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Col, Col>> &&
+                         is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_v1_instances(op_ptrs);
+            }
         }
 
         return op_ptrs;
@@ -282,6 +431,20 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
             {
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(op_ptrs);
+            }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Col>> &&
+                         is_same_v<BsLayout, ck::Tuple<Row, Row>> &&
+                         is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_v1_instances(op_ptrs);
+            }
+
+            if constexpr(is_same_v<AsLayout, ck::Tuple<Row>> &&
+                         is_same_v<BsLayout, ck::Tuple<Col, Col>> &&
+                         is_same_v<DsLayout, ck::Tuple<>> && is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_v1_instances(op_ptrs);
             }
         }
 

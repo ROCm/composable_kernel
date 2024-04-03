@@ -42,10 +42,10 @@ using D0DataType       = BF16;
 using DsDataType       = ck::Tuple<D0DataType>;
 using EDataType        = BF16;
 
-using A0Layout = Row;
+using A0Layout = Col;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Col;
-using B1Layout = Row;
+using B0Layout = Row;
+using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
     ck::index_t N = 1024;
     ck::index_t K = 512;
 
-    ck::index_t StrideA = K;
+    ck::index_t StrideA = M;
     ck::index_t StrideB = N;
     ck::index_t StrideD = N;
     ck::index_t StrideE = N;
@@ -159,13 +159,13 @@ int main(int argc, char* argv[])
     constexpr ck::index_t NumBTensor = 2;
     constexpr ck::index_t NumDTensor = 1;
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleABD<ck::Tuple<Row>,
-                                                                         ck::Tuple<Row, Row>,
-                                                                         ck::Tuple<Row>,
+    using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleABD<AsLayout,
+                                                                         BsLayout,
+                                                                         DsLayout,
                                                                          Row,
-                                                                         ck::Tuple<BF16>,
-                                                                         ck::Tuple<I8, BF16>,
-                                                                         ck::Tuple<BF16>,
+                                                                         AsDataType,
+                                                                         BsDataType,
+                                                                         DsDataType,
                                                                          BF16,
                                                                          AElementOp,
                                                                          BElementOp,
