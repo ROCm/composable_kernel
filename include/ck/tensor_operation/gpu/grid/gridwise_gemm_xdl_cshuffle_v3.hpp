@@ -651,9 +651,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
-            constexpr auto mpair            = (AK1Number * MPerXdl * sizeof(ADataType) > 128)
-                                                  ? 1
-                                                  : 128 / (AK1Number * MPerXdl * sizeof(ADataType));
+            // 1<=mpair<=n0
+            constexpr auto mpair = (AK1Number * MPerXdl * sizeof(ADataType) > 128)
+                                       ? 1
+                                       : ((128 / (AK1Number * MPerXdl * sizeof(ADataType))) > M0
+                                              ? M0
+                                              : 128 / (AK1Number * MPerXdl * sizeof(ADataType)));
+
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
                            Number<K0PerThreadWrite>{},
@@ -711,7 +715,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(Sequence<0, 1, 4, 2>{}, Sequence<5, 6, 3>{}, Sequence<7>{}),
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-            return a_lds_block_desc_ak0_n_ak1;
+            return a_lds_block_desc_ak0_m_ak1;
         }
     }
 
@@ -781,9 +785,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
-            constexpr auto npair            = (BK1Number * NPerXdl * sizeof(BDataType) > 128)
-                                                  ? 1
-                                                  : 128 / (BK1Number * NPerXdl * sizeof(BDataType));
+            // 1<=npair<=n0
+            constexpr auto npair = (BK1Number * NPerXdl * sizeof(BDataType) > 128)
+                                       ? 1
+                                       : ((128 / (BK1Number * NPerXdl * sizeof(BDataType))) > N0
+                                              ? N0
+                                              : 128 / (BK1Number * NPerXdl * sizeof(BDataType)));
+
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
                            Number<K0PerThreadWrite>{},
