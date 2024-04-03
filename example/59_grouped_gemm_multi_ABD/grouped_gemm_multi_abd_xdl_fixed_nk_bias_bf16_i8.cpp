@@ -52,15 +52,6 @@ using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using DsLayout = ck::Tuple<Row>;
 using ELayout  = Row;
 
-struct Scale
-{
-    __host__ __device__ constexpr void
-    operator()(B1DataType& b, const B0DataType& b0, const B1DataType& b1) const
-    {
-        b = ck::type_convert<BF16>(b0 * ck::type_convert<float>(b1));
-    }
-};
-
 using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;

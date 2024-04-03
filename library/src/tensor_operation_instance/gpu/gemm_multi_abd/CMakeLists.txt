@@ -1,0 +1,7 @@
+set(GEMM_MULTI_ABD_INSTANCES)
+
+list(APPEND GEMM_MULTI_ABD_INSTANCES 
+	device_gemm_xdl_multi_abd_bias_gelu_bf16_i8_bf16_mk_kn_mn_v1_instance.cpp
+	)
+
+add_instance_library(device_gemm_multi_abd_instance ${GEMM_MULTI_ABD_INSTANCES})
