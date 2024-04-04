@@ -55,7 +55,9 @@ void write_string(const std::string& filename, const std::string& buffer)
     write_buffer(filename, buffer.data(), buffer.size());
 }
 
-std::string compiler() { return "/opt/rocm/llvm/bin/clang++ -x hip --cuda-device-only"; }
+// std::string compiler() { return "/opt/rocm/llvm/bin/clang++ -x hip --cuda-device-only"; }
+// TODO: undo after extracting the codeobj
+std::string compiler() { return "/opt/rocm/llvm/bin/clang++ -x hip"; }
 
 kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options)
 {
@@ -90,10 +92,9 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
 
     auto obj = read_buffer(out_path.string());
 
-    std::ofstream ofh("obj.bin");
-    for(auto i : obj)
-        ofh << i;
-    ofh.close();
+    int s = std::system(("/usr/bin/cp " + out_path.string() + " codeobj.bin").c_str()); 
+    assert(s == 0);
+
     return kernel{obj.data(), options.kernel_name};
 }
 
