@@ -325,7 +325,7 @@ struct BlockFmhaPipelineQRKSVS
             // STAGE 2, scale, add bias, mask, softmax
             if constexpr(kHasBias)
             {
-                tile_elementwise_inout(s_acc_element_func, s_acc);
+                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
                 tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
@@ -341,7 +341,7 @@ struct BlockFmhaPipelineQRKSVS
             }
             else
             {
-                tile_elementwise_inout(s_acc_element_func, s_acc);
+                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
                 tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
 #endif
@@ -468,7 +468,7 @@ struct BlockFmhaPipelineQRKSVS
             }
             move_tile_window(v_dram_window, {0, kK1});
 
-            tile_elementwise_inout(p_compute_element_func, p_compute);
+            tile_elementwise_in(p_compute_element_func, p_compute);
             const auto p = cast_tile<PDataType>(p_compute);
 
             // STAGE 3, KV gemm
@@ -555,7 +555,7 @@ struct BlockFmhaPipelineQRKSVS
             });
         });
 
-        tile_elementwise_inout(o_acc_element_func, o_acc);
+        o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
         return o_acc;
     }
