@@ -8,6 +8,8 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_2d_impl.hpp"
 
+#include "ck/library/reference_tensor_operation/cpu/reference_elementwise.hpp"
+
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -30,22 +32,6 @@ using DeviceElementwisePermuteInstance =
                                                           ck::Sequence<1>,  // InScalarPerVectorSeq
                                                           ck::Sequence<1>>; // OutScalarPerVectorSeq
 
-template <typename HostTensorA, typename HostTensorB, typename Functor>
-void host_elementwise4D(HostTensorB& B_nhwc,
-                        const HostTensorA& A_nchw,
-                        const std::vector<std::size_t>& shape_nchw,
-                        Functor functor)
-{
-    for(std::size_t n = 0; n < shape_nchw[0]; ++n)
-        for(std::size_t c = 0; c < shape_nchw[1]; ++c)
-            for(std::size_t h = 0; h < shape_nchw[2]; ++h)
-                for(std::size_t w = 0; w < shape_nchw[3]; ++w)
-                {
-                    auto a_val = A_nchw(n, c, h, w);
-                    functor(B_nhwc(n, h, w, c), a_val);
-                }
-}
-
 int main()
 {
     bool do_verification = true;
@@ -54,13 +40,16 @@ int main()
     const int N = 120;
     const int C = 128;
     const int H = 32;
-    const int W = 1024;
+    const int W = 32;
 
-    std::vector<std::size_t> nchw = {N, C, H, W};
-    std::vector<std::size_t> nhwc = {N, H, W, C};
+    std::array<ck::index_t, 4> ab_lengths{N, H, W, C};
 
-    Tensor<ADataType> a(nchw);
-    Tensor<BDataType> b(nhwc);
+    std::array<ck::index_t, 4> a_strides = {C * H * W, W, 1, H * W};
+    std::array<ck::index_t, 4> b_strides = {H * W * C, W * C, C, 1};
+
+    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(ab_lengths, a_strides)};
+    Tensor<ADataType>& a                = as[0];
+    Tensor<BDataType> b(ab_lengths, b_strides);
 
     a.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
 
@@ -71,11 +60,6 @@ int main()
 
     std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
-
-    std::array<ck::index_t, 4> ab_lengths{N, H, W, C};
-
-    std::array<ck::index_t, 4> a_strides = {C * H * W, W, 1, H * W};
-    std::array<ck::index_t, 4> b_strides = {H * W * C, W * C, C, 1};
 
     auto broadcastPermute = DeviceElementwisePermuteInstance{};
     auto argument         = broadcastPermute.MakeArgumentPointer(
@@ -94,10 +78,11 @@ int main()
     float ave_time =
         broadcastPermute_invoker_ptr->Run(argument.get(), StreamConfig{nullptr, time_kernel});
 
-    std::size_t flop = std::size_t(2) * nchw[0] * nchw[1] * nchw[2] * nchw[3];
+    std::size_t flop =
+        std::size_t(2) * ab_lengths[0] * ab_lengths[1] * ab_lengths[2] * ab_lengths[3];
 
-    std::size_t num_btype = sizeof(ADataType) * (nchw[0] * nchw[1] * nchw[2] * nchw[3]) +
-                            sizeof(BDataType) * (nchw[0] * nchw[1] * nchw[2] * nchw[3]);
+    std::size_t num_btype = (sizeof(ADataType) + sizeof(BDataType)) *
+                            (ab_lengths[0] * ab_lengths[1] * ab_lengths[2] * ab_lengths[3]);
 
     float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
@@ -110,11 +95,16 @@ int main()
 
     if(do_verification)
     {
-        b_device_buf.FromDevice(b.mData.data());
+        Tensor<BDataType> host_b(ab_lengths, b_strides);
+        using ReferenceElementwiseInstance =
+            ck::tensor_operation::host::ReferenceElementwise<1, ADataType, BDataType, PassThrough>;
+        auto ref_elementwise = ReferenceElementwiseInstance{};
+        auto ref_invoker     = ref_elementwise.MakeInvoker();
 
-        Tensor<BDataType> host_b(nhwc);
-        host_elementwise4D<Tensor<ADataType>, Tensor<BDataType>, PassThrough>(
-            host_b, a, nchw, PassThrough{});
+        auto ref_argument = ref_elementwise.MakeArgument(as, host_b, PassThrough{});
+        ref_invoker.Run(ref_argument);
+
+        b_device_buf.FromDevice(b.mData.data());
         pass &=
             ck::utils::check_err(b.mData, host_b.mData, "Error: Incorrect results b", 1e-3, 1e-3);
     }

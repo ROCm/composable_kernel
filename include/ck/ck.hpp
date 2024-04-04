@@ -45,6 +45,10 @@
 #endif
 
 // define general macros for various architectures
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__)
+#define __gfx9__
+#endif
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #define __gfx94__
 #endif
@@ -62,8 +66,7 @@
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
-#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx94__)
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx9__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
@@ -75,8 +78,7 @@
 #ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
 #elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx103__) || \
-    defined(__gfx94__) // for GPU code
+#elif defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
@@ -89,7 +91,7 @@
 // MFMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_MFMA
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) // for GPU code
+#elif defined(__gfx9__) // for GPU code
 #define CK_USE_AMD_MFMA
 #endif
 
@@ -120,7 +122,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) // for GPU code
+#elif defined(__gfx9__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0

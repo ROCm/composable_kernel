@@ -172,7 +172,6 @@ void add_device_grouped_gemm_multiple_d_xdl_two_stage_bf16_bf16_bf16_mk_kn_mn_in
                                                   PassThrough,
                                                   PassThrough>>>& instances);
 
-
 void add_device_grouped_gemm_multiple_d_xdl_two_stage_bf16_bf16_bf16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Col,
@@ -281,8 +280,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 #endif
 #if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8)
-        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
-                          is_same_v<EDataType, half_t>)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
+                     is_same_v<EDataType, half_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
@@ -301,8 +300,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 #endif
 #if defined(CK_ENABLE_BF16) && defined(CK_ENABLE_INT8)
-        else if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
-                          is_same_v<EDataType, bhalf_t>)
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<EDataType, bhalf_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
@@ -311,7 +310,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<ELayout, Row>)
+                              is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_multiple_d_xdl_two_stage_bf16_i8_bf16_mk_nk_mn_instances(
                     op_ptrs);
@@ -319,8 +318,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         }
 #endif
 #if defined(CK_ENABLE_BF16)
-        else if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
-                          is_same_v<EDataType, bhalf_t>)
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
+                     is_same_v<EDataType, bhalf_t>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
@@ -329,7 +328,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     op_ptrs);
             }
             else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                         is_same_v<ELayout, Row>)
+                              is_same_v<ELayout, Row>)
             {
                 add_device_grouped_gemm_multiple_d_xdl_two_stage_bf16_bf16_bf16_mk_nk_mn_instances(
                     op_ptrs);

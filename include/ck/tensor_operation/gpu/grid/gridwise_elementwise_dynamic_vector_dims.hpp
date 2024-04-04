@@ -118,8 +118,16 @@ struct GridwiseElementwise
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * M0PerBlock);
         const index_t m1_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * M1PerBlock);
-        const auto thread_grid_offset =
-            make_multi_index(m0_block_data_idx_on_grid, m1_block_data_idx_on_grid);
+        const auto input_thread_grid_offset = generate_tuple(
+            [&](auto) {
+                return make_multi_index(m0_block_data_idx_on_grid, m1_block_data_idx_on_grid);
+            },
+            Number<NumInput>{});
+        const auto output_thread_grid_offset = generate_tuple(
+            [&](auto) {
+                return make_multi_index(m0_block_data_idx_on_grid, m1_block_data_idx_on_grid);
+            },
+            Number<NumOutput>{});
 
         using ThisThreadBlock = ThisThreadBlock<BlockSize>;
         // If src and dst have same vector dim, then:
@@ -157,9 +165,9 @@ struct GridwiseElementwise
             uniform_sequence_gen_t<NumOutput, 1>,
             uniform_sequence_gen_t<NumInput, false>,
             uniform_sequence_gen_t<NumOutput, false>>{in_grid_desc_tuple,
-                                                      thread_grid_offset,
+                                                      input_thread_grid_offset,
                                                       out_grid_desc_tuple,
-                                                      thread_grid_offset,
+                                                      output_thread_grid_offset,
                                                       elementwise_op};
         global_to_global_transfer.Run(
             in_grid_desc_tuple, in_global_buf_tuple, out_grid_desc_tuple, out_global_buf_tuple, I0);

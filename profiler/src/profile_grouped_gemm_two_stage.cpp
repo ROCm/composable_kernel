@@ -17,9 +17,9 @@ enum struct GemmMatrixLayout
 
 enum struct GemmDataType
 {
-    F16_F16_F16,   // 0
-    BF16_INT8_BF16,// 1
-    BF16_BF16_BF16 // 2
+    F16_F16_F16,    // 0
+    BF16_INT8_BF16, // 1
+    BF16_BF16_BF16  // 2
 };
 
 #define OP_NAME "grouped_gemm_two_stage"
