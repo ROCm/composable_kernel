@@ -250,11 +250,13 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                     const index_t M                  = din_grid_desc_2d.GetLength(I0);
                     const index_t N                  = din_grid_desc_2d.GetLength(I1);
                     const auto block_2_tile_map      = Block2TileMap(M, N);
+                    const auto cast_kernel_grid_size =
+                        block_2_tile_map.CalculateGridSize(din_grid_desc_2d);
 
                     elapsed_time += launch_and_time_kernel(
                         stream_config,
                         cast_kernel,
-                        dim3(gridSize),
+                        dim3(cast_kernel_grid_size),
                         dim3(arg.blockSize_),
                         0,
                         ck::make_tuple(din_grid_desc_2d),
