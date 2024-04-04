@@ -331,10 +331,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             if constexpr(AEnableLds)
             {
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_MPerWmma_AK1
-                constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
-                constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
-                // constexpr auto A_KRow = I1;
-                constexpr auto A_KRow = I2;
+                constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
+                constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
+                constexpr auto A_KRow = I1;
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
                     make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
@@ -372,10 +371,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             if constexpr(B0EnableLds)
             {
                 // BK0_L_BK1 -> BK0_LRepeat_Lwaves_LPerWmma_BK1
-                constexpr auto B_K0 = B0BlockDesc_{}.GetLength(I0);
-                constexpr auto B_K1 = B0BlockDesc_{}.GetLength(I2);
-                // constexpr auto B_KRow = I1;
-                constexpr auto B_KRow = I2;
+                constexpr auto B_K0   = B0BlockDesc_{}.GetLength(I0);
+                constexpr auto B_K1   = B0BlockDesc_{}.GetLength(I2);
+                constexpr auto B_KRow = I1;
                 return transform_tensor_descriptor(
                     B0BlockDesc_{},
                     make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
@@ -412,8 +410,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
     {
         constexpr index_t A_L0 = A1BlockDesc_AL0_M_AL1{}.GetLength(I0);
         constexpr index_t A_L1 = A1BlockDesc_AL0_M_AL1{}.GetLength(I2);
-        // constexpr auto A_LRow  = I1;
-        constexpr auto A_LRow = I2;
+        constexpr auto A_LRow  = I1;
         return transform_tensor_descriptor(
             A1BlockDesc_AL0_M_AL1{},
             make_tuple(make_unmerge_transform(make_tuple(Number<A_L0>{}, A_LRow)),
@@ -431,10 +428,9 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             if constexpr(B1EnableLds)
             {
                 // BL0_N_BL1 -> BL0_NRepeat_Nwaves_NPerWmma_BL1
-                constexpr auto B_L0 = B1BlockDesc_{}.GetLength(I0);
-                constexpr auto B_L1 = B1BlockDesc_{}.GetLength(I2);
-                // constexpr auto B_LRow = I1;
-                constexpr auto B_LRow = I2;
+                constexpr auto B_L0   = B1BlockDesc_{}.GetLength(I0);
+                constexpr auto B_L1   = B1BlockDesc_{}.GetLength(I2);
+                constexpr auto B_LRow = I1;
                 return transform_tensor_descriptor(
                     B1BlockDesc_{},
                     make_tuple(make_unmerge_transform(make_tuple(Number<B_L0>{}, B_LRow)),
@@ -1183,7 +1179,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
                               MRepeat,
                               NRepeat,
                               KPack,
-                              true,
+                              false,
                               B1EnableLds,
                               true>{make_tuple(0, 0, 0, 0, 0, 0)};
 
@@ -1346,7 +1342,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 
                         block_sync_lds();
 
-                        //blockwise_gemm1.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
+                        blockwise_gemm1.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
 
                         block_sync_lds();
 
@@ -1369,7 +1365,7 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 
                     block_sync_lds();
             
-                    //blockwise_gemm1.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
+                    blockwise_gemm1.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
                 }
             } // end gemm1
 
