@@ -56,7 +56,7 @@ __global__ void
                                                        bool input_permute,
                                                        bool output_permute)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************
@@ -159,6 +159,7 @@ __global__ void
     ignore = O;
     ignore = G0;
     ignore = G1;
+    ignore = alpha;
     ignore = input_permute;
     ignore = output_permute;
 #endif // end of if (defined(__gfx11__))
@@ -187,7 +188,7 @@ __global__ void
                                            index_t head_size,
                                            float alpha)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************
@@ -561,7 +562,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto B0EnableLds_auto = MWaves == 1 ? false : true;
     static constexpr auto B1EnableLds_auto = MWaves == 1 ? false : true;
 
-    static constexpr auto AEnableLds_manu  = false;
+    static constexpr auto AEnableLds_manu  = true;
     static constexpr auto B0EnableLds_manu = true;
     static constexpr auto B1EnableLds_manu = true;
 
@@ -858,7 +859,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
 
     static bool IsSupportedArgument(const RawArg& arg)
     {
-        if(ck::is_navi3_supported())
+        if(ck::is_navi3_supported() || ck::is_navi4_supported())
         {
             if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
             {

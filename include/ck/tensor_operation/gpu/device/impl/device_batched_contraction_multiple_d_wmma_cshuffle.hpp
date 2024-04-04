@@ -137,8 +137,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
     // If true, LDS is used unconditionally
-    static constexpr auto AEnableLds_manu = false;
-    static constexpr auto BEnableLds_manu = false;
+    static constexpr auto AEnableLds_manu = true;
+    static constexpr auto BEnableLds_manu = true;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
@@ -829,7 +829,7 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::is_navi3_supported())
+        if(ck::is_navi3_supported() || ck::is_navi4_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
