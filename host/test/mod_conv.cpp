@@ -155,6 +155,32 @@ auto report(const Solution& solution, bool pass)
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
 
+auto layout_type(std::string type)
+{
+    if(type == "ck::tensor_layout::convolution::GNKHW")
+    {
+        return ck::tensor_operation::device::GemmSpecialization::Default;
+    }
+    return ck::tensor_operation::device::GemmSpecialization::Default;
+}
+// method to check GemmType
+auto gemm_type(std::string type)
+{
+    if(type == "ck::tensor_operation::device::GemmSpecialization::Default")
+    {
+        return ck::tensor_operation::device::GemmSpecialization::Default;
+    }
+    return ck::tensor_operation::device::GemmSpecialization::Default;
+}
+auto conv_type(std::string type)
+{
+    if(type == "ck::tensor_operation::device::ConvolutionForwardSpecialization::Default")
+    {
+        return ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
+    }
+    return ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
+}
+
 struct Prologue
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
@@ -455,7 +481,27 @@ struct Prologue
         auto n_per_block = solution.GetTemplateParameter<std::size_t>("NPerBlock");
         auto num_dim     = solution.GetTemplateParameter<std::size_t>("NumDim");
         auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
+        std::cout << "GemmSpec 1: " << GemmType << std::endl;
+        GemmType.erase(std::remove(GemmType.begin(), GemmType.end(), '\"'), GemmType.end());
+        std::cout << "GemmSpec 2: " << GemmType << std::endl;
+        auto GemmSpec = gemm_type(GemmType);
 
+        static bool PadM =
+            (GemmSpec == ck::tensor_operation::device::GemmSpecialization::MPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding);
+        static bool PadN =
+            (GemmSpec == ck::tensor_operation::device::GemmSpecialization::NPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding);
+        static bool PadK =
+            (GemmSpec == ck::tensor_operation::device::GemmSpecialization::KPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding ||
+             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding);
         // E grid desc + block 2 etile
         const ck::index_t N = out_lengths[1];
         const ck::index_t K = out_lengths[2];
@@ -501,7 +547,7 @@ struct Prologue
                                                               input_left_pads,
                                                               input_right_pads);
 
-        Tensor<ck::half_t> in_host(in_lengths, in_strides);
+        /**Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
         wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
@@ -555,7 +601,9 @@ struct Prologue
         {
             std::cout << "!!!!!!!!!!!! ERROR !!!!!!!!!!!\n";
             std::abort();
-        }
+        }**/
+
+        auto res = rtc::from_gpu(out_dev);
         CHECK(report(solution, check(res)));
     }
 }

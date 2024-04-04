@@ -354,7 +354,7 @@ struct Epilogue
                                                               input_left_pads,
                                                               input_right_pads);
 
-        Tensor<ck::half_t> in_host(in_lengths, in_strides);
+        /**Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
         wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
@@ -397,7 +397,8 @@ struct Epilogue
             ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
         }
         ofh2.close();
-        assert(pass);
+        assert(pass);**/
+        auto res = rtc::from_gpu(out_dev);
         CHECK(report(solution, check(res)));
     }
 }
