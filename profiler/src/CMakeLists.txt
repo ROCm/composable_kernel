@@ -56,24 +56,6 @@ if(GPU_TARGETS MATCHES "gfx9")
 
 endif()
 
-<<<<<<< HEAD
-if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
-  list(APPEND PROFILER_SOURCES profile_batched_gemm_gemm.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_fastgelu.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_streamk.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_bilinear.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_add.cpp) 
-  list(APPEND PROFILER_SOURCES profile_gemm_add_fastgelu.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_add_relu.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_add_silu.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_add_add_fastgelu.cpp)
-  list(APPEND PROFILER_SOURCES profile_gemm_add_relu_add_layernorm.cpp)
-  list(APPEND PROFILER_SOURCES profile_batched_gemm_add_relu_gemm_add.cpp)
-  list(APPEND PROFILER_SOURCES profile_grouped_gemm.cpp)
-  list(APPEND PROFILER_SOURCES profile_grouped_gemm_fixed_nk.cpp)
-  list(APPEND PROFILER_SOURCES profile_grouped_gemm_fastgelu.cpp)
-  list(APPEND PROFILER_SOURCES profile_grouped_gemm_two_stage.cpp)
-=======
 if(GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx9")
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     list(APPEND PROFILER_SOURCES profile_gemm_bilinear.cpp)
@@ -81,7 +63,6 @@ if(GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx9")
   list(APPEND PROFILER_SOURCES profile_grouped_conv_fwd.cpp)
   list(APPEND PROFILER_SOURCES profile_grouped_conv_bwd_data.cpp)
   list(APPEND PROFILER_SOURCES profile_grouped_conv_bwd_weight.cpp)
->>>>>>> origin/develop
 endif()
 
 if(DL_KERNELS)
