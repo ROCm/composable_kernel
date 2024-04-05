@@ -96,9 +96,7 @@ pygments==2.15.0
     #   pydata-sphinx-theme
     #   sphinx
 pyjwt[crypto]==2.6.0
-    # via
-    #   pygithub
-    #   pyjwt
+    # via pygithub
 pynacl==1.5.0
     # via pygithub
 pytz==2023.3.post1
@@ -113,7 +111,7 @@ requests==2.31.0
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==0.36.0
+rocm-docs-core==0.38.0
     # via -r requirements.in
 six==1.16.0
     # via

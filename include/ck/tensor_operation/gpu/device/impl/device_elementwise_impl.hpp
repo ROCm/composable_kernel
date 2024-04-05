@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,10 +22,12 @@ namespace device {
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
-          index_t NumDim,
-          index_t MPerThread,
-          typename InScalarPerVectorSeq,
-          typename OutScalarPerVectorSeq>
+          index_t NumDim,                 // The max dim of input tensors
+                                          // the tensors descs have to be aligned, such that
+                                          // the innermost dim is the contiguous one.
+          index_t MPerThread,             // How many elements per thread to read
+          typename InScalarPerVectorSeq,  // Scalar per vec for each Input
+          typename OutScalarPerVectorSeq> // Scalar per vec for each Output
 struct DeviceElementwiseImpl
     : public DeviceElementwise<InDataTypeTuple, OutDataTypeTuple, ElementwiseOperation, NumDim>
 {
@@ -242,13 +244,13 @@ struct DeviceElementwiseImpl
         static_for<0, NumInput, 1>{}([&](auto I) {
             if(!IsScalarPerVectorValid(
                    arg.lengths_, arg.inStridesArray_[I.value], InScalarPerVectorSeq::At(I)))
-                valid = false;
+                valid = valid && false;
         });
 
         static_for<0, NumOutput, 1>{}([&](auto I) {
             if(!IsScalarPerVectorValid(
                    arg.lengths_, arg.outStridesArray_[I.value], OutScalarPerVectorSeq::At(I)))
-                valid = false;
+                valid = valid && false;
         });
 
         return valid;

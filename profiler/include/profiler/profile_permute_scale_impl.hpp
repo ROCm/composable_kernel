@@ -8,11 +8,13 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_elementwise_scale.hpp"
+#include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_scale_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/permute_scale.hpp"
+
+#include "ck/library/reference_tensor_operation/cpu/reference_elementwise.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -21,25 +23,6 @@
 #include "ck/library/utility/literals.hpp"
 
 namespace ck {
-template <typename HostTensorA,
-          typename HostTensorB,
-          typename AElementOp,
-          typename BElementOp,
-          typename ScaleElementOp>
-void reference_permute_scale(HostTensorB& b_tensor,
-                             const HostTensorA& a_tensor,
-                             AElementOp a_tensor_op,
-                             BElementOp b_tensor_op,
-                             ScaleElementOp scale_op)
-{
-    b_tensor.ForEach([&](auto& self, auto idx) {
-        auto tmp_val = a_tensor(idx);
-        b_tensor_op(tmp_val, tmp_val);
-        scale_op(tmp_val, tmp_val);
-        a_tensor_op(self(idx), tmp_val);
-    });
-}
-
 namespace profiler {
 
 template <typename ADataType, typename BDataType, index_t NumDim>
@@ -54,12 +37,11 @@ bool profile_permute_scale_impl(int do_verification,
     bool pass           = true;
     bool instance_found = false;
 
-    using ElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using UnaryOp   = ck::tensor_operation::element_wise::UnarySquare;
-    using Scale     = ck::tensor_operation::element_wise::Scale;
+    using ElementOp = ck::tensor_operation::element_wise::Scale;
     float scale     = 2.f;
 
-    Tensor<ADataType> a(lengths_vector, input_strides_vector);
+    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(lengths_vector, input_strides_vector)};
+    Tensor<ADataType>& a                = as[0];
     Tensor<BDataType> b(lengths_vector, output_strides_vector);
     Tensor<BDataType> host_b(lengths_vector, output_strides_vector);
 
@@ -80,12 +62,8 @@ bool profile_permute_scale_impl(int do_verification,
 
     std::array<const void*, 1> input = {a_device_buf.GetDeviceBuffer()};
     std::array<void*, 1> output      = {b_device_buf.GetDeviceBuffer()};
-    using DeviceOp = ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ADataType>,
-                                                                     ck::Tuple<BDataType>,
-                                                                     ElementOp,
-                                                                     UnaryOp,
-                                                                     Scale,
-                                                                     NumDim>;
+    using DeviceOp                   = ck::tensor_operation::device::
+        DeviceElementwise<ck::Tuple<ADataType>, ck::Tuple<BDataType>, ElementOp, NumDim>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -100,7 +78,14 @@ bool profile_permute_scale_impl(int do_verification,
 
     if(do_verification)
     {
-        reference_permute_scale(host_b, a, ElementOp{}, UnaryOp{}, Scale{scale});
+        using ReferenceElementwiseInstance =
+            ck::tensor_operation::host::ReferenceElementwise<1, ADataType, BDataType, ElementOp>;
+        auto ref_elementwise = ReferenceElementwiseInstance{};
+        auto ref_invoker     = ref_elementwise.MakeInvoker();
+
+        auto ref_argument = ref_elementwise.MakeArgument(as, host_b, ElementOp{scale});
+
+        ref_invoker.Run(ref_argument);
     }
 
     auto copy = [](const auto& x, auto& y) { std::copy(x.begin(), x.end(), y.begin()); };
@@ -113,14 +98,8 @@ bool profile_permute_scale_impl(int do_verification,
 
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr = op_ptr->MakeArgumentPointer(lengths,
-                                                        {input_strides},
-                                                        {output_strides},
-                                                        input,
-                                                        output,
-                                                        ElementOp{},
-                                                        UnaryOp{},
-                                                        Scale{scale});
+        auto argument_ptr = op_ptr->MakeArgumentPointer(
+            lengths, {input_strides}, {output_strides}, input, output, ElementOp{scale});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
@@ -141,6 +120,7 @@ bool profile_permute_scale_impl(int do_verification,
                 if(do_log)
                 {
                     LogRangeAsType<float>(std::cout << "a : ", a.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "host_b: ", host_b.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "b: ", b.mData, ",") << std::endl;
                 }
             }
