@@ -9,11 +9,12 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha.hpp"
 
+// keep this in sync with ck_tile::GenericAttentionMaskEnum
 enum class mask_enum
 {
     no_mask = 0,
-    causal_top_left,
-    causal_bottom_right,
+    mask_top_left,
+    mask_bottom_right,
     window_generic,
 };
 
@@ -21,18 +22,19 @@ struct mask_info
 {
     mask_enum type;
     ck_tile::index_t y, x;
+    ck_tile::index_t left, right; // FA style SWA left/right
 
     void serialize(std::ostream& os) const
     {
         if(type == mask_enum::no_mask)
             os << "n";
-        else if(type == mask_enum::causal_top_left)
-            os << "tl";
-        else if(type == mask_enum::causal_bottom_right)
-            os << "br";
+        else if(type == mask_enum::mask_top_left)
+            os << "tl(" << left << ":" << right << ")";
+        else if(type == mask_enum::mask_bottom_right)
+            os << "br(" << left << ":" << right << ")";
         else
         {
-            os << "g(" << y << "/" << x << ")";
+            os << "g(" << y << ":" << x << ")";
         }
     }
     static mask_info decode(std::string str, ck_tile::index_t seqlen_q, ck_tile::index_t seqlen_k)
@@ -57,22 +59,30 @@ struct mask_info
             // TODO: some validation
             if(t == "t")
             {
-                auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                tmp.type = mask_enum::mask_top_left;
+                auto r   = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
                     v0, v1, y_total, x_total, true);
-                tmp.y = r.at(ck_tile::number<0>{});
-                tmp.x = r.at(ck_tile::number<1>{});
+                tmp.y     = r.at(ck_tile::number<0>{});
+                tmp.x     = r.at(ck_tile::number<1>{});
+                tmp.left  = v0;
+                tmp.right = v1;
             }
             else if(t == "b")
             {
-                auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                tmp.type = mask_enum::mask_bottom_right;
+                auto r   = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
                     v0, v1, y_total, x_total, false);
-                tmp.y = r.at(ck_tile::number<0>{});
-                tmp.x = r.at(ck_tile::number<1>{});
+                tmp.y     = r.at(ck_tile::number<0>{});
+                tmp.x     = r.at(ck_tile::number<1>{});
+                tmp.left  = v0;
+                tmp.right = v1;
             }
             else if(t == "g")
             {
-                tmp.y = v0;
-                tmp.x = v1;
+                tmp.y     = v0;
+                tmp.x     = v1;
+                tmp.left  = v0; // TODO: don't use this?
+                tmp.right = v1;
             }
             else
             {
@@ -84,15 +94,19 @@ struct mask_info
         {
             // should be 0, 1, 2
             tmp.type = static_cast<mask_enum>(atoi(str.c_str()));
-            if(tmp.type == mask_enum::causal_top_left)
+            if(tmp.type == mask_enum::mask_top_left)
             {
-                tmp.y = seqlen_q;
-                tmp.x = 1;
+                tmp.y     = seqlen_q;
+                tmp.x     = 1;
+                tmp.left  = -1;
+                tmp.right = 0;
             }
-            else if(tmp.type == mask_enum::causal_bottom_right)
+            else if(tmp.type == mask_enum::mask_bottom_right)
             {
-                tmp.y = seqlen_q;
-                tmp.x = seqlen_k - seqlen_q + 1;
+                tmp.y     = seqlen_q;
+                tmp.x     = seqlen_k - seqlen_q + 1;
+                tmp.left  = -1;
+                tmp.right = 0;
             }
         }
         return tmp;

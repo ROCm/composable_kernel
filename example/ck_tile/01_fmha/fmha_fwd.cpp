@@ -59,12 +59,13 @@ auto create_args(int argc, char* argv[])
         .insert("operm", "1", "permute output")
         .insert("bias", "0", "add bias or not")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
-        .insert("mask",
-                "0",
-                "0: no mask, 1: top-left, 2:bottom-right\n"
-                "'t:l,r', top-left local-attn with left right size\n"
-                "'b:l,r', bottom-r local-attn with left right size\n"
-                "'g:y,x', generic attention mask coordinate with y/x size\n")
+        .insert(
+            "mask",
+            "0",
+            "0: no mask, 1: top-left, 2:bottom-right\n"
+            "'t:l,r', top-left sliding window attn with left right size\n"
+            "'b:l,r', bottom-r sliding window attn with left right size\n"
+            "'g:y,x', generic attention mask coordinate with y/x size (only use this for debug)\n")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
@@ -381,8 +382,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_bias,
                              batch_stride_lse,
                              batch_stride_o,
-                             mask.y,
-                             mask.x,
+                             mask.left,
+                             mask.right,
+                             static_cast<ck_tile::index_t>(mask.type),
                              descale_q * descale_k,
                              descale_v};
     }();
@@ -498,12 +500,32 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else if(mask.type == mask_enum::window_generic)
         {
             ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+                s_host_ref,
+                ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                    mask.left, mask.right, real_seqlen_q, real_seqlen_k));
         }
         else
         {
-            ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+            // if left window size is negative, means causal
+            // else means generic (for current batch)
+            if(mask.left < 0)
+                ck_tile::reference_batched_masking<SaccDataType>(
+                    s_host_ref,
+                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+                        mask.left,
+                        mask.right,
+                        real_seqlen_q,
+                        real_seqlen_k,
+                        mask.type == mask_enum::mask_top_left));
+            else
+                ck_tile::reference_batched_masking<SaccDataType>(
+                    s_host_ref,
+                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                        mask.left,
+                        mask.right,
+                        real_seqlen_q,
+                        real_seqlen_k,
+                        mask.type == mask_enum::mask_top_left));
         }
         if(lse)
         {
