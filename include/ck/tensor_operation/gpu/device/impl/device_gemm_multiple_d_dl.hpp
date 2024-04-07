@@ -50,8 +50,9 @@ __global__ void
             const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||         \
+    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__) || \
+    defined(__gfx12__))
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(ABDataType);
@@ -552,7 +553,7 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_navi2_supported() || ck::is_navi3_supported())
+           ck::is_navi2_supported() || ck::is_navi3_supported() || ck::is_navi4_supported())
         {
             return GridwiseGemm::CheckValidity(
                 arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_);

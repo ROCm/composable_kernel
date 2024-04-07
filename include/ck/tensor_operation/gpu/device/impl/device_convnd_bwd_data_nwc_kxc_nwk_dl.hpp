@@ -1394,7 +1394,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Dl
     {
         // check device
         if(!(ck::get_device_name() == "gfx906" || ck::is_navi2_supported() ||
-             ck::is_navi3_supported()))
+             ck::is_navi3_supported() || ck::is_navi4_supported()))
         {
             return false;
         }

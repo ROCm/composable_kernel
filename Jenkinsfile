@@ -496,7 +496,7 @@ def Build_CK(Map conf=[:]){
         def navi_node = 0
         def mi300_node = 0
 
-        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel-internal') {
+        gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel-internal') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -602,7 +602,7 @@ def process_results(Map conf=[:]){
     def variant = env.STAGE_NAME
     def retimage
 
-    gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel-internal') {
+    gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel-internal') {
         try {
             (retimage, image) = getDockerImage(conf)
         }

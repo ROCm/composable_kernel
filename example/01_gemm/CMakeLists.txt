@@ -27,7 +27,8 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_wavelet_fp16)
 
 add_example_executable(example_gemm_xdl_skip_b_lds_fp16 gemm_xdl_skip_b_lds_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_skip_b_lds_fp16)
-if(GPU_TARGETS MATCHES "gfx1100" OR GPU_TARGETS MATCHES "gfx1101" OR GPU_TARGETS MATCHES "gfx1102" OR GPU_TARGETS MATCHES "gfx1200")
+
+if(GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12")
     add_custom_target(example_gemm_wmma)
     add_example_executable(example_gemm_wmma_fp16 gemm_wmma_fp16.cpp)
     add_example_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
@@ -53,12 +54,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
 add_example_executable(example_gemm_xdl_streamk gemm_xdl_streamk.cpp)
 
-add_example_executable(example_gemm_xdl_fp8 gemm_xdl_fp8.cpp)
-add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8)
-
-add_example_executable(example_gemm_xdl_fp8_bf8 gemm_xdl_fp8_bf8.cpp)
-add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
-
 list(APPEND gpu_list gfx90a gfx940 gfx941 gfx942 gfx950)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
@@ -71,3 +66,12 @@ foreach(gpu IN LISTS GPU_TARGETS)
         set(target 1)
     endif()
 endforeach()
+
+add_example_executable(example_gemm_xdl_fp8 gemm_xdl_fp8.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8)
+
+add_example_executable(example_gemm_xdl_fp8_bf8 gemm_xdl_fp8_bf8.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
+
+add_example_executable(example_gemm_xdl_fp16_fp8 gemm_xdl_fp16_fp8.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8)

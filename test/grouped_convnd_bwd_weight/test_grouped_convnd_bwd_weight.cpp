@@ -55,7 +55,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        if(ck::is_navi3_supported())
+        if(ck::is_navi3_supported() || ck::is_navi4_supported())
         {
             // on navi3x only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)
