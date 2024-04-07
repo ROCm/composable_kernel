@@ -194,9 +194,6 @@ struct BlockwiseGemmWMMA
         static_assert(MPerBlock % (MPerWMMA * MRepeat) == 0 &&
                           NPerBlock % (NPerWMMA * NRepeat) == 0,
                       "wrong!");
-
-        // static_assert(AEnableLds == true, "only support EnableLds");
-        // static_assert(BEnableLds == true, "only support EnableLds");
     }
 
     // transposed WMMA output C' = B' * A'

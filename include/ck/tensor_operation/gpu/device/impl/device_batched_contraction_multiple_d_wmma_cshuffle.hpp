@@ -137,8 +137,8 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
 
     // If true, LDS is used unconditionally
-    static constexpr auto AEnableLds_manu = true;
-    static constexpr auto BEnableLds_manu = true;
+    static constexpr auto AEnableLds_manu = false;
+    static constexpr auto BEnableLds_manu = false;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);

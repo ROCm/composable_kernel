@@ -562,7 +562,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto B0EnableLds_auto = MWaves == 1 ? false : true;
     static constexpr auto B1EnableLds_auto = MWaves == 1 ? false : true;
 
-    static constexpr auto AEnableLds_manu  = true;
+    static constexpr auto AEnableLds_manu  = false;
     static constexpr auto B0EnableLds_manu = true;
     static constexpr auto B1EnableLds_manu = true;
 

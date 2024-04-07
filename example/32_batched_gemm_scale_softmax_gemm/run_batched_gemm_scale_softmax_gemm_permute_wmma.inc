@@ -9,10 +9,10 @@ int run(int argc, char* argv[])
 
     // GEMM shape for A/B0/B1/C
     // C_g_m_o = A_g_m_k * B0_g_k_n * B1_g_n_o
-    ck::index_t M = 60;
-    ck::index_t N = 100;
+    ck::index_t M = 120;
+    ck::index_t N = 1000;
     ck::index_t K = 64;
-    ck::index_t O = 64;
+    ck::index_t O = 128;
 
     // Output shape C[G0, M, G1, O]. Batch dim, outer dim, inner dim must match GEMM shape
     // C_g0_g1_m_o = reshape(C_g_m_o, [g0, g1, m, o])
