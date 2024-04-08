@@ -103,6 +103,23 @@ auto get_elimit<ck_tile::bf16_t>(int init_method)
     }
 }
 
+template <>
+auto get_elimit<ck_tile::fp8_t>(int init_method)
+{
+    if(init_method == 0)
+    {
+        unsigned rounding_error = 0;
+        double atol             = 2e-3;
+        return ck_tile::make_tuple(rounding_error, atol);
+    }
+    else
+    {
+        unsigned rounding_error = 1;
+        double atol             = 0.0625;
+        return ck_tile::make_tuple(rounding_error, atol);
+    }
+}
+
 template <typename DataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
