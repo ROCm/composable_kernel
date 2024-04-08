@@ -262,13 +262,13 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         rotating_mem.Next();
                     };
 
-                    ave_time = launch_and_time_kernel_without_preprocess(stream_config,
-                                                                         run_flush_cache,
-                                                                         kernel,
-                                                                         dim3(gdx, gdy, gdz),
-                                                                         dim3(BlockSize),
-                                                                         0,
-                                                                         arg_);
+                    ave_time = launch_and_time_kernel_with_preprocess<false>(stream_config,
+                                                                             run_flush_cache,
+                                                                             kernel,
+                                                                             dim3(gdx, gdy, gdz),
+                                                                             dim3(BlockSize),
+                                                                             0,
+                                                                             arg_);
                 }
                 else
                 {
