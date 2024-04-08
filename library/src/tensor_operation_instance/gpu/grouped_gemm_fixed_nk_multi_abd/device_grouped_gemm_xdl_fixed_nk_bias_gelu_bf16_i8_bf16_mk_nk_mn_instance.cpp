@@ -76,10 +76,11 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instan
 {
     add_device_operation_instances(
         instances,
-        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instances<ck::Tuple<>,
-                                                                                   ck::Tuple<>,
-                                                                                   PassThrough,
-                                                                                   GemmMNKPadding>{});
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instances<
+            ck::Tuple<>,
+            ck::Tuple<>,
+            PassThrough,
+            GemmMNKPadding>{});
 }
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_instances(
@@ -97,10 +98,11 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_i
 {
     add_device_operation_instances(
         instances,
-        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instances<ck::Tuple<>,
-                                                                                   ck::Tuple<>,
-                                                                                   FastGelu,
-                                                                                   GemmMNKPadding>{});
+        device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instances<
+            ck::Tuple<>,
+            ck::Tuple<>,
+            FastGelu,
+            GemmMNKPadding>{});
 }
 
 } // namespace instance
