@@ -38,14 +38,14 @@ struct FmhaFwdKernel
     using VLayout          = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
     using ElementFunctions = typename FmhaPipeline::Problem::ElementFunctions;
 
-    // using QElementFunction        = ElementFunctions::QElementFunction;
-    // using KElementFunction        = ElementFunctions::KElementFunction;
-    // using VElementFunction        = ElementFunctions::VElementFunction;
-    // using BiasElementFunction     = ElementFunctions::BiasElementFunction;
-    // using LSEElementFunction      = ElementFunctions::LSEElementFunction;
-    // using SAccElementFunction     = ElementFunctions::SAccElementFunction;
-    using PComputeElementFunction = ElementFunctions::PComputeElementFunction;
-    using OAccElementFunction     = ElementFunctions::OAccElementFunction;
+    // using QElementFunction        = typename ElementFunctions::QElementFunction;
+    // using KElementFunction        = typename ElementFunctions::KElementFunction;
+    // using VElementFunction        = typename ElementFunctions::VElementFunction;
+    // using BiasElementFunction     = typename ElementFunctions::BiasElementFunction;
+    // using LSEElementFunction      = typename ElementFunctions::LSEElementFunction;
+    // using SAccElementFunction     = typename ElementFunctions::SAccElementFunction;
+    using PComputeElementFunction = typename ElementFunctions::PComputeElementFunction;
+    using OAccElementFunction     = typename ElementFunctions::OAccElementFunction;
 
     static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
