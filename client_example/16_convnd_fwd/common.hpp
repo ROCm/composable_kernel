@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iomanip>
@@ -95,7 +95,8 @@ template <ck::index_t NumDimSpatial,
           typename WeiLayout,
           typename OutLayout,
           ck::index_t NumNonSpatialDim = 3,
-          typename ComputeType         = InDataType>
+          typename AComputeType        = InDataType,
+          typename BComputeType        = AComputeType>
 bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
                           std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
@@ -186,7 +187,8 @@ bool run_grouped_conv_fwd(std::array<ck::index_t, NumDimSpatial + NumNonSpatialD
                                                                                    PassThrough,
                                                                                    PassThrough,
                                                                                    PassThrough,
-                                                                                   ComputeType>;
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();

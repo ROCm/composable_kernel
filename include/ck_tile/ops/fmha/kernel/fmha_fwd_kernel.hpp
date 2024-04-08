@@ -157,7 +157,9 @@ struct FmhaFwdKernel
 
     struct FmhaFwdMaskKargs
     {
-        ck_tile::index_t mask_y, mask_x;
+        // ck_tile::index_t window_size_left, window_size_right;
+        ck_tile::index_t window_size_left, window_size_right;
+        ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
     struct FmhaFwdCommonLSEKargs
@@ -227,8 +229,9 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_bias,
               ck_tile::index_t batch_stride_lse,
               ck_tile::index_t batch_stride_o,
-              ck_tile::index_t mask_y,
-              ck_tile::index_t mask_x,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
               //   QElementFunction q_element_func,
               //   KElementFunction k_element_func,
               //   VElementFunction v_element_func,
@@ -285,8 +288,9 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasMask)
         {
-            kargs.mask_y = mask_y;
-            kargs.mask_x = mask_x;
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
@@ -324,8 +328,9 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t mask_y,
-              ck_tile::index_t mask_x,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
               //   QElementFunction q_element_func,
               //   KElementFunction k_element_func,
               //   VElementFunction v_element_func,
@@ -380,8 +385,9 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasMask)
         {
-            kargs.mask_y = mask_y;
-            kargs.mask_x = mask_x;
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
@@ -665,7 +671,12 @@ struct FmhaFwdKernel
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
-                return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
+                return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
+                    kargs.window_size_left,
+                    kargs.window_size_right,
+                    kargs.seqlen_q,
+                    kargs.seqlen_k,
+                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
             else
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();

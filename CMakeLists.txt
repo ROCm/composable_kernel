@@ -145,6 +145,22 @@ if(GPU_TARGETS)
 else()
     message("Building CK for the following targets: ${AMDGPU_TARGETS}")
 endif()
+
+if (GPU_TARGETS)
+    if (GPU_TARGETS MATCHES "gfx9")
+        add_definitions(-DCK_USE_XDL)
+        set(CK_USE_XDL "ON")
+    endif()
+    if (GPU_TARGETS MATCHES "gfx11")
+        add_definitions(-DCK_USE_WMMA)
+        set(CK_USE_WMMA "ON")
+    endif()
+else()
+    add_definitions(-DCK_USE_WMMA -DCK_USE_XDL)
+    set(CK_USE_XDL "ON")
+    set(CK_USE_WMMA "ON")
+endif()
+
 find_package(hip)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
