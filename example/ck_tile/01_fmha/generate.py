@@ -90,12 +90,12 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
 using fmha_mask_{F_idx} = {F_mask};
 
 using fmha_element_function_{F_idx} = ck_tile::FmhaElementFunctions<
-    typename {F_element_func}::QElementFunction,
-    typename {F_element_func}::KElementFunction,
-    typename {F_element_func}::VElementFunction,
-    typename {F_element_func}::BiasElementFunction,
-    typename {F_element_func}::LSEElementFunction,
-    typename {F_element_func}::SAccElementFunction,
+    // typename {F_element_func}::QElementFunction,
+    // typename {F_element_func}::KElementFunction,
+    // typename {F_element_func}::VElementFunction,
+    // typename {F_element_func}::BiasElementFunction,
+    // typename {F_element_func}::LSEElementFunction,
+    // typename {F_element_func}::SAccElementFunction,
     typename {F_element_func}::PComputeElementFunction,
     typename {F_element_func}::OAccElementFunction>;
 

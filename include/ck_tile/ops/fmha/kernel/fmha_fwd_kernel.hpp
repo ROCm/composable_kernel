@@ -35,24 +35,23 @@ struct FmhaFwdKernel
     using ODataType              = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
     static constexpr bool kIsFp8 = FmhaPipeline::kIsFp8;
 
-    using VLayout = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
+    using VLayout          = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
+    using ElementFunctions = typename FmhaPipeline::Problem::ElementFunctions;
 
-    using QElementFunction =
-        ck_tile::remove_cvref_t<typename FmhaPipeline::Problem::ElementFunctions::QElementFunction>;
-    using KElementFunction =
-        ck_tile::remove_cvref_t<typename FmhaPipeline::Problem::ElementFunctions::KElementFunction>;
-    using VElementFunction =
-        ck_tile::remove_cvref_t<typename FmhaPipeline::Problem::ElementFunctions::VElementFunction>;
-    using BiasElementFunction = ck_tile::remove_cvref_t<
-        typename FmhaPipeline::Problem::ElementFunctions::BiasElementFunction>;
-    using LSEElementFunction = ck_tile::remove_cvref_t<
-        typename FmhaPipeline::Problem::ElementFunctions::LSEElementFunction>;
-    using SAccElementFunction = ck_tile::remove_cvref_t<
-        typename FmhaPipeline::Problem::ElementFunctions::SAccElementFunction>;
-    using PComputeElementFunction = ck_tile::remove_cvref_t<
-        typename FmhaPipeline::Problem::ElementFunctions::PComputeElementFunction>;
-    using OAccElementFunction = ck_tile::remove_cvref_t<
-        typename FmhaPipeline::Problem::ElementFunctions::OAccElementFunction>;
+    // using QElementFunction = ck_tile::remove_cvref_t<typename
+    // ElementFunctions::QElementFunction>; using KElementFunction =
+    // ck_tile::remove_cvref_t<typename ElementFunctions::KElementFunction>; using VElementFunction
+    // = ck_tile::remove_cvref_t<typename ElementFunctions::VElementFunction>; using
+    // BiasElementFunction =
+    //     ck_tile::remove_cvref_t<typename ElementFunctions::BiasElementFunction>;
+    // using LSEElementFunction =
+    //     ck_tile::remove_cvref_t<typename ElementFunctions::LSEElementFunction>;
+    // using SAccElementFunction =
+    //     ck_tile::remove_cvref_t<typename ElementFunctions::SAccElementFunction>;
+    using PComputeElementFunction =
+        ck_tile::remove_cvref_t<typename ElementFunctions::PComputeElementFunction>;
+    using OAccElementFunction =
+        ck_tile::remove_cvref_t<typename ElementFunctions::OAccElementFunction>;
 
     static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
@@ -140,12 +139,12 @@ struct FmhaFwdKernel
         ck_tile::index_t nhead_stride_v;
         ck_tile::index_t nhead_stride_o;
 
-        QElementFunction q_element_func;
-        KElementFunction k_element_func;
-        VElementFunction v_element_func;
-        BiasElementFunction bias_element_func;
-        LSEElementFunction lse_element_func;
-        SAccElementFunction s_acc_element_func;
+        // QElementFunction q_element_func;
+        // KElementFunction k_element_func;
+        // VElementFunction v_element_func;
+        // BiasElementFunction bias_element_func;
+        // LSEElementFunction lse_element_func;
+        // SAccElementFunction s_acc_element_func;
         PComputeElementFunction p_compute_element_func;
         OAccElementFunction o_acc_element_func;
     };
@@ -245,12 +244,12 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t mask_y,
               ck_tile::index_t mask_x,
-              QElementFunction q_element_func,
-              KElementFunction k_element_func,
-              VElementFunction v_element_func,
-              BiasElementFunction bias_element_func,
-              LSEElementFunction lse_element_func,
-              SAccElementFunction s_acc_element_func,
+              //   QElementFunction q_element_func,
+              //   KElementFunction k_element_func,
+              //   VElementFunction v_element_func,
+              //   BiasElementFunction bias_element_func,
+              //   LSEElementFunction lse_element_func,
+              //   SAccElementFunction s_acc_element_func,
               PComputeElementFunction p_compute_element_func,
               OAccElementFunction o_acc_element_func,
               float descale_qk,
@@ -278,12 +277,12 @@ struct FmhaFwdKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_o,
-                     q_element_func,
-                     k_element_func,
-                     v_element_func,
-                     bias_element_func,
-                     lse_element_func,
-                     s_acc_element_func,
+                     //  q_element_func,
+                     //  k_element_func,
+                     //  v_element_func,
+                     //  bias_element_func,
+                     //  lse_element_func,
+                     //  s_acc_element_func,
                      p_compute_element_func,
                      o_acc_element_func}, // args for common karg
                     {},                   // placeholder for bias
@@ -350,12 +349,12 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t mask_y,
               ck_tile::index_t mask_x,
-              QElementFunction q_element_func,
-              KElementFunction k_element_func,
-              VElementFunction v_element_func,
-              BiasElementFunction bias_element_func,
-              LSEElementFunction lse_element_func,
-              SAccElementFunction s_acc_element_func,
+              //   QElementFunction q_element_func,
+              //   KElementFunction k_element_func,
+              //   VElementFunction v_element_func,
+              //   BiasElementFunction bias_element_func,
+              //   LSEElementFunction lse_element_func,
+              //   SAccElementFunction s_acc_element_func,
               PComputeElementFunction p_compute_element_func,
               OAccElementFunction o_acc_element_func,
               float descale_qk,
@@ -383,12 +382,12 @@ struct FmhaFwdKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_o,
-                     q_element_func,
-                     k_element_func,
-                     v_element_func,
-                     bias_element_func,
-                     lse_element_func,
-                     s_acc_element_func,
+                     //  q_element_func,
+                     //  k_element_func,
+                     //  v_element_func,
+                     //  bias_element_func,
+                     //  lse_element_func,
+                     //  s_acc_element_func,
                      p_compute_element_func,
                      o_acc_element_func}, // args for common karg
                     {},                   // placeholder for bias
@@ -719,16 +718,16 @@ struct FmhaFwdKernel
             else
             {
                 return FmhaPipeline{}(q_dram_window,
-                                      kargs.q_element_func,
+                                      identity{},
                                       k_dram_window,
-                                      kargs.k_element_func,
+                                      identity{},
                                       v_dram_window,
-                                      kargs.v_element_func,
+                                      identity{},
                                       bias_dram_window,
-                                      kargs.bias_element_func,
+                                      identity{},
                                       lse_dram_window,
-                                      kargs.lse_element_func,
-                                      kargs.s_acc_element_func,
+                                      identity{},
+                                      identity{},
                                       kargs.p_compute_element_func,
                                       kargs.o_acc_element_func,
                                       mask,

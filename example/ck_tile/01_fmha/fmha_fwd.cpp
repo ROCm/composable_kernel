@@ -385,12 +385,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                           mask.x,
                                                           ck_tile::identity{},
                                                           ck_tile::identity{},
-                                                          ck_tile::identity{},
-                                                          ck_tile::identity{},
-                                                          ck_tile::identity{},
-                                                          ck_tile::identity{},
-                                                          ck_tile::identity{},
-                                                          ck_tile::identity{},
                                                           descale_q * descale_k,
                                                           descale_v};
     }();
