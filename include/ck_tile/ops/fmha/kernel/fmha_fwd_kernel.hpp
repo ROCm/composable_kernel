@@ -38,20 +38,14 @@ struct FmhaFwdKernel
     using VLayout          = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
     using ElementFunctions = typename FmhaPipeline::Problem::ElementFunctions;
 
-    // using QElementFunction = ck_tile::remove_cvref_t<typename
-    // ElementFunctions::QElementFunction>; using KElementFunction =
-    // ck_tile::remove_cvref_t<typename ElementFunctions::KElementFunction>; using VElementFunction
-    // = ck_tile::remove_cvref_t<typename ElementFunctions::VElementFunction>; using
-    // BiasElementFunction =
-    //     ck_tile::remove_cvref_t<typename ElementFunctions::BiasElementFunction>;
-    // using LSEElementFunction =
-    //     ck_tile::remove_cvref_t<typename ElementFunctions::LSEElementFunction>;
-    // using SAccElementFunction =
-    //     ck_tile::remove_cvref_t<typename ElementFunctions::SAccElementFunction>;
-    using PComputeElementFunction =
-        ck_tile::remove_cvref_t<typename ElementFunctions::PComputeElementFunction>;
-    using OAccElementFunction =
-        ck_tile::remove_cvref_t<typename ElementFunctions::OAccElementFunction>;
+    // using QElementFunction        = ElementFunctions::QElementFunction;
+    // using KElementFunction        = ElementFunctions::KElementFunction;
+    // using VElementFunction        = ElementFunctions::VElementFunction;
+    // using BiasElementFunction     = ElementFunctions::BiasElementFunction;
+    // using LSEElementFunction      = ElementFunctions::LSEElementFunction;
+    // using SAccElementFunction     = ElementFunctions::SAccElementFunction;
+    using PComputeElementFunction = ElementFunctions::PComputeElementFunction;
+    using OAccElementFunction     = ElementFunctions::OAccElementFunction;
 
     static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
