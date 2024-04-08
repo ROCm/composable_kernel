@@ -36,7 +36,7 @@
 #define CK_TILE_FLOAT_TO_FP8_STOCHASTIC 1
 
 #ifndef CK_TILE_FLOAT_TO_FP8_DEFAULT
-#define CK_TILE_FLOAT_TO_FP8_DEFAULT CK_TILE_FLOAT_TO_FP8_STOCHASTIC
+#define CK_TILE_FLOAT_TO_FP8_DEFAULT CK_TILE_FLOAT_TO_FP8_STANDARD
 #endif
 
 // in the old rocm period, we have to use tuple array implementation to implement this
