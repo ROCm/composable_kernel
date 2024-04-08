@@ -11,7 +11,7 @@ cmake                                                                           
 -D CMAKE_CXX_FLAGS="-std=c++17 -O3 -ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker"     \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
--D GPU_TARGETS="gfx908;gfx90a;gfx940"                                                             \
+-D GPU_TARGETS="gfx942"                                                             \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
 ${MY_PROJECT_SOURCE}

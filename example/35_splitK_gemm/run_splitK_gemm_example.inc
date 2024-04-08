@@ -60,10 +60,14 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+        //a_m_k.GenerateTensorValue_control_entropy(GeneratorTensor_2<ADataType>);
+        //b_k_n.GenerateTensorValue_control_entropy(GeneratorTensor_2<BDataType>{-5, 5});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        //a_m_k.GenerateTensorValue(GeneratorTensor_3_control_entropy<ADataType>{});
+        //b_k_n.GenerateTensorValue(GeneratorTensor_3_control_entropy<BDataType>{});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<0>{});

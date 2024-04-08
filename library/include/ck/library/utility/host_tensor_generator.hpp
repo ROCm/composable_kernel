@@ -142,6 +142,45 @@ struct GeneratorTensor_3
     }
 };
 
+// template <typename T>
+// struct GeneratorTensor_3_control_entropy
+// {
+
+//     // constexpr static int fp32_exponent_size = 8;
+//     // constexpr static int fp32_mantissa_size = 23;
+//     constexpr static int fp16_exponent_size = 5;
+//     constexpr static int fp16_mantissa_size = 10;
+
+//     mutable std::mt19937 gen{std::random_device{}()};
+//     mutable std::uniform_int_distribution<uint16_t> dis{0, 0xFFFF};
+//     float MAX_FP32_NUM = 0xFFFFFFFF;
+//     float MAX_FP16_NUM = 0xFFFF;
+
+//     template <typename... Is>
+//     T operator()(Is...) const
+//     {
+//         uint16_t bits = dis(gen); // Generate 32 random bits
+
+//         // Combine the bits into a floating-point number according to IEEE 754 format
+//         uint16_t sign     = bits >> 15;           // Get the sign bit
+//         uint16_t exponent = (bits >> 10) & 0x1F; // Get the exponent bits
+//         uint16_t mantissa = bits & 0x3FF;      // Get the mantissa bits
+
+//         if(exponent == 0x1F || exponent == 0)
+//         {
+//             // Avoid NaN and denormalized numbers
+//             return static_cast<T>(0.0);
+//         }
+
+//         // Shift the exponent to the correct position and set the sign bit
+
+//         int16_t result = (sign << 15) | ((exponent - 15 + 0x1F) << 10) |
+//                           (mantissa >> (10 - fp16_mantissa_size));
+//         float v= static_cast<float>(*reinterpret_cast<uint16_t*>(std::bitset<16>(result).to_string().c_str())) / MAX_FP16_NUM;
+//         printf("%0f,\t", v / MAX_FP16_NUM);
+//         return static_cast<T>(vector_type_maker / MAX_FP16_NUM);
+//     }
+// };
 template <>
 struct GeneratorTensor_3<ck::bhalf_t>
 {
