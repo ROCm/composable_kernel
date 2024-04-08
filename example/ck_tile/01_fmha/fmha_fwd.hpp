@@ -125,8 +125,6 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                      ck_tile::index_t hdim_v,
                                      ck_tile::index_t max_seqlen_q,
                                      float scale,
-                                     float descale_qk,
-                                     float descale_sv,
                                      bool i_perm,
                                      bool o_perm,
                                      ck_tile::index_t mask_y,
@@ -199,9 +197,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          nhead_stride_lse,
                                          nhead_stride_o,
                                          mask_y,
-                                         mask_x,
-                                         descale_qk,
-                                         descale_sv);
+                                         mask_x);
         }
         else
         { // create batch mode kernel arguments
@@ -235,9 +231,7 @@ auto fmha_fwd_create_kargs_and_grids(const void* q_ptr,
                                          batch_stride_lse,
                                          batch_stride_o,
                                          mask_y,
-                                         mask_x,
-                                         descale_qk,
-                                         descale_sv);
+                                         mask_x);
         }
     }();
 
@@ -266,8 +260,6 @@ struct fmha_fwd_args
     ck_tile::index_t hdim_v;
     ck_tile::index_t max_seqlen_q;
     float scale;
-    float descale_qk;
-    float descale_sv;
     bool i_perm;
     bool o_perm;
     ck_tile::index_t mask_y;
@@ -324,8 +316,6 @@ struct fmha_fwd_args
     // typename ElementFunctions::SAccElementFunction s_acc_element_func;
     typename ElementFunctions::PComputeElementFunction p_compute_element_func;
     typename ElementFunctions::OAccElementFunction o_acc_element_func;
-    float descale_qk;
-    float descale_sv;
 };
 
 template <typename FmhaKernel, typename FmhaFwdArgs>
@@ -369,9 +359,7 @@ auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
                                          //  args.lse_element_func,
                                          //  args.s_acc_element_func,
                                          args.p_compute_element_func,
-                                         args.o_acc_element_func,
-                                         args.descale_qk,
-                                         args.descale_sv);
+                                         args.o_acc_element_func);
         }
         else
         { // create batch mode kernel arguments
@@ -413,9 +401,7 @@ auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
                                          //  args.lse_element_func,
                                          //  args.s_acc_element_func,
                                          args.p_compute_element_func,
-                                         args.o_acc_element_func,
-                                         args.descale_qk,
-                                         args.descale_sv);
+                                         args.o_acc_element_func);
         }
     }();
 

@@ -42,7 +42,6 @@ LAYOUT_MAP = {
 
 PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaPipelineQRKSVS",
-    "qr_fp8" : "ck_tile::BlockFmhaPipelineQRKSVSFp8",
     "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
 }
 
@@ -212,7 +211,7 @@ class FmhaFwdApiTrait:
         if self.pipeline_tag == 'qr_async':
             if self.spad == 't' : return 'true' # always support
             else :                return 'true'
-        elif self.pipeline_tag in ['qr', 'qr_fp8']:
+        elif self.pipeline_tag in ['qr']:
             if self.spad == 't' : return f'a.seqlen_q % {self.bm0} != 0'
             else :                return f'a.seqlen_q % {self.bm0} == 0'
         else: assert False
@@ -228,7 +227,7 @@ class FmhaFwdApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
-        elif self.pipeline_tag in ['qr', 'qr_fp8']:
+        elif self.pipeline_tag in ['qr']:
             if self.dpad == 't': return f'a.hdim_q % {self.bk0blen} != 0'
             else :               return f'a.hdim_q % {self.bk0blen} == 0'
         else:   assert False
@@ -239,7 +238,7 @@ class FmhaFwdApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
             else :                assert False
-        elif self.pipeline_tag in ['qr', 'qr_fp8']:
+        elif self.pipeline_tag in ['qr']:
             if self.dvpad == 't': return f'a.hdim_v % {self.bk0blen} != 0'
             else :                return f'a.hdim_v % {self.bk0blen} == 0'
         else:   assert False
@@ -450,7 +449,7 @@ def get_blobs(kernel_filter : Optional[str]) -> Tuple[FmhaFwdApiPool, List[FmhaF
         elif dtype in ['fp8', 'bf8']:
             # no need lse kernels
             for mask, bias in itertools.product(MASK_MAP.keys(), ["t", "f"]):
-                pipelines.append(FmhaFwdPipeline('qr_fp8', 'col', 'f', 'f', 'f', 'f', bias, 'f', mask))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', mask))
         else:
             assert False
         return pipelines

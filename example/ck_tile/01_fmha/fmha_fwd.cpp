@@ -49,9 +49,6 @@ auto create_args(int argc, char* argv[])
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
-        .insert("descale_q", "1", "scale factor for fp8 quantization")
-        .insert("descale_k", "1", "scale factor for fp8 quantization")
-        .insert("descale_v", "1", "scale factor for fp8 quantization")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -139,10 +136,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float scale = arg_parser.get_float("scale");
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
-
-    float descale_q = arg_parser.get_float("descale_q");
-    float descale_k = arg_parser.get_float("descale_k");
-    float descale_v = arg_parser.get_float("descale_v");
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
@@ -384,9 +377,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                           mask.y,
                                                           mask.x,
                                                           ck_tile::identity{},
-                                                          ck_tile::identity{},
-                                                          descale_q * descale_k,
-                                                          descale_v};
+                                                          ck_tile::identity{}};
     }();
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
