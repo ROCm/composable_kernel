@@ -571,15 +571,12 @@ struct GridwiseGemmMultipleD_Wmma
     // *Caution Here repeat is shuffle repeat
     GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerWmma);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerWmma);
-
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1,
-                           Number<CShuffleMRepeatPerShuffle * MWave * MPerWmma>{},
+                           Number<CShuffleMRepeatPerShuffle * MWaves * MPerWmma>{},
                            I1,
-                           Number<CShuffleNRepeatPerShuffle * NWave * NPerWmma>{}));
+                           Number<CShuffleNRepeatPerShuffle * NWaves * NPerWmma>{}));
 
         return c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat;
     }
@@ -799,8 +796,9 @@ struct GridwiseGemmMultipleD_Wmma
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
 
-        const auto MBlock                                        = M / MPerBlock;
-        const auto NBlock                                        = N / NPerBlock;
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),

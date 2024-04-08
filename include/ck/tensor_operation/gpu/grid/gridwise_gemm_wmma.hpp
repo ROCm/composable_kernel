@@ -522,12 +522,6 @@ struct GridwiseGemm_Wmma
             c_grid_desc_m_n);
     }
 
-    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-            CGridDesc_M_N{}))>;
-    using DefaultBlock2CTileMap =
-        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
-
     struct SharedMemTrait
     {
         // LDS allocation for A and B: be careful of alignment
@@ -558,6 +552,12 @@ struct GridwiseGemm_Wmma
                       a_block_space_size_aligned * sizeof(ADataType) +
                           b_block_space_size_aligned * sizeof(BDataType));
     };
+
+    using CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            CGridDesc_M_N{}))>;
+    using DefaultBlock2CTileMap =
+        remove_cvref_t<decltype(MakeDefaultBlock2CTileMap(CGridDesc_M_N{}, 1, 1))>;
 
     template <bool HasMainKBlockLoop, typename Block2CTileMap = DefaultBlock2CTileMap>
     __device__ static void Run(const ADataType* __restrict__ p_a_grid,
