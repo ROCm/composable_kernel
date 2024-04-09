@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 #include "ck/host_utility/io.hpp"
 
@@ -34,7 +35,8 @@ using Scale    = ck::tensor_operation::element_wise::Scale;
 using F32 = float;
 using F64 = double;
 
-template <typename ALayout,
+template <index_t NumDimMNK,
+          typename ALayout,
           typename BLayout,
           typename CDELayout,
           typename DataType,
@@ -104,18 +106,24 @@ int profile_contraction_impl(ck::index_t do_verification,
     e_device_buf.SetZero();
     d_device_buf.ToDevice(d_m_n.mData.data());
 
-    const std::vector<index_t> a_ms_ks_lengths = {M[0], M[1], K[0], K[1]};
-    const std::vector<index_t> b_ns_ks_lengths = {N[0], N[1], K[0], K[1]};
-    const std::vector<index_t> e_ms_ns_lengths = {M[0], M[1], N[0], N[1]};
-    const std::vector<index_t> d_m_n_lengths   = {M[0], M[1], N[0], N[1]};
+    auto merge_dims = [](const std::vector<ck::index_t>& dims01,
+                         const std::vector<ck::index_t>& dims23) {
+        std::vector<ck::index_t> dims_szt(dims01.begin(), dims01.end());
+        dims_szt.insert(dims_szt.end(), dims23.begin(), dims23.end());
+        return dims_szt;
+    };
+
+    const std::vector<index_t> a_ms_ks_lengths = merge_dims(M, K);
+    const std::vector<index_t> b_ns_ks_lengths = merge_dims(N, K);
+    const std::vector<index_t> e_ms_ns_lengths = merge_dims(M, N);
+    const std::vector<index_t> d_m_n_lengths   = merge_dims(M, N);
 
     const auto a_element_op = AElementOp{};
     const auto b_element_op = BElementOp{};
 
-    constexpr ck::index_t NumDim = 2;
-    using DeviceOp               = ck::tensor_operation::device::DeviceContractionMultipleD<NumDim,
-                                                                              NumDim,
-                                                                              NumDim,
+    using DeviceOp = ck::tensor_operation::device::DeviceContractionMultipleD<NumDimMNK,
+                                                                              NumDimMNK,
+                                                                              NumDimMNK,
                                                                               DataType,
                                                                               DataType,
                                                                               DTupleDataType,
@@ -138,9 +146,9 @@ int profile_contraction_impl(ck::index_t do_verification,
     if(do_verification)
     {
         using ReferenceGemmInstance =
-            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDim,
-                                                                      NumDim,
-                                                                      NumDim,
+            ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimMNK,
+                                                                      NumDimMNK,
+                                                                      NumDimMNK,
                                                                       DataType,
                                                                       DataType,
                                                                       DataType,
@@ -159,33 +167,20 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        for(size_t m0 = 0; m0 < e_m_n_host_result.mDesc.GetLengths()[0]; ++m0)
-        {
-            for(size_t m1 = 0; m1 < e_m_n_host_result.mDesc.GetLengths()[1]; ++m1)
+        e_m_n_host_result.ForEach([&](auto& self, auto idx) {
+            if constexpr(is_same<CDElementOp, Bilinear>::value)
             {
-                for(size_t n0 = 0; n0 < e_m_n_host_result.mDesc.GetLengths()[2]; ++n0)
-                {
-                    for(size_t n1 = 0; n1 < e_m_n_host_result.mDesc.GetLengths()[3]; ++n1)
-                    {
-                        if constexpr(is_same<CDElementOp, Bilinear>::value)
-                        {
-                            cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
-                                           c_m_n_host_result(m0, m1, n0, n1),
-                                           d_m_n(m0, m1, n0, n1));
-                        }
-                        else if constexpr(is_same<CDElementOp, Scale>::value)
-                        {
-                            cde_element_op(e_m_n_host_result(m0, m1, n0, n1),
-                                           c_m_n_host_result(m0, m1, n0, n1));
-                        }
-                        else
-                        {
-                            static_assert("Unsupported CDElementOp in contraction profiler.");
-                        }
-                    }
-                }
+                cde_element_op(self(idx), c_m_n_host_result(idx), d_m_n(idx));
             }
-        }
+            else if constexpr(is_same<CDElementOp, Scale>::value)
+            {
+                cde_element_op(self(idx), c_m_n_host_result(idx));
+            }
+            else
+            {
+                static_assert("Unsupported CDElementOp in contraction profiler.");
+            }
+        });
     }
 
     std::string best_op_name;
@@ -242,9 +237,12 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        auto nelems_m = M[0] * M[1];
-        auto nelems_n = N[0] * N[1];
-        auto nelems_k = K[0] * K[1];
+        auto nelems_m = ck::accumulate_n<ck::index_t>(
+            a_ms_ks_lengths.begin(), NumDimMNK, 1, std::multiplies<>{});
+        auto nelems_n = ck::accumulate_n<ck::index_t>(
+            b_ns_ks_lengths.begin(), NumDimMNK, 1, std::multiplies<>{});
+        auto nelems_k = ck::accumulate_n<ck::index_t>(
+            a_ms_ks_lengths.begin() + NumDimMNK, NumDimMNK, 1, std::multiplies<>{});
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
