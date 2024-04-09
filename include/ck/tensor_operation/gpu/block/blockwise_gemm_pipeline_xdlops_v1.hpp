@@ -546,7 +546,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                     // waiting for the rest of the workgroup at the eventual sync point.
                     if constexpr(k0.value != 0 || KRepeat == 1)
                     {
-                        asm volatile("s_barrier" ::);
+                        __builtin_amdgcn_s_barrier();
                         __builtin_amdgcn_sched_barrier(0);
                     }
                     static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
@@ -635,7 +635,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                 __builtin_amdgcn_sched_barrier(0);
                 if constexpr(k0.value != 0 || KRepeat == 1)
                 {
-                    asm volatile("s_barrier" ::);
+                    __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                 }
                 static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {

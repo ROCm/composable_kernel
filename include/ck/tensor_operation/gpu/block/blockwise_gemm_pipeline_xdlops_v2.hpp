@@ -141,7 +141,8 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Intrawave,
     using Base::BMmaKStride;
 
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
-        32 * 1024, (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
+        32768 / (4 * warpSize / BlockSize),
+        (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
     static constexpr index_t PrefetchStages =
         FullMemBandPrefetchStages >= 2
             ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
@@ -631,7 +632,8 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
     static constexpr index_t KRepeat        = KPerThread / KPerInnerLoop;
 
     static constexpr index_t FullMemBandPrefetchStages = math::integer_divide_ceil(
-        32 * 1024, (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
+        32768 / (4 * warpSize / BlockSize),
+        (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
     static constexpr index_t PrefetchStages =
         FullMemBandPrefetchStages >= 2
             ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
@@ -776,7 +778,7 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
                         // sync point.
                         if constexpr(k0.value != 0 || KRepeat == 1)
                         {
-                            asm volatile("s_barrier" ::);
+                            __builtin_amdgcn_s_barrier();
                             __builtin_amdgcn_sched_barrier(0);
                         }
                         static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
@@ -875,7 +877,7 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
                     __builtin_amdgcn_sched_barrier(0);
                     if constexpr(k0.value != 0 || KRepeat == 1)
                     {
-                        asm volatile("s_barrier" ::);
+                        __builtin_amdgcn_s_barrier();
                         __builtin_amdgcn_sched_barrier(0);
                     }
                     static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
@@ -951,7 +953,7 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
                 __builtin_amdgcn_sched_barrier(0);
                 if constexpr(k0.value != 0 || KRepeat == 1)
                 {
-                    asm volatile("s_barrier" ::);
+                    __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                 }
                 static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
@@ -1027,7 +1029,7 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
                 __builtin_amdgcn_sched_barrier(0);
                 if constexpr(k0.value != 0 || KRepeat == 1)
                 {
-                    asm volatile("s_barrier" ::);
+                    __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                 }
                 static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
