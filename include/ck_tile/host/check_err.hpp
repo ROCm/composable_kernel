@@ -291,10 +291,6 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
 
-    static const auto less_equal = [](double lhs, double rhs) {
-        return lhs < rhs || bit_cast<uint64_t>(lhs) == bit_cast<uint64_t>(rhs);
-    };
-
     static const auto get_rounding_error = [](fp8_t o, fp8_t r) -> unsigned {
         static const auto get_sign_bit = [](fp8_t v) -> bool {
             return 0x80 & bit_cast<uint8_t>(v);
@@ -321,7 +317,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         const double o_fp64 = type_convert<float>(o_fp8);
         const double r_fp64 = type_convert<float>(r_fp8);
         err                 = std::abs(o_fp64 - r_fp64);
-        if(!(less_equal(err, atol) || get_rounding_error(o_fp8, r_fp8) <= rounding_error) ||
+        if(!(less_equal<double>{}(err, atol) ||
+             get_rounding_error(o_fp8, r_fp8) <= rounding_error) ||
            is_infinity_error(o_fp64, r_fp64))
         {
             max_err = err > max_err ? err : max_err;
