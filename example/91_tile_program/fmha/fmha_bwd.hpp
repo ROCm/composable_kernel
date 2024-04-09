@@ -627,12 +627,14 @@ struct fmha_bwd_traits_
 template <typename Traits_>
 float fmha_bwd_(const StreamConfig&, fmha_bwd_args);
 
-template <ck::index_t HDim_, typename DataType_, bool kIsGroupMode_>
+template <ck::index_t HDim_, typename DataType_, bool kIsGroupMode_, bool kPadS_, bool kPadDv_>
 struct fmha_bwd_dot_do_o_traits_
 {
     static constexpr ck::index_t HDim  = HDim_;
     using DataType                     = ck::remove_cvref_t<DataType_>;
     static constexpr bool kIsGroupMode = kIsGroupMode_;
+    static constexpr bool kPadS        = kPadS_;
+    static constexpr bool kPadDv       = kPadDv_;
 };
 
 template <typename Traits_>

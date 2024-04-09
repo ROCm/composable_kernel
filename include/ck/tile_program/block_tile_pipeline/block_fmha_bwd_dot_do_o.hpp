@@ -38,6 +38,11 @@ struct BlockFmhaBwdOGradDotO
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
 
+    static constexpr index_t kAlignmentO =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+    static constexpr index_t kAlignmentOGrad =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
+
     __host__ __device__ static constexpr ck::index_t GetSmemSize() { return 0; }
 
     template <typename ODramBlockWindowTmp,
