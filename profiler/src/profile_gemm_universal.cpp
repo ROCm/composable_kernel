@@ -51,7 +51,7 @@ int profile_gemm_universal(int argc, char* argv[])
         printf("optional:\n");
         printf("arg15: number of warm-up cycles (default 1)\n");
         printf("arg16: number of iterations (default 10)\n");
-        printf("arg17: number of rotating buffer (default 1)\n");
+        printf("arg17: memory for rotating buffer (default 0, size in M)\n");
         exit(1);
     }
 
@@ -71,14 +71,14 @@ int profile_gemm_universal(int argc, char* argv[])
     const int StrideC = std::stoi(argv[13]);
     const int KBatch  = std::stoi(argv[14]);
 
-    int n_warmup       = 1;
-    int n_iter         = 10;
-    int rotating_count = 1;
+    int n_warmup = 1;
+    int n_iter   = 10;
+    int rotating = 0;
     if(argc == 18)
     {
-        n_warmup       = std::stoi(argv[15]);
-        n_iter         = std::stoi(argv[16]);
-        rotating_count = std::stoi(argv[17]);
+        n_warmup = std::stoi(argv[15]);
+        n_iter   = std::stoi(argv[16]);
+        rotating = std::stoi(argv[17]) * 1024 * 1024;
     }
 
     using F32 = float;
@@ -128,7 +128,7 @@ int profile_gemm_universal(int argc, char* argv[])
             KBatch,
             n_warmup,
             n_iter,
-            rotating_count);
+            rotating);
 
         return pass ? 0 : 1;
     };

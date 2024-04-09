@@ -26,7 +26,7 @@ namespace profiler {
 struct DeviceRotatingMem
 {
     DeviceRotatingMem(std::size_t mem_size, int rotating_count)
-        : mMemSize(mem_size), mRotatingCount(rotating_count)
+        : mMemSize(mem_size), mRotatingCount(std::max(1, rotating_count))
     {
         hip_check_error(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize * mRotatingCount));
     }
@@ -82,6 +82,7 @@ struct DeviceRotatingMem
         }
     }
 
+    private:
     void* mpDeviceBuf          = nullptr;
     std::size_t mMemSize       = 0;
     std::size_t mRotatingCount = 1;
@@ -107,7 +108,7 @@ bool profile_gemm_universal_impl(int do_verification,
                                  int KBatch,
                                  int n_warmup,
                                  int n_iter,
-                                 int rotating_count)
+                                 int rotating)
 {
     bool pass = true;
 
@@ -154,12 +155,16 @@ bool profile_gemm_universal_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
-    DeviceRotatingMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize(),
+    int total_gemm_needed = a_m_k.GetElementSpaceSizeInBytes() +
+                            b_k_n.GetElementSpaceSizeInBytes() +
+                            c_m_n_device_result.GetElementSpaceSizeInBytes();
+    int rotating_count = std::max(1.f, std::ceil(static_cast<float>(rotating) / total_gemm_needed));
+    std::cout << "rotating count: " << rotating_count << std::endl;
+
+    DeviceRotatingMem a_device_buf(a_m_k.GetElementSpaceSizeInBytes(), rotating_count);
+    DeviceRotatingMem b_device_buf(b_k_n.GetElementSpaceSizeInBytes(), rotating_count);
+    DeviceRotatingMem c_device_buf(c_m_n_device_result.GetElementSpaceSizeInBytes(),
                                    rotating_count);
-    DeviceRotatingMem b_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize(),
-                                   rotating_count);
-    DeviceRotatingMem c_device_buf(
-        sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize(), rotating_count);
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
