@@ -508,7 +508,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             s_host_ref,
             ck_tile::identity{},
             ck_tile::identity{},
-            [&](SaccDataType x) { return pcompute_element_func(scale * x); });
+            ck_tile::composes(pcompute_element_func, ck_tile::scales(scale)));
 
         if(use_bias)
         {
