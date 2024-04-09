@@ -55,13 +55,14 @@ PIPELINE_MAP = {
     "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
 }
 
-ELEMENT_FUNC_MAP = {
-    "no" : "FmhaDefaultElementFunctions",
-    "f8_static_quant" : "FmhaF8StaticQuantizationElementFunctions",
-}
 PIPELINE_ENUM_MAP = {
     "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
+}
+
+ELEMENT_FUNC_MAP = {
+    "no" : "FmhaDefaultElementFunctions",
+    "f8_static_quant" : "FmhaF8StaticQuantizationElementFunctions",
 }
 
 BOOL_MAP = {
@@ -101,13 +102,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_occupancy}>;
 using fmha_mask_{F_idx} = {F_mask};
 
-using fmha_element_function_{F_idx} = ck_tile::FmhaElementFunctions<
-    // typename {F_element_func}::QElementFunction,
-    // typename {F_element_func}::KElementFunction,
-    // typename {F_element_func}::VElementFunction,
-    // typename {F_element_func}::BiasElementFunction,
-    // typename {F_element_func}::LSEElementFunction,
-    // typename {F_element_func}::SAccElementFunction,
+using fmha_element_function_{F_idx} = ck_tile::TileFmhaElementFunctions<
     typename {F_element_func}::PComputeElementFunction,
     typename {F_element_func}::OAccElementFunction>;
 

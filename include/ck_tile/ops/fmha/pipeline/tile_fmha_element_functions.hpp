@@ -9,7 +9,7 @@ namespace ck_tile {
 
 /// TODO: support specifying more elementwise functions for input/output tensors
 template <typename PComputeElementFunction_, typename OAccElementFunction_>
-struct FmhaElementFunctions
+struct TileFmhaElementFunctions
 {
     using PComputeElementFunction = remove_cvref_t<PComputeElementFunction_>;
     using OAccElementFunction     = remove_cvref_t<OAccElementFunction_>;
