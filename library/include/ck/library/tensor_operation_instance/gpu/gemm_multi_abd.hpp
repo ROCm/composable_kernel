@@ -21,6 +21,7 @@ using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
+#ifdef CK_ENABLE_INT8
 // RRR
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<ck::Tuple<Row>,
@@ -179,6 +180,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_km_kn_mn_v1_instances(
                                                       PassThrough,
                                                       Scales,
                                                       PassThrough>>>& instances);
+#endif
 
 // GEMM + Add + Gelu
 template <typename AsLayout,
@@ -218,6 +220,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
+#ifdef CK_ENABLE_INT8
         if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
                      is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
                      is_same_v<DsDataType, ck::Tuple<BF16>> && is_same_v<EDataType, BF16>)
@@ -243,6 +246,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_gelu_v1_instances(op_ptrs);
             }
         }
+#endif
 
         return op_ptrs;
     }
@@ -286,6 +290,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
+#ifdef CK_ENABLE_INT8
         if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
                      is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
                      is_same_v<DsDataType, ck::Tuple<BF16>> && is_same_v<EDataType, BF16>)
@@ -311,6 +316,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_v1_instances(op_ptrs);
             }
         }
+#endif
 
         return op_ptrs;
     }
@@ -354,6 +360,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
+#ifdef CK_ENABLE_INT8
         if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
                      is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
                      is_same_v<DsDataType, ck::Tuple<>> && is_same_v<EDataType, BF16>)
@@ -379,6 +386,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_v1_instances(op_ptrs);
             }
         }
+#endif
 
         return op_ptrs;
     }
@@ -422,6 +430,7 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
+#ifdef CK_ENABLE_INT8
         if constexpr(is_same_v<AsDataType, ck::Tuple<BF16>> &&
                      is_same_v<BsDataType, ck::Tuple<I8, BF16>> &&
                      is_same_v<DsDataType, ck::Tuple<>> && is_same_v<EDataType, BF16>)
@@ -447,6 +456,7 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_nk_mn_v1_instances(op_ptrs);
             }
         }
+#endif
 
         return op_ptrs;
     }
