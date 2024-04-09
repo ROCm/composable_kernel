@@ -115,6 +115,11 @@ bool run(const ArgParser& arg_parser)
     ck::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v == 0)
         hdim_v = hdim_q;
+    if(hdim_q % 2 != 0 || hdim_v % 2 != 0)
+    {
+        std::cerr << "FMHA Bwd kernel currently only supports even headdim" << std::endl;
+        return false;
+    }
 
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
     bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim

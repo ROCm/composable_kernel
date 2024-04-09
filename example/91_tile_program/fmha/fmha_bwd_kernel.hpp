@@ -57,7 +57,6 @@ struct FmhaBwdKernel
 
     // clang-format off
     template <typename T> struct t2s;
-    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck::half_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck::bhalf_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -780,7 +779,7 @@ struct FmhaBwdKernel
             return pad_tensor_view(
                 dq_dram_naive,
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kQKHeaddim>{}),
-                Sequence<kPadSeqLenQ, false>{});
+                Sequence<kPadSeqLenQ, kPadHeadDimQ>{});
         }();
 
         auto q_dram_window = make_tile_window(
