@@ -280,9 +280,8 @@ struct SimplifiedGenericAttentionMask
         }
         else
         {
-            // no need to do min/max here, since i_x will never be < 0 or >= x_total
-            index_t x_start = -y + i_y + 1; // this could be negative, but it's fine
-            index_t x_end   = i_y + x;      // this could be larger than x_total, but it's fine
+            index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
+            index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
 
             return i_x < x_start || i_x >= x_end;
         }
