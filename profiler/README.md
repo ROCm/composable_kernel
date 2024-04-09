@@ -52,21 +52,23 @@ Best Perf: 1.42509 ms, 102.988 TFlops, 234.086 GB/s
 #arg1: tensor operation (contraction_bilinear=CONTRACTION+Bilinear)
 #arg2: data type (0: fp32; 1: f64; 2: f16; 3: bf16)
 #arg3: compute data type (0: fp32; 1: f64; 2: f16; 3: bf16)
-#arg4: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
+#arg4: Number of dimension for M, N and K (one for all)
+#arg5: matrix layout (0: A[m0, m1, k0, k1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
 #                     1: A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
 #                     2: A[k0, k1, m0, m1] * B[k0, k1, n0, n1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1];
 #                     3: A[k0, k1, m0, m1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1])
-#arg5: verification (0: no; 1: yes)
-#arg6: initialization (0: no init; 1: integer value; 2: decimal value)
-#arg7: print tensor value (0: no; 1: yes)
-#arg8: time kernel (0: no, 1: yes)
-#arg9: alpha
-#arg10: beta
-#arg11 to 16: M0, M1, N0, N1, K0, K1
-#arg17 to 32: Strides for A, B, D and E (skip for default)
+#arg6: verification (0: no; 1: yes)
+#arg7: initialization (0: no init; 1: integer value; 2: decimal 
+#      value)
+#arg8: print tensor value (0: no; 1: yes)
+#arg9: time kernel (0: no, 1: yes)
+#arg10: alpha
+#arg11: beta
+#arg12 to 17/29: M0, M1, N0, N1, K0, K1
+#arg18/30 to 33/77: Strides for A, B, D and E (skip for default)
 
-################                   op  datatype  compute_datatype  layout  verify  init  log  time  alpha  beta  M0  M1  N0  N1  K0  K1
-./bin/ckProfiler contraction_bilinear         0                 0       1       0     0    0     1    1.0   1.0 128 128 128 128 128 128
+################                   op  datatype  compute_datatype  num_dim layout  verify  init  log  time  alpha  beta  M0  M1  N0  N1  K0  K1
+./bin/ckProfiler contraction_bilinear         0                 0        2      1       0     0    0     1    1.0   1.0 128 128 128 128 128 128
 ```
 
 Result (MI100)
