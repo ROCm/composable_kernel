@@ -117,15 +117,15 @@ auto get_elimit<ck_tile::fp8_t>(int init_method)
 {
     if(init_method == 0)
     {
-        unsigned rounding_error = 0;
-        double atol             = 2e-3;
-        return ck_tile::make_tuple(rounding_error, atol);
+        unsigned max_rounding_error_distance = 0;
+        double atol                          = 2e-3;
+        return ck_tile::make_tuple(max_rounding_error_distance, atol);
     }
     else
     {
-        unsigned rounding_error = 1;
-        double atol             = 0.0625;
-        return ck_tile::make_tuple(rounding_error, atol);
+        unsigned max_rounding_error_distance = 1;
+        double atol                          = 0.0625;
+        return ck_tile::make_tuple(max_rounding_error_distance, atol);
     }
 }
 
