@@ -323,14 +323,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     auto pcompute_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
-            return ck_tile::scale{10.f};
+            return ck_tile::scales{10.f};
         else
             return ck_tile::identity{};
     }();
 
     auto oacc_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
-            return ck_tile::compose(ck_tile::saturate_f8{}, ck_tile::scale{0.1f});
+            return ck_tile::compose(ck_tile::saturate_f8{}, ck_tile::scales{0.1f});
         else
             return ck_tile::identity{};
     }();

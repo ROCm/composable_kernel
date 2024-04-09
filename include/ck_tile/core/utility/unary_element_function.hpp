@@ -42,24 +42,6 @@ CK_TILE_HOST auto compose(F... f)
     return composer<F...>(f...);
 }
 
-// start of unary element function
-
-struct scale
-{
-    CK_TILE_HOST_DEVICE scale(float factor) : factor_(factor) {}
-
-    template <typename T>
-    CK_TILE_HOST_DEVICE constexpr T operator()(const T& x) const;
-
-    template <>
-    CK_TILE_HOST_DEVICE constexpr float operator()<float>(const float& x) const
-    {
-        return factor_ * x;
-    };
-
-    float factor_;
-};
-
 // TODO: Overload numeric::min() and numeric::max()
 struct saturate_f8
 {

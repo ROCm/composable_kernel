@@ -68,8 +68,8 @@ struct FmhaDefaultElementFunctions
 /// TODO: support specifying more elementwise functions for input/output tensors
 struct FmhaF8StaticQuantizationElementFunctions
 {
-    using PComputeElementFunction = ck_tile::scale;
-    using OAccElementFunction     = ck_tile::composer<ck_tile::saturate_f8, ck_tile::scale>;
+    using PComputeElementFunction = ck_tile::scales<float>;
+    using OAccElementFunction     = ck_tile::composer<ck_tile::saturate_f8, ck_tile::scales<float>>;
 };
 
 template <>
