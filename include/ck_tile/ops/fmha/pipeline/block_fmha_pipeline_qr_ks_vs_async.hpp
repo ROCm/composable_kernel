@@ -256,11 +256,13 @@ struct BlockFmhaPipelineQRKSVSAsync
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
+                buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
+                                      // otherwise will have compute error(maybe compiler bug?)
 
                 // Note: here occ are all cleard, return it
-                // Note: q loaded but no fence, ignore it.
                 return o_acc;
             }
+            __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
         }
 
         auto k_dram_block_window =
@@ -388,6 +390,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                                                            k_origin.at(number<0>{}),
                                                            number<kM0>{},
                                                            number<kN0>{});
+
                 if(need_perpixel_check)
                 {
                     set_tile_if(

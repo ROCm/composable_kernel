@@ -228,6 +228,7 @@ class FmhaFwdApiTrait:
 
     @property
     def scheck(self) -> str:
+        if self.mode == 'group': return 'true/*group mode spad always true*/'                  # group mode only generate spad/skpad == true
         if self.pipeline_tag == 'qr_async':
             if self.spad == 't' : return 'true' # always support
             else :                return 'true'
@@ -238,6 +239,7 @@ class FmhaFwdApiTrait:
 
     @property
     def skcheck(self) -> str:
+        if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
         if self.pipeline_tag == 'qr_async':
             if self.skpad == 't' : return f'a.seqlen_k % {self.bn0} != 0'
             else :                 return f'a.seqlen_k % {self.bn0} == 0'
@@ -500,6 +502,10 @@ def get_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFw
             tile = d[hdim_str]
             hdim = int(hdim_str)
             for pipeline in get_pipelines(dtype, hdim):
+                if mode == "group":
+                    if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
+                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
+                        continue
                 k = FmhaFwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_mode=mode, F_tile=tile, F_pipeline=pipeline, mask_impl=mask_impl)
                 if kernel_filter != None:
                     if not fnmatch.fnmatch(k.name, kernel_filter):
