@@ -70,7 +70,7 @@ struct FmhaF8StaticQuantizationElementFunctions
 {
     using PComputeElementFunction = ck_tile::scales<float>;
     using OAccElementFunction =
-        ck_tile::composer<ck_tile::saturates<ck_tile::fp8_t>, ck_tile::scales<float>>;
+        ck_tile::composes<ck_tile::saturates<ck_tile::fp8_t>, ck_tile::scales<float>>;
 };
 
 template <>
