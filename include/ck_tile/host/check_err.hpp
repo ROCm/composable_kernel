@@ -273,7 +273,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     CK_TILE_HOST check_err(const Range& out,
                            const RefRange& ref,
                            const std::string& msg               = "Error: Incorrect results!",
-                           unsigned max_rounding_error_distance = 1,
+                           unsigned max_rounding_point_distance = 1,
                            double atol                          = 1e-1,
                            bool allow_infinity_ref              = false)
 {
@@ -291,7 +291,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
 
-    static const auto get_rounding_error_distance = [](fp8_t o, fp8_t r) -> unsigned {
+    static const auto get_rounding_point_distance = [](fp8_t o, fp8_t r) -> unsigned {
         static const auto get_sign_bit = [](fp8_t v) -> bool {
             return 0x80 & bit_cast<uint8_t>(v);
         };
@@ -318,7 +318,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         const double r_fp64 = type_convert<float>(r_fp8);
         err                 = std::abs(o_fp64 - r_fp64);
         if(!(less_equal<double>{}(err, atol) ||
-             get_rounding_error_distance(o_fp8, r_fp8) <= max_rounding_error_distance) ||
+             get_rounding_point_distance(o_fp8, r_fp8) <= max_rounding_point_distance) ||
            is_infinity_error(o_fp64, r_fp64))
         {
             max_err = err > max_err ? err : max_err;
