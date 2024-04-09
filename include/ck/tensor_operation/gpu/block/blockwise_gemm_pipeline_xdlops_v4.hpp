@@ -167,6 +167,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     template <typename ScheduleGroup>
     __device__ static constexpr void HotLoopScheduler(ScheduleGroup schedule_group)
     {
+        // TODO: Take data type into consideration as pipe ver 3
         // A-B splited schedule
         constexpr auto num_issue_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_dswrite_per_issue_a =

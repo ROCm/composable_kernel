@@ -168,6 +168,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+        // TODO: Take data type into consideration as pipe ver 3
         // schedule
         constexpr auto num_ds_read_inst =
             HotLoopInstList::A_LDS_Read_Inst_Num + HotLoopInstList::B_LDS_Read_Inst_Num;

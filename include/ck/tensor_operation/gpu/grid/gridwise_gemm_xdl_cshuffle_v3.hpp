@@ -200,12 +200,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __host__ static auto CalculateMBlock(index_t M)
     {
-        return math::integer_divide_floor(M, MPerBlock);
+        return math::integer_divide_ceil(M, MPerBlock);
     }
 
     __host__ static auto CalculateNBlock(index_t N)
     {
-        return math::integer_divide_floor(N, NPerBlock);
+        return math::integer_divide_ceil(N, NPerBlock);
     }
 
     template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
@@ -1083,8 +1083,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 
-        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1 &&
-                     BlkGemmPipelineVer != BlockGemmPipelineVersion::v2)
+        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
         {
             if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
             {
