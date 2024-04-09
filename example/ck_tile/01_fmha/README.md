@@ -32,7 +32,8 @@ args:
           -h    num of head, for q (default:8)
         -h_k    num of head, for k/v, 0 means equal to h (default:0)
                  if not equal to h, then this is GQA/MQA case
-          -s    seqlen_q (default:3328)
+          -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
+                 total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
         -s_k    seqlen_k, 0 means equal to s (default:0)
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, 0 means equal to d (default:0)
@@ -45,14 +46,19 @@ args:
       -operm    permute output (default:1)
        -bias    add bias or not (default:0)
        -prec    data type. fp16/bf16/fp8/bf8 (default:fp16)
-       -mask    0: no mask, 1: top-left, 2:bottom-right (default:0)
-                 't:l,r', top-left local-attn with left right size
-                 'b:l,r', bottom-r local-attn with left right size
-                 'g:y,x', generic attention mask coordinate with y/x size
-                 
+       -mask    0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b') (default:0)
+                 't', top-left causal mask, 'b', bottom-r causal mask
+                 't:l,r', top-left sliding window attn(swa) with FA style left right size
+                 'b:l,r', bottom-r sliding window attn(swa) with FA style left right size
+                 'xt:window_size', xformer style masking from top-left, window_size negative is causal, possitive is swa
+                 'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, possitive is swa
+                 'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for now)
+
     -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
         -lse    0 not store lse, 1 store lse (default:0)
       -kname    if set to 1 will print kernel name (default:0)
+       -init    init method. 0:random int, 1:random float, 2:trig float (default:1)
+       -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
 ```
 Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 
@@ -63,7 +69,7 @@ Currently we are still in rapid development stage, so more features/optimization
 Currently we support `32/64/128/256` hdim for `fp16`/`bf16`, within which `64`/`128` is better optimized. hdim should be multiple of 8, while seqlen_s can be arbitrary. For hdim be arbitrary number, it can be support through padding kernel of `qr` pipeline (we didn't generate this in generate.py by default)
 
 ### group/batch mode
-Currently we support both batch and group mode, by setting `-mode` = `0` or `1`, where in group mode we support each batch can have different seqlen
+Currently we support both `batch mode` and `group mode` (or `varlen`, in FA's term), by setting `-mode` = `0` or `1`. In `group mode` different kind of attention mask is also supported(see below)
 
 ### MQA/GQA
 By setting `-h`(nhead for q) and `-h_k`(nhead for k/v) with different number, you can achieve MQA/GQA. Please pay attention that `h % h_K == 0` when you set different numbers.
@@ -80,11 +86,22 @@ For training kernels, "log sum exp" need to store out in forward and used in bac
 ### vlayout
 We support v matrix in both row-major(`seqlen*hdim`) and col-major(`hdim*seqlen`). Since the accumulate(reduce) dimension for V is along `seqlen`, for current AMD's mfma layout which expect each thread to have contiguous register holding pixels along reduce dimension, it's easier to support col-major V layout. However, the performance of col-major is not necessarily faster than row-major, there are many factors that may affect the overall performance. We still provide the `-vlayout=r/c` here to switch/test between different layouts.
 
-### generic attention mask coordinate
-We unify the mask expression into generic attention mask coordinate, providing an uniformed approach to describe causal top-left, causal bottom-right, local attention.
+### attention mask
+we support `causal mask` and `sliding window attention(swa)` mask in both batch and group mode, either from top-left or bottom-right.
+Underneath, we unify the mask expression into `generic attention mask coordinate`, providing an uniformed approach for each batch to locate the corresponding pixel need to be masked out.
 ![](misc/gamc.png)
 
-(more description to be added)
+Since FA/xformer style with window_size_left/right is more popular, we accept window_size as parameter and convert that internally to our generic coordinate(this coordinate can express more cases). Below shows some example of how to achieve different kind of mask through cmdline.
+
+| mask case|  cmdline    | FA style | xformer style |
+|----------|:-------------:|:-------------:|:-------------:|
+| no mask |  `-mask=0`(default) | | |
+| causal mask from top-left | `-mask=1` or `-mask=t` | `-mask=t:-1,0` | `-mask=xt:-1` |
+| causal mask from bottom-right | `-mask=2` or `-mask=b` | `-mask=b:-1,0` | `-mask=xb:-1` |
+| swa from top-left | | `-mask=t:3,5` | `-mask=xt:4` |
+| swa from bottom-right | |  `-mask=b:10,11` | `-mask=xb:16` |
+
+Note FA use bottom-right by default to express swa case, here we require you explicitly specify top-left/bottom-right.
 
 ### dropout
 TBD
