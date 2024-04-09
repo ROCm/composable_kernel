@@ -8,8 +8,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-#include "device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn.hpp"
-
 void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Row, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&

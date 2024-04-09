@@ -12,10 +12,6 @@ namespace ck {
 namespace tensor_operation {
 namespace element_wise {
 
-#if CK_WORKAROUND_SWDEV_383542
-extern "C" __device__ float __ocml_native_recip_f32(float);
-#endif
-
 struct PassThroughPack2
 {
     template <typename Y, typename X>
@@ -33,52 +29,7 @@ struct PassThrough
 {
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
-#if 0
-    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::half2_t& x) const
-    {
-        // fake conversion
-        uint16_t t = ck::bit_cast<uint32_t>(x);
-        y          = ck::bit_cast<ck::f8x2_t>(t);
-    }
 
-    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::f8x2_t& x) const
-    {
-        auto t = type_convert<float2_t>(x);
-        y      = type_convert<half2_t>(t);
-    }
-
-    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::half2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::f8x2_t& y, const ck::f8x2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::float2_t& y, const ck::float2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::int8x2_t& y, const ck::int8x2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::bhalf2_t& x) const
-    {
-        y = x;
-    }
-
-    __host__ __device__ constexpr void operator()(ck::double2_t& y, const ck::double2_t& x) const
-    {
-        y = x;
-    }
-
-    constexpr const static bool is_pack2_invocable = true;
-#endif
     template <>
     __host__ __device__ void operator()<double, double>(double& y, const double& x) const
     {
@@ -507,11 +458,7 @@ struct FastGelu
         const float u   = x * (c1 * x * x + c2);
         const float emu = __expf(u);
 
-#if !CK_WORKAROUND_SWDEV_383542
-        y = x * __frcp_rn(1.f + emu);
-#else
-        y = x * __ocml_native_recip_f32(1.f + emu);
-#endif
+        y = x * ck::math::rcp(1.f + emu);
     }
 
     template <>
@@ -614,6 +561,244 @@ struct TanH
                       "Data type is not supported by this operation!");
 
         y = ck::math::tanh(x);
+    };
+};
+
+struct ACos
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::acos(x);
+    };
+};
+
+struct Neg
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::neg(x);
+    };
+};
+
+struct ATan
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::atan(x);
+    };
+};
+
+struct Sin
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::sin(x);
+    };
+};
+
+struct ASinH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::asinh(x);
+    };
+};
+
+struct Cos
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::cos(x);
+    };
+};
+
+struct ACosH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::acosh(x);
+    };
+};
+
+struct Tan
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::tan(x);
+    };
+};
+
+struct ATanH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::atanh(x);
+    };
+};
+
+struct SinH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::sinh(x);
+    };
+};
+
+struct Ceil
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::ceil(x);
+    };
+};
+
+struct Exp
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::exp(x);
+    };
+};
+
+struct CosH
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::cosh(x);
+    };
+};
+
+struct Floor
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::floor(x);
+    };
+};
+
+struct Log
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::log(x);
+    };
+};
+
+struct ASin
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::asin(x);
+    };
+};
+
+struct Rcp
+{
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+                          is_same<T, int32_t>::value,
+                      "Data type is not supported by this operation!");
+
+        y = ck::math::rcp(x);
     };
 };
 

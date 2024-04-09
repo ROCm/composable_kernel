@@ -4,7 +4,7 @@
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 #include "profiler/profile_gemm_add_fastgelu_impl.hpp"
-#include "test_gemm_add.hpp"
+#include "test_gemm_add_xdl.hpp"
 
 template <typename Tuple>
 class TestGemmAddFastgelu : public TestGemmAdd<Tuple>
