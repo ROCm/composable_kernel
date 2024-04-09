@@ -145,8 +145,8 @@ __global__ void
     }
 #else
     ignore = gemm_descs_const;
-    ignore = barrier_count;
-    ignore = barrier_size_grp;
+    // ignore = barrier_count;
+    // ignore = barrier_size_grp;
     ignore = group_count;
     ignore = grid_size_grp;
     ignore = a_element_op;
