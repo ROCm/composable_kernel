@@ -22,8 +22,7 @@ namespace instance {
 // A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1]
 // k/n/n/n are the fast changing dimension for A/B/D/E
 using device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_knn_instance =
-    device_contraction_kn_instance<2,
-                                   F16,
+    device_contraction_kn_instance<F16,
                                    F16,
                                    F32,
                                    F16,
@@ -32,7 +31,8 @@ using device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_kn
                                    F32,
                                    PassThrough,
                                    PassThrough,
-                                   Scale>;
+                                   Scale,
+                                   2>;
 
 void add_device_contraction_scale_m2_n2_k2_xdl_c_shuffle_f16_f16_f16_compute_f32_knn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,

@@ -22,8 +22,7 @@ namespace instance {
 // A[m0, m1, k0, k1] * B[n0, n1, k0, k1] + D[m0, m1, n0, n1] = E[m0, m1, n0, n1]
 // k/k/n/n are the fast changing dimension for A/B/D/E
 using device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute_f32_kknn_instance =
-    device_contraction_f64_kk_instance<2,
-                                       F64,
+    device_contraction_f64_kk_instance<F64,
                                        F64,
                                        F32,
                                        F64,
@@ -32,7 +31,8 @@ using device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute
                                        F32,
                                        PassThrough,
                                        PassThrough,
-                                       Bilinear>;
+                                       Bilinear,
+                                       2>;
 
 void add_device_contraction_bilinear_m2_n2_k2_xdl_c_shuffle_f64_f64_f64_f64_compute_f32_kknn_instance(
     std::vector<std::unique_ptr<DeviceContractionMultipleD<2,

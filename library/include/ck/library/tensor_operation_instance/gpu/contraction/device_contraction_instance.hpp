@@ -33,8 +33,7 @@ using S = ck::Sequence<Is...>;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -43,7 +42,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_kk_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -70,8 +70,7 @@ using device_contraction_kk_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -80,7 +79,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_kn_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -110,8 +110,7 @@ using device_contraction_kn_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -120,7 +119,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_mk_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -150,8 +150,7 @@ using device_contraction_mk_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -160,7 +159,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_mn_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -190,8 +190,7 @@ using device_contraction_mn_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -200,7 +199,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_f64_kk_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -220,8 +220,7 @@ using device_contraction_f64_kk_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -230,7 +229,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_f64_kn_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -250,8 +250,7 @@ using device_contraction_f64_kn_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -260,7 +259,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_f64_mk_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
@@ -280,8 +280,7 @@ using device_contraction_f64_mk_instance = std::tuple<
     // clang-format on
     >;
 
-template <index_t NumDim,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
@@ -290,7 +289,8 @@ template <index_t NumDim,
           typename ComputeDataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
-          typename CDEElementwiseOp>
+          typename CDEElementwiseOp,
+          index_t NumDim = 2>
 using device_contraction_f64_mn_instance = std::tuple<
     // clang-format off
         //#####################################| NumDimM| NumDimN| NumDimK|      AData|     BData|     AccData|         CShuffle|     DsData|     EData|              A|              B|              CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|         Compute|
