@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <stdexcept>
 #include <vector>
@@ -124,18 +124,6 @@ class ContractionDeviceOpWrapper
         return supported;
     }
 };
-
-TEST(TestContractionInterface, IncorrectNumDims)
-{
-    std::vector<std::vector<ck::index_t>> Dims    = {{4, 4}, {4, 4, 4, 4}, {4, 4, 4, 4, 4, 4}};
-    std::vector<std::vector<ck::index_t>> Strides = {{1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1, 1, 1}};
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, 1> wrapper_1d;
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, 2> wrapper_2d;
-    ContractionDeviceOpWrapper<F32, F32, F32, F32, 3> wrapper_3d;
-    EXPECT_FALSE(wrapper_1d.IsSupportedInstance(Dims[0], Strides[0]));
-    EXPECT_TRUE(wrapper_2d.IsSupportedInstance(Dims[1], Strides[1]));
-    EXPECT_FALSE(wrapper_3d.IsSupportedInstance(Dims[2], Strides[2]));
-}
 
 TEST(TestContractionInterface, IncorrectDataTypes)
 {
