@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -73,7 +73,7 @@ template <typename ADataType,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           PipelineVersion PipelineVer = PipelineVersion::v1,
-          typename BComputeDataType   = AComputeDataType_>
+          typename BComputeDataType_  = AComputeDataType_>
 struct GridwiseGemmMultipleD_xdl_cshuffle
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -103,8 +103,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 #if CK_WORKAROUND_DENORM_FIX
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
+    using BComputeDataType =
+        conditional_t<is_same_v<BComputeDataType_, ck::half_t>, ck::bhalf_t, BComputeDataType_>;
 #else
     using AComputeDataType = AComputeDataType_;
+    using BComputeDataType = BComputeDataType_;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
