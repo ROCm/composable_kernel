@@ -343,6 +343,24 @@ struct equal<void, void>
 
 __host__ __device__ equal()->equal<void, void>;
 
+template <>
+struct equal<float, float>
+{
+    CK_TILE_HOST_DEVICE constexpr bool operator()(float lhs, float rhs) const
+    {
+        return bit_cast<uint32_t>(lhs) == bit_cast<uint32_t>(rhs);
+    }
+};
+
+template <>
+struct equal<double, double>
+{
+    CK_TILE_HOST_DEVICE constexpr bool operator()(double lhs, double rhs) const
+    {
+        return bit_cast<uint64_t>(lhs) == bit_cast<uint64_t>(rhs);
+    }
+};
+
 template <typename Left = void, typename Right = Left>
 struct less
 {
