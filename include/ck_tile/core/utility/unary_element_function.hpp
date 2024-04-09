@@ -42,18 +42,27 @@ CK_TILE_HOST auto compose(F... f)
     return composer<F...>(f...);
 }
 
-// TODO: Overload numeric::min() and numeric::max()
-struct saturate_f8
+template <typename To>
+struct saturates
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE constexpr T operator()(const T& x) const
+    template <typename From>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const From& from) const
+        -> std::enable_if_t<std::is_arithmetic_v<From>, From>
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
-                          std::is_same_v<T, int32_t>,
-                      "Data type is not supported by this operation!");
-
-        T y = clamp(x, static_cast<T>(-448), static_cast<T>(448));
-        return y;
+        if constexpr(std::is_floating_point_v<To> || std::is_same_v<To, half_t> ||
+                     std::is_same_v<To, bfloat16_t> || std::is_same_v<To, fp8_t> ||
+                     std::is_same_v<To, bf8_t>)
+        {
+            return clamp(from,
+                         type_convert<From>(numeric<To>::lowest()),
+                         type_convert<From>(numeric<To>::max()));
+        }
+        else
+        {
+            return clamp(from,
+                         type_convert<From>(numeric<To>::min()),
+                         type_convert<From>(numeric<To>::max()));
+        }
     }
 };
 

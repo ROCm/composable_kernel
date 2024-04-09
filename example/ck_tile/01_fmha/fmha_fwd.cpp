@@ -330,7 +330,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     auto oacc_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
-            return ck_tile::compose(ck_tile::saturate_f8{}, ck_tile::scales{0.1f});
+            return ck_tile::compose(ck_tile::saturates<ck_tile::fp8_t>{}, ck_tile::scales{0.1f});
         else
             return ck_tile::identity{};
     }();
