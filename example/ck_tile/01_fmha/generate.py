@@ -162,7 +162,6 @@ using fmha_fwd_args_{F_idx} = fmha_fwd_args<{F_element_func}>;
 template<>
 float fmha_fwd<fmha_fwd_args_{F_idx}>(fmha_fwd_traits t, fmha_fwd_args_{F_idx} a, const ck_tile::stream_config& s){{
     float r = -1;
-    (void) r;
     (void) t;
     (void) a;
     (void) s;
