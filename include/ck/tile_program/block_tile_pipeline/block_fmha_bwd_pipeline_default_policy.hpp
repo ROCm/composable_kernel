@@ -27,6 +27,165 @@ namespace block {
 
 struct BlockFmhaBwdPipelineDefaultPolicy
 {
+    // these are for global load
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentQ()
+    {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+        return 16 / sizeof(QDataType);
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentK()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+        return 16 / sizeof(KDataType);
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentV()
+    {
+        if constexpr(Problem::BlockFmhaShape::kVLoadOnce)
+        {
+            using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+            return WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
+        }
+        else
+        {
+            using VDataType = remove_cvref_t<typename Problem::VDataType>;
+            return 16 / sizeof(VDataType);
+        }
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentO()
+    {
+        using ODataType = remove_cvref_t<typename Problem::ODataType>;
+        return 16 / sizeof(ODataType);
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentOGrad()
+    {
+        using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
+        return 16 / sizeof(OGradDataType);
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentQGrad()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradKTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+        using CWarpDstr       = typename WG::CWarpDstr;
+        constexpr auto vec =
+            CWarpDstr{}.GetYs2DDescriptor().GetLengths().At(Number<CWarpDstr::NDimY - 1>{});
+        return vec;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentKGrad()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+        using CWarpDstr       = typename WG::CWarpDstr;
+        constexpr auto vec =
+            CWarpDstr{}.GetYs2DDescriptor().GetLengths().At(Number<CWarpDstr::NDimY - 1>{});
+        return vec;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetAlignmentVGrad()
+    {
+        using BlockGemm       = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template At<0>())>;
+        using CWarpDstr       = typename WG::CWarpDstr;
+        constexpr auto vec =
+            CWarpDstr{}.GetYs2DDescriptor().GetLengths().At(Number<CWarpDstr::NDimY - 1>{});
+        return vec;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetTransposedAlignmentQ()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
+        constexpr index_t kKPerBlock = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kQTLoadOnce)
+                return Problem::BlockFmhaShape::kM0;
+            else
+                return Problem::BlockFmhaShape::kK3;
+        }();
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+
+        // TODO: not correct!
+        if constexpr(total_pixels > 4)
+            return 4;
+        else
+            return 2;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetTransposedAlignmentK()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
+        constexpr index_t kKPerBlock = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kKTLoadOnce)
+                return Problem::BlockFmhaShape::kN0;
+            else
+                return Problem::BlockFmhaShape::kK4;
+        }();
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+
+        // TODO: not correct!
+        if constexpr(total_pixels > 4)
+            return 4;
+        else
+            return 2;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetTransposedAlignmentOGrad()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kVHeaddim;
+        constexpr index_t kKPerBlock = [&]() {
+            if constexpr(Problem::BlockFmhaShape::kOGradTLoadOnce)
+                return Problem::BlockFmhaShape::kM0;
+            else
+                return Problem::BlockFmhaShape::kK1;
+        }();
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+
+        // TODO: not correct!
+        if constexpr(total_pixels > 4)
+            return 4;
+        else
+            return 2;
+    }
+
+    template <typename Problem>
+    __host__ __device__ static constexpr auto GetTransposedAlignmentBias()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
+
+        // TODO: not correct!
+        if constexpr(total_pixels > 32)
+            return 8;
+        else
+            return 4;
+    }
+
+    // these are for lds
     template <typename Problem>
     __host__ __device__ static constexpr auto GetSmemKPackQ()
     {
@@ -73,40 +232,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         // TODO: this is for 3d layout
         using GemmDataType = remove_cvref_t<typename Problem::GemmDataType>;
         return 16 / sizeof(GemmDataType);
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto GetTransposedVectorloadQ()
-    {
-        return 4; // TODO: fix me
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto GetTransposedVectorloadK()
-    {
-        return 4; // TODO: fix me
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto GetTransposedVectorloadOGrad()
-    {
-        return 4; // TODO: fix me
-    }
-
-    template <typename Problem>
-    __host__ __device__ static constexpr auto GetTransposedVectorloadBias()
-    {
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-
-        constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
-
-        // TODO: not correct!
-        if constexpr(total_pixels > 32)
-            return 8;
-        else
-            return 4;
     }
 
     template <typename Problem, typename BlockGemm>
@@ -623,8 +748,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeQDramTileDistribution()
     {
-        using QDataType = remove_cvref_t<typename Problem::QDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
@@ -635,7 +758,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK0;
         }();
 
-        constexpr index_t K1 = 16 / sizeof(QDataType);
+        constexpr index_t K1 = GetAlignmentQ<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
         // coalesce reading for each blocks
@@ -654,8 +777,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeKDramTileDistribution()
     {
-        using KDataType = remove_cvref_t<typename Problem::KDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -666,7 +787,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK0;
         }();
 
-        constexpr index_t K1 = 16 / sizeof(KDataType);
+        constexpr index_t K1 = GetAlignmentK<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t N2 = get_warp_size() / K0;
         // coalesce reading for each blocks
@@ -685,8 +806,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     __host__ __device__ static constexpr auto MakeOGradDramTileDistribution()
     {
-        using OGradDataType = remove_cvref_t<typename Problem::OGradDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
@@ -697,7 +816,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK2;
         }();
 
-        constexpr index_t K1 = 16 / sizeof(OGradDataType);
+        constexpr index_t K1 = GetAlignmentOGrad<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
         // coalesce reading for each blocks
@@ -765,7 +884,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK3;
         }();
 
-        constexpr index_t N1 = GetTransposedVectorloadQ<Problem>();
+        constexpr index_t N1 = GetTransposedAlignmentQ<Problem>();
         constexpr index_t N0 = kNPerBlock / N1; // P
 
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
@@ -799,7 +918,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK3;
         }();
 
-        constexpr index_t N1           = GetTransposedVectorloadQ<Problem>();
+        constexpr index_t N1           = GetTransposedAlignmentQ<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
@@ -831,7 +950,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK4;
         }();
 
-        constexpr index_t N1 = GetTransposedVectorloadK<Problem>();
+        constexpr index_t N1 = GetTransposedAlignmentK<Problem>();
         constexpr index_t N0 = kNPerBlock / N1; // P
 
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
@@ -865,7 +984,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK4;
         }();
 
-        constexpr index_t N1           = GetTransposedVectorloadK<Problem>();
+        constexpr index_t N1           = GetTransposedAlignmentK<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
@@ -897,7 +1016,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK1;
         }();
 
-        constexpr index_t N1 = GetTransposedVectorloadOGrad<Problem>();
+        constexpr index_t N1 = GetTransposedAlignmentOGrad<Problem>();
         constexpr index_t N0 = kNPerBlock / N1; // P
 
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
@@ -931,7 +1050,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                 return Problem::BlockFmhaShape::kK1;
         }();
 
-        constexpr index_t N1           = GetTransposedVectorloadOGrad<Problem>();
+        constexpr index_t N1           = GetTransposedAlignmentOGrad<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
@@ -958,7 +1077,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
 
-        constexpr index_t N1 = GetTransposedVectorloadBias<Problem>();
+        constexpr index_t N1 = GetTransposedAlignmentBias<Problem>();
         constexpr index_t N0 = kNPerBlock / N1; // P
 
         constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
@@ -987,7 +1106,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
 
-        constexpr index_t N1           = GetTransposedVectorloadBias<Problem>();
+        constexpr index_t N1           = GetTransposedAlignmentBias<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kMPerBlock * kNPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?

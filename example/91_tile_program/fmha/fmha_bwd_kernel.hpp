@@ -55,6 +55,43 @@ struct FmhaBwdKernel
     using FmhaMask                     = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask     = FmhaMask::IsMasking;
 
+    // clang-format off
+    template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
+    template <> struct t2s<ck::half_t> { static constexpr const char * name = "fp16"; };
+    template <> struct t2s<ck::bhalf_t> { static constexpr const char * name = "bf16"; };
+    // clang-format on
+
+    __host__ static std::string GetName()
+    {
+        // sync with generate.py
+        // clang-format off
+        using bfs = typename FmhaPipeline::BlockFmhaShape;
+        using gbr = typename bfs::Gemm0BlockWarps;
+        using gwt = typename bfs::Gemm0WarpTile;
+        #define _SS_  std::string
+        #define _TS_  std::to_string
+        auto pn = [&] () {
+            std::string n;
+            if (kPadSeqLenQ) n += "s";
+            if (kPadSeqLenK) n += "sk";
+            if (kPadHeadDimQ) n += "d";
+            if (kPadHeadDimV) n += "dv";
+            return n.empty() ? n : std::string("p") + n; }();
+        return
+            _SS_("fmha_bwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
+            "_" + (kIsGroupMode ? "group" : "batch") + "_" +
+            "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
+                    _TS_(bfs::kQKHeaddim) + "x" + _TS_(bfs::kVHeaddim) + "_" +
+            "r" + _TS_(gbr::At(ck::Number<0>{})) + "x" + _TS_(gbr::At(ck::Number<1>{})) + "x" + _TS_(gbr::At(ck::Number<2>{})) + "_" + 
+            "w" + _TS_(gwt::At(ck::Number<0>{})) + "x" + _TS_(gwt::At(ck::Number<1>{})) + "x" + _TS_(gwt::At(ck::Number<2>{})) + "_" +
+            ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "" : "_" + pn) +
+            (kHasBias ? "_bias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" );
+        #undef _SS_
+        #undef _TS_
+        // clang-format on
+    }
+
     template <ck::index_t I> // to avoid duplicated base class prblem, introduce an template arg
     struct FmhaBwdEmptyKargs
     {
@@ -560,7 +597,7 @@ struct FmhaBwdKernel
             q_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_q),
             make_tuple(kargs.stride_q, 1),
-            Number<32>{},
+            Number<FmhaPipeline::kAlignmentQ>{},
             Number<1>{});
         const auto q_dram = [&]() {
             if constexpr(FmhaPipeline::kQLoadOnce)
@@ -606,7 +643,7 @@ struct FmhaBwdKernel
             k_ptr,
             make_tuple(kargs.seqlen_k, kargs.hdim_q),
             make_tuple(kargs.stride_k, 1),
-            Number<32>{},
+            Number<FmhaPipeline::kAlignmentK>{},
             Number<1>{});
         const auto k_dram = [&]() {
             if constexpr(FmhaPipeline::kKLoadOnce)
@@ -653,7 +690,7 @@ struct FmhaBwdKernel
                 v_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_v),
                 make_tuple(kargs.stride_v, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentV>{},
                 Number<1>{});
             if constexpr(FmhaPipeline::kVLoadOnce)
             {
@@ -689,7 +726,7 @@ struct FmhaBwdKernel
             do_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_v),
             make_tuple(kargs.stride_do, 1),
-            Number<32>{},
+            Number<FmhaPipeline::kAlignmentOGrad>{},
             Number<1>{});
         const auto do_dram = [&]() {
             if constexpr(FmhaPipeline::kOGradLoadOnce)
@@ -737,13 +774,13 @@ struct FmhaBwdKernel
                 dq_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_q),
                 make_tuple(kargs.stride_q, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentQGrad>{},
                 Number<1>{});
 
             return pad_tensor_view(
                 dq_dram_naive,
                 make_tuple(Number<FmhaPipeline::kM0>{}, Number<FmhaPipeline::kQKHeaddim>{}),
-                Sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                Sequence<kPadSeqLenQ, false>{});
         }();
 
         auto q_dram_window = make_tile_window(
@@ -992,7 +1029,7 @@ struct FmhaBwdKernel
                 dk_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_q),
                 make_tuple(kargs.stride_dk, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentKGrad>{},
                 Number<1>{});
 
             return pad_tensor_view(
@@ -1006,7 +1043,7 @@ struct FmhaBwdKernel
                 dv_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_v),
                 make_tuple(kargs.stride_dv, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentVGrad>{},
                 Number<1>{});
 
             return pad_tensor_view(
@@ -1199,7 +1236,7 @@ struct FmhaBwdOGradDotOKernel
                 o_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.stride_o, 1),
-                Number<32>{},
+                Number<FmhaBwdOGradDotO::kAlignmentO>{},
                 Number<1>{});
             return pad_tensor_view(o_dram_naive,
                                    make_tuple(Number<kM0>{}, Number<kVHeaddim>{}),
@@ -1210,7 +1247,7 @@ struct FmhaBwdOGradDotOKernel
                 do_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.stride_o, 1),
-                Number<32>{},
+                Number<FmhaBwdOGradDotO::kAlignmentOGrad>{},
                 Number<1>{});
             return pad_tensor_view(do_dram_naive,
                                    make_tuple(Number<kM0>{}, Number<kVHeaddim>{}),

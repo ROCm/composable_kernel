@@ -531,10 +531,14 @@ using fmha_bwd_kernel_{F_idx} =
 
 using trait_{F_idx} = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
+#include <iostream>
+
 template<>
 float fmha_bwd_<trait_{F_idx}>(const StreamConfig& s, fmha_bwd_args a)
 {{
     using k_ = fmha_bwd_kernel_{F_idx};
+    if(s.log_level_ > 0)
+        std::cout << ", " << k_::GetName() << std::flush;
     auto [kargs, grids] = fmha_bwd_create_kargs_and_grids<k_>(a);
     constexpr dim3 blocks             = k_::BlockSize();
     constexpr ck::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -552,23 +556,18 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const StreamConfig& s){{
 """
 
 FMHA_BWD_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-        switch (t.hdim_q){{
 {F_hdim_case}
-            default:
-            break;
-        }}
     }}
 """
-FMHA_BWD_API_PER_HDIM_CASE="""            case {F_hdim}: {{
+FMHA_BWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hdim}) {{
 {F_inner_dispatch}
-            }}
-            break;
+        }}
 """
 
-FMHA_BWD_API_INNER_DISPATCH="""                {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dropout == {F_dropout}) && ({F_scheck}) && ({F_skcheck})) {{
-                    using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
-                    return fmha_bwd_<trait_>(s, a);
-                }}
+FMHA_BWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dropout == {F_dropout}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                return fmha_bwd_<trait_>(s, a);
+            }}
 """
 
 @dataclass
@@ -579,6 +578,8 @@ class FmhaBwdApiTrait:
     mode      : str  # value from MODE_MAP
     bm0       : int  # tile size along q seqlen (block size)
     bn0       : int  # tile size along k seqlen
+    bhdq      : int  # q head_dim
+    bhdv      : int  # v head_dim
     mask      : str
     bias      : str  # true/false
     dropout   : str
@@ -593,9 +594,7 @@ class FmhaBwdApiTrait:
 
     @property
     def scheck(self) -> str:
-        if self.mode == 'group' and (self.bias == 't' or self.dropout == 't'):
-            return 'true' # always support
-        elif self.bias == 'f' and self.dropout == 'f':
+        if self.mode == 'group':
             return 'true' # always support
         elif self.spad == 't':
             return f'a.seqlen_q % {self.bm0} != 0'
@@ -604,14 +603,22 @@ class FmhaBwdApiTrait:
     
     @property
     def skcheck(self) -> str:
-        if self.mode == 'group' and (self.bias == 't' or self.dropout == 't'):
-            return 'true' # always support
-        elif self.bias == 'f' and self.dropout == 'f':
+        if self.mode == 'group':
             return 'true' # always support
         elif self.skpad == 't':
             return f'a.seqlen_k % {self.bn0} != 0'
         else:
             return f'a.seqlen_k % {self.bn0} == 0'
+
+    @property
+    def dcheck(self) -> str:
+        if self.dpad == 't': return f'a.hdim_q % {self.bhdq} != 0'
+        else :               return f'a.hdim_q % {self.bhdq} == 0'
+
+    @property
+    def dvcheck(self) -> str:
+        if self.dvpad == 't': return f'a.hdim_v % {self.bhdv} != 0'
+        else :                return f'a.hdim_v % {self.bhdv} == 0'
 
 class FmhaBwdApiPool:
     def __init__(self):
@@ -631,19 +638,20 @@ class FmhaBwdApiPool:
         per_dtypes=str()
         for i, dtype in enumerate(self.pool.keys()):
             per_hdim_case=str()
-            for hdim in self.pool[dtype].keys():
+            for j, hdim in enumerate(self.pool[dtype].keys()):
                 traits=self.pool[dtype][hdim]
                 inners=str()
-                for j, trait in enumerate(traits):
-                    if0 = 'if' if j == 0 else 'else if'
-                    inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if0, F_mode=MODE_MAP[trait.mode], F_mask=MASK_MAP[trait.mask],
+                for k, trait in enumerate(traits):
+                    if_k = 'if' if k == 0 else 'else if'
+                    inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_mask=MASK_MAP[trait.mask],
                                    F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dropout=BOOL_MAP[trait.dropout],
-                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
+                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad])
             
-                per_hdim_case = per_hdim_case + FMHA_BWD_API_PER_HDIM_CASE.format(F_hdim=hdim, F_inner_dispatch=inners)
-            if1 = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_BWD_API_PER_DTYPE.format(F_if=if1, F_dtype=dtype, F_hdim_case=per_hdim_case)
+                if_j = 'if' if j == 0 else 'else if'
+                per_hdim_case = per_hdim_case + FMHA_BWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
+            if_i = 'if' if i == 0 else 'else if'
+            per_dtypes = per_dtypes + FMHA_BWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
 
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_dtypes)
 
@@ -679,8 +687,8 @@ class FmhaBwdTileSize:
     F_occupancy : int  # occupancy
     @property
     def name(self) -> str:
-        return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bk1}x{self.F_bk2}x{self.F_bk3}x{self.F_bk4}x{self.F_bhdq}x{self.F_bhdv}" +\
-        f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}&{self.F_rm1}x{self.F_rn1}x{self.F_rk1}&{self.F_rm2}x{self.F_rn2}x{self.F_rk2}" +\
+        return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bhdq}x{self.F_bhdv}" +\
+        f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}" +\
         f"_w{self.F_wm}x{self.F_wn}x{self.F_wk}_o{self.F_occupancy}"
 
 @dataclass
@@ -764,7 +772,7 @@ class FmhaBwdKernel:
         # TODO: we don't encode idx here
         return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name +\
             f"_p{BOOL_MAP[self.F_spad][0]}{BOOL_MAP[self.F_skpad][0]}{BOOL_MAP[self.F_dpad][0]}{BOOL_MAP[self.F_dvpad][0]}" +\
-            f"_b{BOOL_MAP[self.F_bias][0]}_d{BOOL_MAP[self.F_dropout][0]}_m{self.F_mask[0]}_" + self.F_loadst.name
+            f"_b{BOOL_MAP[self.F_bias][0]}_d{BOOL_MAP[self.F_dropout][0]}_m{self.F_mask[0]}"
 
     @property
     def filename(self) -> str:
@@ -776,6 +784,8 @@ class FmhaBwdKernel:
                 mode=self.F_mode,
                 bm0=self.F_tile.F_bm0,
                 bn0=self.F_tile.F_bn0,
+                bhdq=self.F_tile.F_bhdq,
+                bhdv=self.F_tile.F_bhdv,
                 mask=self.F_mask,
                 bias=self.F_bias,
                 dropout=self.F_dropout,
@@ -805,9 +815,6 @@ def get_fmha_bwd_tile_loadst_dict_from_dtype(direction : str, dtype : str) -> Op
 def get_bwd_blobs() -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for pad
     #       support this in future
-    def get_pad(dtype, hdim):
-        return 'f'
-
     gen = list()
     api_pool = FmhaBwdApiPool()
 
@@ -815,17 +822,15 @@ def get_bwd_blobs() -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
         d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode, mask, bias, dropout, spad, skpad in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
+        for hdim_str, mode, mask, bias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
             tile = d[hdim_str][0]
             loadst = d[hdim_str][1]
             hdim = int(hdim_str)
-            if (bias == "f" and dropout == "f") and (spad == "t" or skpad == "t"):
-                continue
-            if (mode == "group") and (bias == "t" or dropout == "t") and (spad == "f" or skpad == "f"):
+            if (mode == "group") and (spad == "f" or skpad == "f"):
                 continue
             k = FmhaBwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
-                                F_spad=spad, F_skpad=skpad, F_dpad=get_pad(dtype, hdim),
-                                F_dvpad=get_pad(dtype, hdim), F_bias=bias, F_dropout=dropout, F_mask=mask, F_mode=mode,
+                                F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad, 
+                                F_bias=bias, F_dropout=dropout, F_mask=mask, F_mode=mode,
                                 F_loadst=loadst)
             api_pool.register_traits(k.api_trait())
             gen.append(k)
@@ -855,7 +860,7 @@ using fmha_bwd_dot_do_o_kernel_{F_idx} =
     FmhaBwdOGradDotOKernel<FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>,
                   fmha_bwd_dot_do_o_{F_idx}>;
 
-using trait_{F_idx} = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}>;
+using trait_{F_idx} = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
 
 template<>
 float fmha_bwd_dot_do_o_<trait_{F_idx}>(const StreamConfig& s, fmha_bwd_dot_do_o_args a)
@@ -878,23 +883,18 @@ float fmha_bwd_dot_do_o(fmha_bwd_dot_do_o_traits t, fmha_bwd_dot_do_o_args a, co
 """
 
 FMHA_BWD_DOT_DO_O_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-        switch (t.hdim_v){{
 {F_hdim_case}
-            default:
-            break;
-        }}
     }}
 """
-FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE="""            case {F_hdim}: {{
+FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE="""        {F_if} (t.hdim_v <= {F_hdim}) {{
 {F_inner_dispatch}
-            }}
-            break;
+        }}
 """
 
-FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH="""                {F_if}(t.is_group_mode == {F_mode}) {{
-                    using trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}>;
-                    return fmha_bwd_dot_do_o_<trait_>(s, a);
-                }}
+FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_scheck}) && ({F_dvcheck})) {{
+                using trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
+                return fmha_bwd_dot_do_o_<trait_>(s, a);
+            }}
 """
 
 @dataclass
@@ -903,10 +903,27 @@ class FmhaBwdOGradDotOApiTrait:
     hdim      : str
     dtype     : str  # data type
     mode      : str  # value from MODE_MAP
+    bhdv      : int  # v head_dim
+    spad      : str
+    dvpad     : str
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}'
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.spad}-{self.dvpad}'
+
+    @property
+    def scheck(self) -> str:
+        if self.mode == 'group':
+            return 'true' # always support
+        elif self.spad == 't':
+            return f'a.seqlen_q % 256 != 0' # BlockSize
+        else:
+            return f'a.seqlen_q % 256 == 0' # BlockSize
+
+    @property
+    def dvcheck(self) -> str:
+        if self.dvpad == 't': return f'a.hdim_v % {self.bhdv} != 0'
+        else :                return f'a.hdim_v % {self.bhdv} == 0'
 
 class FmhaBwdOGradDotOApiPool:
     def __init__(self):
@@ -926,16 +943,18 @@ class FmhaBwdOGradDotOApiPool:
         per_dtypes=str()
         for i, dtype in enumerate(self.pool.keys()):
             per_hdim_case=str()
-            for hdim in self.pool[dtype].keys():
+            for j, hdim in enumerate(self.pool[dtype].keys()):
                 traits=self.pool[dtype][hdim]
                 inners=str()
-                for j, trait in enumerate(traits):
-                    if0 = 'if' if j == 0 else 'else if'
-                    inners = inners + FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH.format(F_if=if0, F_mode=MODE_MAP[trait.mode], F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                for k, trait in enumerate(traits):
+                    if_k = 'if' if k == 0 else 'else if'
+                    inners = inners + FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_scheck=trait.scheck, F_dvcheck=trait.dvcheck,
+                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype], F_spad=BOOL_MAP[trait.spad], F_dvpad=BOOL_MAP[trait.dvpad])
             
-                per_hdim_case = per_hdim_case + FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE.format(F_hdim=hdim, F_inner_dispatch=inners)
-            if1 = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_BWD_DOT_DO_O_API_PER_DTYPE.format(F_if=if1, F_dtype=dtype, F_hdim_case=per_hdim_case)
+                if_j = 'if' if j == 0 else 'else if'
+                per_hdim_case = per_hdim_case + FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
+            if_i = 'if' if i == 0 else 'else if'
+            per_dtypes = per_dtypes + FMHA_BWD_DOT_DO_O_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
 
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_DOT_DO_O_API.format(F_dispatch = per_dtypes)
 
@@ -976,13 +995,14 @@ class FmhaBwdOGradDotOKernel:
     def api_trait(self) -> FmhaBwdOGradDotOApiTrait:
         return FmhaBwdOGradDotOApiTrait(hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
-                mode=self.F_mode)
+                mode=self.F_mode,
+                bhdv=self.F_hdim,
+                spad=self.F_spad,
+                dvpad=self.F_dvpad)
 
 def get_bwd_dot_do_o_blobs() -> Tuple[FmhaBwdOGradDotOApiPool, List[FmhaBwdOGradDotOKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
-    def get_pad(dtype, hdim):
-        return 'f'
     def get_occupancy(dtype, hdim):
         return 2
 
@@ -993,10 +1013,12 @@ def get_bwd_dot_do_o_blobs() -> Tuple[FmhaBwdOGradDotOApiPool, List[FmhaBwdOGrad
         d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
+        for hdim_str, mode, spad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"]):
             hdim = int(hdim_str)
+            if (mode == "group" and spad == "f"):
+                continue
             k = FmhaBwdOGradDotOKernel(direction=direction+"_dot_do_o", F_idx=0, F_hdim=hdim, F_dtype=dtype,
-                                F_spad=get_pad(dtype, hdim), F_dvpad=get_pad(dtype, hdim), F_mode=mode,
+                                F_spad=spad, F_dvpad=dvpad, F_mode=mode,
                                 F_occupancy=get_occupancy(dtype, hdim))
             api_pool.register_traits(k.api_trait())
             gen.append(k)
