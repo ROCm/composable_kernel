@@ -157,10 +157,6 @@ struct FmhaFwdKernel
     {
         void* lse_ptr                = nullptr;
         ck::index_t nhead_stride_lse = 0;
-    };
-
-    struct FmhaFwdBatchModeLSEKargs : FmhaFwdCommonLSEKargs
-    {
         ck::index_t batch_stride_lse = 0;
     };
 
@@ -196,7 +192,7 @@ struct FmhaFwdKernel
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasBias, FmhaFwdBatchModeBiasKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
-          std::conditional_t<kStoreLSE, FmhaFwdBatchModeLSEKargs, FmhaFwdEmptyKargs<2>>,
+          std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
@@ -365,6 +361,7 @@ struct FmhaFwdKernel
               ck::index_t nhead_stride_randval,
               ck::index_t nhead_stride_lse,
               ck::index_t nhead_stride_o,
+              ck::index_t batch_stride_lse,
               CausalMaskType mask_type,
               ck::index_t window_size,
               float descale_qk,
@@ -420,6 +417,7 @@ struct FmhaFwdKernel
         {
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
+            kargs.batch_stride_lse = batch_stride_lse;
         }
         if constexpr(kIsFp8)
         {
@@ -504,7 +502,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse = query_start;
+                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
             if constexpr(kHasDropout)
             {

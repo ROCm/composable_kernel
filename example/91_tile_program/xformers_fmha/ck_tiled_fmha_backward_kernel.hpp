@@ -104,6 +104,8 @@ struct FmhaBwdKernel
         ck::index_t nhead_stride_do;
         ck::index_t nhead_stride_lsed;
 
+        ck::index_t batch_stride_lsed;
+
         // only used for handling some strange xformers test
         ck::index_t hdim_stride_do;
     };
@@ -171,7 +173,6 @@ struct FmhaBwdKernel
         ck::index_t batch_stride_k;
         ck::index_t batch_stride_v;
         ck::index_t batch_stride_do;
-        ck::index_t batch_stride_lsed;
         ck::index_t batch_stride_dk;
         ck::index_t batch_stride_dv;
     };
@@ -274,6 +275,7 @@ struct FmhaBwdKernel
                      nhead_stride_v,
                      nhead_stride_do,
                      nhead_stride_lsed,
+                     batch_stride_lsed,
                      hdim_stride_do}, // args for common karg
                     {},               // placeholder for bias
                     {},               // placeholder for mask
@@ -282,7 +284,6 @@ struct FmhaBwdKernel
                     batch_stride_k,
                     batch_stride_v,
                     batch_stride_do,
-                    batch_stride_lsed,
                     batch_stride_dk,
                     batch_stride_dv};
 
@@ -356,6 +357,7 @@ struct FmhaBwdKernel
               ck::index_t nhead_stride_do,
               ck::index_t nhead_stride_lsed,
               ck::index_t nhead_stride_dbias,
+              ck::index_t batch_stride_lse,
               ck::index_t hdim_stride_do,
               CausalMaskType mask_type,
               ck::index_t window_size,
@@ -393,6 +395,7 @@ struct FmhaBwdKernel
                      nhead_stride_v,
                      nhead_stride_do,
                      nhead_stride_lsed,
+                     batch_stride_lse,
                      hdim_stride_do}, // args for common karg
                     {},               // placeholder for bias
                     {},               // placeholder for mask
@@ -475,7 +478,7 @@ struct FmhaBwdKernel
             batch_offset_k    = key_start * kargs.stride_k;
             batch_offset_v    = key_start * kargs.stride_v;
             batch_offset_do   = query_start * kargs.stride_do;
-            batch_offset_lsed = query_start;
+            batch_offset_lsed = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lsed;
             batch_offset_dk   = key_start * kargs.stride_dk;
             batch_offset_dv   = key_start * kargs.stride_dv;
             if constexpr(kHasBias)
@@ -1121,6 +1124,7 @@ struct FmhaBwdOGradDotOKernel
         ck::index_t nhead_stride_do;
         ck::index_t nhead_stride_o;
         ck::index_t nhead_stride_d;
+        ck::index_t batch_stride_d;
 
         // only used for handling some strange xformers test
         ck::index_t hdim_stride_do;
@@ -1130,7 +1134,6 @@ struct FmhaBwdOGradDotOKernel
     {
         ck::index_t batch_stride_do;
         ck::index_t batch_stride_o;
-        ck::index_t batch_stride_d;
     };
 
     struct FmhaBwdOGradDotOGroupModeKargs : FmhaBwdOGradDotOCommonKargs
@@ -1169,10 +1172,10 @@ struct FmhaBwdOGradDotOKernel
                      nhead_stride_do,
                      nhead_stride_o,
                      nhead_stride_d,
+                     batch_stride_d,
                      hdim_stride_do},
                     batch_stride_do,
-                    batch_stride_o,
-                    batch_stride_d};
+                    batch_stride_o};
 
         return kargs;
     }
@@ -1189,6 +1192,7 @@ struct FmhaBwdOGradDotOKernel
                                                                       ck::index_t nhead_stride_do,
                                                                       ck::index_t nhead_stride_o,
                                                                       ck::index_t nhead_stride_d,
+                                                                      ck::index_t batch_stride_d,
                                                                       ck::index_t hdim_stride_do)
     {
         Kargs kargs{{o_ptr,
@@ -1202,6 +1206,7 @@ struct FmhaBwdOGradDotOKernel
                      nhead_stride_do,
                      nhead_stride_o,
                      nhead_stride_d,
+                     batch_stride_d,
                      hdim_stride_do},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
 
@@ -1240,7 +1245,7 @@ struct FmhaBwdOGradDotOKernel
 
             batch_offset_o  = query_start * kargs.stride_o;
             batch_offset_do = query_start * kargs.stride_do;
-            batch_offset_d  = query_start;
+            batch_offset_d  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_d;
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
