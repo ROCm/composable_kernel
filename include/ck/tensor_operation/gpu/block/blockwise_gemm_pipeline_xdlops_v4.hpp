@@ -181,7 +181,7 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_issue_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_dswrite_per_issue_a =
             (HotLoopInstList::A_LDS_Write_Inst_Num + num_issue_a - 1) / num_issue_a;
-        constexpr auto num_dsread_per_issue_a =num_ds_read_inst_a / num_issue_a;
+        constexpr auto num_dsread_per_issue_a = num_ds_read_inst_a / num_issue_a;
 
         constexpr auto num_issue_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
         constexpr auto num_dswrite_per_issue_b =
