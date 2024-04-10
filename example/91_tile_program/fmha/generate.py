@@ -78,6 +78,7 @@ using fmha_trait_{F_idx} = ck::tile_program::TileFmhaTraits<{F_spad},
                                                     {F_dpad},
                                                     {F_dvpad},
                                                     {F_bias},
+                                                    false,
                                                     {F_lse},
                                                     {F_dropout},
                                                     {F_occupancy}>;
@@ -489,6 +490,7 @@ using fmha_bwd_trait_{F_idx} = ck::tile_program::TileFmhaTraits<{F_spad},
                                                     {F_dpad},
                                                     {F_dvpad},
                                                     {F_bias},
+                                                    {F_dbias},
                                                     false,
                                                     {F_dropout},
                                                     {F_occupancy}>;
@@ -529,7 +531,7 @@ using fmha_bwd_kernel_{F_idx} =
                   fmha_bwd_pipeline_{F_idx},
                   fmha_bwd_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+using trait_{F_idx} = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 #include <iostream>
 
@@ -564,8 +566,9 @@ FMHA_BWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <
         }}
 """
 
-FMHA_BWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dropout == {F_dropout}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-                using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+FMHA_BWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dbias == {F_dbias}) && (t.has_dropout == {F_dropout}) &&
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 return fmha_bwd_<trait_>(s, a);
             }}
 """
@@ -582,6 +585,7 @@ class FmhaBwdApiTrait:
     bhdv      : int  # v head_dim
     mask      : str
     bias      : str  # true/false
+    dbias     : str
     dropout   : str
     spad      : str
     skpad     : str
@@ -590,7 +594,7 @@ class FmhaBwdApiTrait:
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.mask}-{self.bias}-{self.dropout}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.mask}-{self.bias}-{self.dbias}-{self.dropout}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
 
     @property
     def scheck(self) -> str:
@@ -644,7 +648,7 @@ class FmhaBwdApiPool:
                 for k, trait in enumerate(traits):
                     if_k = 'if' if k == 0 else 'else if'
                     inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_mask=MASK_MAP[trait.mask],
-                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dropout=BOOL_MAP[trait.dropout],
+                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout=BOOL_MAP[trait.dropout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad])
             
@@ -687,9 +691,7 @@ class FmhaBwdTileSize:
     F_occupancy : int  # occupancy
     @property
     def name(self) -> str:
-        return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bhdq}x{self.F_bhdv}" +\
-        f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}" +\
-        f"_w{self.F_wm}x{self.F_wn}x{self.F_wk}_o{self.F_occupancy}"
+        return f"b{self.F_bm0}x{self.F_bn0}"
 
 @dataclass
 class FmhaBwdLoadStrategy:
@@ -717,6 +719,7 @@ class FmhaBwdKernel:
     F_dpad      : str  #
     F_dvpad     : str  #
     F_bias      : str  #
+    F_dbias     : str  #
     F_dropout   : str  #
     F_mask      : str  # value from MASK_MAP
     F_mode      : str  # value from MODE_MAP
@@ -755,6 +758,7 @@ class FmhaBwdKernel:
                 F_dpad      = BOOL_MAP[self.F_dpad],
                 F_dvpad     = BOOL_MAP[self.F_dvpad],
                 F_bias      = BOOL_MAP[self.F_bias],
+                F_dbias     = BOOL_MAP[self.F_dbias],
                 F_dropout   = BOOL_MAP[self.F_dropout],
                 F_occupancy = self.F_tile.F_occupancy,
                 F_mask      = MASK_MAP[self.F_mask],
@@ -772,7 +776,7 @@ class FmhaBwdKernel:
         # TODO: we don't encode idx here
         return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name +\
             f"_p{BOOL_MAP[self.F_spad][0]}{BOOL_MAP[self.F_skpad][0]}{BOOL_MAP[self.F_dpad][0]}{BOOL_MAP[self.F_dvpad][0]}" +\
-            f"_b{BOOL_MAP[self.F_bias][0]}_d{BOOL_MAP[self.F_dropout][0]}_m{self.F_mask[0]}"
+            f"_b{BOOL_MAP[self.F_bias][0]}_db{BOOL_MAP[self.F_dbias][0]}_dp{BOOL_MAP[self.F_dropout][0]}_m{self.F_mask[0]}"
 
     @property
     def filename(self) -> str:
@@ -788,6 +792,7 @@ class FmhaBwdKernel:
                 bhdv=self.F_tile.F_bhdv,
                 mask=self.F_mask,
                 bias=self.F_bias,
+                dbias=self.F_dbias,
                 dropout=self.F_dropout,
                 spad=self.F_spad,
                 skpad=self.F_skpad,
@@ -822,15 +827,17 @@ def get_bwd_blobs() -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
         d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode, mask, bias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
+        for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
             tile = d[hdim_str][0]
             loadst = d[hdim_str][1]
             hdim = int(hdim_str)
             if (mode == "group") and (spad == "f" or skpad == "f"):
                 continue
+            if (bias == "f" and dbias == "t"):
+                continue
             k = FmhaBwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad, 
-                                F_bias=bias, F_dropout=dropout, F_mask=mask, F_mode=mode,
+                                F_bias=bias, F_dbias=dbias, F_dropout=dropout, F_mask=mask, F_mode=mode,
                                 F_loadst=loadst)
             api_pool.register_traits(k.api_trait())
             gen.append(k)

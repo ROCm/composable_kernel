@@ -57,6 +57,7 @@ auto create_args(int argc, char* argv[])
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "1", "permute output")
         .insert("bias", "0", "add bias or not")
+        .insert("dbias", "0", "output bias gradient or not")
         .insert("prec", "fp16", "data type. fp16 or bf16")
         .insert("mask",
                 "0",
@@ -115,6 +116,11 @@ bool run(const ArgParser& arg_parser)
     ck::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v == 0)
         hdim_v = hdim_q;
+    if(hdim_q % 2 != 0 || hdim_v % 2 != 0)
+    {
+        std::cerr << "FMHA Bwd kernel currently only supports even headdim" << std::endl;
+        return false;
+    }
 
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
     bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
@@ -124,9 +130,15 @@ bool run(const ArgParser& arg_parser)
         scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q));
 
     bool use_bias        = arg_parser.get_bool("bias");
+    bool use_dbias       = arg_parser.get_bool("dbias");
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    if(use_dbias && !use_bias)
+    {
+        std::cerr << "dbias only exists when there is a bias" << std::endl;
+        return false;
+    }
 
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
@@ -258,8 +270,8 @@ bool run(const ArgParser& arg_parser)
     Tensor<VGradDataType> dv_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_v));
     Tensor<OGradDataType> do_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
     Tensor<BiasGradDataType> dbias_host(
-        use_bias ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, shape_seqlen_k)
-                 : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
+        use_dbias ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, shape_seqlen_k)
+                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
 
     if(init_method == 0)
     {
@@ -325,7 +337,8 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", p_drop:" << p_drop << ", mask:" << mask << std::flush;
+              << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", mask:" << mask
+              << std::flush;
 
     auto fmha_dot_do_o_traits =
         fmha_bwd_dot_do_o_traits{hdim_v, data_type, mode == mode_enum::group};
@@ -353,9 +366,15 @@ bool run(const ArgParser& arg_parser)
                                       batch_stride_d};
     }();
 
-    auto fmha_traits = fmha_bwd_traits{
-        hdim_q, hdim_v, data_type, mode == mode_enum::group, mask.type, use_bias, p_drop > 0.0f};
-    auto fmha_args = [&]() {
+    auto fmha_traits = fmha_bwd_traits{hdim_q,
+                                       hdim_v,
+                                       data_type,
+                                       mode == mode_enum::group,
+                                       mask.type,
+                                       use_bias,
+                                       use_dbias,
+                                       p_drop > 0.0f};
+    auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
@@ -680,7 +699,7 @@ bool run(const ArgParser& arg_parser)
                                                           (dp_hp_host_ref(idx_gmn) - do_dot_o));
         });
 
-        if(use_bias)
+        if(use_dbias)
         {
             ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
                 dbias_host_ref(idx) = ck::type_convert<BiasGradDataType>(self(idx));
@@ -736,7 +755,7 @@ bool run(const ArgParser& arg_parser)
         if(i_perm) dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[0], idx[1] + key_offset, idx[2]); });
         else       dv_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dv_host(b, idx[1] + key_offset, idx[0], idx[2]); });
 
-        if(use_bias)
+        if(use_dbias)
         {
             if(i_perm) dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[0], idx[1] + query_offset, idx[2] + key_offset); });
             else       dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[1] + query_offset, idx[0], idx[2] + key_offset); });
@@ -761,7 +780,7 @@ bool run(const ArgParser& arg_parser)
                                                 atol);
 
         bool dbias_cur_pass = true;
-        if(use_bias)
+        if(use_dbias)
         {
             dbias_cur_pass = ck::utils::check_err(dbias_host_result,
                                                   dbias_host_ref,
