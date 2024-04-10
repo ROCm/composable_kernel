@@ -170,8 +170,15 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
     {
         // TODO: Take data type into consideration as pipe ver 3
         // A/B split schedule
-        constexpr auto num_ds_read_inst_a = HotLoopInstList::A_LDS_Read_Inst_Num;
-        constexpr auto num_ds_read_inst_b = HotLoopInstList::B_LDS_Read_Inst_Num;
+        // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
+        constexpr auto num_ds_read_inst_a =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
+                ? HotLoopInstList::A_LDS_Read_Inst_Num
+                : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
+        constexpr auto num_ds_read_inst_b =
+            HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16
+                ? HotLoopInstList::B_LDS_Read_Inst_Num
+                : HotLoopInstList::B_LDS_Read_Inst_Num / 2;
 
         constexpr auto num_ds_write_inst_a = HotLoopInstList::A_LDS_Write_Inst_Num;
         constexpr auto num_ds_write_inst_b = HotLoopInstList::B_LDS_Write_Inst_Num;
@@ -187,14 +194,23 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto ds_read_b_issue_cycle =
             HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16 ? 8 : 4;
         constexpr auto ds_read_a_mfma_rate =
-            (mfma_cycle - 8 + ds_read_a_issue_cycle - 1) / ds_read_a_issue_cycle;
+            (mfma_cycle - 8 + ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
         constexpr auto ds_read_b_mfma_rate =
-            (mfma_cycle - 8 + ds_read_b_issue_cycle - 1) / ds_read_b_issue_cycle;
+            (mfma_cycle - 8 + ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
 
         constexpr auto num_dsread_stage1_a = num_ds_read_inst_a / KRepeat * (KRepeat - 1);
         constexpr auto num_dsread_stage1_b = num_ds_read_inst_b / KRepeat * (KRepeat - 1);
         constexpr auto num_dsread_stage3_a = num_ds_read_inst_a / KRepeat;
         constexpr auto num_dsread_stage3_b = num_ds_read_inst_b / KRepeat;
+
+        constexpr auto num_dsread_stage1_a_mfma =
+            (num_dsread_stage1_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
+        constexpr auto num_dsread_stage1_b_mfma =
+            (num_dsread_stage1_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
+        constexpr auto num_dsread_stage3_a_mfma =
+            (num_dsread_stage3_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
+        constexpr auto num_dsread_stage3_b_mfma =
+            (num_dsread_stage3_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
 
         constexpr auto num_mfma_stage2 = num_mfma_inst - num_ds_read_inst_a / ds_read_a_mfma_rate -
                                          num_ds_read_inst_b / ds_read_b_mfma_rate;
@@ -204,15 +220,37 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_dswrite_per_issue_b = num_ds_write_inst_b / num_buffer_load_inst_b;
 
         // stage 1
-        static_for<0, num_dsread_stage1_a, 1>{}([&](auto i) {
+        static_for<0, num_dsread_stage1_a_mfma, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                   // MFMA
+            if constexpr((num_dsread_stage1_a - (i + 1) * ds_read_a_mfma_rate) >=
+                         ds_read_a_mfma_rate)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(
+                    0x100,
+                    num_dsread_stage1_a - (num_dsread_stage1_a_mfma - 1) * ds_read_a_mfma_rate,
+                    0); // DS read
+            }
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
-        static_for<0, num_dsread_stage1_b, 1>{}([&](auto i) {
+        static_for<0, num_dsread_stage1_b_mfma, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                   // MFMA
+            if constexpr((num_dsread_stage1_b - (i + 1) * ds_read_b_mfma_rate) >=
+                         ds_read_b_mfma_rate)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(
+                    0x100,
+                    num_dsread_stage1_b - (num_dsread_stage1_b_mfma - 1) * ds_read_b_mfma_rate,
+                    0); // DS read
+            }
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
 
         // stage 2
@@ -240,15 +278,37 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         });
 
         // stage 3
-        static_for<0, num_dsread_stage3_a, 1>{}([&](auto i) {
+        static_for<0, num_dsread_stage3_a_mfma, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                   // MFMA
+            if constexpr((num_dsread_stage3_a - (i + 1) * ds_read_a_mfma_rate) >=
+                         ds_read_a_mfma_rate)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(
+                    0x100,
+                    num_dsread_stage3_a - (num_dsread_stage3_a_mfma - 1) * ds_read_a_mfma_rate,
+                    0); // DS read
+            }
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
-        static_for<0, num_dsread_stage3_b, 1>{}([&](auto i) {
+        static_for<0, num_dsread_stage3_b_mfma, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                   // MFMA
+            if constexpr((num_dsread_stage3_b - (i + 1) * ds_read_b_mfma_rate) >=
+                         ds_read_b_mfma_rate)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(
+                    0x100,
+                    num_dsread_stage3_b - (num_dsread_stage3_b_mfma - 1) * ds_read_b_mfma_rate,
+                    0); // DS read
+            }
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
 
         // IGLP COMPILER BUG:

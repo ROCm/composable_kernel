@@ -169,15 +169,24 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     {
         // TODO: Take data type into consideration as pipe ver 3
         // A-B splited schedule
+        constexpr auto num_ds_read_inst_a =
+            HotLoopInstList::A_LDS_Read_Width * sizeof(ADataType) == 16
+                ? HotLoopInstList::A_LDS_Read_Inst_Num
+                : HotLoopInstList::A_LDS_Read_Inst_Num / 2;
+        constexpr auto num_ds_read_inst_b =
+            HotLoopInstList::B_LDS_Read_Width * sizeof(BDataType) == 16
+                ? HotLoopInstList::B_LDS_Read_Inst_Num
+                : HotLoopInstList::B_LDS_Read_Inst_Num / 2;
+
         constexpr auto num_issue_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_dswrite_per_issue_a =
             (HotLoopInstList::A_LDS_Write_Inst_Num + num_issue_a - 1) / num_issue_a;
-        constexpr auto num_dsread_per_issue_a = HotLoopInstList::A_LDS_Read_Inst_Num / num_issue_a;
+        constexpr auto num_dsread_per_issue_a =num_ds_read_inst_a / num_issue_a;
 
         constexpr auto num_issue_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
         constexpr auto num_dswrite_per_issue_b =
             (HotLoopInstList::B_LDS_Write_Inst_Num + num_issue_b - 1) / num_issue_b;
-        constexpr auto num_dsread_per_issue_b = HotLoopInstList::B_LDS_Read_Inst_Num / num_issue_b;
+        constexpr auto num_dsread_per_issue_b = num_ds_read_inst_b / num_issue_b;
 
         constexpr auto num_mfma_per_issue =
             HotLoopInstList::C_MFMA_Inst_Num / (num_issue_a + num_issue_b);
