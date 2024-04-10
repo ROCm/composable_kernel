@@ -360,10 +360,8 @@ class FmhaFwdApiPool:
                     per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
                 if_i = 'if' if i == 0 else 'else if'
                 per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
-
             element_func = 'f8_static_quant' if is_fp8_api else 'no'
             fmha_fwd_api = fmha_fwd_api + FMHA_FWD_API.format(F_idx=int(is_fp8_api), F_element_func=ELEMENT_FUNC_MAP[element_func], F_dispatch=per_dtypes)
-
         return FMHA_FWD_KERNEL_HEADER + fmha_fwd_api
 
 @dataclass
