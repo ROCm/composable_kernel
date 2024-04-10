@@ -570,7 +570,7 @@ struct FmhaBwdKernel
             q_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_q),
             make_tuple(kargs.stride_q, 1),
-            Number<32>{},
+            Number<FmhaPipeline::kAlignmentQ>{},
             Number<1>{});
         const auto q_dram = [&]() {
             if constexpr(FmhaPipeline::kQLoadOnce)
@@ -616,7 +616,7 @@ struct FmhaBwdKernel
             k_ptr,
             make_tuple(kargs.seqlen_k, kargs.hdim_q),
             make_tuple(kargs.stride_k, 1),
-            Number<32>{},
+            Number<FmhaPipeline::kAlignmentK>{},
             Number<1>{});
         const auto k_dram = [&]() {
             if constexpr(FmhaPipeline::kKLoadOnce)
@@ -663,7 +663,7 @@ struct FmhaBwdKernel
                 v_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_v),
                 make_tuple(kargs.stride_v, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentV>{},
                 Number<1>{});
             if constexpr(FmhaPipeline::kVLoadOnce)
             {
@@ -683,14 +683,14 @@ struct FmhaBwdKernel
 
         const auto lse_dram = [&]() {
             const auto lse_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
-                lse_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
+                lse_ptr, make_tuple(kargs.seqlen_q), Number<1>{});
             return pad_tensor_view(
                 lse_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
 
         const auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
-                d_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
+                d_ptr, make_tuple(kargs.seqlen_q), Number<1>{});
             return pad_tensor_view(
                 d_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
@@ -699,7 +699,7 @@ struct FmhaBwdKernel
             do_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_v),
             make_tuple(kargs.stride_do, kargs.hdim_stride_do),
-            Number<32>{},
+            Number<FmhaPipeline::kAlignmentOGrad>{},
             Number<1>{});
         const auto do_dram = [&]() {
             if constexpr(FmhaPipeline::kOGradLoadOnce)
@@ -747,7 +747,7 @@ struct FmhaBwdKernel
                 dq_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_q),
                 make_tuple(kargs.stride_q, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentQGrad>{},
                 Number<1>{});
 
             return pad_tensor_view(
@@ -1046,7 +1046,7 @@ struct FmhaBwdKernel
                 dk_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_q),
                 make_tuple(kargs.stride_dk, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentKGrad>{},
                 Number<1>{});
 
             return pad_tensor_view(
@@ -1060,7 +1060,7 @@ struct FmhaBwdKernel
                 dv_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_v),
                 make_tuple(kargs.stride_dv, 1),
-                Number<32>{},
+                Number<FmhaPipeline::kAlignmentVGrad>{},
                 Number<1>{});
 
             return pad_tensor_view(
@@ -1276,7 +1276,7 @@ struct FmhaBwdOGradDotOKernel
                 o_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.stride_o, 1),
-                Number<32>{},
+                Number<FmhaBwdOGradDotO::kAlignmentO>{},
                 Number<1>{});
             return pad_tensor_view(o_dram_naive,
                                    make_tuple(Number<kM0>{}, Number<kVHeaddim>{}),
@@ -1287,7 +1287,7 @@ struct FmhaBwdOGradDotOKernel
                 do_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
                 make_tuple(kargs.stride_do, kargs.hdim_stride_do),
-                Number<32>{},
+                Number<FmhaBwdOGradDotO::kAlignmentOGrad>{},
                 Number<1>{});
             return pad_tensor_view(do_dram_naive,
                                    make_tuple(Number<kM0>{}, Number<kVHeaddim>{}),
@@ -1295,7 +1295,7 @@ struct FmhaBwdOGradDotOKernel
         }();
         auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
-                d_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
+                d_ptr, make_tuple(kargs.seqlen_q), Number<1>{});
             return pad_tensor_view(
                 d_dram_naive, make_tuple(Number<kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
