@@ -15,6 +15,10 @@ namespace utility {
 template <typename Argument>
 struct RotatingMemWrapper
 {
+    using ADataType = decltype(Argument::p_a_grid);
+    using BDataType = decltype(Argument::p_b_grid);
+    using CDataType = decltype(Argument::p_c_grid);
+
     RotatingMemWrapper() = delete;
     RotatingMemWrapper(Argument& arg_,
                        std::size_t rotating_count_,
@@ -27,35 +31,41 @@ struct RotatingMemWrapper
           size_b(size_b_),
           size_c(size_c_)
     {
-        std::cout << "rotating_count_: " << rotating_count_ << std::endl;
+        // std::cout << "rotating_count_: " << rotating_count_ << std::endl;
         p_a_grids.push_back(arg.p_a_grid);
         p_b_grids.push_back(arg.p_b_grid);
         p_c_grids.push_back(arg.p_c_grid);
         for(size_t i = 0; i < rotating_count - 1; i++)
         {
-            void* pADeviceBuf;
-            hip_check_error(hipMalloc(static_cast<void**>(&pADeviceBuf), size_a_));
-            hip_check_error(hipMemcpy(static_cast<void*>(pADeviceBuf),
-                                      const_cast<void*>(p_a_grids[0]),
-                                      size_a_,
-                                      hipMemcpyDeviceToDevice));
-            p_a_grids.push_back(pADeviceBuf);
+            {
+                void* pADeviceBuf;
+                hip_check_error(hipMalloc(static_cast<void**>(&pADeviceBuf), size_a_));
+                hip_check_error(hipMemcpy(static_cast<void*>(pADeviceBuf),
+                                          const_cast<void*>(p_a_grids[0]),
+                                          size_a_,
+                                          hipMemcpyDeviceToDevice));
+                p_a_grids.push_back(pADeviceBuf);
+            }
 
-            void* pBDeviceBuf;
-            hip_check_error(hipMalloc(static_cast<void**>(&pBDeviceBuf), size_b_));
-            hip_check_error(hipMemcpy(static_cast<void*>(pBDeviceBuf),
-                                      const_cast<void*>(p_b_grids[0]),
-                                      size_b_,
-                                      hipMemcpyDeviceToDevice));
-            p_b_grids.push_back(pBDeviceBuf);
+            {
+                void* pBDeviceBuf;
+                hip_check_error(hipMalloc(static_cast<void**>(&pBDeviceBuf), size_b_));
+                hip_check_error(hipMemcpy(static_cast<void*>(pBDeviceBuf),
+                                          const_cast<void*>(p_b_grids[0]),
+                                          size_b_,
+                                          hipMemcpyDeviceToDevice));
+                p_b_grids.push_back(pBDeviceBuf);
+            }
 
-            void* pCDeviceBuf;
-            hip_check_error(hipMalloc(static_cast<void**>(&pCDeviceBuf), size_c_));
-            hip_check_error(hipMemcpy(static_cast<void*>(pCDeviceBuf),
-                                      const_cast<void*>(p_c_grids[0]),
-                                      size_c_,
-                                      hipMemcpyDeviceToDevice));
-            p_c_grids.push_back(pCDeviceBuf);
+            {
+                void* pCDeviceBuf;
+                hip_check_error(hipMalloc(static_cast<void**>(&pCDeviceBuf), size_c_));
+                hip_check_error(hipMemcpy(static_cast<void*>(pCDeviceBuf),
+                                          const_cast<void*>(p_c_grids[0]),
+                                          size_c_,
+                                          hipMemcpyDeviceToDevice));
+                p_c_grids.push_back(pCDeviceBuf);
+            }
         }
     }
 
@@ -63,14 +73,10 @@ struct RotatingMemWrapper
     {
         if(rotating_count > 1)
         {
-            using ArgADataType = decltype(arg.p_a_grid);
-            using ArgBDataType = decltype(arg.p_b_grid);
-            using ArgCDataType = decltype(arg.p_c_grid);
-
             int idx      = iter++ % rotating_count;
-            arg.p_a_grid = reinterpret_cast<ArgADataType>(p_a_grids[idx]);
-            arg.p_b_grid = reinterpret_cast<ArgBDataType>(p_b_grids[idx]);
-            arg.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grids[idx]);
+            arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[idx]);
+            arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[idx]);
+            arg.p_c_grid = reinterpret_cast<CDataType>(p_c_grids[idx]);
         }
     }
     void Print()
@@ -83,13 +89,9 @@ struct RotatingMemWrapper
         // restore ptr
         if(rotating_count > 1)
         {
-            using ArgADataType = decltype(arg.p_a_grid);
-            using ArgBDataType = decltype(arg.p_b_grid);
-            using ArgCDataType = decltype(arg.p_c_grid);
-
-            arg.p_a_grid = reinterpret_cast<ArgADataType>(p_a_grids[0]);
-            arg.p_b_grid = reinterpret_cast<ArgBDataType>(p_b_grids[0]);
-            arg.p_c_grid = reinterpret_cast<ArgCDataType>(p_c_grids[0]);
+            arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[0]);
+            arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[0]);
+            arg.p_c_grid = reinterpret_cast<CDataType>(p_c_grids[0]);
 
             // check rotating data
             hip_check_error(hipMemcpy(static_cast<void*>(p_c_grids[0]),
