@@ -163,6 +163,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
+    // TODO - user defined
+    float p_compute_scale = 240.f;
+    float o_acc_scale     = 0.0042f;
+
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
     bool lse            = arg_parser.get_bool("lse");
@@ -314,11 +318,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     };
     // clang-format on
     const std::string prec = arg_parser.get_str("prec");
+    constexpr bool squant = std::is_same_v<DataType, ck_tile::fp8_t>;
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
+              << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout << std::flush;
+
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
@@ -327,18 +333,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        is_v_rowmajor,
                                        mask.type,
                                        use_bias,
-                                       lse};
+                                       lse,
+                                       squant};
 
-    auto pcompute_element_func = [&]() {
+    auto p_compute_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
-            return ck_tile::scales{10.f};
+            return ck_tile::scales{p_compute_scale};
         else
             return ck_tile::identity{};
     }();
 
     auto oacc_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
-            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{}, ck_tile::scales{0.1f});
+            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                     ck_tile::scales{o_acc_scale});
         else
             return ck_tile::identity{};
     }();
@@ -380,50 +388,46 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_lse  = (nhead * shape_seqlen_q * 1);
         const ck_tile::index_t batch_stride_o    = (nhead * shape_seqlen_q * hdim_v);
 
-        using ElementFunctions = std::conditional_t<std::is_same_v<DataType, ck_tile::fp8_t>,
-                                                    FmhaF8StaticQuantizationElementFunctions,
-                                                    FmhaDefaultElementFunctions>;
-
-        return fmha_fwd_args<ElementFunctions>{q_buf.GetDeviceBuffer(),
-                                               k_buf.GetDeviceBuffer(),
-                                               v_buf.GetDeviceBuffer(),
-                                               bias_buf.GetDeviceBuffer(),
-                                               lse_buf.GetDeviceBuffer(),
-                                               o_buf.GetDeviceBuffer(),
-                                               seqstart_q.GetDeviceBuffer(),
-                                               seqstart_k.GetDeviceBuffer(),
-                                               nullptr,
-                                               shape_seqlen_q,
-                                               shape_seqlen_k,
-                                               batch,
-                                               max_seqlen_q,
-                                               hdim_q,
-                                               hdim_v,
-                                               nhead,
-                                               nhead_k,
-                                               scale,
-                                               stride_q,
-                                               stride_k,
-                                               stride_v,
-                                               stride_bias,
-                                               stride_o,
-                                               nhead_stride_q,
-                                               nhead_stride_k,
-                                               nhead_stride_v,
-                                               nhead_stride_bias,
-                                               nhead_stride_lse,
-                                               nhead_stride_o,
-                                               batch_stride_q,
-                                               batch_stride_k,
-                                               batch_stride_v,
-                                               batch_stride_bias,
-                                               batch_stride_lse,
-                                               batch_stride_o,
-                                               mask.left,
-                                               mask.right,
-                                               static_cast<ck_tile::index_t>(mask.type),
-                                               pcompute_element_func,
-                                               oacc_element_func};
+        return fmha_fwd_args{q_buf.GetDeviceBuffer(),
+                             k_buf.GetDeviceBuffer(),
+                             v_buf.GetDeviceBuffer(),
+                             bias_buf.GetDeviceBuffer(),
+                             lse_buf.GetDeviceBuffer(),
+                             o_buf.GetDeviceBuffer(),
+                             seqstart_q.GetDeviceBuffer(),
+                             seqstart_k.GetDeviceBuffer(),
+                             nullptr,
+                             shape_seqlen_q,
+                             shape_seqlen_k,
+                             batch,
+                             max_seqlen_q,
+                             hdim_q,
+                             hdim_v,
+                             nhead,
+                             nhead_k,
+                             scale,
+                             p_compute_scale,
+                             o_acc_scale,
+                             stride_q,
+                             stride_k,
+                             stride_v,
+                             stride_bias,
+                             stride_o,
+                             nhead_stride_q,
+                             nhead_stride_k,
+                             nhead_stride_v,
+                             nhead_stride_bias,
+                             nhead_stride_lse,
+                             nhead_stride_o,
+                             batch_stride_q,
+                             batch_stride_k,
+                             batch_stride_v,
+                             batch_stride_bias,
+                             batch_stride_lse,
+                             batch_stride_o,
+                             mask.left,
+                             mask.right,
+                             static_cast<ck_tile::index_t>(mask.type)};
     }();
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
@@ -508,7 +512,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             s_host_ref,
             ck_tile::identity{},
             ck_tile::identity{},
-            ck_tile::composes(pcompute_element_func, ck_tile::scales(scale)));
+            ck_tile::scales(scale));
 
         if(use_bias)
         {
@@ -567,12 +571,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(lse)
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
-                s_host_ref, p_host_ref, lse_host_ref);
+                s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
         }
         else
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
-                s_host_ref, p_host_ref);
+                s_host_ref, p_host_ref, p_compute_element_func);
         }
 
         ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(

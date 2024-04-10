@@ -58,21 +58,6 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
     using ODataType           = ck_tile::fp8_t;
 };
 
-/// TODO: support specifying more elementwise functions for input/output tensors
-struct FmhaDefaultElementFunctions
-{
-    using PComputeElementFunction = ck_tile::identity;
-    using OAccElementFunction     = ck_tile::identity;
-};
-
-/// TODO: support specifying more elementwise functions for input/output tensors
-struct FmhaF8StaticQuantizationElementFunctions
-{
-    using PComputeElementFunction = ck_tile::scales<float>;
-    using OAccElementFunction =
-        ck_tile::composes<ck_tile::saturates<ck_tile::fp8_t>, ck_tile::scales<float>>;
-};
-
 template <>
 struct FmhaFwdTypeConfig<ck_tile::bf8_t>
 {
@@ -96,7 +81,6 @@ struct FmhaMasks
 };
 
 // runtime args, some will passed to karg, some will used to compute grids/blocks
-template <typename ElementFunctions>
 struct fmha_fwd_args
 {
     const void* q_ptr;
@@ -116,7 +100,9 @@ struct fmha_fwd_args
     ck_tile::index_t hdim_v;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_k;
-    float scale;
+    float scale; // FIXME: rename to s_acc_scale?
+    float p_compute_scale;
+    float o_acc_scale;
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
@@ -137,12 +123,10 @@ struct fmha_fwd_args
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
-    typename ElementFunctions::PComputeElementFunction p_compute_element_func;
-    typename ElementFunctions::OAccElementFunction o_acc_element_func;
 };
 
-template <typename FmhaKernel, typename FmhaFwdArgs>
-auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
+template <typename FmhaKernel>
+auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
 {
     assert(args.nhead_q % args.nhead_k == 0);
     auto kargs = [&] {
@@ -162,6 +146,8 @@ auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
                                          args.hdim_v,
                                          args.nhead_q / args.nhead_k,
                                          args.scale,
+                                         args.p_compute_scale,
+                                         args.o_acc_scale,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -175,9 +161,7 @@ auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
                                          args.nhead_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
-                                         args.mask_type,
-                                         args.p_compute_element_func,
-                                         args.o_acc_element_func);
+                                         args.mask_type);
         }
         else
         { // create batch mode kernel arguments
@@ -193,6 +177,8 @@ auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
                                          args.hdim_v,
                                          args.nhead_q / args.nhead_k,
                                          args.scale,
+                                         args.p_compute_scale,
+                                         args.o_acc_scale,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -212,9 +198,7 @@ auto fmha_fwd_create_kargs_and_grids(FmhaFwdArgs args)
                                          args.batch_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
-                                         args.mask_type,
-                                         args.p_compute_element_func,
-                                         args.o_acc_element_func);
+                                         args.mask_type);
         }
     }();
 
@@ -237,6 +221,7 @@ template <ck_tile::index_t HDim_,
           typename FmhaMask_,
           bool kHasBias_,
           bool kStoreLse_,
+          bool kDoF8StaticQuant_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -257,14 +242,15 @@ struct fmha_fwd_traits_
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr bool kHasBias                   = kHasBias_;
     static constexpr bool kStoreLse                  = kStoreLse_;
+    static constexpr bool kDoF8StaticQuant           = kDoF8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
 };
 
-template <typename Traits_, typename FmhaFwdArgs_>
-float fmha_fwd_(const ck_tile::stream_config&, FmhaFwdArgs_);
+template <typename Traits_>
+float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 
 // This is the public API, will be generated by script
 struct fmha_fwd_traits
@@ -277,8 +263,7 @@ struct fmha_fwd_traits
     mask_enum mask_type;
     bool has_bias;
     bool has_lse;
+    bool do_f8_static_quant;
     // TODO: padding check is inside this api
 };
-
-template <typename FmhaFwdArgs_>
-float fmha_fwd(fmha_fwd_traits, FmhaFwdArgs_, const ck_tile::stream_config&);
+float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);

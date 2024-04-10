@@ -17,7 +17,6 @@ template <typename QDataType_,
           typename PDataType_,
           typename OaccDataType_,
           typename ODataType_,
-          typename ElementFunctions_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           typename FmhaMask_,
@@ -34,7 +33,6 @@ struct BlockFmhaPipelineProblem
     using PDataType           = remove_cvref_t<PDataType_>;
     using OaccDataType        = remove_cvref_t<OaccDataType_>;
     using ODataType           = remove_cvref_t<ODataType_>;
-    using ElementFunctions    = remove_cvref_t<ElementFunctions_>;
     using BlockFmhaShape      = remove_cvref_t<BlockFmhaShape_>;
     using FmhaMask            = remove_cvref_t<FmhaMask_>;
     using Traits              = remove_cvref_t<Traits_>;
@@ -43,13 +41,14 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr bool kHasBias       = Traits::kHasBias;
-    static constexpr bool kStoreLSE      = Traits::kStoreLSE;
-    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
+    static constexpr bool kPadSeqLenQ      = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK      = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ     = Traits::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV     = Traits::kPadHeadDimV;
+    static constexpr bool kHasBias         = Traits::kHasBias;
+    static constexpr bool kStoreLSE        = Traits::kStoreLSE;
+    static constexpr bool kDoF8StaticQuant = Traits::kDoF8StaticQuant;
+    static constexpr index_t kBlockPerCu   = Traits::kBlockPerCu;
     static constexpr bool kIsFp8 =
         (std::is_same_v<QDataType, fp8_t> || std::is_same_v<QDataType, bf8_t>)&&(
             std::is_same_v<KDataType, fp8_t> ||
