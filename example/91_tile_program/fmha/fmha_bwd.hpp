@@ -605,6 +605,7 @@ template <ck::index_t HDim_,
           bool kIsGroupMode_,
           typename FmhaMask_,
           bool kHasBias_,
+          bool kHasBiasGrad_,
           bool kHasDropout_,
           bool kPadS_,
           bool kPadSK_,
@@ -617,6 +618,7 @@ struct fmha_bwd_traits_
     static constexpr bool kIsGroupMode = kIsGroupMode_;
     using FmhaMask                     = ck::remove_cvref_t<FmhaMask_>;
     static constexpr bool kHasBias     = kHasBias_;
+    static constexpr bool kHasBiasGrad = kHasBiasGrad_;
     static constexpr bool kHasDropout  = kHasDropout_;
     static constexpr bool kPadS        = kPadS_;
     static constexpr bool kPadSK       = kPadSK_;
@@ -649,6 +651,7 @@ struct fmha_bwd_traits
     bool is_group_mode;
     mask_enum mask_type;
     bool has_bias;
+    bool has_dbias;
     bool has_dropout;
     // TODO: padding check is inside this api
 };

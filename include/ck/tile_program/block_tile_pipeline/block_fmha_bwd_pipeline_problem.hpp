@@ -61,6 +61,7 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
     static constexpr bool kHasBias       = Traits::kHasBias;
+    static constexpr bool kHasBiasGrad   = Traits::kHasBiasGrad;
     static constexpr bool kHasDropout    = Traits::kHasDropout;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };

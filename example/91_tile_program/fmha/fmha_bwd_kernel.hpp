@@ -51,6 +51,7 @@ struct FmhaBwdKernel
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
     static constexpr bool kHasBias     = FmhaPipeline::kHasBias;
+    static constexpr bool kHasBiasGrad = FmhaPipeline::kHasBiasGrad;
     static constexpr bool kHasDropout  = FmhaPipeline::kHasDropout;
     using FmhaMask                     = ck::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask     = FmhaMask::IsMasking;
@@ -84,8 +85,8 @@ struct FmhaBwdKernel
                     _TS_(bfs::kQKHeaddim) + "x" + _TS_(bfs::kVHeaddim) + "_" +
             "r" + _TS_(gbr::At(ck::Number<0>{})) + "x" + _TS_(gbr::At(ck::Number<1>{})) + "x" + _TS_(gbr::At(ck::Number<2>{})) + "_" + 
             "w" + _TS_(gwt::At(ck::Number<0>{})) + "x" + _TS_(gwt::At(ck::Number<1>{})) + "x" + _TS_(gwt::At(ck::Number<2>{})) + "_" +
-            ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "" : "_" + pn) +
-            (kHasBias ? "_bias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" );
+            ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "" : "_" + pn) + (kHasBias ? "_bias" : "") +
+            (kHasBiasGrad ? "_dbias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -141,17 +142,25 @@ struct FmhaBwdKernel
 
     struct FmhaBwdCommonBiasKargs
     {
-        const void* bias_ptr           = nullptr;
-        void* dbias_ptr                = nullptr;
-        ck::index_t stride_bias        = 0;
-        ck::index_t stride_dbias       = 0;
-        ck::index_t nhead_stride_bias  = 0;
-        ck::index_t nhead_stride_dbias = 0;
+        const void* bias_ptr          = nullptr;
+        ck::index_t stride_bias       = 0;
+        ck::index_t nhead_stride_bias = 0;
     };
 
     struct FmhaBwdBatchModeBiasKargs : FmhaBwdCommonBiasKargs
     {
-        ck::index_t batch_stride_bias  = 0;
+        ck::index_t batch_stride_bias = 0;
+    };
+
+    struct FmhaBwdCommonBiasGradKargs
+    {
+        void* dbias_ptr                = nullptr;
+        ck::index_t stride_dbias       = 0;
+        ck::index_t nhead_stride_dbias = 0;
+    };
+
+    struct FmhaBwdBatchModeBiasGradKargs : FmhaBwdCommonBiasGradKargs
+    {
         ck::index_t batch_stride_dbias = 0;
     };
 
@@ -194,8 +203,9 @@ struct FmhaBwdKernel
     struct FmhaBwdBatchModeKargs
         : FmhaBwdCommonKargs,
           std::conditional_t<kHasBias, FmhaBwdBatchModeBiasKargs, FmhaBwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<1>>,
-          std::conditional_t<kHasDropout, FmhaBwdBatchModeDropoutKargs, FmhaBwdEmptyKargs<2>>
+          std::conditional_t<kHasBiasGrad, FmhaBwdBatchModeBiasGradKargs, FmhaBwdEmptyKargs<1>>,
+          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<2>>,
+          std::conditional_t<kHasDropout, FmhaBwdBatchModeDropoutKargs, FmhaBwdEmptyKargs<3>>
     {
         ck::index_t batch_stride_q;
         ck::index_t batch_stride_k;
@@ -209,8 +219,9 @@ struct FmhaBwdKernel
     struct FmhaBwdGroupModeKargs
         : FmhaBwdCommonKargs,
           std::conditional_t<kHasBias, FmhaBwdCommonBiasKargs, FmhaBwdEmptyKargs<0>>,
-          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<1>>,
-          std::conditional_t<kHasDropout, FmhaBwdCommonDropoutKargs, FmhaBwdEmptyKargs<2>>
+          std::conditional_t<kHasBiasGrad, FmhaBwdCommonBiasGradKargs, FmhaBwdEmptyKargs<1>>,
+          std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<2>>,
+          std::conditional_t<kHasDropout, FmhaBwdCommonDropoutKargs, FmhaBwdEmptyKargs<3>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -304,6 +315,7 @@ struct FmhaBwdKernel
                      nhead_stride_do,
                      nhead_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
+                    {},                  // placeholder for dbias
                     {},                  // placeholder for mask
                     {},                  // placeholder for dropout
                     batch_stride_q,
@@ -316,13 +328,17 @@ struct FmhaBwdKernel
 
         if constexpr(kHasBias)
         {
-            kargs.bias_ptr           = bias_ptr;
+            kargs.bias_ptr          = bias_ptr;
+            kargs.stride_bias       = stride_bias;
+            kargs.nhead_stride_bias = nhead_stride_bias;
+            kargs.batch_stride_bias = batch_stride_bias;
+        }
+
+        if constexpr(kHasBiasGrad)
+        {
             kargs.dbias_ptr          = dbias_ptr;
-            kargs.stride_bias        = stride_bias;
             kargs.stride_dbias       = stride_dbias;
-            kargs.nhead_stride_bias  = nhead_stride_bias;
             kargs.nhead_stride_dbias = nhead_stride_dbias;
-            kargs.batch_stride_bias  = batch_stride_bias;
             kargs.batch_stride_dbias = batch_stride_dbias;
         }
 
@@ -421,6 +437,7 @@ struct FmhaBwdKernel
                      nhead_stride_do,
                      nhead_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
+                    {},                  // placeholder for dbias
                     {},                  // placeholder for mask
                     {},                  // placeholder for dropout
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
@@ -429,11 +446,14 @@ struct FmhaBwdKernel
 
         if constexpr(kHasBias)
         {
-            kargs.bias_ptr           = bias_ptr;
+            kargs.bias_ptr          = bias_ptr;
+            kargs.stride_bias       = stride_bias;
+            kargs.nhead_stride_bias = nhead_stride_bias;
+        }
+        if constexpr(kHasBiasGrad)
+        {
             kargs.dbias_ptr          = dbias_ptr;
-            kargs.stride_bias        = stride_bias;
             kargs.stride_dbias       = stride_dbias;
-            kargs.nhead_stride_bias  = nhead_stride_bias;
             kargs.nhead_stride_dbias = nhead_stride_dbias;
         }
         if constexpr(kHasMask)
@@ -506,12 +526,18 @@ struct FmhaBwdKernel
             batch_offset_dv   = key_start * kargs.stride_dv;
             if constexpr(kHasBias)
             {
-                batch_offset_bias  = query_start * kargs.stride_bias + key_start;
+                batch_offset_bias = query_start * kargs.stride_bias + key_start;
+            }
+            else
+            {
+                batch_offset_bias = key_start;
+            }
+            if constexpr(kHasBiasGrad)
+            {
                 batch_offset_dbias = query_start * kargs.stride_dbias + key_start;
             }
             else
             {
-                batch_offset_bias  = key_start;
                 batch_offset_dbias = key_start;
             }
             if constexpr(kHasDropout)
@@ -550,7 +576,10 @@ struct FmhaBwdKernel
             batch_offset_dv   = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dv;
             if constexpr(kHasBias)
             {
-                batch_offset_bias  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
+                batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
+            }
+            if constexpr(kHasBiasGrad)
+            {
                 batch_offset_dbias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_dbias;
             }
             if constexpr(kHasDropout)
@@ -907,7 +936,7 @@ struct FmhaBwdKernel
         }();
 
         auto dbias_dram_window = [&, i_nhead_ = i_nhead]() {
-            if constexpr(kHasBias)
+            if constexpr(kHasBiasGrad)
             {
                 BiasGradDataType* dbias_ptr =
                     reinterpret_cast<BiasGradDataType*>(kargs.dbias_ptr) +

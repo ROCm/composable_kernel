@@ -74,6 +74,7 @@ struct BlockFmhaBwdPipelineV9
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr bool kHasBias     = Problem::kHasBias;
+    static constexpr bool kHasBiasGrad = Problem::kHasBiasGrad;
     static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -698,7 +699,7 @@ struct BlockFmhaBwdPipelineV9
                 });
             });
 
-            if constexpr(kHasBias)
+            if constexpr(kHasBiasGrad)
             {
                 const auto dbiast = [&]() {
                     if constexpr(kHasDropout)
