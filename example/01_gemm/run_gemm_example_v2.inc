@@ -98,6 +98,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
+    std::cout << "KBatch: " << KBatch << std::endl;
 
 #ifdef BUILD_INT4_EXAMPLE
     DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());

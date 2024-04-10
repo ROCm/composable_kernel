@@ -23,70 +23,6 @@
 
 namespace ck {
 namespace profiler {
-struct DeviceRotatingMem
-{
-    DeviceRotatingMem(std::size_t mem_size, int rotating_count)
-        : mMemSize(mem_size), mRotatingCount(std::max(1, rotating_count))
-    {
-        hip_check_error(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize * mRotatingCount));
-    }
-
-    void ToDevice(const void* p) const
-    {
-        if(mpDeviceBuf)
-        {
-            for(std::size_t i = 0; i < mRotatingCount; i++)
-            {
-                char* pBuf = static_cast<char*>(mpDeviceBuf) + i * mMemSize;
-                hip_check_error(hipMemcpy(static_cast<void*>(pBuf),
-                                          const_cast<void*>(p),
-                                          mMemSize,
-                                          hipMemcpyHostToDevice));
-            }
-        }
-        else
-        {
-            throw std::runtime_error("ToDevice with an empty pointer");
-        }
-    }
-
-    void* GetDeviceBuffer() const { return mpDeviceBuf; }
-
-    void SetZero() const
-    {
-        if(mpDeviceBuf)
-        {
-            hip_check_error(hipMemset(mpDeviceBuf, 0, mMemSize * mRotatingCount));
-        }
-    }
-
-    void FromDevice(void* p, size_t idx = 0) const
-    {
-        if(mpDeviceBuf && idx < mRotatingCount)
-        {
-            char* pBuf = static_cast<char*>(mpDeviceBuf) + idx * mMemSize;
-            hip_check_error(
-                hipMemcpy(p, static_cast<void*>(pBuf), mMemSize, hipMemcpyDeviceToHost));
-        }
-        else
-        {
-            throw std::runtime_error("FromDevice with an empty pointer");
-        }
-    }
-
-    ~DeviceRotatingMem()
-    {
-        if(mpDeviceBuf)
-        {
-            hip_check_error(hipFree(mpDeviceBuf));
-        }
-    }
-
-    private:
-    void* mpDeviceBuf          = nullptr;
-    std::size_t mMemSize       = 0;
-    std::size_t mRotatingCount = 1;
-};
 
 template <typename ADataType,
           typename BDataType,
@@ -162,10 +98,9 @@ bool profile_gemm_universal_impl(int do_verification,
                                   std::ceil(static_cast<double>(rotating) / total_gemm_needed));
     std::cout << "rotating count: " << rotating_count << std::endl;
 
-    DeviceRotatingMem a_device_buf(a_m_k.GetElementSpaceSizeInBytes(), rotating_count);
-    DeviceRotatingMem b_device_buf(b_k_n.GetElementSpaceSizeInBytes(), rotating_count);
-    DeviceRotatingMem c_device_buf(c_m_n_device_result.GetElementSpaceSizeInBytes(),
-                                   rotating_count);
+    DeviceMem a_device_buf(a_m_k.GetElementSpaceSizeInBytes());
+    DeviceMem b_device_buf(b_k_n.GetElementSpaceSizeInBytes());
+    DeviceMem c_device_buf(c_m_n_device_result.GetElementSpaceSizeInBytes());
 
     a_device_buf.ToDevice(a_m_k.mData.data());
     b_device_buf.ToDevice(b_k_n.mData.data());
