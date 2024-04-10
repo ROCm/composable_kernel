@@ -336,11 +336,11 @@ class FmhaFwdApiPool:
     @property
     def api(self) -> str:
         # divide api pool into 2 categories: (1) dtype=fp8, (2) dtype=others. Then generate one fmha_fwd() for each category
-        is_fp8 = lambda pair: pair[0] == 'fp8'
-        pool_groups = itertools.groupby(sorted(self.pool.items(), key=is_fp8), is_fp8)
+        is_fp8_item = lambda item: item[0] == 'fp8'
+        groups = itertools.groupby(sorted(self.pool.items(), key=is_fp8_item), is_fp8_item)
 
         fmha_fwd_api=str()
-        for is_fp8_api, pool in map(lambda key_group: (key_group[0], dict(key_group[1])), pool_groups):
+        for is_fp8_api, pool in map(lambda key_group: (key_group[0], dict(key_group[1])), groups):
             per_dtypes=str()
             for i, dtype in enumerate(pool.keys()):
                 per_hdim_case=str()
