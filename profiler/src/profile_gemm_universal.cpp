@@ -71,14 +71,14 @@ int profile_gemm_universal(int argc, char* argv[])
     const int StrideC = std::stoi(argv[13]);
     const int KBatch  = std::stoi(argv[14]);
 
-    int n_warmup = 1;
-    int n_iter   = 10;
-    int rotating = 0;
+    int n_warmup      = 1;
+    int n_iter        = 10;
+    uint64_t rotating = 0;
     if(argc == 18)
     {
         n_warmup = std::stoi(argv[15]);
         n_iter   = std::stoi(argv[16]);
-        rotating = std::stoi(argv[17]) * 1024 * 1024;
+        rotating = std::stoull(argv[17]) * 1024 * 1024;
     }
 
     using F32 = float;

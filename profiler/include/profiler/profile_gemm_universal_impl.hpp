@@ -108,7 +108,7 @@ bool profile_gemm_universal_impl(int do_verification,
                                  int KBatch,
                                  int n_warmup,
                                  int n_iter,
-                                 int rotating)
+                                 uint64_t rotating)
 {
     bool pass = true;
 
@@ -158,7 +158,8 @@ bool profile_gemm_universal_impl(int do_verification,
     int total_gemm_needed = a_m_k.GetElementSpaceSizeInBytes() +
                             b_k_n.GetElementSpaceSizeInBytes() +
                             c_m_n_device_result.GetElementSpaceSizeInBytes();
-    int rotating_count = std::max(1.f, std::ceil(static_cast<float>(rotating) / total_gemm_needed));
+    int rotating_count =
+        std::max(1.f, std::ceil(static_cast<double>(rotating) / total_gemm_needed));
     std::cout << "rotating count: " << rotating_count << std::endl;
 
     DeviceRotatingMem a_device_buf(a_m_k.GetElementSpaceSizeInBytes(), rotating_count);
