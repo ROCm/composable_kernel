@@ -468,8 +468,8 @@ struct BlockFmhaPipelineQRKSVS
             }
             move_tile_window(v_dram_window, {0, kK1});
 
-            tile_elementwise_in(p_compute_element_func, p_compute);
-            const auto p = cast_tile<PDataType>(p_compute);
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
