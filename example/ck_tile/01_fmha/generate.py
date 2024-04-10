@@ -336,7 +336,8 @@ class FmhaFwdApiPool:
     @property
     def api(self) -> str:
         # divide api pool into 2 categories: (1) dtype=fp8, (2) dtype=others. Then generate one fmha_fwd() for each category
-        pool_groups = itertools.groupby(self.pool.items(), lambda item: item[0] == 'fp8')
+        is_fp8 = lambda pair: pair[0] == 'fp8'
+        pool_groups = itertools.groupby(sorted(self.pool.items(), key=is_fp8), is_fp8)
 
         fmha_fwd_api=str()
         for is_fp8_api, pool in map(lambda key_group: (key_group[0], dict(key_group[1])), pool_groups):
