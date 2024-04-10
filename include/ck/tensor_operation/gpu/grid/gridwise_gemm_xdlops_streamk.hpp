@@ -145,7 +145,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         index_t StrideA;
         index_t StrideB;
         index_t StrideC;
-        index_t num_cu, occupancy; // stream-k arguments
         Block2CTileMap block_mapping;
 
         Argument(const FloatAB* p_a_grid_,
@@ -157,8 +156,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                  index_t StrideA_,
                  index_t StrideB_,
                  index_t StrideC_,
-                 uint32_t num_cu_,
-                 uint32_t occupancy_,
                  uint32_t num_sk_blocks_)
             : p_a_grid(p_a_grid_),
               p_b_grid(p_b_grid_),
@@ -169,9 +166,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
               StrideA(StrideA_),
               StrideB(StrideB_),
               StrideC(StrideC_),
-              num_cu(num_cu_),
-              occupancy(occupancy_),
-              block_mapping(M, N, K, num_cu_, occupancy_, num_sk_blocks_)
+              block_mapping(M, N, K, num_sk_blocks_)
         {
         }
 
@@ -523,9 +518,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_v3();
-        uint32_t* p_semaphore =
-            reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(p_workspace) +
-                                        block_mapping.get_workspace_size_for_acc(sizeof(FloatAcc)));
 
         // offset for last acc buffer of this block
         uint32_t block_acc_offset =
@@ -536,6 +528,33 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
         uint32_t total_iter_length;
 
+        constexpr auto cluster_length_reduce =
+            GetClusterLengthReduction(); //  get nperblock, mperblock for reduction
+        constexpr auto reduce_desc = make_cluster_descriptor(cluster_length_reduce);
+        const auto reduce_thread_cluster_idx =
+            reduce_desc.CalculateBottomIndex(make_multi_index(get_thread_local_1d_id()));
+        const auto thread_m_cluster_id = reduce_thread_cluster_idx[I0];
+        const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
+
+        constexpr auto MReduceIters = math::integer_divide_ceil(
+            Number<MPerBlock>{},
+            cluster_length_reduce.At(I0)); //  calculate total Mreduce iterations for block
+        constexpr auto NReduceIters = math::integer_divide_ceil(
+            Number<NPerBlock>{},
+            cluster_length_reduce.At(I1) *
+                Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}); //  calculate
+                                                                       // total Nreduce
+                                                                       // iterations for
+                                                                       // block
+
+        constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{})); //  thread
+                                                                                   // buf LOAD
+                                                                                   // descriptor
+        constexpr auto acc_thread_buf_store_desc = make_naive_tensor_descriptor_packed(make_tuple(
+            I1, I1, I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{})); //  thread
+                                                                                // buf STORE
+                                                                                // descriptor
 #pragma unroll
         // stream-k: for new work for all the persistent blocks.
         for(; block_idx < block_mapping.total_blocks_allocated(); block_idx += gridDim.x)
@@ -558,28 +577,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
             if constexpr(Block2CTileMap::ReductionStrategy == StreamKReductionStrategy::Reduction)
             {
                 is_reduction_block = block_idx >= block_mapping.reduction_start_block_idx;
+
                 if(is_reduction_block)
                 {
-                    // descriptors
-                    constexpr auto cluster_length_reduce = GetClusterLengthReduction();
-                    constexpr auto reduce_desc = make_cluster_descriptor(cluster_length_reduce);
-                    const auto reduce_thread_cluster_idx = reduce_desc.CalculateBottomIndex(
-                        make_multi_index(get_thread_local_1d_id()));
-                    const auto thread_m_cluster_id = reduce_thread_cluster_idx[I0];
-                    const auto thread_n_cluster_id = reduce_thread_cluster_idx[I1];
-
-                    constexpr auto MReduceIters = math::integer_divide_ceil(
-                        Number<MPerBlock>{}, cluster_length_reduce.At(I0));
-                    constexpr auto NReduceIters = math::integer_divide_ceil(
-                        Number<NPerBlock>{},
-                        cluster_length_reduce.At(I1) *
-                            Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{});
-
-                    constexpr auto acc_thread_buf_load_desc = make_naive_tensor_descriptor_packed(
-                        make_tuple(I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
-                    constexpr auto acc_thread_buf_store_desc =
-                        make_naive_tensor_descriptor_packed(make_tuple(
-                            I1, I1, I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{}));
 
                     constexpr auto c_partial_acc_block_m_n = GetPartialAccBlockDescriptor();
 
@@ -621,8 +621,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     // start to compute
                     auto reduction_idx = block_idx - block_mapping.reduction_start_block_idx;
                     auto spatial_idx   = block_mapping.tile_to_spatial(reduction_idx, m, n);
-
-                    workgroup_barrier wg_barrier(p_semaphore);
 
                     uint32_t tile_acc_offset_start =
                         block_mapping.get_acc_buffer_offset_from_tile(reduction_idx);
@@ -668,9 +666,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                            thread_n_cluster_id *
                                                CBlockTransferScalarPerVector_NWaveNPerXDL),
                           CElementwiseOperation{}};
-
-                    // block synchronization
-                    wg_barrier.wait_eq(reduction_idx, tile_acc_offset_end - tile_acc_offset_start);
 
 #if 0
                 if(threadIdx.x == 0) {
@@ -750,9 +745,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                 partial_acc_store_step_m);
                         }
                     }
-                    return;
+                    continue;
                 }
             }
+
             while(true)
             {
                 uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
@@ -1131,17 +1127,6 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                 mxdlperwave_forward_step);
                         }
                     });
-
-                    if constexpr(Block2CTileMap::ReductionStrategy ==
-                                 StreamKReductionStrategy::Reduction)
-                    {
-                        if(is_sk_block)
-                        {
-                            // increase the counter for this tile
-                            workgroup_barrier wg_barrier(p_semaphore);
-                            wg_barrier.inc(tile_idx);
-                        }
-                    }
                 }
 
                 // exit condition

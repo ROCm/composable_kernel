@@ -78,7 +78,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         BlockToCTileMap_GemmStreamK<MPerBlock,
                                     NPerBlock,
                                     K0PerBlock * K1,
-                                    StreamKReductionStrategy::Atomic>,
+                                    // StreamKReductionStrategy::Atomic>,
+                                    StreamKReductionStrategy::Reduction>,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
@@ -139,11 +140,20 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
 
             // stream-k: calculate the number of blocks to be launched based on #CUs and #occupancy
             // dim3 grid_dims = karg.block_mapping.get_grid_dims(karg.num_cu, karg.occupancy);
-            dim3 grid_dims = karg.block_mapping.get_grid_dims();
 
-            float ave_time = 0;
-
+            int occupancy, num_cu;
             const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
+            hip_check_error(
+                hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            hip_check_error(hipGetDevice(&dev));
+            hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
+            num_cu         = dev_prop.multiProcessorCount;
+            dim3 grid_dims = karg.block_mapping.sk_num_blocks;
+            printf("Recommended #stream-k blocks (assuming full GPU availability): %0d\n",
+                   num_cu * occupancy);
+            float ave_time = 0;
 
             // TODO: remove clear buffer for streamk kernels
             if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
@@ -272,30 +282,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                              CElementwiseOperation,
                              uint32_t NumSKBlocks = 0)
     {
-        const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
-        int occupancy, num_cu;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
-        hipDeviceProp_t dev_prop;
-        hipDevice_t dev;
-        hip_check_error(hipGetDevice(&dev));
-        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
-        num_cu = dev_prop.multiProcessorCount;
-        printf("Assuming full GPU availability, recommended stream-k grid size for tuning :%0d\n",
-               num_cu * occupancy);
 
-        return Argument{p_a,
-                        p_b,
-                        p_c,
-                        M,
-                        N,
-                        K,
-                        StrideA,
-                        StrideB,
-                        StrideC,
-                        static_cast<uint32_t>(num_cu),
-                        static_cast<uint32_t>(occupancy),
-                        NumSKBlocks};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, NumSKBlocks};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -315,15 +303,6 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                                       CElementwiseOperation,
                                                       index_t NumSKBlocks = 0) override
     {
-        const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
-        int occupancy, num_cu;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
-        hipDeviceProp_t dev_prop;
-        hipDevice_t dev;
-        hip_check_error(hipGetDevice(&dev));
-        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
-        num_cu = dev_prop.multiProcessorCount;
 
         return std::make_unique<Argument>(reinterpret_cast<const ADataType*>(p_a),
                                           reinterpret_cast<const BDataType*>(p_b),
@@ -334,8 +313,6 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                           StrideA,
                                           StrideB,
                                           StrideC,
-                                          static_cast<uint32_t>(num_cu),
-                                          static_cast<uint32_t>(occupancy),
                                           static_cast<uint32_t>(NumSKBlocks));
     }
 
