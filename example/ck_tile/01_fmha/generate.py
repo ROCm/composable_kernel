@@ -534,7 +534,7 @@ def get_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFw
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
-                element_func = 'no' if dtype != 'fp8' else 'f8_static_quant'
+                element_func = 'f8_static_quant' if dtype == 'fp8' else 'no'
                 k = FmhaFwdKernel(direction=direction,
                                   F_idx=0,
                                   F_hdim=hdim,
