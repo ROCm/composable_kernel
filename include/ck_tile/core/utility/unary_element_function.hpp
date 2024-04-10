@@ -17,7 +17,7 @@ struct composes : private composes<F>
     }
 
     template <typename Arg>
-    CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(Arg&& arg) const
+    CK_TILE_HOST_DEVICE constexpr auto operator()(Arg&& arg) const
     {
         return static_cast<const composes<F>&>(*this)(inner_(std::forward<Arg>(arg)));
     }
@@ -38,7 +38,7 @@ struct composes<F>
 
     template <typename Arg,
               typename = std::enable_if_t<std::is_invocable_v<std::add_const_t<F>&, Arg>>>
-    CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(Arg&& arg) const
+    CK_TILE_HOST_DEVICE constexpr auto operator()(Arg&& arg) const
     {
         return f_(std::forward<Arg>(arg));
     }
