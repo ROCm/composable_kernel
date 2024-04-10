@@ -81,8 +81,8 @@ struct RotatingMemWrapper
     }
     void Print()
     {
-        std::cout << "RotatingMemWrapper{" << size_a << "," << size_b << "," << size_c << "}"
-                  << std::endl;
+        std::cout << "RotatingMemWrapper{" << size_a << "," << size_b << "," << size_c
+                  << "} rotating_count: " << rotating_count << std::endl;
     }
     ~RotatingMemWrapper()
     {
