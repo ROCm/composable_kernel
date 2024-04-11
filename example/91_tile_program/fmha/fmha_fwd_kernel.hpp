@@ -137,7 +137,8 @@ struct FmhaFwdKernel
 
     struct FmhaFwdMaskKargs
     {
-        ck::index_t mask_y, mask_x;
+        ck::index_t window_size_left, window_size_right;
+        ck::GenericAttentionMaskEnum mask_type;
     };
 
     struct FmhaFwdFP8Kargs
@@ -215,8 +216,9 @@ struct FmhaFwdKernel
                                                                       ck::index_t batch_stride_bias,
                                                                       ck::index_t batch_stride_lse,
                                                                       ck::index_t batch_stride_o,
-                                                                      ck::index_t mask_y,
-                                                                      ck::index_t mask_x,
+                                                                      ck::index_t window_size_left,
+                                                                      ck::index_t window_size_right,
+                                                                      ck::index_t mask_type,
                                                                       float descale_qk,
                                                                       float descale_sv)
     {
@@ -260,8 +262,9 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasMask)
         {
-            kargs.mask_y = mask_y;
-            kargs.mask_x = mask_x;
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
@@ -303,8 +306,9 @@ struct FmhaFwdKernel
                                                                       ck::index_t nhead_stride_bias,
                                                                       ck::index_t nhead_stride_lse,
                                                                       ck::index_t nhead_stride_o,
-                                                                      ck::index_t mask_y,
-                                                                      ck::index_t mask_x,
+                                                                      ck::index_t window_size_left,
+                                                                      ck::index_t window_size_right,
+                                                                      ck::index_t mask_type,
                                                                       float descale_qk,
                                                                       float descale_sv)
     {
@@ -346,8 +350,9 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasMask)
         {
-            kargs.mask_y = mask_y;
-            kargs.mask_x = mask_x;
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
@@ -641,7 +646,12 @@ struct FmhaFwdKernel
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
-                return FmhaMask{kargs.mask_y, kargs.mask_x, kargs.seqlen_q, kargs.seqlen_k};
+                return ck::make_generic_attention_mask_from_lr_window<FmhaMask>(
+                    kargs.window_size_left,
+                    kargs.window_size_right,
+                    kargs.seqlen_q,
+                    kargs.seqlen_k,
+                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
             else
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
