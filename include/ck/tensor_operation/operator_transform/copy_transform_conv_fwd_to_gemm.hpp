@@ -547,5 +547,10 @@ struct TransformConvFwdToGemm
     }
 };
 
+// wrapper class to call member functions on TransformConvToGemm struct at runtime
+struct Transform
+{
+};
+
 } // namespace tensor_operation
 } // namespace ck

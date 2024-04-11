@@ -17,6 +17,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/copy_matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
@@ -40,6 +41,7 @@
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 #include <fstream>
+#include <variant>
 
 // using half = _Float16;
 // using half = __fp16;
@@ -155,24 +157,68 @@ auto report(const Solution& solution, bool pass)
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
 
-auto layout_type(std::string type)
+using layouts = std::variant<ck::tensor_layout::convolution::GNHWC,
+                             ck::tensor_layout::convolution::GNHWK,
+                             ck::tensor_layout::convolution::GKYXC>;
+layouts layout_type(std::string type)
 {
-    if(type == "ck::tensor_layout::convolution::GNKHW")
+    if(type == "ck::tensor_layout::convolution::GNHWC")
     {
-        return ck::tensor_operation::device::GemmSpecialization::Default;
+        return ck::tensor_layout::convolution::GNHWC{};
     }
-    return ck::tensor_operation::device::GemmSpecialization::Default;
+    else if(type == "ck::tensor_layout::convolution::GNHWK")
+    {
+        return ck::tensor_layout::convolution::GNHWK{};
+    }
+    else if(type == "ck::tensor_layout::convolution::GKYXC")
+    {
+        return ck::tensor_layout::convolution::GKYXC{};
+    }
+    return ck::tensor_layout::convolution::GNHWC{};
 }
+
 // method to check GemmType
-auto gemm_type(std::string type)
+ck::tensor_operation::device::GemmSpecialization gemm_type(std::string type)
 {
     if(type == "ck::tensor_operation::device::GemmSpecialization::Default")
     {
-        return ck::tensor_operation::device::GemmSpecialization::Default;
+        return ck::tensor_operation::device::GemmSpecialization::MNKPadding;
     }
     return ck::tensor_operation::device::GemmSpecialization::Default;
 }
-auto conv_type(std::string type)
+
+// TODO: edit/repurpose these to instantiate structs then call the wrapper class instead
+/**ck::tensor_operation::device::Padder pad(ck::index_t mpb,
+                                         ck::index_t npb,
+                                         ck::index_t kpb,
+                                         ck::tensor_operation::device::GemmSpecialization gemm)
+{
+    ck::tensor_operation::device::CopyMatrixPadder<
+        ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+        ck::index_t,
+        ck::index_t,
+        ck::index_t> a;
+    a.MPerTile_ = mpb;
+    a.NPerTile_ = npb;
+    a.KPerTile_ = kpb;
+    return a;
+}
+ck::tensor_operation::Transform*
+transform(ck::index_t num_dim, ck::tensor_operation::device::ConvolutionForwardSpecialization spec)
+{
+    if(num_dim == 2 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Default)
+    {
+        return new ck::tensor_operation::TransformConvFwdToGemm<
+            2,
+            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>{};
+    }
+    return new ck::tensor_operation::TransformConvFwdToGemm<
+                        2,
+                        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>{};
+}**/
+
+ck::tensor_operation::device::ConvolutionForwardSpecialization conv_type(std::string type)
 {
     if(type == "ck::tensor_operation::device::ConvolutionForwardSpecialization::Default")
     {
@@ -477,32 +523,45 @@ struct Prologue
         options.kernel_name = "kernel_group_conv_fwd";
         auto k              = rtc::compile_kernel(srcs, options);
 
-        auto m_per_block = solution.GetTemplateParameter<std::size_t>("MPerBlock");
-        auto n_per_block = solution.GetTemplateParameter<std::size_t>("NPerBlock");
-        auto num_dim     = solution.GetTemplateParameter<std::size_t>("NumDim");
-        auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
+        auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
+        auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
+        auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
+        auto num_dim     = solution.GetTemplateParameter<ck::index_t>("NumDim");
+        auto block_size  = solution.GetTemplateParameter<ck::index_t>("BlockSize");
         auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
-        std::cout << "GemmSpec 1: " << GemmType << std::endl;
-        GemmType.erase(std::remove(GemmType.begin(), GemmType.end(), '\"'), GemmType.end());
-        std::cout << "GemmSpec 2: " << GemmType << std::endl;
-        auto GemmSpec = gemm_type(GemmType);
+        auto ConvType    = solution.GetTemplateParameter<std::string>("ConvSpecialization");
+        auto out_layout  = solution.GetTemplateParameter<std::string>("LayoutE");
+        ck::tensor_operation::device::GemmSpecialization GemmSpec = gemm_type(GemmType);
+        ck::tensor_operation::device::ConvolutionForwardSpecialization ConvSpec =
+            conv_type(ConvType);
+        layouts ELayout = layout_type(out_layout);
 
-        static bool PadM =
-            (GemmSpec == ck::tensor_operation::device::GemmSpecialization::MPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding);
-        static bool PadN =
-            (GemmSpec == ck::tensor_operation::device::GemmSpecialization::NPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding);
-        static bool PadK =
-            (GemmSpec == ck::tensor_operation::device::GemmSpecialization::KPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MKPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::NKPadding ||
-             GemmSpec == ck::tensor_operation::device::GemmSpecialization::MNKPadding);
-        // E grid desc + block 2 etile
+        // TODO: replace with repurposed factory function calls
+        // auto* conv_to_gemm_transformer = transform(num_dim, ConvSpec);
+        // auto conv_to_gemm_transformer = ck::tensor_operation::TransformConvFwdToGemm<
+        //  2,
+        // ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>{};
+
+        // auto matrix_padder = ck::tensor_operation::device::MatrixPadder<gemm_types[count],
+        // ck::index_t, ck::index_t, ck::index_t>{mperblock[count], nperblock[count],
+        // kperblock[count]};
+        /**auto matrix_padder = ck::tensor_operation::device::MatrixPadder<
+            ck::tensor_operation::device::GemmSpecialization::MNKPadding,
+            ck::index_t,
+            ck::index_t,
+            ck::index_t>{static_cast<int>(m_per_block),
+                         static_cast<int>(n_per_block),
+                         static_cast<int>(k_per_block)};**/
+
+        // TODO: remove these calls, replace with factory function calls
+        // auto* tmp = static_cast<ck::tensor_operation::TransformConvFwdToGemm<ck::index_t,
+        // ck::tensor_operation::device::ConvolutionForwardSpecialization>*>(conv_to_gemm_transformer);
+        // auto out_gemmmraw_gemmnraw_desc = conv_to_gemm_transformer.template
+        // MakeCDescriptor_M_N<ELayout>(out_lengths, out_strides);
+
+        // const auto e_desc = matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
+
+        // E grid desc + block 2 etile: use method implementations without calling them
         const ck::index_t N = out_lengths[1];
         const ck::index_t K = out_lengths[2];
 
