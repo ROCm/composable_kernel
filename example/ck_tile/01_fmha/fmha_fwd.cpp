@@ -54,11 +54,12 @@ auto create_args(int argc, char* argv[])
         .insert("scale", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
         .insert("scale_p",
                 "0",
-                "scale factor of P(output of softmax), only works in f8 static quantization."
-                " 0 means equal to 240/1")
+                "scale factor of P(output of softmax), only works in fp8 static quantization."
+                " 0 means equal to max(fp8_t)/1")
         .insert("scale_o",
                 "0",
-                "scale factor of O, only works in f8 static quantization. 0 means equal to 1/240")
+                "scale factor of O, only works in f8 static quantization. 0 means equal to "
+                "1/max(fp8_t)")
         .insert("squant", "0", "forward with static quantization fusion or not")
         .insert("iperm",
                 "1",
@@ -179,13 +180,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
+    // In the context of squant, scale_p = max(fp8_t)/Tp
     float scale_p = arg_parser.get_float("scale_p");
     if(scale_p == .0f)
-        scale_p = 240.f;
+        scale_p = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
 
+    // In the context of squant, scale_p = [max(fp8_t)/To] * [Tp/max(fp8_t)] * [Tv/max(fp8_t)]
     float scale_o = arg_parser.get_float("scale_o");
     if(scale_o == .0f)
-        scale_o = 1.f / 240.f;
+        scale_o = 1.f / ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
