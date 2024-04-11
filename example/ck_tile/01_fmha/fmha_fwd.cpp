@@ -51,7 +51,15 @@ auto create_args(int argc, char* argv[])
         .insert("s_k", "0", "seqlen_k, 0 means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
-        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
+        .insert("scale", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
+        .insert("pscale",
+                "0",
+                "scale factor of P(output of softmax), only works in f8 static quantization."
+                " 0 means equal to 240/1")
+        .insert("oscale",
+                "0",
+                "scale factor of O, only works in f8 static quantization. 0 means equal to 1/240")
+        .insert("squant", "0", "forward with static quantization fusion or not")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -66,9 +74,9 @@ auto create_args(int argc, char* argv[])
                 "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
                 "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
                 "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, possitive is swa\n"
+                "causal, positive is swa\n"
                 "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, possitive is swa\n"
+                "causal, positive is swa\n"
                 "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
                 "now)\n")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
@@ -163,9 +171,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    // TODO - user defined
-    float p_compute_scale = 240.f;
-    float o_acc_scale     = 0.0042f;
+    bool squant = arg_parser.get_bool("squant");
+    if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
+        assert(!squant);
+
+    float p_compute_scale = arg_parser.get_float("pscale");
+    if(p_compute_scale == .0f)
+        p_compute_scale = 240.f;
+
+    float o_acc_scale = arg_parser.get_float("oscale");
+    if(o_acc_scale == .0f)
+        o_acc_scale = 1.f / 240.f;
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
@@ -318,13 +334,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     };
     // clang-format on
     const std::string prec = arg_parser.get_str("prec");
-    constexpr bool squant = std::is_same_v<DataType, ck_tile::fp8_t>;
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout << std::flush;
-
+              << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout
+              << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
