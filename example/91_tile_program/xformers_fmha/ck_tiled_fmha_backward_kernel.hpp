@@ -106,9 +106,6 @@ struct FmhaBwdKernel
         ck::index_t nhead_stride_lsed;
 
         ck::index_t batch_stride_lsed;
-
-        // only used for handling some strange xformers test
-        ck::index_t hdim_stride_do;
     };
 
     struct FmhaBwdCommonBiasKargs
@@ -249,7 +246,6 @@ struct FmhaBwdKernel
               ck::index_t batch_stride_dk,
               ck::index_t batch_stride_dv,
               ck::index_t batch_stride_dbias,
-              ck::index_t hdim_stride_do,
               CausalMaskType mask_type,
               ck::index_t window_size,
               float p_drop,
@@ -286,12 +282,11 @@ struct FmhaBwdKernel
                      nhead_stride_v,
                      nhead_stride_do,
                      nhead_stride_lsed,
-                     batch_stride_lsed,
-                     hdim_stride_do}, // args for common karg
-                    {},               // placeholder for bias
-                    {},               // placeholder for dbias
-                    {},               // placeholder for mask
-                    {},               // placeholder for dropout
+                     batch_stride_lsed}, // args for common karg
+                    {},                  // placeholder for bias
+                    {},                  // placeholder for dbias
+                    {},                  // placeholder for mask
+                    {},                  // placeholder for dropout
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -374,7 +369,6 @@ struct FmhaBwdKernel
               ck::index_t nhead_stride_lsed,
               ck::index_t nhead_stride_dbias,
               ck::index_t batch_stride_lse,
-              ck::index_t hdim_stride_do,
               CausalMaskType mask_type,
               ck::index_t window_size,
               float p_drop,
@@ -411,12 +405,11 @@ struct FmhaBwdKernel
                      nhead_stride_v,
                      nhead_stride_do,
                      nhead_stride_lsed,
-                     batch_stride_lse,
-                     hdim_stride_do}, // args for common karg
-                    {},               // placeholder for bias
-                    {},               // placeholder for dbias
-                    {},               // placeholder for mask
-                    {},               // placeholder for dropout
+                     batch_stride_lse}, // args for common karg
+                    {},                 // placeholder for bias
+                    {},                 // placeholder for dbias
+                    {},                 // placeholder for mask
+                    {},                 // placeholder for dropout
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -730,7 +723,7 @@ struct FmhaBwdKernel
         const auto do_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
             do_ptr,
             make_tuple(kargs.seqlen_q, kargs.hdim_v),
-            make_tuple(kargs.stride_do, kargs.hdim_stride_do),
+            make_tuple(kargs.stride_do, 1),
             Number<FmhaPipeline::kAlignmentOGrad>{},
             Number<1>{});
         const auto do_dram = [&]() {
@@ -1154,9 +1147,6 @@ struct FmhaBwdOGradDotOKernel
         ck::index_t nhead_stride_o;
         ck::index_t nhead_stride_d;
         ck::index_t batch_stride_d;
-
-        // only used for handling some strange xformers test
-        ck::index_t hdim_stride_do;
     };
 
     struct FmhaBwdOGradDotOBatchModeKargs : FmhaBwdOGradDotOCommonKargs
@@ -1187,8 +1177,7 @@ struct FmhaBwdOGradDotOKernel
                                                                       ck::index_t nhead_stride_d,
                                                                       ck::index_t batch_stride_do,
                                                                       ck::index_t batch_stride_o,
-                                                                      ck::index_t batch_stride_d,
-                                                                      ck::index_t hdim_stride_do)
+                                                                      ck::index_t batch_stride_d)
     {
         Kargs kargs{{o_ptr,
                      do_ptr,
@@ -1201,8 +1190,7 @@ struct FmhaBwdOGradDotOKernel
                      nhead_stride_do,
                      nhead_stride_o,
                      nhead_stride_d,
-                     batch_stride_d,
-                     hdim_stride_do},
+                     batch_stride_d},
                     batch_stride_do,
                     batch_stride_o};
 
@@ -1221,8 +1209,7 @@ struct FmhaBwdOGradDotOKernel
                                                                       ck::index_t nhead_stride_do,
                                                                       ck::index_t nhead_stride_o,
                                                                       ck::index_t nhead_stride_d,
-                                                                      ck::index_t batch_stride_d,
-                                                                      ck::index_t hdim_stride_do)
+                                                                      ck::index_t batch_stride_d)
     {
         Kargs kargs{{o_ptr,
                      do_ptr,
@@ -1235,8 +1222,7 @@ struct FmhaBwdOGradDotOKernel
                      nhead_stride_do,
                      nhead_stride_o,
                      nhead_stride_d,
-                     batch_stride_d,
-                     hdim_stride_do},
+                     batch_stride_d},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
 
         return kargs;
@@ -1320,7 +1306,7 @@ struct FmhaBwdOGradDotOKernel
             auto do_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
                 do_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.stride_do, kargs.hdim_stride_do),
+                make_tuple(kargs.stride_do, 1),
                 Number<FmhaBwdOGradDotO::kAlignmentOGrad>{},
                 Number<1>{});
             return pad_tensor_view(do_dram_naive,
