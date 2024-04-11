@@ -9,7 +9,7 @@
 
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce_multi_d.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
 
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise_multi_d.hpp"
@@ -19,33 +19,29 @@ namespace tensor_operation {
 namespace device {
 
 template <typename InDataType,
+          typename DsDataType,
           typename AccDataType,
           typename OutDataType,
           index_t Rank,
           index_t NumReduceDim,
           typename ReduceOperation,
           typename InElementwiseOperation,
-          typename AccElementwiseOperation,
-          bool PropagateNan,
-          bool OutputIndex,
-          bool TransformIndexKtoGlobal,
-          bool HaveIndexInputIfOutputIndex,
+          typename OutElementwiseOperation,
           index_t BlockSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize>
-struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
-                                                    AccDataType,
-                                                    OutDataType,
-                                                    Rank,
-                                                    NumReduceDim,
-                                                    ReduceOperation,
-                                                    InElementwiseOperation,
-                                                    AccElementwiseOperation,
-                                                    PropagateNan,
-                                                    OutputIndex>
+struct DeviceReduceThreadWiseMultiD : public DeviceReduceMultiD<InDataType,
+                                                                DsDataType,
+                                                                AccDataType,
+                                                                OutDataType,
+                                                                Rank,
+                                                                NumReduceDim,
+                                                                ReduceOperation,
+                                                                InElementwiseOperation,
+                                                                OutElementwiseOperation>
 
 {
     static_assert(Rank <= 6, "Bigger Rank size is not supported!");
@@ -57,9 +53,9 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
 
     using IndexDataType = int32_t;
 
-    static constexpr bool HaveIndexInput = OutputIndex && HaveIndexInputIfOutputIndex;
-
     static constexpr index_t NumInvariantDim = Rank - NumReduceDim;
+
+    static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr index_t NumSrcDim = Rank;
     static constexpr index_t NumDstDim = (NumInvariantDim == 0) ? 1 : NumInvariantDim;
@@ -159,33 +155,68 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
         return (out_grid_desc_m_padded);
     };
 
+    static auto
+    MakeDsDescriptor(const std::array<std::array<index_t, NumDstDim>, NumDTensor> DsLengths,
+                     std::array<std::array<index_t, NumDstDim>, NumDTensor> DsStrides)
+    {
+        return generate_tuple(
+            [&](auto i) {
+                return DeviceReduceThreadWiseMultiD::MakeDst1dDescriptor(DsLengths[i],
+                                                                         DsStrides[i]);
+            },
+            Number<NumDTensor>{});
+    }
+
+    using InGridDesc_M_K = decltype(MakeSrc2dDescriptor({}, {}));
+    using OutGridDesc_M  = decltype(MakeDst1dDescriptor({}, {}));
+    using DsGridDesc_M   = decltype(MakeDsDescriptor({}, {}));
+
+    using GridwiseReduce =
+        GridwiseReduction_mk_to_m_threadwise_multi_d<InDataType,
+                                                     DsDataType,
+                                                     OutDataType,
+                                                     AccDataType,
+                                                     InGridDesc_M_K,
+                                                     DsGridDesc_M,
+                                                     OutGridDesc_M,
+                                                     ReduceOperation,
+                                                     InElementwiseOperation,
+                                                     OutElementwiseOperation,
+                                                     InMemoryDataOperationEnum::Set,
+                                                     BlockSize,
+                                                     MThreadSliceSize,
+                                                     KThreadSliceSize,
+                                                     InSrcVectorDim,
+                                                     InSrcVectorSize,
+                                                     OutDstVectorSize>;
+
+    using DsGridPointer = typename GridwiseReduce::DsGridPointer;
+
     struct Argument : public BaseArgument
     {
         Argument(const std::array<index_t, Rank> inLengths,
                  const std::array<index_t, Rank> inStrides,
+                 const std::array<std::array<index_t, NumDstDim>, NumDTensor> DsLengths,
+                 const std::array<std::array<index_t, NumDstDim>, NumDTensor> DsStrides,
                  const std::array<index_t, NumDstDim> outLengths,
                  const std::array<index_t, NumDstDim> outStrides,
                  const std::array<int, NumReduceDim> reduceDims,
-                 double alpha,
-                 double beta,
                  const InDataType* in_dev,
+                 const std::array<const void*, NumDTensor> ds_dev,
                  OutDataType* out_dev,
-                 IndexDataType* out_index_dev,
                  const InElementwiseOperation in_elementwise_op,
-                 const AccElementwiseOperation acc_elementwise_op)
-            : outLengths_{outLengths},
+                 const OutElementwiseOperation out_elementwise_op)
+            : DsLengths_{DsLengths},
+              DsStrides_{DsStrides},
+              outLengths_{outLengths},
               outStrides_{outStrides},
               in_dev_{in_dev},
               out_dev_{out_dev},
-              out_index_dev_{out_index_dev},
               in_elementwise_op_{in_elementwise_op},
-              acc_elementwise_op_{acc_elementwise_op}
+              out_elementwise_op_{out_elementwise_op}
         {
             inLengths_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inLengths, reduceDims);
             inStrides_ = shuffle_tensor_dimensions<Rank, NumReduceDim>(inStrides, reduceDims);
-
-            alpha_ = type_convert<AccDataType>(alpha);
-            beta_  = type_convert<AccDataType>(beta);
 
             std::tie(invariant_total_length, reduce_total_length) =
                 get_2d_lengths<Rank, NumReduceDim>(inLengths_);
@@ -201,22 +232,33 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
 
             gridSize = math::integer_least_multiple(invariant_total_length, M_BlockTileSize) /
                        M_BlockTileSize;
+
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                p_ds_grid_(i)   = static_cast<const DDataType*>(ds_dev[i]);
+            });
+
+            ds_grid_desc_m_ = MakeDsDescriptor(DsLengths, DsStrides);
         }
 
         std::array<index_t, Rank> inLengths_;
         std::array<index_t, Rank> inStrides_;
+
+        std::array<std::array<index_t, NumDstDim>, NumDTensor> DsLengths_;
+        std::array<std::array<index_t, NumDstDim>, NumDTensor> DsStrides_;
+
         std::array<index_t, NumDstDim> outLengths_;
         std::array<index_t, NumDstDim> outStrides_;
 
-        AccDataType alpha_;
-        AccDataType beta_;
-
         const InDataType* in_dev_;
         OutDataType* out_dev_;
-        IndexDataType* out_index_dev_;
+
+        DsGridPointer p_ds_grid_;
 
         InElementwiseOperation in_elementwise_op_;
-        AccElementwiseOperation acc_elementwise_op_;
+        OutElementwiseOperation out_elementwise_op_;
+
+        DsGridDesc_M ds_grid_desc_m_;
 
         index_t invariant_lowest_length;
         index_t reduce_lowest_length;
@@ -236,43 +278,7 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
             const auto out_grid_desc_m =
                 DeviceReduceThreadWiseMultiD::MakeDst1dDescriptor(arg.outLengths_, arg.outStrides_);
 
-            const auto ds_grid_desc_m = generate_tuple(
-                [&](auto i) {
-                    ignore = i;
-                    return DeviceReduceThreadWiseMultiD::MakeDst1dDescriptor(arg.outLengths_,
-                                                                       arg.outStrides_);
-                },
-                Number<1>{});
-
-            using InGridDesc_M_K = decltype(in_grid_desc_m_k);
-            using OutGridDesc_M  = decltype(out_grid_desc_m);
-            using DsGridDesc_M   = decltype(ds_grid_desc_m);
-
             float avg_time = 0;
-
-            using Add = tensor_operation::element_wise::Add;
-
-            using GridwiseReduce =
-                GridwiseReduction_mk_to_m_threadwise_multi_d<InDataType,
-                                                             Tuple<OutDataType>,
-                                                             OutDataType,
-                                                             AccDataType,
-                                                             InGridDesc_M_K,
-                                                             DsGridDesc_M,
-                                                             OutGridDesc_M,
-                                                             ReduceOperation,
-                                                             InElementwiseOperation,
-                                                             Add,
-                                                             InMemoryDataOperationEnum::Set,
-                                                             PropagateNan,
-                                                             BlockSize,
-                                                             MThreadSliceSize,
-                                                             KThreadSliceSize,
-                                                             InSrcVectorDim,
-                                                             InSrcVectorSize,
-                                                             OutDstVectorSize>;
-
-            using DsGridPointer = typename GridwiseReduce::DsGridPointer;
 
             const auto kernel = kernel_reduce_threadwise_multi_d<GridwiseReduce,
                                                                  InDataType,
@@ -282,10 +288,8 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
                                                                  DsGridDesc_M,
                                                                  OutGridDesc_M,
                                                                  InElementwiseOperation,
-                                                                 Add,
+                                                                 OutElementwiseOperation,
                                                                  DsGridPointer>;
-
-            DsGridPointer p_ds_grid_;
 
             avg_time = launch_and_time_kernel(stream_config,
                                               kernel,
@@ -293,12 +297,12 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
                                               dim3(BlockSize),
                                               0,
                                               in_grid_desc_m_k,
-                                              ds_grid_desc_m,
+                                              arg.ds_grid_desc_m_,
                                               out_grid_desc_m,
                                               arg.in_elementwise_op_,
-                                              Add{},
+                                              arg.out_elementwise_op_,
                                               arg.in_dev_,
-                                              p_ds_grid_,
+                                              arg.p_ds_grid_,
                                               arg.out_dev_);
 
             return (avg_time);
@@ -356,32 +360,29 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduce<InDataType,
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const std::array<index_t, Rank> inLengths,
                         const std::array<index_t, Rank> inStrides,
+                        const std::array<std::array<index_t, NumDstDim>, NumDTensor> DsLengths,
+                        const std::array<std::array<index_t, NumDstDim>, NumDTensor> DsStrides,
                         const std::array<index_t, NumDstDim> outLengths,
                         const std::array<index_t, NumDstDim> outStrides,
                         const std::array<int, NumReduceDim> reduceDims,
-                        double alpha,
-                        double beta,
                         const void* in_dev,
-                        const void* in_index_dev,
+                        const std::array<const void*, NumDTensor> ds_dev,
                         void* out_dev,
-                        void* out_index_dev,
                         const InElementwiseOperation in_elementwise_op,
-                        const AccElementwiseOperation acc_elementwise_op) override
+                        const OutElementwiseOperation out_elementwise_op) override
     {
-        (void)in_index_dev;
-
         return std::make_unique<Argument>(inLengths,
                                           inStrides,
+                                          DsLengths,
+                                          DsStrides,
                                           outLengths,
                                           outStrides,
                                           reduceDims,
-                                          alpha,
-                                          beta,
                                           static_cast<const InDataType*>(in_dev),
+                                          ds_dev,
                                           static_cast<OutDataType*>(out_dev),
-                                          static_cast<IndexDataType*>(out_index_dev),
                                           in_elementwise_op,
-                                          acc_elementwise_op);
+                                          out_elementwise_op);
     };
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override

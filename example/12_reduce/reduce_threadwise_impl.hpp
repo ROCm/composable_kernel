@@ -29,12 +29,12 @@ template <typename InOutDataType,
           bool PropagateNan,
           bool OutputIndex>
 int reduce_threadwise_impl(bool do_verification,
-                          int init_method,
-                          bool time_kernel,
-                          const std::vector<size_t>& inLengths,
-                          const std::array<int, NumReduceDim>& reduceDims,
-                          float alpha,
-                          float beta)
+                           int init_method,
+                           bool time_kernel,
+                           const std::vector<size_t>& inLengths,
+                           const std::array<int, NumReduceDim>& reduceDims,
+                           float alpha,
+                           float beta)
 
 {
     using namespace ck;
@@ -89,33 +89,31 @@ int reduce_threadwise_impl(bool do_verification,
         return (-1);
     };
 
-    using ReduceOperation = typename reduce_binary_operator<ReduceOpId>::opType;
-    using InElementwiseOperation =
-        typename reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
-    using AccElementwiseOperation =
-        typename reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
+    using PassThrough = tensor_operation::element_wise::PassThrough;
+    // using Add         = tensor_operation::element_wise::Add;
 
-    using InOutDataTypeInDevice   = InOutDataType;
+    using ReduceOperation         = typename reduce_binary_operator<ReduceOpId>::opType;
+    using InElementwiseOperation  = PassThrough;
+    using OutElementwiseOperation = PassThrough;
+
+    using InOutDataTypeInDevice = InOutDataType;
 
     using DeviceReduceInstance =
         ck::tensor_operation::device::DeviceReduceThreadWiseMultiD<InOutDataTypeInDevice,
-                                                             AccDataType,
-                                                             InOutDataTypeInDevice,
-                                                             Rank,
-                                                             NumReduceDim,
-                                                             ReduceOperation,
-                                                             InElementwiseOperation,
-                                                             AccElementwiseOperation,
-                                                             PropagateNan,
-                                                             OutputIndex,
-							     false,
-                                                             false, // HaveIndexInputIfOutputIndex
-                                                             256,   // BlockSize
-                                                             4,     // MThreadSliceSize
-                                                             1,     // KThreadSliceSize
-                                                             0,     // InSrcVectorDim
-                                                             1,     // InSrceVectorSize
-                                                             1>;    // OutDstVectorSize
+                                                                   ck::Tuple<>,
+                                                                   AccDataType,
+                                                                   InOutDataTypeInDevice,
+                                                                   Rank,
+                                                                   NumReduceDim,
+                                                                   ReduceOperation,
+                                                                   InElementwiseOperation,
+                                                                   OutElementwiseOperation,
+                                                                   256, // BlockSize
+                                                                   4,   // MThreadSliceSize
+                                                                   1,   // KThreadSliceSize
+                                                                   0,   // InSrcVectorDim
+                                                                   1,   // InSrceVectorSize
+                                                                   1>;  // OutDstVectorSize
 
     Tensor<InOutDataType> in(inLengths);
 
@@ -173,13 +171,12 @@ int reduce_threadwise_impl(bool do_verification,
     DeviceMem in_dev(sizeof(InOutDataTypeInDevice) * in.mDesc.GetElementSpaceSize());
     DeviceMem out_dev(sizeof(InOutDataTypeInDevice) * out.mDesc.GetElementSpaceSize());
 
-
-        in_dev.ToDevice(in.mData.data());
+    in_dev.ToDevice(in.mData.data());
 
     if(beta != 0.0f)
     {
 
-            out_dev.ToDevice(out.mData.data());
+        out_dev.ToDevice(out.mData.data());
     };
 
     size_t indicesSizeInBytes = OutputIndex ? out.mDesc.GetElementSize() * sizeof(int32_t) : 0;
@@ -187,11 +184,7 @@ int reduce_threadwise_impl(bool do_verification,
     DeviceMem out_index_dev(indicesSizeInBytes);
 
     InElementwiseOperation in_elementwise_op;
-    AccElementwiseOperation acc_elementwise_op;
-
-    std::tie(in_elementwise_op, acc_elementwise_op) =
-        reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
-            static_cast<int32_t>(reduce_total_length));
+    OutElementwiseOperation out_elementwise_op;
 
     std::array<index_t, Rank> arrInLengths;
     std::array<index_t, Rank> arrInStrides;
@@ -213,7 +206,7 @@ int reduce_threadwise_impl(bool do_verification,
                                                         NumReduceDim,
                                                         ReduceOperation,
                                                         InElementwiseOperation,
-                                                        AccElementwiseOperation,
+                                                        PassThrough,
                                                         PropagateNan,
                                                         OutputIndex>;
 
@@ -231,7 +224,7 @@ int reduce_threadwise_impl(bool do_verification,
                                                                out_ref.mData.data(),
                                                                out_indices_ref.mData.data(),
                                                                in_elementwise_op,
-                                                               acc_elementwise_op);
+                                                               PassThrough{});
 
         if(!reduce_ref.IsSupportedArgument(argument_ptr_ref.get()))
         {
@@ -249,17 +242,16 @@ int reduce_threadwise_impl(bool do_verification,
 
     auto argument_ptr = reduce.MakeArgumentPointer(arrInLengths,
                                                    arrInStrides,
+                                                   {},
+                                                   {},
                                                    arrOutLengths,
                                                    arrOutStrides,
                                                    reduceDims,
-                                                   static_cast<double>(alpha),
-                                                   static_cast<double>(beta),
                                                    in_dev.GetDeviceBuffer(),
-                                                   nullptr,
+                                                   {},
                                                    out_dev.GetDeviceBuffer(),
-                                                   out_index_dev.GetDeviceBuffer(),
                                                    in_elementwise_op,
-                                                   acc_elementwise_op);
+                                                   out_elementwise_op);
 
     if(!reduce.IsSupportedArgument(argument_ptr.get()))
     {
@@ -288,7 +280,7 @@ int reduce_threadwise_impl(bool do_verification,
     if(do_verification)
     {
 
-            out_dev.FromDevice(out.mData.data());
+        out_dev.FromDevice(out.mData.data());
 
         pass = pass && ck::utils::check_err(out, out_ref);
 

@@ -119,12 +119,12 @@ template <typename InOutDataType,
           index_t PropagateNan,
           index_t OutputIndex>
 bool reduce_threadwise_test(bool do_verification,
-                           int init_method,
-                           bool time_kernel,
-                           const std::vector<size_t>& inLengths,
-                           const std::vector<int>& reduceDims,
-                           float alpha,
-                           float beta)
+                            int init_method,
+                            bool time_kernel,
+                            const std::vector<size_t>& inLengths,
+                            const std::vector<int>& reduceDims,
+                            float alpha,
+                            float beta)
 {
     bool matched = false;
     int result   = 0;
@@ -145,12 +145,12 @@ bool reduce_threadwise_test(bool do_verification,
         ck::ranges::copy(reduceDims, arrReduceDims.begin());
 
         result = reduce_threadwise_impl<InOutDataType,
-                                       AccDataType,
-                                       ReduceOpId,
-                                       ShapeType::Rank_,
-                                       ShapeType::NumReduceDim_,
-                                       PropagateNan,
-                                       OutputIndex>(
+                                        AccDataType,
+                                        ReduceOpId,
+                                        ShapeType::Rank_,
+                                        ShapeType::NumReduceDim_,
+                                        PropagateNan,
+                                        OutputIndex>(
             do_verification, init_method, time_kernel, inLengths, arrReduceDims, alpha, beta);
 
         matched = true;
@@ -235,9 +235,9 @@ int main(int argc, char* argv[])
     else
     {
         // for testing half_t
-        pass =
-            pass && reduce_threadwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                        true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
+        pass = pass &&
+               reduce_threadwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+                   true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
 
         // for testing float
         pass = pass && reduce_threadwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(

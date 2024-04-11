@@ -55,7 +55,6 @@ template <typename InDataType,
           typename InElementwiseOperation,
           typename OutElementwiseOperation,
           InMemoryDataOperationEnum OutMemoryDataOperation,
-          bool PropagateNan,
           index_t BlockSize,
           index_t MThreadSliceSize,
           index_t KThreadSliceSize,
@@ -110,7 +109,7 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                                                      ThreadReduceSrcDesc_M_K,
                                                      ThreadReduceDstDesc_M,
                                                      ReduceOperation,
-                                                     PropagateNan>;
+                                                     false>;
 
         const auto identityVal = ReduceOperation::template GetIdentityValue<AccDataType>();
 
@@ -189,8 +188,6 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
 
         auto ds_global_buf = generate_tuple(
             [&](auto I) {
-                // static_assert(ds_grid_desc_m[I].GetNumOfDimension() == 1, "");
-
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
                     p_ds_grid[I], ds_grid_desc_m[I].GetElementSpaceSize());
             },
@@ -208,9 +205,9 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                                                         Sequence<MThreadSliceSize>, // SliceLengths
                                                         Sequence<0>, // DimAccessOrder
                                                         0,           // SrcVectorDim
-                                                        OutDstVectorSize,
+                                                        1,
                                                         1, // SrcScalarStrideInVector
-                                                        false>{
+                                                        true>{
                     ds_grid_desc_m[I], make_multi_index(thread_global_1d_id * MThreadSliceSize)};
             },
             Number<NumDTensor>{});
