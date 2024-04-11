@@ -60,10 +60,6 @@ struct RotatingMemWrapper
             {
                 void* pCDeviceBuf;
                 hip_check_error(hipMalloc(static_cast<void**>(&pCDeviceBuf), size_c_));
-                hip_check_error(hipMemcpy(static_cast<void*>(pCDeviceBuf),
-                                          const_cast<void*>(p_c_grids[0]),
-                                          size_c_,
-                                          hipMemcpyDeviceToDevice));
                 p_c_grids.push_back(pCDeviceBuf);
             }
         }
@@ -92,13 +88,13 @@ struct RotatingMemWrapper
             arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[0]);
             arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[0]);
             arg.p_c_grid = reinterpret_cast<CDataType>(p_c_grids[0]);
-
+#if 1
             // check rotating data
             hip_check_error(hipMemcpy(static_cast<void*>(p_c_grids[0]),
-                                      const_cast<void*>(p_c_grids[1]),
+                                      const_cast<void*>(p_c_grids[--iter % rotating_count]),
                                       size_c,
                                       hipMemcpyDeviceToDevice));
-
+#endif
             for(size_t i = 1; i < rotating_count; i++)
             {
                 hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
@@ -126,21 +122,23 @@ static void flush_icache()
     hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
     int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-    int flush_iter = 100000;
+    int flush_iter = 20000;
 
     for(int i = 0; i < flush_iter; i++)
+    {
         ck::flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
+    }
     hip_check_error(hipGetLastError());
 }
 // if TimePrePress == false, return time does not include preprocess's time
-template <bool TimePreprocess, typename... Args, typename F, typename PreProcessFunc>
+template <bool TimePreprocess, typename Args, typename F, typename PreProcessFunc>
 float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              PreProcessFunc preprocess,
                                              F kernel,
                                              dim3 grid_dim,
                                              dim3 block_dim,
                                              std::size_t lds_byte,
-                                             Args&... args)
+                                             Args& args)
 {
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
@@ -161,7 +159,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
             preprocess();
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
             hip_check_error(hipGetLastError());
         }
 
@@ -191,7 +189,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                 preprocess();
             }
             // run real kernel
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
             hip_check_error(hipGetLastError());
             // end real kernel
 
@@ -200,8 +198,15 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             float cur_time = 0;
             hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
             total_time += cur_time;
-            // std::cout << "i: " << i << " cur_time: " << cur_time << " total_time:" << total_time
-            //           << std::endl;
+#if 0            
+            std::cout << "i: " << i << " cur_time: " << cur_time << " total_time:" << total_time
+                      << std::endl;
+
+            printf("args.p_a_grid: %p, args.p_b_grid:%p, args.p_c_grid: %p\n",
+                       static_cast<const void*>(args.p_a_grid),
+                       static_cast<const void*>(args.p_b_grid),
+                       static_cast<void*>(args.p_c_grid));
+#endif
         }
 
         return total_time / nrepeat;
@@ -209,13 +214,13 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     else
     {
         preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
         hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
-    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
     hip_check_error(hipGetLastError());
 
     return 0;
