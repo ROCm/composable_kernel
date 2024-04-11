@@ -263,7 +263,7 @@ struct fmha_fwd_traits
     mask_enum mask_type;
     bool has_bias;
     bool has_lse;
-    bool do_f8_static_quant;
+    bool do_fp8_static_quant;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);

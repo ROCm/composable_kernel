@@ -278,7 +278,7 @@ struct FmhaFwdKernel
         if constexpr(kDoF8StaticQuant)
         {
             kargs.scale_p = scale_p;
-            kargs.scale_o     = scale_o;
+            kargs.scale_o = scale_o;
         }
 
         return kargs;
@@ -366,7 +366,7 @@ struct FmhaFwdKernel
         if constexpr(kDoF8StaticQuant)
         {
             kargs.scale_p = scale_p;
-            kargs.scale_o     = scale_o;
+            kargs.scale_o = scale_o;
         }
 
         return kargs;
