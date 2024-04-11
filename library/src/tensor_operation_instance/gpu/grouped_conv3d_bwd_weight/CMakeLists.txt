@@ -1,3 +1,4 @@
+# XDL_DL_WMMA_KERNELS
 set(GROUPED_CONV3D_BWD_WEIGHT
     xdl/device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
     xdl/device_grouped_conv3d_bwd_weight_xdl_gndhwc_gkzyxc_gndhwk_f32_instance.cpp

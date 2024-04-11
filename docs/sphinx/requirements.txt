@@ -111,7 +111,7 @@ requests==2.31.0
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==0.37.0
+rocm-docs-core==0.38.1
     # via -r requirements.in
 six==1.16.0
     # via
