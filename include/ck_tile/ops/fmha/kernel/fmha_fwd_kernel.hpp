@@ -146,8 +146,8 @@ struct FmhaFwdKernel
 
     struct FmhaFwdF8StaticQuantKargs
     {
-        float p_compute_scale;
-        float o_acc_scale;
+        float scale_p;
+        float scale_o;
     };
 
     struct FmhaFwdCommonLSEKargs
@@ -202,8 +202,8 @@ struct FmhaFwdKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t nhead_ratio_qk,
               float scale,
-              float p_compute_scale,
-              float o_acc_scale,
+              float scale_p,
+              float scale_o,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
@@ -277,8 +277,8 @@ struct FmhaFwdKernel
         }
         if constexpr(kDoF8StaticQuant)
         {
-            kargs.p_compute_scale = p_compute_scale;
-            kargs.o_acc_scale     = o_acc_scale;
+            kargs.scale_p = scale_p;
+            kargs.scale_o     = scale_o;
         }
 
         return kargs;
@@ -299,8 +299,8 @@ struct FmhaFwdKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t nhead_ratio_qk,
               float scale,
-              float p_compute_scale,
-              float o_acc_scale,
+              float scale_p,
+              float scale_o,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
@@ -365,8 +365,8 @@ struct FmhaFwdKernel
         }
         if constexpr(kDoF8StaticQuant)
         {
-            kargs.p_compute_scale = p_compute_scale;
-            kargs.o_acc_scale     = o_acc_scale;
+            kargs.scale_p = scale_p;
+            kargs.scale_o     = scale_o;
         }
 
         return kargs;
@@ -669,8 +669,8 @@ struct FmhaFwdKernel
                                       lse_dram_window,
                                       identity{},
                                       identity{},
-                                      scales{kargs.p_compute_scale},
-                                      composes(saturates<fp8_t>{}, scales{kargs.o_acc_scale}),
+                                      scales{kargs.scale_p},
+                                      composes(saturates<fp8_t>{}, scales{kargs.scale_o}),
                                       mask,
                                       kargs.scale,
                                       smem_ptr);

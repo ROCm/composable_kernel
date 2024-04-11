@@ -52,11 +52,11 @@ auto create_args(int argc, char* argv[])
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
-        .insert("pscale",
+        .insert("scale_p",
                 "0",
                 "scale factor of P(output of softmax), only works in f8 static quantization."
                 " 0 means equal to 240/1")
-        .insert("oscale",
+        .insert("scale_o",
                 "0",
                 "scale factor of O, only works in f8 static quantization. 0 means equal to 1/240")
         .insert("squant", "0", "forward with static quantization fusion or not")
@@ -173,15 +173,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     bool squant = arg_parser.get_bool("squant");
     if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
-        assert(!squant);
+    {
+        if(squant)
+            std::cerr << "static quantization on support fp8 for now" << std::endl;
+        return false;
+    }
 
-    float p_compute_scale = arg_parser.get_float("pscale");
-    if(p_compute_scale == .0f)
-        p_compute_scale = 240.f;
+    float scale_p = arg_parser.get_float("scale_p");
+    if(scale_p == .0f)
+        scale_p = 240.f;
 
-    float o_acc_scale = arg_parser.get_float("oscale");
-    if(o_acc_scale == .0f)
-        o_acc_scale = 1.f / 240.f;
+    float scale_o = arg_parser.get_float("scale_o");
+    if(scale_o == .0f)
+        scale_o = 1.f / 240.f;
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
@@ -353,7 +357,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     auto p_compute_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
-            return ck_tile::scales{p_compute_scale};
+            return ck_tile::scales{scale_p};
         else
             return ck_tile::identity{};
     }();
@@ -361,7 +365,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto oacc_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
             return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                     ck_tile::scales{o_acc_scale});
+                                     ck_tile::scales{scale_o});
         else
             return ck_tile::identity{};
     }();
@@ -421,8 +425,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              nhead,
                              nhead_k,
                              scale,
-                             p_compute_scale,
-                             o_acc_scale,
+                             scale_p,
+                             scale_o,
                              stride_q,
                              stride_k,
                              stride_v,
