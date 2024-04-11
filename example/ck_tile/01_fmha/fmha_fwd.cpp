@@ -52,14 +52,11 @@ auto create_args(int argc, char* argv[])
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
-        .insert("scale_p",
-                "0",
-                "scale factor of P(output of softmax), only works in fp8 static quantization."
-                " 0 means equal to max(fp8_t)/1")
-        .insert("scale_o",
-                "0",
-                "scale factor of O, only works in f8 static quantization. 0 means equal to "
-                "1/max(fp8_t)")
+        .insert("range_q", "2", "quantization range of q.")
+        .insert("range_k", "2", "quantization range of k.")
+        .insert("range_v", "2", "quantization range of v")
+        .insert("range_p", "1", "quantization range of p [e^(s-m)]")
+        .insert("range_o", "2", "quantization range of o (p*v)")
         .insert("squant", "0", "forward with static quantization fusion or not")
         .insert("iperm",
                 "1",
@@ -180,15 +177,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    // In the context of squant, scale_p = max(fp8_t)/Tp
-    float scale_p = arg_parser.get_float("scale_p");
-    if(scale_p == .0f)
-        scale_p = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
+    float range_q = arg_parser.get_float("range_q");
+    float range_k = arg_parser.get_float("range_k");
+    float range_v = arg_parser.get_float("range_v");
+    float range_p = arg_parser.get_float("range_p");
+    float range_o = arg_parser.get_float("range_o");
 
-    // In the context of squant, scale_p = [max(fp8_t)/To] * [Tp/max(fp8_t)] * [Tv/max(fp8_t)]
-    float scale_o = arg_parser.get_float("scale_o");
-    if(scale_o == .0f)
-        scale_o = 1.f / ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
+    float max_dtype = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
+
+    float scale_p = 1.f;
+    float scale_o = 1.f;
+
+    if(squant)
+    {
+        scale   = scale * (range_q / max_dtype) * (range_k / max_dtype);
+        scale_p = max_dtype / range_p;
+        // scale_p = [max(fp8_t)/range_o] * [range_p/max(fp8_t)] * [range_v/max(fp8_t)]
+        scale_o = range_p * range_v / range_o / max_dtype;
+    }
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
@@ -312,6 +318,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillTrigValue<KDataType>{}(k_host);
         ck_tile::FillTrigValue<VDataType>{}(v_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
+    }
+    else if(init_method == 3) // suitable for fp8 quantization
+    {
+        ck_tile::FillUniformDistribution<QDataType>{-max_dtype, max_dtype, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{-max_dtype, max_dtype, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{-max_dtype, max_dtype, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{
+            -max_dtype * max_dtype, max_dtype * max_dtype, seed}(bias_host);
     }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
