@@ -221,7 +221,7 @@ template <ck_tile::index_t HDim_,
           typename FmhaMask_,
           bool kHasBias_,
           bool kStoreLse_,
-          bool kDoF8StaticQuant_,
+          bool kDoFp8StaticQuant_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -242,7 +242,7 @@ struct fmha_fwd_traits_
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr bool kHasBias                   = kHasBias_;
     static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kDoF8StaticQuant           = kDoF8StaticQuant_;
+    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
