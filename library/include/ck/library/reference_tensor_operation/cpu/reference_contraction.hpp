@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,7 +15,6 @@ namespace ck {
 namespace tensor_operation {
 namespace host {
 
-// hardcoded for NumDimM == NumDimN == NumDimK == 2
 template <ck::index_t NumDimM,
           ck::index_t NumDimN,
           ck::index_t NumDimK,
@@ -26,7 +25,9 @@ template <ck::index_t NumDimM,
           typename ComputeDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          ck::enable_if_t<NumDimM == 2 && NumDimN == 2 && NumDimK == 2, bool> = false>
+          ck::enable_if_t<(NumDimM == 2 || NumDimM == 6) && (NumDimN == 2 || NumDimN == 6) &&
+                              (NumDimK == 2 || NumDimK == 6),
+                          bool> = false>
 struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::BaseOperator
 {
     // Argument
@@ -60,9 +61,28 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
 
         float Run(const Argument& arg)
         {
-            auto f_ms_ns = [&](auto m0, auto m1, auto n0, auto n1) {
-                const ck::index_t K0 = arg.a_ms_ks_.mDesc.GetLengths()[2];
-                const ck::index_t K1 = arg.a_ms_ks_.mDesc.GetLengths()[3];
+            auto f_ms_ns = [&](auto m0,
+                               auto m1,
+                               auto m2,
+                               auto m3,
+                               auto m4,
+                               auto m5,
+                               auto n0,
+                               auto n1,
+                               auto n2,
+                               auto n3,
+                               auto n4,
+                               auto n5) {
+                const ck::index_t K0 = arg.a_ms_ks_.mDesc.GetLengths()[NumDimM];
+                const ck::index_t K1 = arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 1];
+                const ck::index_t K2 =
+                    NumDimK >= 3 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 2] : 1;
+                const ck::index_t K3 =
+                    NumDimK >= 4 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 3] : 1;
+                const ck::index_t K4 =
+                    NumDimK >= 5 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 4] : 1;
+                const ck::index_t K5 =
+                    NumDimK >= 6 ? arg.a_ms_ks_.mDesc.GetLengths()[NumDimM + 5] : 1;
 
                 AccDataType v_acc = 0;
 
@@ -70,32 +90,96 @@ struct ReferenceContraction_M2_N2_K2 : public ck::tensor_operation::device::Base
                 {
                     for(ck::index_t k1 = 0; k1 < K1; ++k1)
                     {
-                        // Simulate the possible casting when ComputeDataType is different than the
-                        // A/B data types
-                        ComputeDataType v_a_compute_input =
-                            ck::type_convert<ComputeDataType>(arg.a_ms_ks_(m0, m1, k0, k1));
-                        ComputeDataType v_b_compute_input =
-                            ck::type_convert<ComputeDataType>(arg.b_ns_ks_(n0, n1, k0, k1));
+                        for(ck::index_t k2 = 0; k2 < K2; ++k2)
+                        {
+                            for(ck::index_t k3 = 0; k3 < K3; ++k3)
+                            {
+                                for(ck::index_t k4 = 0; k4 < K4; ++k4)
+                                {
+                                    for(ck::index_t k5 = 0; k5 < K5; ++k5)
+                                    {
+                                        ComputeDataType v_a_compute_input;
+                                        ComputeDataType v_b_compute_input;
 
-                        AccDataType v_a;
-                        AccDataType v_b;
+                                        // Simulate the possible casting when ComputeDataType is
+                                        // different than the A/B data types
+                                        if constexpr(NumDimK == 2)
+                                        {
+                                            v_a_compute_input = ck::type_convert<ComputeDataType>(
+                                                arg.a_ms_ks_(m0, m1, k0, k1));
+                                            v_b_compute_input = ck::type_convert<ComputeDataType>(
+                                                arg.b_ns_ks_(n0, n1, k0, k1));
+                                        }
+                                        else if constexpr(NumDimK == 6)
+                                        {
+                                            v_a_compute_input = ck::type_convert<
+                                                ComputeDataType>(arg.a_ms_ks_(
+                                                m0, m1, m2, m3, m4, m5, k0, k1, k2, k3, k4, k5));
+                                            v_b_compute_input = ck::type_convert<
+                                                ComputeDataType>(arg.b_ns_ks_(
+                                                n0, n1, n2, n3, n4, n5, k0, k1, k2, k3, k4, k5));
+                                        }
 
-                        arg.a_element_op_(v_a, ck::type_convert<AccDataType>(v_a_compute_input));
-                        arg.b_element_op_(v_b, ck::type_convert<AccDataType>(v_b_compute_input));
+                                        AccDataType v_a;
+                                        AccDataType v_b;
 
-                        v_acc += v_a * v_b;
+                                        arg.a_element_op_(
+                                            v_a, ck::type_convert<AccDataType>(v_a_compute_input));
+                                        arg.b_element_op_(
+                                            v_b, ck::type_convert<AccDataType>(v_b_compute_input));
+
+                                        v_acc += v_a * v_b;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
-                arg.c_ms_ns_(m0, m1, n0, n1) = ck::type_convert<CDataType>(v_acc);
+                if constexpr(NumDimK == 2)
+                {
+                    arg.c_ms_ns_(m0, m1, n0, n1) = ck::type_convert<CDataType>(v_acc);
+                }
+                else if constexpr(NumDimK == 6)
+                {
+                    arg.c_ms_ns_(m0, m1, m2, m3, m4, m5, n0, n1, n2, n3, n4, n5) =
+                        ck::type_convert<CDataType>(v_acc);
+                }
             };
 
-            make_ParallelTensorFunctor(f_ms_ns,
-                                       arg.c_ms_ns_.mDesc.GetLengths()[0],
-                                       arg.c_ms_ns_.mDesc.GetLengths()[1],
-                                       arg.c_ms_ns_.mDesc.GetLengths()[2],
-                                       arg.c_ms_ns_.mDesc.GetLengths()[3])(
-                std::thread::hardware_concurrency());
+            if constexpr(NumDimK == 2)
+            {
+                make_ParallelTensorFunctor(f_ms_ns,
+                                           arg.c_ms_ns_.mDesc.GetLengths()[0],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[1],
+                                           1,
+                                           1,
+                                           1,
+                                           1,
+                                           arg.c_ms_ns_.mDesc.GetLengths()[2],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[3],
+                                           1,
+                                           1,
+                                           1,
+                                           1)(std::thread::hardware_concurrency());
+            }
+            else if constexpr(NumDimK == 6)
+            {
+                make_ParallelTensorFunctor(f_ms_ns,
+                                           arg.c_ms_ns_.mDesc.GetLengths()[0],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[1],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[2],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[3],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[4],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[5],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[6],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[7],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[8],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[9],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[10],
+                                           arg.c_ms_ns_.mDesc.GetLengths()[11])(
+                    std::thread::hardware_concurrency());
+            }
 
             return 0;
         }
