@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -151,7 +151,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     {
     }
 
-    __host__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
+    __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
@@ -301,7 +301,7 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt<GroupNum, MPerBlock, NPerBlock, v
     {
     }
 
-    __host__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
+    __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
@@ -454,7 +454,7 @@ struct BlockToCTileMap_N00_M0_N01Adapt<MPerBlock, NPerBlock, void>
     {
     }
 
-    __host__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
+    __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
@@ -924,6 +924,11 @@ struct OffsettedBlockToCTileMap
     __host__ constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n) const
     {
         return block_to_ctile_map_.CalculateGridSize(c_grid_desc_m_n);
+    }
+
+    __host__ __device__ constexpr index_t CalculateGridSize(index_t M, index_t N) const
+    {
+        return block_to_ctile_map_.CalculateGridSize(M, N);
     }
 
     UnderlyingBlockToCTileMap block_to_ctile_map_;
