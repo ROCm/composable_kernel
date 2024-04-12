@@ -183,7 +183,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         if(squant)
         {
-            std::cerr << "fp8 only support static quantization for now" << std::endl;
+            std::cerr << "static quantization only support fp8 for now" << std::endl;
             return false;
         }
     }
@@ -335,8 +335,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<QDataType>{-dtype_max, dtype_max, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(k_host);
         ck_tile::FillUniformDistribution<VDataType>{-dtype_max, dtype_max, seed}(v_host);
-        ck_tile::FillUniformDistribution<BiasDataType>{
-            -dtype_max * dtype_max, dtype_max * dtype_max, seed}(bias_host);
+
+        // bias_fp8 = qscale_bias * bias_fp32
+        float qscale_bias = (dtype_max / range_q) * (dtype_max / range_k);
+        // Assume bias is in [-1.f, 1.f] in original fp32
+        ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
     }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
