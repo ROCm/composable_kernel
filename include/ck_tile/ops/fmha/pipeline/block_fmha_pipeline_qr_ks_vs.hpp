@@ -130,7 +130,7 @@ struct BlockFmhaPipelineQRKSVS
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
                FmhaMask mask,
-               float scale,
+               float scale_s,
                void* smem_ptr) const
     {
         static_assert(
@@ -322,11 +322,11 @@ struct BlockFmhaPipelineQRKSVS
                        k_lds_window);
             }
 
-            // STAGE 2, scale, add bias, mask, softmax
+            // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(kHasBias)
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
+                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
@@ -343,7 +343,7 @@ struct BlockFmhaPipelineQRKSVS
             {
                 s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale](auto& x) { x = x * scale; }, s_acc);
+                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
@@ -399,7 +399,7 @@ struct BlockFmhaPipelineQRKSVS
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale * get_validated_m(m[i_idx]);
+                auto row_max = scale_s * get_validated_m(m[i_idx]);
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -410,7 +410,7 @@ struct BlockFmhaPipelineQRKSVS
                     }
                     else
                     {
-                        p_compute(i_j_idx) = exp2(scale * s[i_j_idx] - row_max);
+                        p_compute(i_j_idx) = exp2(scale_s * s[i_j_idx] - row_max);
                     }
 #else
                     p_compute(i_j_idx)     = exp(s[i_j_idx] - get_validated_m(m[i_idx]));
@@ -434,8 +434,8 @@ struct BlockFmhaPipelineQRKSVS
                     }
                     else
                     {
-                        auto row_max = scale * get_validated_m(m[i_idx]);
-                        return exp2(scale * m_old[i_idx] - row_max);
+                        auto row_max = scale_s * get_validated_m(m[i_idx]);
+                        return exp2(scale_s * m_old[i_idx] - row_max);
                     }
                 }();
 #else
@@ -526,7 +526,7 @@ struct BlockFmhaPipelineQRKSVS
                 }
                 else
                 {
-                    lse(i_idx) = m_[i_idx] * scale / C_LOG2E + log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
                 }
 #else
                 lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
@@ -572,7 +572,7 @@ struct BlockFmhaPipelineQRKSVS
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
-               float scale,
+               float scale_s,
                void* smem_ptr) const
     {
         return operator()(q_dram_block_window_tmp,
@@ -589,7 +589,7 @@ struct BlockFmhaPipelineQRKSVS
                           identity{},
                           identity{},
                           mask,
-                          scale,
+                          scale_s,
                           smem_ptr);
     }
 };

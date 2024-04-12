@@ -112,7 +112,7 @@ struct FmhaFwdKernel
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
         ck_tile::index_t nhead_ratio_qk;
-        float scale;
+        float scale_s;
 
         ck_tile::index_t stride_q;
         ck_tile::index_t stride_k;
@@ -201,7 +201,7 @@ struct FmhaFwdKernel
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t nhead_ratio_qk,
-              float scale,
+              float scale_s,
               float scale_p,
               float scale_o,
               ck_tile::index_t stride_q,
@@ -235,9 +235,9 @@ struct FmhaFwdKernel
                      hdim_v,
                      nhead_ratio_qk,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                     static_cast<float>(scale * ck_tile::log2e_v<>),
+                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
-                     scale,
+                     scale_s,
 #endif
                      stride_q,
                      stride_k,
@@ -298,7 +298,7 @@ struct FmhaFwdKernel
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t nhead_ratio_qk,
-              float scale,
+              float scale_s,
               float scale_p,
               float scale_o,
               ck_tile::index_t stride_q,
@@ -326,9 +326,9 @@ struct FmhaFwdKernel
                      hdim_v,
                      nhead_ratio_qk,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                     static_cast<float>(scale * ck_tile::log2e_v<>),
+                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
-                     scale,
+                     scale_s,
 #endif
                      stride_q,
                      stride_k,
@@ -673,7 +673,7 @@ struct FmhaFwdKernel
                     scales{kargs.scale_p},                               // p_compute_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
                     mask,
-                    kargs.scale,
+                    kargs.scale_s,
                     smem_ptr);
             }
             else
@@ -684,7 +684,7 @@ struct FmhaFwdKernel
                                       bias_dram_window,
                                       lse_dram_window,
                                       mask,
-                                      kargs.scale,
+                                      kargs.scale_s,
                                       smem_ptr);
             }
         }();

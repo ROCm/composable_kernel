@@ -51,7 +51,7 @@ auto create_args(int argc, char* argv[])
         .insert("s_k", "0", "seqlen_k, 0 means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
-        .insert("scale", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
+        .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
         .insert("range_q", "2", "quantization range of q.")
         .insert("range_k", "2", "quantization range of k.")
         .insert("range_v", "2", "quantization range of v")
@@ -80,7 +80,8 @@ auto create_args(int argc, char* argv[])
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
+        .insert(
+            "init", "1", "init method. 0:random int, 1:random float, 2:trig float, 3:quantization")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -165,9 +166,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
     bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
 
-    float scale = arg_parser.get_float("scale");
-    if(scale == .0f)
-        scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+    float scale_s = arg_parser.get_float("scale_s");
+    if(scale_s == .0f)
+        scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
     bool squant = arg_parser.get_bool("squant");
     if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
@@ -183,17 +184,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float range_p = arg_parser.get_float("range_p");
     float range_o = arg_parser.get_float("range_o");
 
-    float max_dtype = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
+    float dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
 
     float scale_p = 1.f;
     float scale_o = 1.f;
 
     if(squant)
     {
-        scale   = scale * (range_q / max_dtype) * (range_k / max_dtype);
-        scale_p = max_dtype / range_p;
+        scale_s = scale_s * (range_q / dtype_max) * (range_k / dtype_max);
+        scale_p = dtype_max / range_p;
         // scale_p = [max(fp8_t)/range_o] * [range_p/max(fp8_t)] * [range_v/max(fp8_t)]
-        scale_o = range_p * range_v / range_o / max_dtype;
+        scale_o = range_p * range_v / range_o / dtype_max;
     }
 
     std::string vlayout = arg_parser.get_str("vlayout");
@@ -321,11 +322,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else if(init_method == 3) // suitable for fp8 quantization
     {
-        ck_tile::FillUniformDistribution<QDataType>{-max_dtype, max_dtype, seed}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{-max_dtype, max_dtype, seed}(k_host);
-        ck_tile::FillUniformDistribution<VDataType>{-max_dtype, max_dtype, seed}(v_host);
+        ck_tile::FillUniformDistribution<QDataType>{-dtype_max, dtype_max, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{-dtype_max, dtype_max, seed}(v_host);
         ck_tile::FillUniformDistribution<BiasDataType>{
-            -max_dtype * max_dtype, max_dtype * max_dtype, seed}(bias_host);
+            -dtype_max * dtype_max, dtype_max * dtype_max, seed}(bias_host);
     }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
@@ -358,9 +359,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
-              << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout
-              << std::flush;
+              << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s
+              << ", bias:" << use_bias << ", lse:" << lse << ", squant:" << squant
+              << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
@@ -441,7 +442,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              hdim_v,
                              nhead,
                              nhead_k,
-                             scale,
+                             scale_s,
                              scale_p,
                              scale_o,
                              stride_q,
@@ -548,7 +549,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             s_host_ref,
             ck_tile::identity{},
             ck_tile::identity{},
-            ck_tile::scales(scale));
+            ck_tile::scales(scale_s));
 
         if(use_bias)
         {

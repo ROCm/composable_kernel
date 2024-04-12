@@ -100,7 +100,7 @@ struct fmha_fwd_args
     ck_tile::index_t hdim_v;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_k;
-    float scale; // FIXME: rename to s_acc_scale?
+    float scale_s;
     float scale_p;
     float scale_o;
     ck_tile::index_t stride_q;
@@ -145,7 +145,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.hdim_q,
                                          args.hdim_v,
                                          args.nhead_q / args.nhead_k,
-                                         args.scale,
+                                         args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
                                          args.stride_q,
@@ -176,7 +176,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.hdim_q,
                                          args.hdim_v,
                                          args.nhead_q / args.nhead_k,
-                                         args.scale,
+                                         args.scale_s,
                                          args.scale_p,
                                          args.scale_o,
                                          args.stride_q,
