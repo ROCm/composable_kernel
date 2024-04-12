@@ -31,7 +31,6 @@ struct RotatingMemWrapper
           size_b(size_b_),
           size_c(size_c_)
     {
-        // std::cout << "rotating_count_: " << rotating_count_ << std::endl;
         p_a_grids.push_back(arg.p_a_grid);
         p_b_grids.push_back(arg.p_b_grid);
         p_c_grids.push_back(arg.p_c_grid);
@@ -82,19 +81,20 @@ struct RotatingMemWrapper
     }
     ~RotatingMemWrapper()
     {
-        // restore ptr
         if(rotating_count > 1)
         {
+            // restore ptr
             arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[0]);
             arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[0]);
             arg.p_c_grid = reinterpret_cast<CDataType>(p_c_grids[0]);
-#if 1
-            // check rotating data
+#if 0
+            // test rotating buffer gemm result
             hip_check_error(hipMemcpy(static_cast<void*>(p_c_grids[0]),
                                       const_cast<void*>(p_c_grids[--iter % rotating_count]),
                                       size_c,
                                       hipMemcpyDeviceToDevice));
 #endif
+            // free device mem
             for(size_t i = 1; i < rotating_count; i++)
             {
                 hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
