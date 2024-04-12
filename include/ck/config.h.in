@@ -104,6 +104,20 @@
 #cmakedefine CK_ENABLE_INSTANCES_ONLY @CK_ENABLE_INSTANCES_ONLY@
 #endif
 
+//
+// CK kernels which support XDL (MI series)
+//
+#ifndef CK_USE_XDL
+#cmakedefine CK_USE_XDL @CK_USE_XDL@
+#endif
+
+//
+// CK Kernels which support WMMA (recent Navi series)
+//
+#ifndef CK_USE_WMMA
+#cmakedefine CK_USE_WMMA @CK_USE_WMMA@
+#endif
+
 // clang-format on
 
 #endif // CK_CONFIG_H_IN

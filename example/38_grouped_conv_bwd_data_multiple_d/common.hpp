@@ -34,6 +34,8 @@ static constexpr auto ConvBwdDataDefault =
 
 using FP16 = ck::half_t;
 using FP32 = float;
+using FP8  = ck::f8_t;
+using BF8  = ck::bf8_t;
 
 struct ExecutionConfig final
 {
