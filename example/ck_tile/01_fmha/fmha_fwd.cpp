@@ -178,8 +178,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
     {
         if(squant)
+        {
             std::cerr << "static quantization on support fp8 for now" << std::endl;
-        return false;
+            return false;
+        }
     }
 
     float range_q = arg_parser.get_float("range_q");
