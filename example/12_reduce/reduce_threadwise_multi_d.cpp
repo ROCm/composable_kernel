@@ -7,7 +7,7 @@
 #include <getopt.h>
 
 #include "ck/utility/reduction_enums.hpp"
-#include "reduce_threadwise_impl.hpp"
+#include "reduce_threadwise_multi_d_impl.hpp"
 #include "reduce_example_common.hpp"
 
 using namespace ck;
@@ -25,7 +25,7 @@ class SimpleAppArgs
 
     public:
     std::vector<size_t> inLengths = {16, 64, 32, 16};
-    std::vector<int> reduceDims   = {0, 1, 2};
+    std::vector<int> reduceDims   = {0};
     std::vector<float> scales     = {1.0f, 0.0f};
 
     bool do_verification = true;
@@ -118,13 +118,13 @@ template <typename InOutDataType,
           ReduceTensorOp ReduceOpId,
           index_t PropagateNan,
           index_t OutputIndex>
-bool reduce_threadwise_test(bool do_verification,
-                            int init_method,
-                            bool time_kernel,
-                            const std::vector<size_t>& inLengths,
-                            const std::vector<int>& reduceDims,
-                            float alpha,
-                            float beta)
+bool reduce_threadwise_multi_d_test(bool do_verification,
+                                    int init_method,
+                                    bool time_kernel,
+                                    const std::vector<size_t>& inLengths,
+                                    const std::vector<int>& reduceDims,
+                                    float alpha,
+                                    float beta)
 {
     bool matched = false;
     int result   = 0;
@@ -144,13 +144,13 @@ bool reduce_threadwise_test(bool do_verification,
 
         ck::ranges::copy(reduceDims, arrReduceDims.begin());
 
-        result = reduce_threadwise_impl<InOutDataType,
-                                        AccDataType,
-                                        ReduceOpId,
-                                        ShapeType::Rank_,
-                                        ShapeType::NumReduceDim_,
-                                        PropagateNan,
-                                        OutputIndex>(
+        result = reduce_threadwise_multi_d_impl<InOutDataType,
+                                                AccDataType,
+                                                ReduceOpId,
+                                                ShapeType::Rank_,
+                                                ShapeType::NumReduceDim_,
+                                                PropagateNan,
+                                                OutputIndex>(
             do_verification, init_method, time_kernel, inLengths, arrReduceDims, alpha, beta);
 
         matched = true;
@@ -176,96 +176,53 @@ int main(int argc, char* argv[])
 
         if(arg.data_type == 0)
         {
-            pass = reduce_threadwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
+            pass = reduce_threadwise_multi_d_test<ck::half_t,
+                                                  float,
+                                                  ReduceOpId,
+                                                  PropagateNan,
+                                                  OutputIndex>(arg.do_verification,
+                                                               arg.init_method,
+                                                               arg.time_kernel,
+                                                               arg.inLengths,
+                                                               arg.reduceDims,
+                                                               arg.scales[0],
+                                                               arg.scales[1]);
         }
         else if(arg.data_type == 1)
         {
-            pass = reduce_threadwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
+            pass =
+                reduce_threadwise_multi_d_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                    arg.do_verification,
+                    arg.init_method,
+                    arg.time_kernel,
+                    arg.inLengths,
+                    arg.reduceDims,
+                    arg.scales[0],
+                    arg.scales[1]);
         }
-#if 0
-        else if(arg.data_type == 3)
-        {
-            pass = reduce_threadwise_test<int8_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
-        }
-        else if(arg.data_type == 5)
-        {
-            pass = reduce_threadwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
-        }
-        else if(arg.data_type == 6)
-        {
-            pass = reduce_threadwise_test<double, double, ReduceOpId, PropagateNan, OutputIndex>(
-                arg.do_verification,
-                arg.init_method,
-                arg.time_kernel,
-                arg.inLengths,
-                arg.reduceDims,
-                arg.scales[0],
-                arg.scales[1]);
-        }
-#endif
     }
     else
     {
         // for testing half_t
-        pass = pass &&
-               reduce_threadwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
-                   true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
+        pass = pass && reduce_threadwise_multi_d_test<ck::half_t,
+                                                      float,
+                                                      ReduceOpId,
+                                                      PropagateNan,
+                                                      OutputIndex>(
+                           true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
 
         // for testing float
-        pass = pass && reduce_threadwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
-
-        // for testing double
-        pass = pass && reduce_threadwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
-
-        // for testing bhalf_t
         pass = pass &&
-               reduce_threadwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+               reduce_threadwise_multi_d_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
                    true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
 
-#if 0
-        // for testing int8_t
-        pass =
-            pass && reduce_threadwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
-                        true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
-
-        // for testing 3D input
-        pass = pass && reduce_threadwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 960}, {0}, 1.0f, 0.0f);
-
-        // for testing 5D input
-        pass = pass && reduce_threadwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
-                           true, 2, true, {16, 64, 32, 2, 960}, {0}, 1.0f, 0.0f);
-#endif
+        // for testing bhalf_t
+        pass = pass && reduce_threadwise_multi_d_test<ck::bhalf_t,
+                                                      float,
+                                                      ReduceOpId,
+                                                      PropagateNan,
+                                                      OutputIndex>(
+                           true, 2, true, {16, 64, 32, 960}, {0}, 1.0f, 0.0f);
     }
 
     return (pass ? 0 : 1);

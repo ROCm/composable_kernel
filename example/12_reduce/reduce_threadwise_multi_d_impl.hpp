@@ -8,7 +8,6 @@
 #include "ck/ck.hpp"
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-//#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise_multi_d.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 
@@ -28,13 +27,13 @@ template <typename InOutDataType,
           ck::index_t NumReduceDim,
           bool PropagateNan,
           bool OutputIndex>
-int reduce_threadwise_impl(bool do_verification,
-                           int init_method,
-                           bool time_kernel,
-                           const std::vector<size_t>& inLengths,
-                           const std::array<int, NumReduceDim>& reduceDims,
-                           float alpha,
-                           float beta)
+int reduce_threadwise_multi_d_impl(bool do_verification,
+                                   int init_method,
+                                   bool time_kernel,
+                                   const std::vector<size_t>& inLengths,
+                                   const std::array<int, NumReduceDim>& reduceDims,
+                                   float alpha,
+                                   float beta)
 
 {
     using namespace ck;
@@ -90,17 +89,17 @@ int reduce_threadwise_impl(bool do_verification,
     };
 
     using PassThrough = tensor_operation::element_wise::PassThrough;
-    // using Add         = tensor_operation::element_wise::Add;
+    using Add         = tensor_operation::element_wise::Add;
 
     using ReduceOperation         = typename reduce_binary_operator<ReduceOpId>::opType;
     using InElementwiseOperation  = PassThrough;
-    using OutElementwiseOperation = PassThrough;
+    using OutElementwiseOperation = Add;
 
     using InOutDataTypeInDevice = InOutDataType;
 
     using DeviceReduceInstance =
         ck::tensor_operation::device::DeviceReduceThreadWiseMultiD<InOutDataTypeInDevice,
-                                                                   ck::Tuple<>,
+                                                                   ck::Tuple<InOutDataTypeInDevice>,
                                                                    AccDataType,
                                                                    InOutDataTypeInDevice,
                                                                    Rank,
@@ -129,6 +128,9 @@ int reduce_threadwise_impl(bool do_verification,
 
     Tensor<InOutDataType> out_ref(outLengths);
     Tensor<InOutDataType> out(outLengths);
+
+    Tensor<InOutDataType> d0(outLengths);
+
     Tensor<int> out_indices_ref(outLengths);
     Tensor<int> out_indices(outLengths);
 
@@ -147,16 +149,19 @@ int reduce_threadwise_impl(bool do_verification,
         case 0: break;
         case 1:
             in.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
+            d0.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_1<InOutDataType>{1}, num_thread);
             break;
         case 2:
             in.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
+            d0.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_2<InOutDataType>{-5, 5}, num_thread);
             break;
         default:
             in.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0}, num_thread);
+            d0.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0}, num_thread);
             if(beta != 0.0f)
                 out_ref.GenerateTensorValue(GeneratorTensor_3<InOutDataType>{-5.0, 5.0},
                                             num_thread);
@@ -169,13 +174,14 @@ int reduce_threadwise_impl(bool do_verification,
 
     // these buffers are usually provided by the user application
     DeviceMem in_dev(sizeof(InOutDataTypeInDevice) * in.mDesc.GetElementSpaceSize());
+    DeviceMem d0_dev(sizeof(InOutDataTypeInDevice) * d0.mDesc.GetElementSpaceSize());
     DeviceMem out_dev(sizeof(InOutDataTypeInDevice) * out.mDesc.GetElementSpaceSize());
 
     in_dev.ToDevice(in.mData.data());
+    d0_dev.ToDevice(d0.mData.data());
 
     if(beta != 0.0f)
     {
-
         out_dev.ToDevice(out.mData.data());
     };
 
@@ -188,11 +194,13 @@ int reduce_threadwise_impl(bool do_verification,
 
     std::array<index_t, Rank> arrInLengths;
     std::array<index_t, Rank> arrInStrides;
+
     std::array<index_t, NumOutDim> arrOutLengths;
     std::array<index_t, NumOutDim> arrOutStrides;
 
     ck::ranges::copy(inLengths, arrInLengths.begin());
     ck::ranges::copy(inStrides, arrInStrides.begin());
+
     ck::ranges::copy(outLengths, arrOutLengths.begin());
     ck::ranges::copy(outStrides, arrOutStrides.begin());
 
@@ -236,19 +244,22 @@ int reduce_threadwise_impl(bool do_verification,
         auto invoker_ptr_ref = reduce_ref.MakeInvokerPointer();
 
         invoker_ptr_ref->Run(argument_ptr_ref.get());
+
+        for(std::size_t i = 0; i < out_ref.GetElementSize(); i++)
+            out_elementwise_op(out_ref.mData[i], out_ref.mData[i], d0.mData[i]);
     };
 
     auto reduce = DeviceReduceInstance{};
 
     auto argument_ptr = reduce.MakeArgumentPointer(arrInLengths,
                                                    arrInStrides,
-                                                   {},
-                                                   {},
+                                                   {arrOutLengths},
+                                                   {arrOutStrides},
                                                    arrOutLengths,
                                                    arrOutStrides,
                                                    reduceDims,
                                                    in_dev.GetDeviceBuffer(),
-                                                   {},
+                                                   {d0_dev.GetDeviceBuffer()},
                                                    out_dev.GetDeviceBuffer(),
                                                    in_elementwise_op,
                                                    out_elementwise_op);
