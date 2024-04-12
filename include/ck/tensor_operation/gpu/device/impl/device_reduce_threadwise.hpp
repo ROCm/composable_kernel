@@ -11,7 +11,6 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_reduce_common.hpp"
-//#include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_multiblock.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_2d_reduction_threadwise.hpp"
 
 namespace ck {
