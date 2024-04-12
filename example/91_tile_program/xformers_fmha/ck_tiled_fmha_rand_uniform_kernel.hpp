@@ -153,13 +153,17 @@ struct FmhaRandUniformKernel
                                             ck::index_t seqlen_q_,
                                             ck::index_t seqlen_k_)
     {
+        (void)seqlen_k_; // not used at present
+
         // at present, seqlen_k is not splitted by thread-groups
         return dim3(ck::math::integer_divide_ceil(seqlen_q_, kMPerBlock), nhead_, batch_size_);
     }
 
     __device__ static constexpr auto GetTileIndex(ck::index_t seqlen_q_, ck::index_t seqlen_k_)
     {
-        // at present, seqlen_k is not splitted by thread-groups
+        (void)seqlen_q_; // not used at present
+        (void)seqlen_k_; // not used at present
+
         const ck::index_t i_block = blockIdx.x;
         const ck::index_t i_nhead = blockIdx.y;
         const ck::index_t i_batch = blockIdx.z;
