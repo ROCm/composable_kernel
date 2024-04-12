@@ -55,11 +55,11 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
                 "note when squant=1, this value will be modified by range_q/k")
-        .insert("range_q", "2", "per-tensor quantization range of q. used if squant=1.")
-        .insert("range_k", "2", "per-tensor quantization range of k. used if squant=1.")
-        .insert("range_v", "2", "per-tensor quantization range of v. used if squant=1.")
+        .insert("range_q", "16", "per-tensor quantization range of q. used if squant=1.")
+        .insert("range_k", "16", "per-tensor quantization range of k. used if squant=1.")
+        .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
         .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
-        .insert("range_o", "2", "per-tensor quantization range of o (p*v). used if squant=1.")
+        .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
         .insert(
             "squant",
             "0",
