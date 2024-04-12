@@ -257,7 +257,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename AGridDesc_M_K,
               typename BGridDesc_N_K,
               typename DsGridDesc_M_N,
@@ -267,7 +266,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                             const BGridDesc_N_K& b_grid_desc_n_k,
                                                             const DsGridDesc_M_N& ds_grid_desc_m_n,
                                                             const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const Block2ETileMap&)
+                                                            [[maybe_unused]] const Block2ETileMap&)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -285,7 +284,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         {
             return false;
         }
-
         bool valid = true;
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -306,7 +304,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
         // check gridwise gemm pipeline
         const auto num_k_loop = AK / KPerBlock;
-
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
             return false;
@@ -913,6 +910,64 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
             remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 DsGridDesc_M_N{}))>;
+
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
+
+        static_for<0, NumDTensor, 1>{}([&](auto j) {
+            ds_grid_desc_mblock_mperblock_nblock_nperblock(j) =
+                MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[j]);
+        });
+
+        const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
+
+        Run<HasMainKBlockLoop>(p_a_grid,
+                               p_b_grid,
+                               p_ds_grid,
+                               p_e_grid,
+                               p_shared,
+                               a_element_op,
+                               b_element_op,
+                               cde_element_op,
+                               a_grid_desc_ak0_m_ak1,
+                               b_grid_desc_bk0_n_bk1,
+                               ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               block_2_etile_map);
+    }
+
+    template <bool HasMainKBlockLoop,
+              GemmSpecialization GemmSpec,
+              typename AGridDesc_MK,
+              typename BGridDesc_NK,
+              typename DsGridDesc_MN,
+              typename EGridDesc_MN,
+              typename Block2ETileMap>
+    __device__ static void Run(const void* __restrict__ p_a_grid_,
+                               const void* __restrict__ p_b_grid_,
+                               DsGridPointer p_ds_grid,
+                               void* __restrict__ p_e_grid_,
+                               void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CDEElementwiseOperation& cde_element_op,
+                               const AGridDesc_MK& a_grid_desc_m_k,
+                               const BGridDesc_NK& b_grid_desc_n_k,
+                               const DsGridDesc_MN& ds_grid_desc_m_n,
+                               const EGridDesc_MN& e_grid_desc_m_n,
+                               const Block2ETileMap& block_2_etile_map)
+    {
+        const auto p_a_grid = reinterpret_cast<const ADataType*>(p_a_grid_);
+        const auto p_b_grid = reinterpret_cast<const BDataType*>(p_b_grid_);
+        const auto p_e_grid = reinterpret_cast<EDataType*>(p_e_grid_);
+
+        // tensor descriptors for block/thread-wise copy
+        const auto a_grid_desc_ak0_m_ak1 = MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+        const auto b_grid_desc_bk0_n_bk1 = MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+
+        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+            remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                DsGridDesc_MN{}))>;
 
         DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
 
