@@ -10,3 +10,7 @@ add_gtest_executable(test_grouped_convnd_bwd_weight_interface test_grouped_convn
 if(result EQUAL 0)
    target_link_libraries(test_grouped_convnd_bwd_weight_interface PRIVATE utility)
 endif()
+add_gtest_executable(test_grouped_conv_bwd_weight_xdl_bilinear test_grouped_conv_bwd_weight_xdl_bilinear.cpp)
+if(result EQUAL 0)
+   target_link_libraries(test_grouped_conv_bwd_weight_xdl_bilinear PRIVATE utility device_grouped_conv3d_bwd_weight_bilinear_instance)
+endif()
