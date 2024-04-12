@@ -81,6 +81,8 @@ struct FmhaRandUniformKernel
     struct FmhaRandUniformGroupModeKargs : FmhaRandUniformCommonKargs
     {
         const int32_t* seqstart_q_ptr;
+        const int32_t* seqstart_k_ptr;
+        const int32_t* seqlen_k_ptr;
     };
 
     using Kargs = std::
@@ -125,6 +127,8 @@ struct FmhaRandUniformKernel
               ck::index_t stride_seqlen_k,
               ck::index_t stride_nhead,
               const void* seqstart_q_ptr,
+              const void* seqstart_k_ptr,
+              const void* seqlen_k_ptr,
               std::tuple<uint64_t, uint64_t> drop_seed_offset)
     {
         Kargs kargs{{rand_val_ptr,
@@ -138,7 +142,8 @@ struct FmhaRandUniformKernel
                      std::get<0>(drop_seed_offset),
                      std::get<1>(drop_seed_offset)},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
-                    seqstart_q_ptr};
+                    reinterpret_cast<const int32_t*>(seqstart_k_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
 
         return kargs;
     }
@@ -288,6 +293,16 @@ struct FmhaRandUniformKernel
             if(kargs.seqlen_q <= i_m0)
             {
                 return;
+            }
+
+            if(kargs.seqlen_k_ptr != nullptr)
+            {
+                kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
+            }
+            else
+            {
+                const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
+                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
             }
         }
         else
