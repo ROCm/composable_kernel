@@ -35,3 +35,11 @@ done
 done
 done
 done
+
+for perm in 0 1 ; do
+for bias in 0 1 ; do
+for b in 1 2 ; do
+$EXE -prec=fp8 -init=3 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=c -squant=1 -kname=$KNAME $COMMON_ARGS
+done
+done
+done
