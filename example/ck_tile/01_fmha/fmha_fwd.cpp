@@ -52,12 +52,16 @@ auto create_args(int argc, char* argv[])
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
-        .insert("range_q", "2", "quantization range of q.")
-        .insert("range_k", "2", "quantization range of k.")
-        .insert("range_v", "2", "quantization range of v")
-        .insert("range_p", "1", "quantization range of p [e^(s-m)]")
-        .insert("range_o", "2", "quantization range of o (p*v)")
-        .insert("squant", "0", "forward with static quantization fusion or not")
+        .insert("range_q", "2", "per-tensor quantization range of q. Valid if squant=1.")
+        .insert("range_k", "2", "per-tensor quantization range of k. Valid if squant=1.")
+        .insert("range_v", "2", "per-tensor quantization range of v. Valid if squant=1.")
+        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. Valid if squant=1.")
+        .insert("range_o", "2", "per-tensor quantization range of o (p*v). Valid if squant=1.")
+        .insert("squant",
+                "0",
+                "forward with static quantization fusion or not. 0: Original flow\n"
+                "1: Apply scale_p and scale_o with respect to P and O. Calculate scale_s, scale_p, "
+                "scale_o according to range_q, range_k, range_v, range_p, range_o")
         .insert("iperm",
                 "1",
                 "permute input\n"
