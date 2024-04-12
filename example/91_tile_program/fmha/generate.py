@@ -695,8 +695,9 @@ class FmhaBwdApiTrait:
         else :                return f'a.hdim_v % {self.bhdv} == 0'
 
 class FmhaBwdApiPool:
-    def __init__(self):
+    def __init__(self, mask_impl):
         self.pool = dict()
+        self.mask_impl = mask_impl
 
     def register_traits(self, trait : FmhaBwdApiTrait) -> None:
         # TODO: do we need to check duplication?
@@ -717,8 +718,8 @@ class FmhaBwdApiPool:
                 inners=str()
                 for k, trait in enumerate(traits):
                     if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_mask=MASK_MAP[trait.mask],
-                                   F_mask_check=MASK_CHECK_MAP[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout=BOOL_MAP[trait.dropout],
+                    inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_mask=get_mask_map(self.mask_impl)[trait.mask],
+                                   F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout=BOOL_MAP[trait.dropout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad])
             
@@ -794,6 +795,7 @@ class FmhaBwdKernel:
     F_mask      : str  # value from MASK_MAP
     F_mode      : str  # value from MODE_MAP
     F_loadst    : FmhaBwdLoadStrategy
+    mask_impl   : str
 
     @property
     def template(self) -> str:
@@ -831,7 +833,7 @@ class FmhaBwdKernel:
                 F_dbias     = BOOL_MAP[self.F_dbias],
                 F_dropout   = BOOL_MAP[self.F_dropout],
                 F_occupancy = self.F_tile.F_occupancy,
-                F_mask      = MASK_MAP[self.F_mask],
+                F_mask      = get_mask_map(self.mask_impl)[self.F_mask],
                 F_mode      = MODE_MAP[self.F_mode],
                 F_sloq      = BOOL_MAP[self.F_loadst.F_qloadonce],
                 F_sloqt     = BOOL_MAP[self.F_loadst.F_qtloadonce],
@@ -843,10 +845,20 @@ class FmhaBwdKernel:
 
     @property
     def name(self) -> str:
+        def mask_name() -> str:
+            n = ''
+            if self.F_mask[0:2] == 's_':
+                if self.F_mask == 's_mask': n += f'_mask'
+            else:
+                if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
+            return n
         # TODO: we don't encode idx here
-        return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name +\
+        mn = mask_name()
+        n = f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name +\
             f"_p{BOOL_MAP[self.F_spad][0]}{BOOL_MAP[self.F_skpad][0]}{BOOL_MAP[self.F_dpad][0]}{BOOL_MAP[self.F_dvpad][0]}" +\
-            f"_b{BOOL_MAP[self.F_bias][0]}_db{BOOL_MAP[self.F_dbias][0]}_dp{BOOL_MAP[self.F_dropout][0]}_m{self.F_mask[0]}"
+            f"_b{BOOL_MAP[self.F_bias][0]}_db{BOOL_MAP[self.F_dbias][0]}_dp{BOOL_MAP[self.F_dropout][0]}"
+        if mn != '' : n += f'{mn}'
+        return n
 
     @property
     def filename(self) -> str:
@@ -887,17 +899,17 @@ def get_fmha_bwd_tile_loadst_dict_from_dtype(direction : str, dtype : str) -> Op
     else:
         return None
 
-def get_bwd_blobs() -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
+def get_bwd_blobs(kernel_filter : Optional[str], mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for pad
     #       support this in future
     gen = list()
-    api_pool = FmhaBwdApiPool()
+    api_pool = FmhaBwdApiPool(mask_impl)
 
     for direction, dtype in itertools.product(["bwd"], DTYPE_MAP.keys()):
         d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
-        for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
+        for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
             tile = d[hdim_str][0]
             loadst = d[hdim_str][1]
             hdim = int(hdim_str)
@@ -908,7 +920,10 @@ def get_bwd_blobs() -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
             k = FmhaBwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad, 
                                 F_bias=bias, F_dbias=dbias, F_dropout=dropout, F_mask=mask, F_mode=mode,
-                                F_loadst=loadst)
+                                F_loadst=loadst, mask_impl=mask_impl)
+            if kernel_filter != None:
+                if not fnmatch.fnmatch(k.name, kernel_filter):
+                    continue
             api_pool.register_traits(k.api_trait())
             gen.append(k)
 
@@ -1137,7 +1152,7 @@ def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optio
         for kernel in kernels:
             write_single_bwd_dot_do_o_kernel(kernel, output_dir)
         write_bwd_dot_do_o_api(api_pool, output_dir)
-        api_pool, kernels = get_bwd_blobs()
+        api_pool, kernels = get_bwd_blobs(kernel_filter, mask_impl)
         for kernel in kernels:
             write_single_bwd_kernel(kernel, output_dir)
         write_bwd_api(api_pool, output_dir)
@@ -1157,7 +1172,7 @@ def list_blobs(output_file: Optional[str], direction: str, kernel_filter : Optio
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
             f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_DOT_DO_O_API_FILENAME) + "\n")
-            _, kernels = get_bwd_blobs()
+            _, kernels = get_bwd_blobs(kernel_filter, mask_impl)
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
             f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME) + "\n")

@@ -46,7 +46,10 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "num of head, for k/v, 0 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
-        .insert("s", "3328", "seqlen_q")
+        .insert("s",
+                "3328",
+                "seqlen_q. if group-mode, means the average value of seqlen_q\n"
+                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
         .insert("s_k", "0", "seqlen_k, 0 means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
@@ -61,16 +64,22 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "data type. fp16 or bf16")
         .insert("mask",
                 "0",
-                "0: no mask, 1: top-left, 2:bottom-right\n"
-                "'t:l,r', top-left local-attn with left right size\n"
-                "'b:l,r', bottom-r local-attn with left right size\n"
-                "'g:y,x', generic attention mask coordinate with y/x size\n")
+                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
+                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
+                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
+                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
+                "'xt:window_size', xformer style masking from top-left, window_size negative is "
+                "causal, possitive is swa\n"
+                "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
+                "causal, possitive is swa\n"
+                "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
+                "now)\n")
         .insert("kname", "0", "if set to 1 will print kernel name")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
         .insert("seed",
                 "11939",
-                "random seed used for initializing input tensors. 0 to use "
-                "non-deterministic random number as seed")
+                "random seed used for initializing input tensors. 0 for "
+                "non-deterministic seed")
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
@@ -463,8 +472,9 @@ bool run(const ArgParser& arg_parser)
                              batch_stride_dk,
                              batch_stride_dv,
                              batch_stride_dbias,
-                             mask.y,
-                             mask.x,
+                             mask.left,
+                             mask.right,
+                             static_cast<ck::index_t>(mask.type),
                              p_drop,
                              s_randval,
                              {drop_seed, drop_offset}};
@@ -582,8 +592,26 @@ bool run(const ArgParser& arg_parser)
         }
         else
         {
-            reference_batched_masking<AccDataType>(
-                s_host_ref, FmhaMasks::CausalMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+            // if left window size is negative, means causal
+            // else means generic (for current batch)
+            if(mask.left < 0)
+                reference_batched_masking<AccDataType>(
+                    s_host_ref,
+                    ck::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+                        mask.left,
+                        mask.right,
+                        real_seqlen_q,
+                        real_seqlen_k,
+                        mask.type == mask_enum::mask_top_left));
+            else
+                reference_batched_masking<AccDataType>(
+                    s_host_ref,
+                    ck::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                        mask.left,
+                        mask.right,
+                        real_seqlen_q,
+                        real_seqlen_k,
+                        mask.type == mask_enum::mask_top_left));
         }
         reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
             s_host_ref, p_hp_host_ref, lse_host_ref);
