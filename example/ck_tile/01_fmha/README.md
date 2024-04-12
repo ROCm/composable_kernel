@@ -37,10 +37,16 @@ args:
         -s_k    seqlen_k, 0 means equal to s (default:0)
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, 0 means equal to d (default:0)
-      -scale    scale factor. 0 means equal to 1/sqrt(hdim) (default:0)
-  -descale_q    scale factor for fp8 quantization (default:1)
-  -descale_k    scale factor for fp8 quantization (default:1)
-  -descale_v    scale factor for fp8 quantization (default:1)
+    -scale_s    scale factor of S. 0 means equal to 1/sqrt(hdim). (default:0)
+                 note when squant=1, this value will be modified by range_q/k
+    -range_q    per-tensor quantization range of q. used if squant=1. (default:2)
+    -range_k    per-tensor quantization range of k. used if squant=1. (default:2)
+    -range_v    per-tensor quantization range of v. used if squant=1. (default:2)
+    -range_p    per-tensor quantization range of p [e^(s-m)]. used if squant=1. (default:1)
+    -range_o    per-tensor quantization range of o (p*v). used if squant=1. (default:2)
+     -squant    if using static quantization fusion or not. 0: original flow(not prefered) (default:0)
+                 1: apply scale_p and scale_o with respect to P and O. calculate scale_s, scale_p,
+                 scale_o according to range_q, range_k, range_v, range_p, range_o
       -iperm    permute input (default:1)
                  if true, will be b*h*s*d, else b*s*h*d
       -operm    permute output (default:1)
@@ -50,15 +56,14 @@ args:
                  't', top-left causal mask, 'b', bottom-r causal mask
                  't:l,r', top-left sliding window attn(swa) with FA style left right size
                  'b:l,r', bottom-r sliding window attn(swa) with FA style left right size
-                 'xt:window_size', xformer style masking from top-left, window_size negative is causal, possitive is swa
-                 'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, possitive is swa
+                 'xt:window_size', xformer style masking from top-left, window_size negative is causal, positive is swa
+                 'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, positive is swa
                  'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for now)
 
     -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
         -lse    0 not store lse, 1 store lse (default:0)
       -kname    if set to 1 will print kernel name (default:0)
-       -init    init method. 0:random int, 1:random float, 2:trig float (default:1)
-       -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
+       -init    init method. 0:random int, 1:random float, 2:trig float, 3:quantization (default:1)
 ```
 Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 
@@ -107,5 +112,6 @@ Note FA use bottom-right by default to express swa case, here we require you exp
 TBD
 
 ## FP8 experimental support
-As described in [this blog](https://blog.hippoml.com/8bit-hippoattention-up-to-3x-faster-compared-to-flashattentionv2-8f9def90b482), we have an experimental support for fp8 fmha kernels, you can evaluate the performance by setting the arg `-prec=fp8` to the `tile_example_fmha_fwd`, on a gfx940/941/942 machine and ROCm 6.0+. Currently if you not explicitly setting `-v=0`(which will disable CPU verification), it will printout an error as much as `0.05`. We are still WIP to tune the kernel performance as well as the precision, so stay tuned for the updated performance(pipeline)
-Currently we only support `-vlayout=c` for fp8, which is `hdim*seqlen` for V matrix. row major for V matrix support will come later.
+As described in [this blog](https://blog.hippoml.com/8bit-hippoattention-up-to-3x-faster-compared-to-flashattentionv2-8f9def90b482), we have an experimental support for fp8 fmha kernels, you can evaluate the performance by setting the arg `-prec=fp8` to the `tile_example_fmha_fwd`, on a gfx940/941/942 machine and ROCm 6.0+.
+
+Currently we only support `-vlayout=c`( `hdim*seqlen` for V matrix) and `-squant=1`(static quantization) with `hdim=128` for fp8 now. Full feature support will come later.

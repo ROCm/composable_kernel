@@ -51,17 +51,21 @@ auto create_args(int argc, char* argv[])
         .insert("s_k", "0", "seqlen_k, 0 means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
-        .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
-        .insert("range_q", "2", "per-tensor quantization range of q. Valid if squant=1.")
-        .insert("range_k", "2", "per-tensor quantization range of k. Valid if squant=1.")
-        .insert("range_v", "2", "per-tensor quantization range of v. Valid if squant=1.")
-        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. Valid if squant=1.")
-        .insert("range_o", "2", "per-tensor quantization range of o (p*v). Valid if squant=1.")
-        .insert("squant",
+        .insert("scale_s",
                 "0",
-                "forward with static quantization fusion or not. 0: Original flow\n"
-                "1: Apply scale_p and scale_o with respect to P and O. Calculate scale_s, scale_p, "
-                "scale_o according to range_q, range_k, range_v, range_p, range_o")
+                "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
+                "note when squant=1, this value will be modified by range_q/k")
+        .insert("range_q", "2", "per-tensor quantization range of q. used if squant=1.")
+        .insert("range_k", "2", "per-tensor quantization range of k. used if squant=1.")
+        .insert("range_v", "2", "per-tensor quantization range of v. used if squant=1.")
+        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
+        .insert("range_o", "2", "per-tensor quantization range of o (p*v). used if squant=1.")
+        .insert(
+            "squant",
+            "0",
+            "if using static quantization fusion or not. 0: original flow(not prefered)\n"
+            "1: apply scale_p and scale_o with respect to P and O. calculate scale_s, scale_p,\n"
+            "scale_o according to range_q, range_k, range_v, range_p, range_o")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -80,7 +84,7 @@ auto create_args(int argc, char* argv[])
                 "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
                 "causal, positive is swa\n"
                 "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)\n")
+                "now)")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
@@ -179,7 +183,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         if(squant)
         {
-            std::cerr << "static quantization on support fp8 for now" << std::endl;
+            std::cerr << "fp8 only support static quantization for now" << std::endl;
             return false;
         }
     }
