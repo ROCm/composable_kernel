@@ -42,6 +42,7 @@
 #include <rtc/hip.hpp>
 #include <fstream>
 #include <variant>
+#include <any>
 
 // using half = _Float16;
 // using half = __fp16;
@@ -188,35 +189,48 @@ ck::tensor_operation::device::GemmSpecialization gemm_type(std::string type)
 }
 
 // TODO: edit/repurpose these to instantiate structs then call the wrapper class instead
-/**ck::tensor_operation::device::Padder pad(ck::index_t mpb,
-                                         ck::index_t npb,
-                                         ck::index_t kpb,
-                                         ck::tensor_operation::device::GemmSpecialization gemm)
+template <typename CDesc_MRaw_NRaw>
+// ck::tensor_operation::device::Padder
+auto pad(ck::index_t mpb,
+         ck::index_t npb,
+         ck::index_t kpb,
+         ck::tensor_operation::device::GemmSpecialization gemm,
+         CDesc_MRaw_NRaw conv)
 {
     ck::tensor_operation::device::CopyMatrixPadder<
         ck::tensor_operation::device::GemmSpecialization::MNKPadding,
         ck::index_t,
         ck::index_t,
-        ck::index_t> a;
+        ck::index_t>
+        a;
     a.MPerTile_ = mpb;
     a.NPerTile_ = npb;
     a.KPerTile_ = kpb;
-    return a;
+    auto res    = ck::tensor_operation::device::Padder(a, conv);
+    return res.grid_desc(a, conv);
 }
-ck::tensor_operation::Transform*
-transform(ck::index_t num_dim, ck::tensor_operation::device::ConvolutionForwardSpecialization spec)
+// ck::tensor_operation::TransformConv
+auto transform_conv(ck::index_t num_dim,
+                    ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
+                    layouts e_layout,
+                    ck::Array<ck::index_t, 5> out_lengths,
+                    ck::Array<ck::index_t, 5> out_strides)
 {
     if(num_dim == 2 &&
        spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Default)
     {
-        return new ck::tensor_operation::TransformConvFwdToGemm<
+        ck::tensor_operation::TransformConvFwdToGemm<
             2,
-            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>{};
+            ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
+            conv_fwd;
+        // return conv_fwd.template MakeCDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(
+        // out_lengths, out_strides);
+
+        auto res =
+            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
+        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
     }
-    return new ck::tensor_operation::TransformConvFwdToGemm<
-                        2,
-                        ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>{};
-}**/
+}
 
 ck::tensor_operation::device::ConvolutionForwardSpecialization conv_type(std::string type)
 {
@@ -227,6 +241,17 @@ ck::tensor_operation::device::ConvolutionForwardSpecialization conv_type(std::st
     return ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 }
 
+template <typename CGridDesc_M_N>
+auto block_2_etile(ck::index_t m_per_block, ck::index_t n_per_block, CGridDesc_M_N matrix_padder)
+{
+    // TODO: figure out how to pass parameters properly -> not scalable for this method
+    if(m_per_block == 128 && n_per_block == 256)
+    {
+        ck::BlockToCTileMap_M00_N0_M01Adapt<128, 256, CGridDesc_M_N> b2e(matrix_padder);
+        return b2e.CalculateGridSize(matrix_padder);
+    }
+    // b2e	= ck::BlockToCTileMap_M00_N0_M01Adapt(m_per_block, n_per_block);
+}
 struct Prologue
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
@@ -537,14 +562,15 @@ struct Prologue
         layouts ELayout = layout_type(out_layout);
 
         // TODO: replace with repurposed factory function calls
-        // auto* conv_to_gemm_transformer = transform(num_dim, ConvSpec);
+        auto conv_to_gemm_transformer =
+            transform_conv(num_dim, ConvSpec, ELayout, out_lengths, out_strides);
+        // decltype(conv_to_gemm_transformer)::foo = 1;
         // auto conv_to_gemm_transformer = ck::tensor_operation::TransformConvFwdToGemm<
         //  2,
         // ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>{};
 
-        // auto matrix_padder = ck::tensor_operation::device::MatrixPadder<gemm_types[count],
-        // ck::index_t, ck::index_t, ck::index_t>{mperblock[count], nperblock[count],
-        // kperblock[count]};
+        auto matrix_padder =
+            pad(m_per_block, n_per_block, k_per_block, GemmSpec, conv_to_gemm_transformer);
         /**auto matrix_padder = ck::tensor_operation::device::MatrixPadder<
             ck::tensor_operation::device::GemmSpecialization::MNKPadding,
             ck::index_t,
@@ -553,13 +579,9 @@ struct Prologue
                          static_cast<int>(n_per_block),
                          static_cast<int>(k_per_block)};**/
 
-        // TODO: remove these calls, replace with factory function calls
-        // auto* tmp = static_cast<ck::tensor_operation::TransformConvFwdToGemm<ck::index_t,
-        // ck::tensor_operation::device::ConvolutionForwardSpecialization>*>(conv_to_gemm_transformer);
-        // auto out_gemmmraw_gemmnraw_desc = conv_to_gemm_transformer.template
-        // MakeCDescriptor_M_N<ELayout>(out_lengths, out_strides);
-
-        // const auto e_desc = matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
+        auto b2e = block_2_etile(m_per_block, n_per_block, matrix_padder);
+        // ck::BlockToCTileMap_M00_N0_M01Adapt<m_per_block, n_per_block,
+        // decltype(matrix_padder)>(matrix_padder);
 
         // E grid desc + block 2 etile: use method implementations without calling them
         const ck::index_t N = out_lengths[1];
@@ -583,7 +605,7 @@ struct Prologue
         const ck::index_t M0 = ck::math::integer_divide_ceil(out.GetLength(I0), m_per_block);
         const ck::index_t N0 = ck::math::integer_divide_ceil(out.GetLength(I1), n_per_block);
 
-        auto grid_size = M0 * N0 * in_lengths[1];
+        auto grid_size = b2e * in_lengths[1];
 
         // ofh << "Grid Size: " << grid_size << std::endl;
         // ofh << "Block Size: " << block_size << std::endl;

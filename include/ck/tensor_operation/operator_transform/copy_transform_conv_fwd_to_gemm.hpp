@@ -10,6 +10,8 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include <variant>
+#include <any>
 
 namespace ck {
 namespace tensor_operation {
@@ -547,9 +549,36 @@ struct TransformConvFwdToGemm
     }
 };
 
+// TODO: remove hack for getting layout type
+using layouts = std::variant<ck::tensor_layout::convolution::GNHWC,
+                             ck::tensor_layout::convolution::GNHWK,
+                             ck::tensor_layout::convolution::GKYXC>;
 // wrapper class to call member functions on TransformConvToGemm struct at runtime
-struct Transform
+struct TransformConv
 {
+    std::function<void()> grid_desc;
+    // void* data_type;
+    std::any data_type;
+    template <index_t NDimSpatial,
+              device::ConvolutionForwardSpecialization ConvForwardSpecialization>
+    TransformConv(layouts ELayout,
+                  ck::Array<index_t, NDimSpatial + 3> out_lengths,
+                  ck::Array<index_t, NDimSpatial + 3> out_strides,
+                  TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
+    {
+    }
+
+    template <index_t NDimSpatial,
+              device::ConvolutionForwardSpecialization ConvForwardSpecialization>
+    auto
+    transform_func(layouts ELayout,
+                   ck::Array<index_t, NDimSpatial + 3> out_lengths,
+                   ck::Array<index_t, NDimSpatial + 3> out_strides,
+                   TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
+    {
+        return conv_fwd_to_gemm.template MakeCDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(
+            out_lengths, out_strides);
+    }
 };
 
 } // namespace tensor_operation

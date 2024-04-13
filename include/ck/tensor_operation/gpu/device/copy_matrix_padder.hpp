@@ -183,6 +183,28 @@ struct CopyMatrixPadder : public CopyGemmPadder<GemmSpec, MPerTileType, NPerTile
 // wrapper class to call member functions on Matrix/GemmPadder struct at runtime
 struct Padder
 {
+    template <GemmSpecialization GemmSpec,
+              typename MPerTileType,
+              typename NPerTileType,
+              typename KPerTileType,
+              typename CDesc_MRaw_NRaw>
+    Padder(CopyMatrixPadder<GemmSpec, MPerTileType, NPerTileType, KPerTileType> matrix_padder,
+           CDesc_MRaw_NRaw conv_desc)
+    {
+    }
+
+    template <GemmSpecialization GemmSpec,
+              typename MPerTileType,
+              typename NPerTileType,
+              typename KPerTileType,
+              typename CDesc_MRaw_NRaw>
+    auto
+    grid_desc(CopyMatrixPadder<GemmSpec, MPerTileType, NPerTileType, KPerTileType> matrix_padder,
+              CDesc_MRaw_NRaw conv_desc)
+    {
+
+        return matrix_padder.PadCDescriptor_M_N(conv_desc);
+    }
 };
 
 // M/N/KPerTileType could be index_t or Number<>
