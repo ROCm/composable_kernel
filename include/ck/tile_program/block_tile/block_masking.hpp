@@ -8,6 +8,21 @@
 #include "ck/utility/tuple.hpp"
 
 namespace ck {
+
+enum struct GenericAttentionMaskEnum
+{
+    NO_MASK = 0,
+
+    // below enum could be causal, or sliding window
+    MASK_FROM_TOP_LEFT     = 1,
+    MASK_FROM_BOTTOM_RIGHT = 2,
+
+    // this enum maybe not used by xformer/FA, since it's hard to
+    // specify left/right window for varlen case. put it here for
+    // debug purpose
+    MASK_GENERIC,
+};
+
 namespace tile_program {
 namespace block {
 
@@ -222,6 +237,158 @@ struct GenericAttentionMask
     index_t y_total, x_total;
 };
 
+// clang-format off
+namespace impl {
+    template <bool IsMasking_> struct SimplifiedMaskName;
+    template<> struct SimplifiedMaskName<false> { static constexpr const char * name = "nomask"; };
+    template<> struct SimplifiedMaskName<true> { static constexpr const char * name = "mask"; };
+}
+// clang-format on
+
+// this version only have 2 variation: masking and non-masking
+// This is more friendly to codegen (e.g. need generate less kernel)
+// ... with the trade-off that may have more instruction in causal mode
+template <bool IsMasking_ = true>
+struct SimplifiedGenericAttentionMask
+{
+    static constexpr bool IsMasking = IsMasking_; // false will disable masking
+
+    static constexpr const char* name = impl::SimplifiedMaskName<IsMasking>::name;
+
+    __host__ __device__ SimplifiedGenericAttentionMask(index_t y_total_, index_t x_total_)
+        : SimplifiedGenericAttentionMask(0, 0, y_total_, x_total_)
+    {
+    }
+
+    __host__ __device__
+    SimplifiedGenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)
+        : y(y_), x(x_), y_total(y_total_), x_total(x_total_)
+    {
+    }
+    template <typename MaskCoordinates>
+    __host__ __device__ SimplifiedGenericAttentionMask(const MaskCoordinates& mask_coord)
+        : y(mask_coord.At(Number<0>{})),
+          x(mask_coord.At(Number<1>{})),
+          y_total(mask_coord.At(Number<2>{})),
+          x_total(mask_coord.At(Number<3>{}))
+    {
+    }
+
+    // to get the loop length along X axis, return index:[start, end), end-start=length
+    // use this if need loop over X axis tile by tile (like k-seqlen loopover)
+    // TODO: x_end still could be negative, so end-start could be negative(need check)
+    template <index_t YTile, index_t XTile>
+    __host__ __device__ constexpr auto
+    GetTileRangeAlongX(index_t i_y, Number<YTile>, Number<XTile>) const
+    {
+        if constexpr(!IsMasking)
+        {
+            return ck::make_tuple(0, x_total);
+        }
+        else
+        {
+            // get the tile start/end range assum we loop over along X tile by tile
+            index_t x_start = [&]() {
+                index_t tmp = max(-y + i_y + 1, 0);
+                return (tmp / XTile) * XTile; // round to tile aligned
+            }();
+
+            // TODO: end could be negative, we ignore clamp here, and let caller to check
+            //      ... in which case end-start is negative
+            index_t x_end = [&]() {
+                index_t tmp = min(i_y + YTile - 1 + x, x_total);
+                return ((tmp + XTile - 1) / XTile) * XTile;
+            }();
+
+            return ck::make_tuple(x_start, x_end);
+        }
+    }
+
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
+    // TODO: y_end still could be negative, so end-start could be negative(need check)
+    template <index_t YTile, index_t XTile>
+    __host__ __device__ constexpr auto
+    GetTileRangeAlongY(index_t i_x, Number<YTile>, Number<XTile>) const
+    {
+        if constexpr(!IsMasking)
+        {
+            return ck::make_tuple(0, y_total);
+        }
+        else
+        {
+            // get the tile start/end range assum we loop over along Y tile by tile
+            index_t y_start = [&]() {
+                index_t tmp = math::max(-x + i_x + 1, 0);
+                return (tmp / YTile) * YTile; // round to tile aligned
+            }();
+
+            // TODO: end could be negative, we ignore clamp here, and let caller to check
+            //      ... in which case end-start is negative
+            index_t y_end = [&]() {
+                index_t tmp = math::min(i_x + XTile - 1 + y, y_total);
+                return ((tmp + YTile - 1) / YTile) * YTile;
+            }();
+
+            return ck::make_tuple(y_start, y_end);
+        }
+    }
+
+    // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
+    __host__ __device__ constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
+    {
+        if constexpr(!IsMasking)
+        {
+            // the only case that need do following compare is under kPadSeqLenK
+            // ... for non-masking kernel.
+            return i_x >= x_total;
+        }
+        else
+        {
+            index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
+            index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
+
+            return i_x < x_start || i_x >= x_end;
+        }
+    }
+
+    // if current tile is at the edge, means need per-pixel mask check.
+    // otherwise no need to check per-pixel
+    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
+    // can be used as a fast-path to decide if do per-pixel check or not
+    template <index_t TileHeight, index_t TileWidth>
+    __host__ __device__ constexpr auto
+    IsEdgeTile(index_t i_y, index_t i_x, Number<TileHeight>, Number<TileWidth>) const
+    {
+        if constexpr(!IsMasking)
+        {
+            // the only case that need do following compare is under kPadSeqLenK
+            // ... for non-masking kernel.
+            // return (i_x < x_total) && ((i_x + TileWidth) > x_total);
+
+            // TODO: no need to check begin
+            return (i_x + TileWidth) > x_total;
+        }
+        else
+        {
+            // check top-right corner > x or left-borrom corner < x
+            index_t i_x_end = i_x + TileWidth;
+            index_t i_y_end = i_y + TileHeight;
+            // index_t x_end    = min(i_y + x, x_total);
+
+            bool top_right_edge   = i_x_end > min(i_y + x, x_total); // consider right pad
+            bool bottom_left_edge = i_y_end > (i_x + y);
+            // bool is_partial_out_of_bound = i_x_end > x_end; // only consider right-pad for now
+
+            return top_right_edge || bottom_left_edge;
+        }
+    }
+
+    private:
+    index_t y, x;
+    index_t y_total, x_total;
+};
+
 } // namespace block
 } // namespace tile_program
 
@@ -236,29 +403,32 @@ make_generic_attention_mask_coordinates_from_lr_window(index_t left_size,
                                                        index_t x_total,
                                                        bool is_top_left = true)
 {
-    index_t x = 0, y = 0;
+    // TODO: below should all use sgpr arithmetic
+    index_t left_size_tmp  = is_top_left ? y_total - 1 : x_total - 1;
+    index_t right_size_tmp = is_top_left ? x_total - 1 : y_total - 1;
 
-    if(is_top_left)
-    {
-        if(left_size < 0)
-            left_size = y_total - 1;
-        if(right_size < 0)
-            right_size = x_total - 1;
+    left_size  = left_size < 0 ? left_size_tmp : left_size;
+    right_size = right_size < 0 ? right_size_tmp : right_size;
 
-        x = 1 + right_size;
-        y = left_size + 1;
-    }
-    else
-    {
-        if(left_size < 0)
-            left_size = x_total - 1;
-        if(right_size < 0)
-            right_size = y_total - 1;
+    index_t x_tmp = is_top_left ? 0 : x_total - y_total;
+    index_t y_tmp = is_top_left ? 0 : y_total - x_total;
 
-        x = x_total - y_total + 1 + right_size;
-        y = y_total - x_total + 1 + left_size;
-    }
+    index_t x = 1 + right_size + x_tmp;
+    index_t y = 1 + left_size + y_tmp;
 
     return ck::make_tuple(y, x, y_total, x_total);
+}
+
+template <typename MaskType>
+__host__ __device__ constexpr auto
+make_generic_attention_mask_from_lr_window(index_t left_size,
+                                           index_t right_size,
+                                           index_t y_total,
+                                           index_t x_total,
+                                           bool is_top_left = true)
+{
+    auto r = make_generic_attention_mask_coordinates_from_lr_window(
+        left_size, right_size, y_total, x_total, is_top_left);
+    return MaskType{r.At(ck::Number<0>{}), r.At(ck::Number<1>{}), y_total, x_total};
 }
 } // namespace ck

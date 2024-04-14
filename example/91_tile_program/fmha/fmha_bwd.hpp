@@ -70,307 +70,6 @@ struct FmhaMasks
     using CausalMask  = ck::tile_program::block::GenericAttentionMask<true, false>;
 };
 
-#if 0
-// internal API, don't use this directly
-template <typename FmhaBwdKernel>
-auto fmha_bwd_create_kargs_and_grids(const void* q_ptr,
-                                     const void* k_ptr,
-                                     const void* v_ptr,
-                                     const void* bias_ptr,
-                                     const void* lse_ptr,
-                                     const void* do_ptr,
-                                     const void* d_ptr,
-                                     // void* rand_val_ptr,
-                                     void* dq_ptr,
-                                     void* dk_ptr,
-                                     void* dv_ptr,
-                                     void* dbias_ptr,
-                                     const void* seqstart_q_ptr,
-                                     const void* seqstart_k_ptr,
-                                     const void* seqlen_k_ptr,
-                                     ck::index_t batch,
-                                     ck::index_t nhead,
-                                     ck::index_t nhead_k,
-                                     ck::index_t seqlen_q,
-                                     ck::index_t seqlen_k,
-                                     ck::index_t hdim_q,
-                                     ck::index_t hdim_v,
-                                     ck::index_t max_seqlen_k,
-                                     float scale,
-                                     bool i_perm,
-                                     bool o_perm,
-                                     ck::index_t mask_y,
-                                     ck::index_t mask_x)
-{
-    assert(nhead % nhead_k == 0);
-    /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
-    ///       seqlen_k] in this example, hence both the 'batch_stride_bias' & 'nhead_stride_bias'
-    ///       are 0.
-    // setup stride_* arguments
-    const ck::index_t stride_q     = (i_perm ? hdim_q : nhead * hdim_q);
-    const ck::index_t stride_k     = (i_perm ? hdim_q : nhead_k * hdim_q);
-    const ck::index_t stride_v     = (i_perm ? hdim_v : nhead_k * hdim_v);
-    const ck::index_t stride_bias  = (i_perm ? seqlen_k : 1 * seqlen_k);
-    const ck::index_t stride_do    = (o_perm ? hdim_v : nhead * hdim_v);
-    const ck::index_t stride_dk    = (i_perm ? hdim_q : nhead * hdim_q);
-    const ck::index_t stride_dv    = (i_perm ? hdim_v : nhead * hdim_v);
-    const ck::index_t stride_dbias = (i_perm ? seqlen_k : nhead * seqlen_k);
-    // setup nhead_stride_* arguments
-    const ck::index_t nhead_stride_q     = (i_perm ? seqlen_q * hdim_q : hdim_q);
-    const ck::index_t nhead_stride_k     = (i_perm ? seqlen_k * hdim_q : hdim_q);
-    const ck::index_t nhead_stride_v     = (i_perm ? seqlen_k * hdim_v : hdim_v);
-    const ck::index_t nhead_stride_bias  = (i_perm ? 0 * seqlen_q * seqlen_k : 0 * seqlen_k);
-    const ck::index_t nhead_stride_do    = (o_perm ? seqlen_q * hdim_v : hdim_v);
-    const ck::index_t nhead_stride_lsed  = (seqlen_q);
-    const ck::index_t nhead_stride_dbias = (i_perm ? seqlen_q * seqlen_k : seqlen_k);
-    // setup batch_stride_* arguments
-    const ck::index_t batch_stride_q     = (nhead * seqlen_q * hdim_q);
-    const ck::index_t batch_stride_k     = (nhead_k * seqlen_k * hdim_q);
-    const ck::index_t batch_stride_v     = (nhead_k * seqlen_k * hdim_v);
-    const ck::index_t batch_stride_bias  = (0 * nhead * seqlen_q * seqlen_k);
-    const ck::index_t batch_stride_do    = (nhead * seqlen_q * hdim_v);
-    const ck::index_t batch_stride_lsed  = (nhead * seqlen_q);
-    const ck::index_t batch_stride_dk    = (nhead * seqlen_k * hdim_q);
-    const ck::index_t batch_stride_dv    = (nhead * seqlen_k * hdim_v);
-    const ck::index_t batch_stride_dbias = (nhead * seqlen_q * seqlen_k);
-
-    auto kargs = [&] {
-        // create group mode kernel arguments
-        if constexpr(FmhaBwdKernel::kIsGroupMode)
-        {
-            return FmhaBwdKernel::MakeKargs(q_ptr,
-                                            k_ptr,
-                                            v_ptr,
-                                            bias_ptr,
-                                            lse_ptr,
-                                            do_ptr,
-                                            d_ptr,
-                                            dq_ptr,
-                                            dk_ptr,
-                                            dv_ptr,
-                                            dbias_ptr,
-                                            seqstart_q_ptr,
-                                            seqstart_k_ptr,
-                                            seqlen_k_ptr,
-                                            hdim_q,
-                                            hdim_v,
-                                            nhead / nhead_k,
-                                            scale,
-                                            stride_q,
-                                            stride_k,
-                                            stride_v,
-                                            stride_bias,
-                                            stride_do,
-                                            stride_dk,
-                                            stride_dv,
-                                            stride_dbias,
-                                            nhead_stride_q,
-                                            nhead_stride_k,
-                                            nhead_stride_v,
-                                            nhead_stride_bias,
-                                            nhead_stride_do,
-                                            nhead_stride_lsed,
-                                            nhead_stride_dbias,
-                                            mask_y,
-                                            mask_x);
-        }
-        else
-        { // create batch mode kernel arguments
-            return FmhaBwdKernel::MakeKargs(q_ptr,
-                                            k_ptr,
-                                            v_ptr,
-                                            bias_ptr,
-                                            lse_ptr,
-                                            do_ptr,
-                                            d_ptr,
-                                            dq_ptr,
-                                            dk_ptr,
-                                            dv_ptr,
-                                            dbias_ptr,
-                                            seqlen_q,
-                                            seqlen_k,
-                                            hdim_q,
-                                            hdim_v,
-                                            nhead / nhead_k,
-                                            scale,
-                                            stride_q,
-                                            stride_k,
-                                            stride_v,
-                                            stride_bias,
-                                            stride_do,
-                                            stride_dk,
-                                            stride_dv,
-                                            stride_dbias,
-                                            nhead_stride_q,
-                                            nhead_stride_k,
-                                            nhead_stride_v,
-                                            nhead_stride_bias,
-                                            nhead_stride_do,
-                                            nhead_stride_lsed,
-                                            nhead_stride_dbias,
-                                            batch_stride_q,
-                                            batch_stride_k,
-                                            batch_stride_v,
-                                            batch_stride_bias,
-                                            batch_stride_do,
-                                            batch_stride_lsed,
-                                            batch_stride_dk,
-                                            batch_stride_dv,
-                                            batch_stride_dbias,
-                                            mask_y,
-                                            mask_x);
-        }
-    }();
-
-    dim3 grids = FmhaBwdKernel::GridSize(batch, nhead, max_seqlen_k);
-    return ck::make_tuple(kargs, grids);
-}
-
-template <typename FmhaBwdOGradDotOKernel>
-auto fmha_bwd_dot_do_o_create_kargs_and_grids(const void* o_ptr,
-                                              const void* do_ptr,
-                                              void* d_ptr,
-                                              const void* seqstart_q_ptr,
-                                              ck::index_t batch,
-                                              ck::index_t nhead,
-                                              ck::index_t seqlen_q,
-                                              ck::index_t hdim_v,
-                                              ck::index_t max_seqlen_q,
-                                              bool o_perm)
-{
-    const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
-    const ck::index_t nhead_stride_o = (o_perm ? seqlen_q * hdim_v : hdim_v);
-    const ck::index_t nhead_stride_d = (seqlen_q);
-    const ck::index_t batch_stride_o = (nhead * seqlen_q * hdim_v);
-    const ck::index_t batch_stride_d = (nhead * seqlen_q);
-
-    auto kargs = [&] {
-        // create group mode kernel arguments
-        if constexpr(FmhaBwdOGradDotOKernel::kIsGroupMode)
-        {
-            return FmhaBwdOGradDotOKernel::MakeKargs(o_ptr,
-                                                     do_ptr,
-                                                     d_ptr,
-                                                     seqstart_q_ptr,
-                                                     hdim_v,
-                                                     stride_o,
-                                                     nhead_stride_o,
-                                                     nhead_stride_d);
-        }
-        else
-        { // create batch mode kernel arguments
-            return FmhaBwdOGradDotOKernel::MakeKargs(o_ptr,
-                                                     do_ptr,
-                                                     d_ptr,
-                                                     seqlen_q,
-                                                     hdim_v,
-                                                     stride_o,
-                                                     nhead_stride_o,
-                                                     nhead_stride_d,
-                                                     batch_stride_o,
-                                                     batch_stride_d);
-        }
-    }();
-
-    dim3 grids = FmhaBwdOGradDotOKernel::GridSize(batch, nhead, max_seqlen_q);
-    return ck::make_tuple(kargs, grids);
-}
-
-// This is the args from caller to underneath API, different from the kernel
-struct fmha_bwd_args
-{
-    const void* q_ptr;
-    const void* k_ptr;
-    const void* v_ptr;
-    const void* bias_ptr;
-    const void* lse_ptr;
-    const void* do_ptr;
-    const void* d_ptr;
-    // void* rand_val_ptr;
-    void* dq_ptr;
-    void* dk_ptr;
-    void* dv_ptr;
-    void* dbias_ptr;
-    const void* seqstart_q_ptr;
-    const void* seqstart_k_ptr;
-    const void* seqlen_k_ptr;
-    ck::index_t batch;
-    ck::index_t nhead;
-    ck::index_t nhead_k;
-    ck::index_t seqlen_q;
-    ck::index_t seqlen_k;
-    ck::index_t hdim_q;
-    ck::index_t hdim_v;
-    ck::index_t max_seqlen_k;
-    float scale;
-    bool i_perm;
-    bool o_perm;
-    ck::index_t mask_y;
-    ck::index_t mask_x;
-};
-
-template <typename FmhaBwdKernel>
-auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
-{
-    return fmha_bwd_create_kargs_and_grids<FmhaBwdKernel>(args.q_ptr,
-                                                          args.k_ptr,
-                                                          args.v_ptr,
-                                                          args.bias_ptr,
-                                                          args.lse_ptr,
-                                                          args.do_ptr,
-                                                          args.d_ptr,
-                                                          args.dq_ptr,
-                                                          args.dk_ptr,
-                                                          args.dv_ptr,
-                                                          args.dbias_ptr,
-                                                          args.seqstart_q_ptr,
-                                                          args.seqstart_k_ptr,
-                                                          args.seqlen_k_ptr,
-                                                          args.batch,
-                                                          args.nhead,
-                                                          args.nhead_k,
-                                                          args.seqlen_q,
-                                                          args.seqlen_k,
-                                                          args.hdim_q,
-                                                          args.hdim_v,
-                                                          args.max_seqlen_k,
-                                                          args.scale,
-                                                          args.i_perm,
-                                                          args.o_perm,
-                                                          args.mask_y,
-                                                          args.mask_x);
-}
-
-struct fmha_bwd_dot_do_o_args
-{
-    const void* o_ptr;
-    const void* do_ptr;
-    void* d_ptr;
-    const void* seqstart_q_ptr;
-    ck::index_t batch;
-    ck::index_t nhead;
-    ck::index_t seqlen_q;
-    ck::index_t hdim_v;
-    ck::index_t max_seqlen_q;
-    bool o_perm;
-};
-
-template <typename FmhaBwdOGradDotOKernel>
-auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_dot_do_o_args args)
-{
-    return fmha_bwd_dot_do_o_create_kargs_and_grids<FmhaBwdOGradDotOKernel>(args.o_ptr,
-                                                                            args.do_ptr,
-                                                                            args.d_ptr,
-                                                                            args.seqstart_q_ptr,
-                                                                            args.batch,
-                                                                            args.nhead,
-                                                                            args.seqlen_q,
-                                                                            args.hdim_v,
-                                                                            args.max_seqlen_q,
-                                                                            args.o_perm);
-}
-#endif
-
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_bwd_args
 {
@@ -425,8 +124,9 @@ struct fmha_bwd_args
     ck::index_t batch_stride_dk;
     ck::index_t batch_stride_dv;
     ck::index_t batch_stride_dbias;
-    ck::index_t mask_y;
-    ck::index_t mask_x;
+    ck::index_t window_size_left;
+    ck::index_t window_size_right;
+    ck::index_t mask_type;
     float p_drop;
     bool s_randval;
     std::tuple<uint64_t, uint64_t> drop_seed_offset;
@@ -477,8 +177,9 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.nhead_stride_do,
                                             args.nhead_stride_lsed,
                                             args.nhead_stride_dbias,
-                                            args.mask_y,
-                                            args.mask_x,
+                                            args.window_size_left,
+                                            args.window_size_right,
+                                            args.mask_type,
                                             args.p_drop,
                                             args.s_randval,
                                             args.drop_seed_offset);
@@ -531,8 +232,9 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.batch_stride_dk,
                                             args.batch_stride_dv,
                                             args.batch_stride_dbias,
-                                            args.mask_y,
-                                            args.mask_x,
+                                            args.window_size_left,
+                                            args.window_size_right,
+                                            args.mask_type,
                                             args.p_drop,
                                             args.s_randval,
                                             args.drop_seed_offset);
