@@ -406,11 +406,12 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
         sequence<2, 2>,
         sequence<0, 2>>;
 #else
+    // TODO: more test not only 32x32
     using BWarpDstrEncoding = tile_distribution_encoding<
         sequence<>,
-        tuple<sequence<Impl::kAMLane / (SFactor * Impl::kCMLane * Impl::kCM1PerLane),
-                       SFactor,
+        tuple<sequence<Impl::kAMLane / (Impl::kCMLane * SFactor * Impl::kCM1PerLane),
                        Impl::kCMLane,
+                       SFactor,
                        Impl::kCM1PerLane>,
               sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
         tuple<sequence<2, 1, 1, 1, 1>>,

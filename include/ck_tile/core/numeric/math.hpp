@@ -13,32 +13,109 @@
 
 namespace ck_tile {
 
-template <typename T, T s>
-struct scales
+template <typename Scale, Scale lhs>
+struct scales_c
 {
-    CK_TILE_HOST_DEVICE constexpr T operator()(T a) const { return s * a; }
-};
-
-template <typename T>
-struct plus
-{
-    CK_TILE_HOST_DEVICE constexpr T operator()(T a, T b) const { return a + b; }
-};
-
-template <typename T>
-struct minus
-{
-    CK_TILE_HOST_DEVICE constexpr T operator()(T a, T b) const { return a - b; }
-};
-
-struct multiplies
-{
-    template <typename A, typename B>
-    CK_TILE_HOST_DEVICE constexpr auto operator()(const A& a, const B& b) const
+    template <typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Right& rhs) const -> decltype(lhs * rhs)
     {
-        return a * b;
+        return lhs * rhs;
     }
 };
+
+template <typename Scale>
+struct scales
+{
+    static_assert(std::is_copy_constructible_v<Scale>);
+
+    CK_TILE_HOST_DEVICE constexpr explicit scales(Scale lhs) : lhs_(lhs) {}
+
+    template <typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Right& rhs) const
+        -> decltype(std::declval<const Scale&>() * rhs)
+    {
+        return lhs_ * rhs;
+    }
+
+    private:
+    Scale lhs_;
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+template <typename Scale>
+__host__ __device__ scales(Scale)->scales<Scale>;
+
+template <typename Left = void, typename Right = Left>
+struct plus
+{
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs + rhs)
+    {
+        return lhs + rhs;
+    }
+};
+
+template <>
+struct plus<void, void>
+{
+    template <typename Left, typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs + rhs)
+    {
+        return lhs + rhs;
+    }
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+__host__ __device__ plus()->plus<void, void>;
+
+template <typename Left = void, typename Right = Left>
+struct minus
+{
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs - rhs)
+    {
+        return lhs - rhs;
+    }
+};
+
+template <>
+struct minus<void, void>
+{
+    template <typename Left, typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs - rhs)
+    {
+        return lhs - rhs;
+    }
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+__host__ __device__ minus()->minus<void, void>;
+
+template <typename Left = void, typename Right = Left>
+struct multiplies
+{
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs * rhs)
+    {
+        return lhs * rhs;
+    }
+};
+
+template <>
+struct multiplies<void, void>
+{
+    template <typename Left, typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs * rhs)
+    {
+        return lhs * rhs;
+    }
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+__host__ __device__ multiplies()->multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -247,16 +324,112 @@ CK_TILE_HOST_DEVICE constexpr auto lcm(X x, Ys... ys)
     return lcm(x, lcm(ys...));
 }
 
-template <typename T>
+template <typename Left = void, typename Right = Left>
 struct equal
 {
-    CK_TILE_HOST_DEVICE constexpr bool operator()(T x, T y) const { return x == y; }
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs == rhs)
+    {
+        return lhs == rhs;
+    }
 };
 
-template <typename T>
+template <>
+struct equal<void, void>
+{
+    template <typename Left, typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs == rhs)
+    {
+        return lhs == rhs;
+    }
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+__host__ __device__ equal()->equal<void, void>;
+
+template <>
+struct equal<float, float>
+{
+    CK_TILE_HOST_DEVICE constexpr bool operator()(float lhs, float rhs) const
+    {
+        return bit_cast<uint32_t>(lhs) == bit_cast<uint32_t>(rhs);
+    }
+};
+
+template <>
+struct equal<double, double>
+{
+    CK_TILE_HOST_DEVICE constexpr bool operator()(double lhs, double rhs) const
+    {
+        return bit_cast<uint64_t>(lhs) == bit_cast<uint64_t>(rhs);
+    }
+};
+
+template <typename Left = void, typename Right = Left>
 struct less
 {
-    CK_TILE_HOST_DEVICE constexpr bool operator()(T x, T y) const { return x < y; }
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs < rhs)
+    {
+        return lhs < rhs;
+    }
+};
+
+template <>
+struct less<void, void>
+{
+    template <typename Left, typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs < rhs)
+    {
+        return lhs < rhs;
+    }
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+__host__ __device__ less()->less<void, void>;
+
+template <typename Left = void, typename Right = Left>
+struct less_equal
+{
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs <= rhs)
+    {
+        return lhs <= rhs;
+    }
+};
+
+template <>
+struct less_equal<void, void>
+{
+    template <typename Left, typename Right>
+    CK_TILE_HOST_DEVICE constexpr auto operator()(const Left& lhs, const Right& rhs) const
+        -> decltype(lhs <= rhs)
+    {
+        return lhs <= rhs;
+    }
+};
+
+/// FIXME: create macro to replace '__host__ __device__' and nothing more
+__host__ __device__ less_equal()->less_equal<void, void>;
+
+template <>
+struct less_equal<float, float>
+{
+    CK_TILE_HOST_DEVICE constexpr bool operator()(float lhs, float rhs) const
+    {
+        return lhs < rhs || bit_cast<uint32_t>(lhs) == bit_cast<uint32_t>(rhs);
+    }
+};
+
+template <>
+struct less_equal<double, double>
+{
+    CK_TILE_HOST_DEVICE constexpr bool operator()(double lhs, double rhs) const
+    {
+        return lhs < rhs || bit_cast<uint64_t>(lhs) == bit_cast<uint64_t>(rhs);
+    }
 };
 
 CK_TILE_HOST_DEVICE constexpr int32_t next_power_of_two(int32_t x)

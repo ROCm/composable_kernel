@@ -10,7 +10,6 @@ enum class BlockFmhaPipelineEnum
 {
     QRKSVS = 0,
     QRKSVS_ASYNC,
-    QRKSVS_FP8,
     QSKSVS,
 };
 

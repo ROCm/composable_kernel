@@ -51,10 +51,21 @@ auto create_args(int argc, char* argv[])
         .insert("s_k", "0", "seqlen_k, 0 means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
-        .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
-        .insert("descale_q", "1", "scale factor for fp8 quantization")
-        .insert("descale_k", "1", "scale factor for fp8 quantization")
-        .insert("descale_v", "1", "scale factor for fp8 quantization")
+        .insert("scale_s",
+                "0",
+                "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
+                "note when squant=1, this value will be modified by range_q/k")
+        .insert("range_q", "16", "per-tensor quantization range of q. used if squant=1.")
+        .insert("range_k", "16", "per-tensor quantization range of k. used if squant=1.")
+        .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
+        .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
+        .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
+        .insert(
+            "squant",
+            "0",
+            "if using static quantization fusion or not. 0: original flow(not prefered)\n"
+            "1: apply scale_p and scale_o with respect to P and O. calculate scale_s, scale_p,\n"
+            "scale_o according to range_q, range_k, range_v, range_p, range_o")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -69,15 +80,16 @@ auto create_args(int argc, char* argv[])
                 "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
                 "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
                 "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, possitive is swa\n"
+                "causal, positive is swa\n"
                 "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, possitive is swa\n"
+                "causal, positive is swa\n"
                 "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)\n")
+                "now)")
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
+        .insert(
+            "init", "1", "init method. 0:random int, 1:random float, 2:trig float, 3:quantization")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -115,6 +127,23 @@ auto get_elimit<ck_tile::bf16_t>(int init_method)
     }
 }
 
+template <>
+auto get_elimit<ck_tile::fp8_t>(int init_method)
+{
+    if(init_method == 0)
+    {
+        unsigned max_rounding_point_distance = 0;
+        double atol                          = 2e-3;
+        return ck_tile::make_tuple(max_rounding_point_distance, atol);
+    }
+    else
+    {
+        unsigned max_rounding_point_distance = 1;
+        double atol                          = 0.0625;
+        return ck_tile::make_tuple(max_rounding_point_distance, atol);
+    }
+}
+
 template <typename DataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
@@ -145,13 +174,38 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
     bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
 
-    float scale = arg_parser.get_float("scale");
-    if(scale == .0f)
-        scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
+    float scale_s = arg_parser.get_float("scale_s");
+    if(scale_s == .0f)
+        scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    float descale_q = arg_parser.get_float("descale_q");
-    float descale_k = arg_parser.get_float("descale_k");
-    float descale_v = arg_parser.get_float("descale_v");
+    bool squant = arg_parser.get_bool("squant");
+    if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
+    {
+        if(squant)
+        {
+            std::cerr << "static quantization only support fp8 for now" << std::endl;
+            return false;
+        }
+    }
+
+    float range_q = arg_parser.get_float("range_q");
+    float range_k = arg_parser.get_float("range_k");
+    float range_v = arg_parser.get_float("range_v");
+    float range_p = arg_parser.get_float("range_p");
+    float range_o = arg_parser.get_float("range_o");
+
+    float dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<DataType>::max());
+
+    float scale_p = 1.f;
+    float scale_o = 1.f;
+
+    if(squant)
+    {
+        scale_s = scale_s * (range_q / dtype_max) * (range_k / dtype_max);
+        scale_p = dtype_max / range_p;
+        // scale_p = [max(fp8_t)/range_o] * [range_p/max(fp8_t)] * [range_v/max(fp8_t)]
+        scale_o = range_p * range_v / range_o / dtype_max;
+    }
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
@@ -276,6 +330,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillTrigValue<VDataType>{}(v_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
     }
+    else if(init_method == 3) // suitable for fp8 quantization
+    {
+        ck_tile::FillUniformDistribution<QDataType>{-dtype_max, dtype_max, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{-dtype_max, dtype_max, seed}(v_host);
+
+        // bias_fp8 = qscale_bias * bias_fp32
+        float qscale_bias = (dtype_max / range_q) * (dtype_max / range_k);
+        // Assume bias is in [-1.f, 1.f] in original fp32
+        ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
+    }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
@@ -307,8 +372,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
-              << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
+              << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s
+              << ", bias:" << use_bias << ", lse:" << lse << ", squant:" << squant
+              << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
@@ -317,8 +383,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        is_v_rowmajor,
                                        mask.type,
                                        use_bias,
-                                       lse};
-    auto fmha_args   = [&]() {
+                                       lse,
+                                       squant};
+
+    auto p_compute_element_func = [&]() {
+        if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
+            return ck_tile::scales{scale_p};
+        else
+            return ck_tile::identity{};
+    }();
+
+    auto oacc_element_func = [&]() {
+        if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
+            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                     ck_tile::scales{scale_o});
+        else
+            return ck_tile::identity{};
+    }();
+
+    auto fmha_args = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
@@ -372,7 +455,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              hdim_v,
                              nhead,
                              nhead_k,
-                             scale,
+                             scale_s,
+                             scale_p,
+                             scale_o,
                              stride_q,
                              stride_k,
                              stride_v,
@@ -392,9 +477,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_o,
                              mask.left,
                              mask.right,
-                             static_cast<ck_tile::index_t>(mask.type),
-                             descale_q * descale_k,
-                             descale_v};
+                             static_cast<ck_tile::index_t>(mask.type)};
     }();
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
@@ -479,7 +562,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             s_host_ref,
             ck_tile::identity{},
             ck_tile::identity{},
-            [&](SaccDataType x) { return scale * x; });
+            ck_tile::scales(scale_s));
 
         if(use_bias)
         {
@@ -538,16 +621,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(lse)
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
-                s_host_ref, p_host_ref, lse_host_ref);
+                s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
         }
         else
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
-                s_host_ref, p_host_ref);
+                s_host_ref, p_host_ref, p_compute_element_func);
         }
 
         ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
-            p_host_ref, v_host_ref, o_host_ref);
+            p_host_ref,
+            v_host_ref,
+            o_host_ref,
+            ck_tile::identity{},
+            ck_tile::identity{},
+            oacc_element_func);
 
         ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
         // clang-format off

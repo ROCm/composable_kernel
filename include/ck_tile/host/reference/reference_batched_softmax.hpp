@@ -9,10 +9,14 @@
 
 namespace ck_tile {
 
-template <typename ADataType, typename CompDataType, typename BDataType>
+template <typename ADataType,
+          typename CompDataType,
+          typename BDataType,
+          typename CompElementOp = ck_tile::identity>
 CK_TILE_HOST void reference_batched_softmax(
     const HostTensor<ADataType>& a_b_m_n,
     HostTensor<BDataType>& b_b_m_n,
+    const CompElementOp& comp_element_op                                    = {},
     std::optional<std::reference_wrapper<HostTensor<CompDataType>>> lse_b_m = std::nullopt)
 {
     const int N = a_b_m_n.mDesc.get_lengths()[2];
@@ -50,9 +54,9 @@ CK_TILE_HOST void reference_batched_softmax(
         for(int n = 0; n < N; ++n)
         {
             const CompDataType v_a = ck_tile::type_convert<CompDataType>(a_b_m_n(batch, m, n));
+            const CompDataType v_b = ck_tile::exp(v_a - v_max) * inv_sum;
 
-            b_b_m_n(batch, m, n) =
-                ck_tile::type_convert<BDataType>(ck_tile::exp(v_a - v_max) * inv_sum);
+            b_b_m_n(batch, m, n) = ck_tile::type_convert<BDataType>(comp_element_op(v_b));
         }
         // lse
         if(lse_b_m)

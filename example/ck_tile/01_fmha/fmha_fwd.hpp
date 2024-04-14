@@ -49,7 +49,7 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
     using QDataType           = ck_tile::fp8_t;
     using KDataType           = ck_tile::fp8_t;
     using VDataType           = ck_tile::fp8_t;
-    using BiasDataType        = float; // TODO: fix me
+    using BiasDataType        = float;
     using LSEDataType         = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
     using SaccDataType        = float; // data type for first gemm accumulation
     using SMPLComputeDataType = float; // data type for reduction, softmax
@@ -100,7 +100,9 @@ struct fmha_fwd_args
     ck_tile::index_t hdim_v;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_k;
-    float scale;
+    float scale_s;
+    float scale_p;
+    float scale_o;
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
@@ -121,8 +123,6 @@ struct fmha_fwd_args
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
-    float descale_qk;
-    float descale_sv;
 };
 
 template <typename FmhaKernel>
@@ -145,7 +145,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.hdim_q,
                                          args.hdim_v,
                                          args.nhead_q / args.nhead_k,
-                                         args.scale,
+                                         args.scale_s,
+                                         args.scale_p,
+                                         args.scale_o,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -159,9 +161,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
-                                         args.mask_type,
-                                         args.descale_qk,
-                                         args.descale_sv);
+                                         args.mask_type);
         }
         else
         { // create batch mode kernel arguments
@@ -176,7 +176,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.hdim_q,
                                          args.hdim_v,
                                          args.nhead_q / args.nhead_k,
-                                         args.scale,
+                                         args.scale_s,
+                                         args.scale_p,
+                                         args.scale_o,
                                          args.stride_q,
                                          args.stride_k,
                                          args.stride_v,
@@ -196,9 +198,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.batch_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
-                                         args.mask_type,
-                                         args.descale_qk,
-                                         args.descale_sv);
+                                         args.mask_type);
         }
     }();
 
@@ -221,6 +221,7 @@ template <ck_tile::index_t HDim_,
           typename FmhaMask_,
           bool kHasBias_,
           bool kStoreLse_,
+          bool kDoFp8StaticQuant_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -241,6 +242,7 @@ struct fmha_fwd_traits_
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr bool kHasBias                   = kHasBias_;
     static constexpr bool kStoreLse                  = kStoreLse_;
+    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
@@ -261,6 +263,7 @@ struct fmha_fwd_traits
     mask_enum mask_type;
     bool has_bias;
     bool has_lse;
+    bool do_fp8_static_quant;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
