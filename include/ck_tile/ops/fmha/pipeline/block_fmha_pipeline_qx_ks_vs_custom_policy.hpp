@@ -99,11 +99,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             }
             else if constexpr(Problem::kIsFp8)
             {
+                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
                 return WarpGemmImpl<
                     WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::QDataType,
                                                                        typename Problem::KDataType>,
-                        2>>{};
+                        2,
+                        swizzle_factor>>{};
             }
         }();
 
@@ -221,11 +223,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
             }
             else if constexpr(Problem::kIsFp8)
             {
+                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
                 return WarpGemmImpl<
                     WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
                         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::QDataType,
                                                                        typename Problem::KDataType>,
-                        2>>{};
+                        2,
+                        swizzle_factor>>{};
             }
         }();
 
@@ -918,9 +922,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         auto warp_gemm = [&]() {
             if constexpr(Problem::kIsFp8)
             {
-                return WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution<
+                return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
                     WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::PDataType,
-                                                                   typename Problem::VDataType>>>{};
+                                                                   typename Problem::VDataType>,
+                    2>>{};
+                // return
+                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
+                //         Problem::PDataType, typename Problem::VDataType>>>{};
             }
             else
             {
