@@ -960,13 +960,13 @@ struct BlockwiseGemmXdlops_pipeline_v4
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor(
         make_tuple(Number<MRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
         make_tuple(
-            Number<KPack>{}, Number<KPack * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
+            Number<KPack>{}, Number<KRepeat * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor(
         make_tuple(Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<KPack>{}),
         make_tuple(
-            Number<KPack>{}, Number<KPack * MRepeat * KPack>{}, Number<MRepeat * KPack>{}, I1));
+            Number<KPack>{}, Number<KRepeat * NRepeat * KPack>{}, Number<NRepeat * KPack>{}, I1));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
