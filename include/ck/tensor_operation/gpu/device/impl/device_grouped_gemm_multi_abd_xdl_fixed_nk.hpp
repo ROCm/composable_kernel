@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -588,9 +588,6 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
-                // const auto KPad =
-                // GridwiseGemm::CalculateKPadded(arg.gemm_desc_kernel_arg_[i].K_, arg.k_batch_);
-
                 if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
                    has_main_k_block_loop)
                 {
@@ -629,11 +626,8 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                     dim3(BlockSize),
                     0,
                     cast_pointer_to_constant_address_space(arg.grouped_gemm_kernel_args_dev),
-                    // reinterpret_cast<uint32_t*>(arg.p_workspace_),
-                    // arg.barrier_size_grp_,
                     arg.gemm_desc_kernel_arg_.size(),
                     arg.grid_size_grp_,
-                    // arg.k_batch_,
                     arg.a_element_op_,
                     arg.b_element_op_,
                     arg.c_element_op_);

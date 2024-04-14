@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -283,7 +283,6 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
             // Assume SrcVectorDim is not the same as DstVectorDim, so we do transpose
             // TODO: make this logic generic for all scenario
-            static_assert(SrcVectorDim != DstVectorDim, "wrong");
 
             constexpr auto src_scalar_step_in_vector = generate_sequence(
                 detail::lambda_scalar_step_in_vector<SrcVectorDim>{}, Number<nDim>{});

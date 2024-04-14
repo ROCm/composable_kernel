@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -31,6 +31,8 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Add         = ck::tensor_operation::element_wise::Add;
+using Add         = ck::tensor_operation::element_wise::Scale;
+using AddScale = ck::tensor_operation::element_wise::BinaryWithUnaryCombinedOp<Add, Scale, Scale>;
 
 using A0DataType       = F16;
 using A1DataType       = F32;
@@ -51,17 +53,6 @@ using BsLayout = ck::Tuple<B0Layout>;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
-
-struct AddScale
-{
-    __host__ __device__ constexpr void
-    operator()(ck::half_t& a, const ck::half_t& a0, const float& a1) const
-    {
-        a = scale * (a0 + a1);
-    }
-
-    float scale = 1.0;
-};
 
 using AElementOp = AddScale;
 using BElementOp = PassThrough;
@@ -130,15 +121,15 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     std::vector<Tensor<A1DataType>> a1_tensors;
     std::vector<Tensor<B0DataType>> b_tensors;
     std::vector<Tensor<D0DataType>> d0_tensors;
-    std::vector<Tensor<EDataType>> c_host_tensors;
-    std::vector<Tensor<EDataType>> c_device_tensors;
+    std::vector<Tensor<EDataType>> e_host_tensors;
+    std::vector<Tensor<EDataType>> e_device_tensors;
 
     a0_tensors.reserve(group_count);
     a1_tensors.reserve(group_count);
     b_tensors.reserve(group_count);
     d0_tensors.reserve(group_count);
-    c_host_tensors.reserve(group_count);
-    c_device_tensors.reserve(group_count);
+    e_host_tensors.reserve(group_count);
+    e_device_tensors.reserve(group_count);
 
     using DeviceMemPtr = std::unique_ptr<DeviceMem>;
 
@@ -164,20 +155,20 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             problem_size.Ks[i], problem_size.Ns[i], problem_size.stride_Bs[i], B0Layout{})));
         d0_tensors.push_back(Tensor<D0DataType>(
             f_host_tensor_descriptor(problem_size.Ms[i], problem_size.Ns[i], 0, ELayout{})));
-        c_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
+        e_host_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             problem_size.Ms[i], problem_size.Ns[i], problem_size.stride_Cs[i], ELayout{})));
-        c_device_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
+        e_device_tensors.push_back(Tensor<EDataType>(f_host_tensor_descriptor(
             problem_size.Ms[i], problem_size.Ns[i], problem_size.stride_Cs[i], ELayout{})));
         std::cout << "gemm[" << i << "] a_m_k: " << a0_tensors[i].mDesc
                   << " b_k_n: " << b_tensors[i].mDesc << " d_m_n: " << d0_tensors[i].mDesc
-                  << " c_m_n: " << c_device_tensors[i].mDesc << std::endl;
+                  << " c_m_n: " << e_device_tensors[i].mDesc << std::endl;
 
         flop += std::size_t(2) * problem_size.Ms[i] * problem_size.Ks[i] * problem_size.Ns[i];
         num_btype += sizeof(A0DataType) * a0_tensors[i].mDesc.GetElementSize() +
                      sizeof(A1DataType) * a1_tensors[i].mDesc.GetElementSize() +
                      sizeof(B0DataType) * b_tensors[i].mDesc.GetElementSize() +
                      sizeof(D0DataType) * d0_tensors[i].mDesc.GetElementSize() +
-                     sizeof(EDataType) * c_device_tensors[i].mDesc.GetElementSize();
+                     sizeof(EDataType) * e_device_tensors[i].mDesc.GetElementSize();
 
         switch(config.init_method)
         {
@@ -258,23 +249,25 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
              problem_size.Ms[i],
              problem_size.Ns[i],
              problem_size.Ks[i],
-             std::array<ck::index_t, 2>{problem_size.stride_As[i], problem_size.stride_As[i]},
-             std::array<ck::index_t, 1>{problem_size.stride_Bs[i]},
-             std::array<ck::index_t, 1>{0},
+             std::array<ck::index_t, NumATensor>{problem_size.stride_As[i],
+                                                 problem_size.stride_As[i]},
+             std::array<ck::index_t, NumBTensor>{problem_size.stride_Bs[i]},
+             std::array<ck::index_t, NumDTensor>{0},
              problem_size.stride_Cs[i]});
     }
 
-    auto a_element_op   = AElementOp{};
-    auto b_element_op   = BElementOp{};
-    auto cde_element_op = CDEElementOp{};
+    constexpr float scale = 1.f;
+    auto a_element_op     = AElementOp{Add{}, Scale{scale}, Scale{scale}};
+    auto b_element_op     = BElementOp{};
+    auto cde_element_op   = CDEElementOp{};
 
     auto gemm    = DeviceGemmInstance{};
     auto invoker = gemm.MakeInvoker();
 
-    std::vector<std::array<const void*, 2>> p_As = {};
-    std::vector<std::array<const void*, 1>> p_Bs = {};
-    std::vector<std::array<const void*, 1>> p_Ds = {};
-    std::vector<void*> p_Cs                      = {};
+    std::vector<std::array<const void*, NumATensor>> p_As = {};
+    std::vector<std::array<const void*, NumBTensor>> p_Bs = {};
+    std::vector<std::array<const void*, NumDTensor>> p_Ds = {};
+    std::vector<void*> p_Cs                               = {};
 
     // do GEMM
     auto argument = gemm.MakeArgument(p_As, p_Bs, p_Ds, p_Cs, gemm_descs);
@@ -334,8 +327,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                 }
             }
 
-            c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data(),
-                                            c_device_tensors[i].mDesc.GetElementSize() *
+            c_tensors_device[i]->FromDevice(e_device_tensors[i].mData.data(),
+                                            e_device_tensors[i].mDesc.GetElementSize() *
                                                 sizeof(EDataType));
 
             auto ref_gemm    = ReferenceGemmInstance{};
@@ -343,7 +336,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
             auto ref_argument = ref_gemm.MakeArgument(a0_tensors[i],
                                                       b_tensors[i],
-                                                      c_host_tensors[i],
+                                                      e_host_tensors[i],
                                                       PassThrough{},
                                                       b_element_op,
                                                       PassThrough{});
@@ -355,11 +348,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                 for(int n = 0; n < problem_size.Ns[i]; ++n)
                 {
                     cde_element_op(
-                        c_host_tensors[i](m, n), c_host_tensors[i](m, n), d0_tensors[i](m, n));
+                        e_host_tensors[i](m, n), e_host_tensors[i](m, n), d0_tensors[i](m, n));
                 }
             }
 
-            pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
+            pass &= ck::utils::check_err(e_device_tensors[i], e_host_tensors[i]);
         }
     }
 
