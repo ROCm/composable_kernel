@@ -32,6 +32,18 @@ struct GeneratorTensor_1
 };
 
 template <>
+struct GeneratorTensor_1<ck::half_t>
+{
+    float value = 1.0;
+
+    template <typename... Is>
+    ck::bhalf_t operator()(Is...)
+    {
+        return ck::type_convert<ck::half_t>(value);
+    }
+};
+
+template <>
 struct GeneratorTensor_1<ck::bhalf_t>
 {
     float value = 1.0;
@@ -42,6 +54,20 @@ struct GeneratorTensor_1<ck::bhalf_t>
         return ck::type_convert<ck::bhalf_t>(value);
     }
 };
+
+#if defined CK_ENABLE_FP8
+template <>
+struct GeneratorTensor_1<ck::f8_t>
+{
+    float value = 1.0;
+
+    template <typename... Is>
+    ck::bhalf_t operator()(Is...)
+    {
+        return ck::type_convert<ck::f8_t>(value);
+    }
+};
+#endif
 
 template <>
 struct GeneratorTensor_1<int8_t>
