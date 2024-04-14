@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_multi_abd_xdl_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_multi_abd.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -31,7 +31,7 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Add         = ck::tensor_operation::element_wise::Add;
-using Add         = ck::tensor_operation::element_wise::Scale;
+using Scale       = ck::tensor_operation::element_wise::Scale;
 using AddScale = ck::tensor_operation::element_wise::BinaryWithUnaryCombinedOp<Add, Scale, Scale>;
 
 using A0DataType       = F16;
