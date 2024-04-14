@@ -22,6 +22,7 @@ struct PassThroughPack2
         auto t = type_convert<float2_t>(x);
         y      = type_convert<half2_t>(t);
     }
+    constexpr const static bool is_pack2_invocable = true;
 };
 
 struct PassThrough
@@ -132,9 +133,21 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<int32_t, int8_t>(int32_t& y, const int8_t& x) const
+    {
+        y = type_convert<int32_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
     {
         y = type_convert<int8_t>(x);
+    }
+
+    template <>
+    __host__ __device__ void operator()<float, int8_t>(float& y, const int8_t& x) const
+    {
+        y = type_convert<float>(x);
     }
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
