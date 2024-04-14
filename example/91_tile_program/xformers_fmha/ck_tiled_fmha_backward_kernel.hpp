@@ -9,7 +9,7 @@
 #include <ck/tensor/tensor_view.hpp>
 #include <ck/tile_program/tile/tile_window.hpp>
 
-#include "ck_tiled_fmha_definitions.hpp"
+#include <ck/tile_program/block_tile/block_masking.hpp>
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -134,8 +134,8 @@ struct FmhaBwdKernel
 
     struct FmhaBwdMaskKargs
     {
-        CausalMaskType mask_type;
-        ck::index_t window_size;
+        ck::index_t window_size_left, window_size_right;
+        ck::GenericAttentionMaskEnum mask_type;
     };
 
     struct FmhaBwdCommonDropoutKargs
@@ -246,8 +246,9 @@ struct FmhaBwdKernel
               ck::index_t batch_stride_dk,
               ck::index_t batch_stride_dv,
               ck::index_t batch_stride_dbias,
-              CausalMaskType mask_type,
-              ck::index_t window_size,
+              ck::index_t window_size_left,
+              ck::index_t window_size_right,
+              ck::index_t mask_type,
               float p_drop,
               bool s_randval,
               std::tuple<uint64_t, uint64_t> drop_seed_offset)
@@ -312,8 +313,9 @@ struct FmhaBwdKernel
 
         if constexpr(kHasMask)
         {
-            kargs.mask_type   = mask_type;
-            kargs.window_size = window_size;
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck::GenericAttentionMaskEnum>(mask_type);
         }
 
         if constexpr(kHasDropout)
@@ -369,8 +371,9 @@ struct FmhaBwdKernel
               ck::index_t nhead_stride_lsed,
               ck::index_t nhead_stride_dbias,
               ck::index_t batch_stride_lse,
-              CausalMaskType mask_type,
-              ck::index_t window_size,
+              ck::index_t window_size_left,
+              ck::index_t window_size_right,
+              ck::index_t mask_type,
               float p_drop,
               bool s_randval,
               std::tuple<uint64_t, uint64_t> drop_seed_offset)
@@ -428,8 +431,9 @@ struct FmhaBwdKernel
         }
         if constexpr(kHasMask)
         {
-            kargs.mask_type   = mask_type;
-            kargs.window_size = window_size;
+            kargs.window_size_left  = window_size_left;
+            kargs.window_size_right = window_size_right;
+            kargs.mask_type         = static_cast<ck::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kHasDropout)
         {
@@ -994,55 +998,16 @@ struct FmhaBwdKernel
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
-            {
-                auto res =
-                    ck::make_tuple(ck::index_t{0}, ck::index_t{0}, ck::index_t{0}, ck::index_t{0});
-
-                if(kargs.window_size > 0)
-                {
-                    if(kargs.mask_type == CausalMaskType::MaskDisabled)
-                    {
-                        ck::index_t left_size  = kargs.window_size / 2;
-                        ck::index_t right_size = kargs.window_size - 1 - left_size;
-
-                        res = ck::make_generic_attention_mask_coordinates_from_lr_window(
-                            left_size, right_size, kargs.seqlen_q, kargs.seqlen_k);
-                    }
-                    else
-                    {
-                        bool is_topleft =
-                            (kargs.mask_type == CausalMaskType::MaskUpperTriangleFromTopLeft);
-
-                        res = ck::make_generic_attention_mask_coordinates_from_lr_window(
-                            kargs.window_size - 1, 0, kargs.seqlen_q, kargs.seqlen_k, is_topleft);
-                    }
-                }
-                else
-                {
-                    if(kargs.mask_type == CausalMaskType::MaskDisabled)
-                    {
-                        res = ck::make_generic_attention_mask_coordinates_from_lr_window(
-                            -1, -1, kargs.seqlen_q, kargs.seqlen_k);
-                    }
-                    else
-                    {
-                        bool is_topleft =
-                            (kargs.mask_type == CausalMaskType::MaskUpperTriangleFromTopLeft);
-
-                        res = ck::make_generic_attention_mask_coordinates_from_lr_window(
-                            -1, 0, kargs.seqlen_q, kargs.seqlen_k, is_topleft);
-                    }
-                }
-
-                auto y = res.At(ck::Number<0>{});
-                auto x = res.At(ck::Number<1>{});
-
-                return FmhaMask{y, x, kargs.seqlen_q, kargs.seqlen_k};
-            }
+                return ck::make_generic_attention_mask_from_lr_window<FmhaMask>(
+                    kargs.window_size_left,
+                    kargs.window_size_right,
+                    kargs.seqlen_q,
+                    kargs.seqlen_k,
+                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
             else
-                return FmhaMask{0, 0, kargs.seqlen_q, kargs.seqlen_k};
+                return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
-
+	
         auto [dk_acc_tile, dv_acc_tile] = FmhaPipeline{}(q_dram_window,
                                                          qt_dram_window,
                                                          k_dram_window,
