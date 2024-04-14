@@ -39,11 +39,8 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
         kernel_grouped_gemm_xdl_fixed_nk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
-                                         // uint32_t* barrier_count,
-                                         // const index_t barrier_size_grp,
                                          const index_t group_count,
                                          const index_t grid_size_grp,
-                                         // const index_t KBatch,
                                          const AElementwiseOperation a_element_op,
                                          const BElementwiseOperation b_element_op,
                                          const CDEElementwiseOperation cde_element_op)
@@ -111,15 +108,10 @@ __global__ void
     index_t id_off   = 0;
     index_t id_local = get_block_1d_id() - BlockStart;
 
-    // const index_t mn_blocks = local_grid_size / KBatch;
-
     while(id_local < local_grid_size)
     {
         const auto block_2_etile_map =
             GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
-
-        // auto barrier_count_finished =
-        //  barrier_count + group_id * barrier_size_grp + id_local % mn_blocks;
 
         GridwiseGemm::
             template Run<HasMainKBlockLoop, GemmSpec, AsLayout, BsLayout, DsLayout, ELayout>(
@@ -145,8 +137,6 @@ __global__ void
     }
 #else
     ignore = gemm_descs_const;
-    // ignore = barrier_count;
-    // ignore = barrier_size_grp;
     ignore = group_count;
     ignore = grid_size_grp;
     ignore = a_element_op;
