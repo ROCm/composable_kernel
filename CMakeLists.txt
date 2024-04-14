@@ -83,9 +83,6 @@ endif()
 
 include(getopt)
 
-# CK config file to record supported datatypes, etc.
-configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
-
 # CK version file to record release version as well as git commit hash
 find_package(Git REQUIRED)
 execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -160,6 +157,9 @@ else()
     set(CK_USE_XDL "ON")
     set(CK_USE_WMMA "ON")
 endif()
+
+# CK config file to record supported datatypes, etc.
+configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 find_package(hip)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
