@@ -8,9 +8,9 @@
 
 struct StreamConfig
 {
-    hipStream_t stream_id_ = nullptr;
-    bool time_kernel_      = false;
-    int log_level_         = 0;
-    int cold_niters_       = 5;
-    int nrepeat_           = 50;
+    hipStream_t stream_id_   = nullptr;
+    bool time_kernel_        = false;
+    int log_level_           = 0;
+    mutable int cold_niters_ = 5;
+    mutable int nrepeat_     = 50;
 };
