@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <iterator>
 #include <iomanip>
 #include <numeric>
 #include <thread>
@@ -413,17 +414,17 @@ struct HostTensorView : private HostTensorDescriptor
 
     typename Data::iterator begin() { return mData.begin(); }
 
-    typename Data::iterator end() { return mData.end(); }
+    typename Data::iterator end() { return std::next(begin(), size()); }
 
     typename Data::pointer data() { return mData.data(); }
 
     typename Data::const_iterator begin() const { return mData.begin(); }
 
-    typename Data::const_iterator end() const { return mData.end(); }
+    typename Data::const_iterator end() const { return std::next(begin(), size()); }
 
     typename Data::const_pointer data() const { return mData.data(); }
 
-    typename Data::size_type size() const { return mData.size(); }
+    typename Data::size_type size() const { return get_element_space_size(); }
 
     protected:
     void set_data(Data data)
