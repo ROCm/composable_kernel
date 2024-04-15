@@ -6,9 +6,11 @@
 #include <string>
 #include <type_traits>
 
-#include "ck/utility/common_header.hpp"
-#include "ck/tensor/tensor_view.hpp"
-#include "ck/tile_program/tile/tile_window.hpp"
+#include <ck/utility/common_header.hpp>
+#include <ck/tensor/tensor_view.hpp>
+#include <ck/tile_program/tile/tile_window.hpp>
+
+#include <ck/tile_program/block_tile/block_masking.hpp>
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -155,10 +157,6 @@ struct FmhaFwdKernel
     {
         void* lse_ptr                = nullptr;
         ck::index_t nhead_stride_lse = 0;
-    };
-
-    struct FmhaFwdBatchModeLSEKargs : FmhaFwdCommonLSEKargs
-    {
         ck::index_t batch_stride_lse = 0;
     };
 
@@ -194,7 +192,7 @@ struct FmhaFwdKernel
         : FmhaFwdCommonKargs,
           std::conditional_t<kHasBias, FmhaFwdBatchModeBiasKargs, FmhaFwdEmptyKargs<0>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
-          std::conditional_t<kStoreLSE, FmhaFwdBatchModeLSEKargs, FmhaFwdEmptyKargs<2>>,
+          std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kIsFp8, FmhaFwdFP8Kargs, FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>
     {
@@ -262,7 +260,7 @@ struct FmhaFwdKernel
               float descale_sv,
               float p_drop,
               bool s_randval,
-              std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -365,6 +363,7 @@ struct FmhaFwdKernel
               ck::index_t nhead_stride_randval,
               ck::index_t nhead_stride_lse,
               ck::index_t nhead_stride_o,
+              ck::index_t batch_stride_lse,
               ck::index_t window_size_left,
               ck::index_t window_size_right,
               ck::index_t mask_type,
@@ -372,7 +371,7 @@ struct FmhaFwdKernel
               float descale_sv,
               float p_drop,
               bool s_randval,
-              std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -422,6 +421,7 @@ struct FmhaFwdKernel
         {
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
+            kargs.batch_stride_lse = batch_stride_lse;
         }
         if constexpr(kIsFp8)
         {
@@ -506,7 +506,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse = query_start;
+                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
             if constexpr(kHasDropout)
             {

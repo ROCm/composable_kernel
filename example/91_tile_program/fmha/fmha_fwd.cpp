@@ -265,7 +265,7 @@ bool run(const ArgParser& arg_parser)
                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     Tensor<LSEDataType> lse_host(
-        lse ? std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
+        lse ? std::array<ck::index_t, 3>{batch, nhead, max_seqlen_q}
             : std::array<ck::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
@@ -369,7 +369,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
         const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck::index_t nhead_stride_lse     = (shape_seqlen_q * 1);
+        const ck::index_t nhead_stride_lse     = max_seqlen_q;
         const ck::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
@@ -377,7 +377,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t batch_stride_v       = (nhead_k * hdim_v * shape_seqlen_k);
         const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck::index_t batch_stride_lse     = (nhead * shape_seqlen_q * 1);
+        const ck::index_t batch_stride_lse     = (nhead * max_seqlen_q);
         const ck::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
@@ -615,9 +615,8 @@ bool run(const ArgParser& arg_parser)
         if(lse)
         {
             Tensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-            lse_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = lse_host(b, idx[0], idx[1] + query_offset);
-            });
+            lse_host_result.ForEach(
+                [&](auto& self, auto idx) { self(idx) = lse_host(wb, idx[0], idx[1]); });
 
             bool lse_pass = ck::utils::check_err(lse_host_result,
                                                  lse_host_ref,
