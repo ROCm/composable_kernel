@@ -272,39 +272,43 @@ CK_TILE_HOST auto make_ParallelTensorFunctor(F f, Xs... xs)
 }
 
 template <typename T>
-struct HostTensor
+struct HostTensor : HostTensorDescriptor
 {
     using Descriptor = HostTensorDescriptor;
     using Data       = std::vector<T>;
 
     template <typename X>
-    HostTensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.get_element_space_size())
+    HostTensor(std::initializer_list<X> lens)
+        : Descriptor(lens), mData(Descriptor::get_element_space_size())
     {
     }
 
     template <typename X, typename Y>
     HostTensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
-        : mDesc(lens, strides), mData(mDesc.get_element_space_size())
+        : Descriptor(lens, strides), mData(Descriptor::get_element_space_size())
     {
     }
 
     template <typename Lengths>
-    HostTensor(const Lengths& lens) : mDesc(lens), mData(mDesc.get_element_space_size())
+    HostTensor(const Lengths& lens) : Descriptor(lens), mData(Descriptor::get_element_space_size())
     {
     }
 
     template <typename Lengths, typename Strides>
     HostTensor(const Lengths& lens, const Strides& strides)
-        : mDesc(lens, strides), mData(get_element_space_size())
+        : Descriptor(lens, strides), mData(get_element_space_size())
     {
     }
 
-    HostTensor(const Descriptor& desc) : mDesc(desc), mData(mDesc.get_element_space_size()) {}
+    HostTensor(const Descriptor& desc)
+        : Descriptor(desc), mData(Descriptor::get_element_space_size())
+    {
+    }
 
     template <typename OutT>
     HostTensor<OutT> CopyAsType() const
     {
-        HostTensor<OutT> ret(mDesc);
+        HostTensor<OutT> ret(static_cast<const HostTensorDescriptor&>(*this));
         std::transform(mData.cbegin(), mData.cend(), ret.mData.begin(), [](auto value) {
             return ck_tile::type_convert<OutT>(value);
         });
@@ -325,15 +329,11 @@ struct HostTensor
     {
     }
 
-    decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
-
-    decltype(auto) get_strides() const { return mDesc.get_strides(); }
-
-    std::size_t get_num_of_dimension() const { return mDesc.get_num_of_dimension(); }
-
-    std::size_t get_element_size() const { return mDesc.get_element_size(); }
-
-    std::size_t get_element_space_size() const { return mDesc.get_element_space_size(); }
+    using Descriptor::get_element_size;
+    using Descriptor::get_element_space_size;
+    using Descriptor::get_lengths;
+    using Descriptor::get_num_of_dimension;
+    using Descriptor::get_strides;
 
     std::size_t get_element_space_size_in_bytes() const
     {
@@ -346,13 +346,13 @@ struct HostTensor
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {
-        if(rank == mDesc.get_num_of_dimension())
+        if(rank == Descriptor::get_num_of_dimension())
         {
             f(*this, idx);
             return;
         }
         // else
-        for(size_t i = 0; i < mDesc.get_lengths()[rank]; i++)
+        for(size_t i = 0; i < Descriptor::get_lengths()[rank]; i++)
         {
             idx[rank] = i;
             ForEach_impl(std::forward<F>(f), idx, rank + 1);
@@ -362,20 +362,20 @@ struct HostTensor
     template <typename F>
     void ForEach(F&& f)
     {
-        std::vector<size_t> idx(mDesc.get_num_of_dimension(), 0);
+        std::vector<size_t> idx(Descriptor::get_num_of_dimension(), 0);
         ForEach_impl(std::forward<F>(f), idx, size_t(0));
     }
 
     template <typename F>
     void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
     {
-        if(rank == mDesc.get_num_of_dimension())
+        if(rank == Descriptor::get_num_of_dimension())
         {
             f(*this, idx);
             return;
         }
         // else
-        for(size_t i = 0; i < mDesc.get_lengths()[rank]; i++)
+        for(size_t i = 0; i < Descriptor::get_lengths()[rank]; i++)
         {
             idx[rank] = i;
             ForEach_impl(std::forward<const F>(f), idx, rank + 1);
@@ -385,32 +385,32 @@ struct HostTensor
     template <typename F>
     void ForEach(const F&& f) const
     {
-        std::vector<size_t> idx(mDesc.get_num_of_dimension(), 0);
+        std::vector<size_t> idx(Descriptor::get_num_of_dimension(), 0);
         ForEach_impl(std::forward<const F>(f), idx, size_t(0));
     }
 
     template <typename G>
     void GenerateTensorValue(G g, std::size_t num_thread = 1)
     {
-        switch(mDesc.get_num_of_dimension())
+        switch(Descriptor::get_num_of_dimension())
         {
         case 1: {
             auto f = [&](auto i) { (*this)(i) = g(i); };
-            make_ParallelTensorFunctor(f, mDesc.get_lengths()[0])(num_thread);
+            make_ParallelTensorFunctor(f, Descriptor::get_lengths()[0])(num_thread);
             break;
         }
         case 2: {
             auto f = [&](auto i0, auto i1) { (*this)(i0, i1) = g(i0, i1); };
-            make_ParallelTensorFunctor(f, mDesc.get_lengths()[0], mDesc.get_lengths()[1])(
-                num_thread);
+            make_ParallelTensorFunctor(
+                f, Descriptor::get_lengths()[0], Descriptor::get_lengths()[1])(num_thread);
             break;
         }
         case 3: {
             auto f = [&](auto i0, auto i1, auto i2) { (*this)(i0, i1, i2) = g(i0, i1, i2); };
             make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2])(num_thread);
+                                       Descriptor::get_lengths()[0],
+                                       Descriptor::get_lengths()[1],
+                                       Descriptor::get_lengths()[2])(num_thread);
             break;
         }
         case 4: {
@@ -418,10 +418,10 @@ struct HostTensor
                 (*this)(i0, i1, i2, i3) = g(i0, i1, i2, i3);
             };
             make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2],
-                                       mDesc.get_lengths()[3])(num_thread);
+                                       Descriptor::get_lengths()[0],
+                                       Descriptor::get_lengths()[1],
+                                       Descriptor::get_lengths()[2],
+                                       Descriptor::get_lengths()[3])(num_thread);
             break;
         }
         case 5: {
@@ -429,11 +429,11 @@ struct HostTensor
                 (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4);
             };
             make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2],
-                                       mDesc.get_lengths()[3],
-                                       mDesc.get_lengths()[4])(num_thread);
+                                       Descriptor::get_lengths()[0],
+                                       Descriptor::get_lengths()[1],
+                                       Descriptor::get_lengths()[2],
+                                       Descriptor::get_lengths()[3],
+                                       Descriptor::get_lengths()[4])(num_thread);
             break;
         }
         case 6: {
@@ -441,12 +441,12 @@ struct HostTensor
                 (*this)(i0, i1, i2, i3, i4, i5) = g(i0, i1, i2, i3, i4, i5);
             };
             make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2],
-                                       mDesc.get_lengths()[3],
-                                       mDesc.get_lengths()[4],
-                                       mDesc.get_lengths()[5])(num_thread);
+                                       Descriptor::get_lengths()[0],
+                                       Descriptor::get_lengths()[1],
+                                       Descriptor::get_lengths()[2],
+                                       Descriptor::get_lengths()[3],
+                                       Descriptor::get_lengths()[4],
+                                       Descriptor::get_lengths()[5])(num_thread);
             break;
         }
         default: throw std::runtime_error("unspported dimension");
@@ -456,29 +456,29 @@ struct HostTensor
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
     {
-        return mDesc.GetOffsetFromMultiIndex(is...);
+        return Descriptor::GetOffsetFromMultiIndex(is...);
     }
 
     template <typename... Is>
     T& operator()(Is... is)
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        return mData[Descriptor::GetOffsetFromMultiIndex(is...)];
     }
 
     template <typename... Is>
     const T& operator()(Is... is) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
+        return mData[Descriptor::GetOffsetFromMultiIndex(is...)];
     }
 
     T& operator()(std::vector<std::size_t> idx)
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        return mData[Descriptor::GetOffsetFromMultiIndex(idx)];
     }
 
     const T& operator()(std::vector<std::size_t> idx) const
     {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
+        return mData[Descriptor::GetOffsetFromMultiIndex(idx)];
     }
 
     typename Data::iterator begin() { return mData.begin(); }
@@ -517,7 +517,7 @@ struct HostTensor
                                       size() * FromSize / ToSize};
     }
 
-    Descriptor mDesc;
+    private:
     Data mData;
 };
 } // namespace ck_tile
