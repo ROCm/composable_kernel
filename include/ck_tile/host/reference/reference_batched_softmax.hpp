@@ -19,7 +19,7 @@ CK_TILE_HOST void reference_batched_softmax(
     const CompElementOp& comp_element_op                                    = {},
     std::optional<std::reference_wrapper<HostTensor<CompDataType>>> lse_b_m = std::nullopt)
 {
-    const int N = a_b_m_n.mDesc.get_lengths()[2];
+    const int N = a_b_m_n.get_lengths()[2];
 
     auto f = [&](auto batch, auto m) {
         CompDataType v_max = -ck_tile::numeric<CompDataType>::infinity();
@@ -65,7 +65,7 @@ CK_TILE_HOST void reference_batched_softmax(
         }
     };
 
-    make_ParallelTensorFunctor(f, b_b_m_n.mDesc.get_lengths()[0], b_b_m_n.mDesc.get_lengths()[1])(
+    make_ParallelTensorFunctor(f, b_b_m_n.get_lengths()[0], b_b_m_n.get_lengths()[1])(
         std::thread::hardware_concurrency());
 }
 } // namespace ck_tile

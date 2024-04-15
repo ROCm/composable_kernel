@@ -23,7 +23,7 @@ CK_TILE_HOST void reference_batched_elementwise(const HostTensor<ADataType>& a_b
                                                 const BElementOp& b_element_op           = {},
                                                 const BinaryElementOp& binary_element_op = {})
 {
-    const ck_tile::index_t N = c_b_m_n.mDesc.get_lengths()[2];
+    const ck_tile::index_t N = c_b_m_n.get_lengths()[2];
 
     const bool broadcast_a_dim_b = (a_b_m_n.get_lengths()[0] == 1);
     const bool broadcast_a_dim_m = (a_b_m_n.get_lengths()[1] == 1);
@@ -58,7 +58,7 @@ CK_TILE_HOST void reference_batched_elementwise(const HostTensor<ADataType>& a_b
         }
     };
 
-    make_ParallelTensorFunctor(f, c_b_m_n.mDesc.get_lengths()[0], c_b_m_n.mDesc.get_lengths()[1])(
+    make_ParallelTensorFunctor(f, c_b_m_n.get_lengths()[0], c_b_m_n.get_lengths()[1])(
         std::thread::hardware_concurrency());
 }
 } // namespace ck_tile

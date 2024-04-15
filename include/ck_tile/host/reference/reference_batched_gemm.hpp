@@ -23,8 +23,8 @@ CK_TILE_HOST void reference_batched_gemm(const HostTensor<ADataType>& a_b_m_k,
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})
 {
-    const int N = b_b_n_k.mDesc.get_lengths()[1];
-    const int K = b_b_n_k.mDesc.get_lengths()[2];
+    const int N = b_b_n_k.get_lengths()[1];
+    const int K = b_b_n_k.get_lengths()[2];
 
     auto f = [&](auto batch, auto m) {
         for(int n = 0; n < N; ++n)
@@ -44,7 +44,7 @@ CK_TILE_HOST void reference_batched_gemm(const HostTensor<ADataType>& a_b_m_k,
         }
     };
 
-    make_ParallelTensorFunctor(f, c_b_m_n.mDesc.get_lengths()[0], c_b_m_n.mDesc.get_lengths()[1])(
+    make_ParallelTensorFunctor(f, c_b_m_n.get_lengths()[0], c_b_m_n.get_lengths()[1])(
         std::thread::hardware_concurrency());
 }
 } // namespace ck_tile
