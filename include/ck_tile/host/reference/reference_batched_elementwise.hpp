@@ -16,9 +16,9 @@ template <typename ADataType,
           typename AElementOp      = ck_tile::identity,
           typename BElementOp      = ck_tile::identity,
           typename BinaryElementOp = ck_tile::plus<AccDataType>>
-CK_TILE_HOST void reference_batched_elementwise(const HostTensor<ADataType>& a_b_m_n,
-                                                const HostTensor<BDataType>& b_b_m_n,
-                                                HostTensor<CDataType>& c_b_m_n,
+CK_TILE_HOST void reference_batched_elementwise(HostTensorView<const ADataType> a_b_m_n,
+                                                HostTensorView<const BDataType> b_b_m_n,
+                                                HostTensorView<CDataType> c_b_m_n,
                                                 const AElementOp& a_element_op           = {},
                                                 const BElementOp& b_element_op           = {},
                                                 const BinaryElementOp& binary_element_op = {})

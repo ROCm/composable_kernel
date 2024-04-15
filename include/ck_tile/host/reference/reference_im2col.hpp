@@ -10,8 +10,8 @@
 namespace ck_tile {
 
 template <typename T>
-CK_TILE_HOST void reference_im2col(HostTensor<T>& in_mtx_host_ref,
-                                   const HostTensor<T>& in_host,
+CK_TILE_HOST void reference_im2col(HostTensorView<T> in_mtx_host_ref,
+                                   HostTensorView<const T> in_host,
                                    int /*N*/,
                                    int /*K*/,
                                    int C,

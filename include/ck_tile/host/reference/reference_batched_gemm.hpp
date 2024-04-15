@@ -16,9 +16,9 @@ template <typename ADataType,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-CK_TILE_HOST void reference_batched_gemm(const HostTensor<ADataType>& a_b_m_k,
-                                         const HostTensor<BDataType>& b_b_n_k,
-                                         HostTensor<CDataType>& c_b_m_n,
+CK_TILE_HOST void reference_batched_gemm(HostTensorView<const ADataType> a_b_m_k,
+                                         HostTensorView<const BDataType> b_b_n_k,
+                                         HostTensorView<CDataType> c_b_m_n,
                                          const AElementOp& a_element_op     = {},
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})

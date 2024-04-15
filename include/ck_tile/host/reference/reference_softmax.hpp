@@ -10,8 +10,8 @@
 namespace ck_tile {
 
 template <typename ADataType, typename AccDataType, typename BDataType>
-CK_TILE_HOST void reference_softmax(const HostTensor<ADataType>& a_m_n,
-                                    HostTensor<BDataType>& b_m_n)
+CK_TILE_HOST void reference_softmax(HostTensorView<const ADataType> a_m_n,
+                                    HostTensorView<BDataType> b_m_n)
 {
     auto f = [&](auto m) {
         const int N = a_m_n.get_lengths()[1];
