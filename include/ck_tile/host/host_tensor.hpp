@@ -312,42 +312,10 @@ struct HostTensorView : private HostTensorDescriptor
     void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
 
     template <typename F>
-    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
-    {
-        if(rank == Descriptor::get_num_of_dimension())
-        {
-            f(*this, idx);
-            return;
-        }
-        // else
-        for(size_t i = 0; i < Descriptor::get_lengths()[rank]; i++)
-        {
-            idx[rank] = i;
-            ForEach_impl(std::forward<F>(f), idx, rank + 1);
-        }
-    }
-
-    template <typename F>
     void ForEach(F&& f)
     {
         std::vector<size_t> idx(Descriptor::get_num_of_dimension(), 0);
         ForEach_impl(std::forward<F>(f), idx, size_t(0));
-    }
-
-    template <typename F>
-    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
-    {
-        if(rank == Descriptor::get_num_of_dimension())
-        {
-            f(*this, idx);
-            return;
-        }
-        // else
-        for(size_t i = 0; i < Descriptor::get_lengths()[rank]; i++)
-        {
-            idx[rank] = i;
-            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
-        }
     }
 
     template <typename F>
@@ -465,6 +433,38 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     private:
+    template <typename F>
+    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    {
+        if(rank == Descriptor::get_num_of_dimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < Descriptor::get_lengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
+    {
+        if(rank == Descriptor::get_num_of_dimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < Descriptor::get_lengths()[rank]; i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
+        }
+    }
+
     Data mData;
 };
 
