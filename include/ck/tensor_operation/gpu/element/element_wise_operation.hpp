@@ -499,6 +499,20 @@ struct UnaryTypeConvert<ck::bhalf_t, float>
     }
 };
 
+struct ConvScale
+{
+    template <typename E, typename C, typename D0, typename D1, typename D2>
+    __host__ __device__ void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
+
+    template <>
+    __host__ __device__ void operator()<float, float, float, float, float>(
+        float& e, const float& c, const float& d0, const float& d1, const float& d2) const
+    {
+        e = c * d0 * d1 * d2;
+    };
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck
