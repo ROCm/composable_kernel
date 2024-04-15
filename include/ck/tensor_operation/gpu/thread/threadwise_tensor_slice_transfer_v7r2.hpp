@@ -40,7 +40,8 @@ template <typename SrcDatas,
           index_t SrcScalarPerVector,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
-          typename DstResetCoordinateAfterRunFlags> // Sequence<bool ...>
+          typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
+          index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v7r2
 {
     static constexpr auto I0 = Number<0>{};
@@ -135,8 +136,11 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
     template <typename SrcBuffers,
+              index_t ThreadScratchId                                   = 0,
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
-    __device__ void RunRead(const SrcDescs& src_descs, const SrcBuffers& src_bufs)
+    __device__ void RunRead(const SrcDescs& src_descs,
+                            const SrcBuffers& src_bufs,
+                            Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // loop over space-filling curve
         static_for<0, num_access, 1>{}([&](auto iAccess) {
@@ -214,7 +218,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                 unpack2(element_op_, dst_data_refs, src_data_refs);
             });
 
-            dst_vectors_tuple_(iAccess) = dst_vectors;
+            dst_vectors_tuple_(thread_scratch_id)(iAccess) = dst_vectors;
 
             // move coordinate
             if constexpr(iAccess.value != num_access - 1)
@@ -244,12 +248,15 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
     // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
     template <typename DstBuffers,
+              index_t ThreadScratchId                                   = 0,
               enable_if_t<DstDescs::Size() == DstBuffers::Size(), bool> = false>
-    __device__ void RunWrite(const DstDescs& dst_descs, DstBuffers dst_bufs)
+    __device__ void RunWrite(const DstDescs& dst_descs,
+                             DstBuffers dst_bufs,
+                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // loop over space-filling curve
         static_for<0, num_access, 1>{}([&](auto iAccess) {
-            auto dst_vectors = dst_vectors_tuple_[iAccess];
+            auto dst_vectors = dst_vectors_tuple_[thread_scratch_id][iAccess];
 
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
@@ -376,7 +383,8 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
     static constexpr auto num_access = SrcSpaceFillingCurve::GetNumOfAccess();
 
-    StaticallyIndexedArray<DstVectorsType, num_access> dst_vectors_tuple_;
+    using DstVectorTuple = StaticallyIndexedArray<DstVectorsType, num_access>;
+    StaticallyIndexedArray<DstVectorTuple, NumThreadScratch> dst_vectors_tuple_;
 
     SrcCoords src_coords_;
     DstCoords dst_coords_;
