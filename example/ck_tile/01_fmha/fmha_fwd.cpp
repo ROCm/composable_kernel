@@ -618,6 +618,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
         }
+
         if(lse)
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
