@@ -64,4 +64,7 @@ struct iterator_range
     sentinel last;
 };
 
+template <typename ForwardIterator, typename Sentinel>
+iterator_range(ForwardIterator, Sentinel) -> iterator_range<ForwardIterator, Sentinel>;
+
 } // namespace ck_tile
