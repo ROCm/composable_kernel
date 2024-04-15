@@ -69,6 +69,9 @@ add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 
+#for IGLP scheduler
+add_compile_options(-mllvm -enable-post-misched=0)
+
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
     set(CK_ENABLE_DL_KERNELS "ON")
