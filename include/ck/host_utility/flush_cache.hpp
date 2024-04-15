@@ -122,7 +122,7 @@ static void flush_icache()
     hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
     int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-    int flush_iter = 20000;
+    int flush_iter = 200;
 
     for(int i = 0; i < flush_iter; i++)
     {
@@ -158,7 +158,6 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
-            preprocess();
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
             hip_check_error(hipGetLastError());
         }

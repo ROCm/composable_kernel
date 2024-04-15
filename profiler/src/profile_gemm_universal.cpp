@@ -51,7 +51,7 @@ int profile_gemm_universal(int argc, char* argv[])
         printf("optional:\n");
         printf("arg15: number of warm-up cycles (default 1)\n");
         printf("arg16: number of iterations (default 10)\n");
-        printf("arg17: memory for rotating buffer (default 0, size in M)\n");
+        printf("arg17: memory for rotating buffer (default 0, size in MB)\n");
         exit(1);
     }
 

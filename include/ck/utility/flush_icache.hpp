@@ -8,23 +8,25 @@
 namespace ck {
 static __global__ void flush_icache()
 {
-    asm __volatile__("s_icache_inv \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t"
-                     "s_nop 0 \n\t" ::
-                         :);
+    static_for<0, Number<100>{}, 1>{}([](auto) {
+        asm __volatile__("s_icache_inv \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t"
+                         "s_nop 0 \n\t" ::
+                             :);
+    });
 }
 } // namespace ck
