@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/ranges.hpp"
 
 namespace ck_tile {
 

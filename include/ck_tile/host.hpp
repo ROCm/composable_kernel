@@ -10,7 +10,6 @@
 #include "ck_tile/host/hip_check_error.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/host/ranges.hpp"
 #include "ck_tile/host/reference/reference_batched_elementwise.hpp"
 #include "ck_tile/host/reference/reference_batched_gemm.hpp"
 #include "ck_tile/host/reference/reference_batched_masking.hpp"

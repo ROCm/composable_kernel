@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/ranges.hpp"
 
 namespace ck_tile {
 
@@ -160,8 +159,17 @@ struct HostTensorDescriptor
         return space;
     }
 
-    const std::vector<std::size_t>& get_lengths() const { return mLens; }
-    const std::vector<std::size_t>& get_strides() const { return mStrides; }
+    auto get_lengths() const
+    {
+        using iterator = remove_cvref_t<decltype(mLens)>::const_iterator;
+        return iterator_range<iterator>(mLens);
+    }
+
+    auto get_strides() const
+    {
+        using iterator = remove_cvref_t<decltype(mStrides)>::const_iterator;
+        return iterator_range<iterator>(mStrides);
+    }
 
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
