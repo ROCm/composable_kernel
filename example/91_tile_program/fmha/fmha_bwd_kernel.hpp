@@ -5,9 +5,11 @@
 
 #include <type_traits>
 
-#include "ck/utility/common_header.hpp"
-#include "ck/tensor/tensor_view.hpp"
-#include "ck/tile_program/tile/tile_window.hpp"
+#include <ck/utility/common_header.hpp>
+#include <ck/tensor/tensor_view.hpp>
+#include <ck/tile_program/tile/tile_window.hpp>
+
+#include <ck/tile_program/block_tile/block_masking.hpp>
 
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
@@ -83,7 +85,7 @@ struct FmhaBwdKernel
             "_" + (kIsGroupMode ? "group" : "batch") + "_" +
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kQKHeaddim) + "x" + _TS_(bfs::kVHeaddim) + "_" +
-            "r" + _TS_(gbr::At(ck::Number<0>{})) + "x" + _TS_(gbr::At(ck::Number<1>{})) + "x" + _TS_(gbr::At(ck::Number<2>{})) + "_" + 
+            "r" + _TS_(gbr::At(ck::Number<0>{})) + "x" + _TS_(gbr::At(ck::Number<1>{})) + "x" + _TS_(gbr::At(ck::Number<2>{})) + "_" +
             "w" + _TS_(gwt::At(ck::Number<0>{})) + "x" + _TS_(gwt::At(ck::Number<1>{})) + "x" + _TS_(gwt::At(ck::Number<2>{})) + "_" +
             ("o" + _TS_(kBlockPerCu) + "_") + _SS_(FmhaPipeline::name) + (pn.empty() ? "" : "_" + pn) + (kHasBias ? "_bias" : "") +
             (kHasBiasGrad ? "_dbias" : "") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" );
@@ -138,6 +140,8 @@ struct FmhaBwdKernel
         ck::index_t nhead_stride_v;
         ck::index_t nhead_stride_do;
         ck::index_t nhead_stride_lsed;
+
+        ck::index_t batch_stride_lsed;
     };
 
     struct FmhaBwdCommonBiasKargs
@@ -212,7 +216,6 @@ struct FmhaBwdKernel
         ck::index_t batch_stride_k;
         ck::index_t batch_stride_v;
         ck::index_t batch_stride_do;
-        ck::index_t batch_stride_lsed;
         ck::index_t batch_stride_dk;
         ck::index_t batch_stride_dv;
     };
@@ -284,7 +287,7 @@ struct FmhaBwdKernel
               ck::index_t mask_type,
               float p_drop,
               bool s_randval,
-              std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -315,7 +318,8 @@ struct FmhaBwdKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_do,
-                     nhead_stride_lsed}, // args for common karg
+                     nhead_stride_lsed,
+                     batch_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
                     {},                  // placeholder for dbias
                     {},                  // placeholder for mask
@@ -324,7 +328,6 @@ struct FmhaBwdKernel
                     batch_stride_k,
                     batch_stride_v,
                     batch_stride_do,
-                    batch_stride_lsed,
                     batch_stride_dk,
                     batch_stride_dv};
 
@@ -403,12 +406,13 @@ struct FmhaBwdKernel
               ck::index_t nhead_stride_do,
               ck::index_t nhead_stride_lsed,
               ck::index_t nhead_stride_dbias,
+              ck::index_t batch_stride_lsed,
               ck::index_t window_size_left,
               ck::index_t window_size_right,
               ck::index_t mask_type,
               float p_drop,
               bool s_randval,
-              std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -439,7 +443,8 @@ struct FmhaBwdKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_do,
-                     nhead_stride_lsed}, // args for common karg
+                     nhead_stride_lsed,
+                     batch_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
                     {},                  // placeholder for dbias
                     {},                  // placeholder for mask
@@ -526,7 +531,7 @@ struct FmhaBwdKernel
             batch_offset_k    = key_start * kargs.stride_k;
             batch_offset_v    = key_start * kargs.stride_v;
             batch_offset_do   = query_start * kargs.stride_do;
-            batch_offset_lsed = query_start;
+            batch_offset_lsed = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lsed;
             batch_offset_dk   = key_start * kargs.stride_dk;
             batch_offset_dv   = key_start * kargs.stride_dv;
             if constexpr(kHasBias)
@@ -743,14 +748,14 @@ struct FmhaBwdKernel
 
         const auto lse_dram = [&]() {
             const auto lse_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
-                lse_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
+                lse_ptr, make_tuple(kargs.seqlen_q), Number<1>{});
             return pad_tensor_view(
                 lse_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
 
         const auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
-                d_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
+                d_ptr, make_tuple(kargs.seqlen_q), Number<1>{});
             return pad_tensor_view(
                 d_dram_naive, make_tuple(Number<FmhaPipeline::kM0>{}), Sequence<kPadSeqLenQ>{});
         }();
@@ -1136,16 +1141,19 @@ struct FmhaBwdOGradDotOKernel
         ck::index_t seqlen_q;
         ck::index_t hdim_v;
 
+        ck::index_t stride_do;
         ck::index_t stride_o;
 
+        ck::index_t nhead_stride_do;
         ck::index_t nhead_stride_o;
         ck::index_t nhead_stride_d;
+        ck::index_t batch_stride_d;
     };
 
     struct FmhaBwdOGradDotOBatchModeKargs : FmhaBwdOGradDotOCommonKargs
     {
+        ck::index_t batch_stride_do;
         ck::index_t batch_stride_o;
-        ck::index_t batch_stride_d;
     };
 
     struct FmhaBwdOGradDotOGroupModeKargs : FmhaBwdOGradDotOCommonKargs
@@ -1163,9 +1171,12 @@ struct FmhaBwdOGradDotOKernel
                                                                       float p_undrop,
                                                                       ck::index_t seqlen_q,
                                                                       ck::index_t hdim_v,
+                                                                      ck::index_t stride_do,
                                                                       ck::index_t stride_o,
+                                                                      ck::index_t nhead_stride_do,
                                                                       ck::index_t nhead_stride_o,
                                                                       ck::index_t nhead_stride_d,
+                                                                      ck::index_t batch_stride_do,
                                                                       ck::index_t batch_stride_o,
                                                                       ck::index_t batch_stride_d)
     {
@@ -1175,11 +1186,14 @@ struct FmhaBwdOGradDotOKernel
                      p_undrop,
                      seqlen_q,
                      hdim_v,
+                     stride_do,
                      stride_o,
+                     nhead_stride_do,
                      nhead_stride_o,
-                     nhead_stride_d},
-                    batch_stride_o,
-                    batch_stride_d};
+                     nhead_stride_d,
+                     batch_stride_d},
+                    batch_stride_do,
+                    batch_stride_o};
 
         return kargs;
     }
@@ -1191,9 +1205,12 @@ struct FmhaBwdOGradDotOKernel
                                                                       float p_undrop,
                                                                       const void* seqstart_q_ptr,
                                                                       ck::index_t hdim_v,
+                                                                      ck::index_t stride_do,
                                                                       ck::index_t stride_o,
+                                                                      ck::index_t nhead_stride_do,
                                                                       ck::index_t nhead_stride_o,
-                                                                      ck::index_t nhead_stride_d)
+                                                                      ck::index_t nhead_stride_d,
+                                                                      ck::index_t batch_stride_d)
     {
         Kargs kargs{{o_ptr,
                      do_ptr,
@@ -1201,9 +1218,12 @@ struct FmhaBwdOGradDotOKernel
                      p_undrop,
                      -1, // seqlen will be updated by another pointer
                      hdim_v,
+                     stride_do,
                      stride_o,
+                     nhead_stride_do,
                      nhead_stride_o,
-                     nhead_stride_d},
+                     nhead_stride_d,
+                     batch_stride_d},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
 
         return kargs;
@@ -1230,16 +1250,18 @@ struct FmhaBwdOGradDotOKernel
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
 
-        long_index_t batch_offset_o = 0;
-        long_index_t batch_offset_d = 0;
+        long_index_t batch_offset_o  = 0;
+        long_index_t batch_offset_do = 0;
+        long_index_t batch_offset_d  = 0;
 
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
-            batch_offset_o = query_start * kargs.stride_o;
-            batch_offset_d = query_start;
+            batch_offset_o  = query_start * kargs.stride_o;
+            batch_offset_do = query_start * kargs.stride_do;
+            batch_offset_d  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_d;
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
@@ -1253,8 +1275,9 @@ struct FmhaBwdOGradDotOKernel
         }
         else
         {
-            batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
-            batch_offset_d = static_cast<long_index_t>(i_batch) * kargs.batch_stride_d;
+            batch_offset_o  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+            batch_offset_do = static_cast<long_index_t>(i_batch) * kargs.batch_stride_do;
+            batch_offset_d  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_d;
         }
 
         // for simplicity, batch stride we just modify the pointer
@@ -1262,8 +1285,8 @@ struct FmhaBwdOGradDotOKernel
                                  static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
                                  batch_offset_o;
         const OGradDataType* do_ptr = reinterpret_cast<const OGradDataType*>(kargs.do_ptr) +
-                                      static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
-                                      batch_offset_o;
+                                      static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_do +
+                                      batch_offset_do;
         DDataType* d_ptr = reinterpret_cast<DDataType*>(kargs.d_ptr) +
                            static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_d +
                            batch_offset_d;
@@ -1284,7 +1307,7 @@ struct FmhaBwdOGradDotOKernel
             auto do_dram_naive = make_naive_tensor_view<AddressSpaceEnum::Global>(
                 do_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.stride_o, 1),
+                make_tuple(kargs.stride_do, 1),
                 Number<FmhaBwdOGradDotO::kAlignmentOGrad>{},
                 Number<1>{});
             return pad_tensor_view(do_dram_naive,
@@ -1293,7 +1316,7 @@ struct FmhaBwdOGradDotOKernel
         }();
         auto d_dram = [&]() {
             const auto d_dram_naive = make_naive_tensor_view_packed<AddressSpaceEnum::Global>(
-                d_ptr, make_tuple(kargs.seqlen_q), Number<32>{});
+                d_ptr, make_tuple(kargs.seqlen_q), Number<1>{});
             return pad_tensor_view(
                 d_dram_naive, make_tuple(Number<kM0>{}), Sequence<kPadSeqLenQ>{});
         }();

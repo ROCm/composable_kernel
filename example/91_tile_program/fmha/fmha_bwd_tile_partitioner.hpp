@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "ck/utility/common_header.hpp"
-#include "ck/tile_program/tile/store_tile.hpp"
-#include "ck/tile_program/tile/tile_elementwise.hpp"
+#include <ck/utility/common_header.hpp>
+#include <ck/tile_program/tile/store_tile.hpp>
+#include <ck/tile_program/tile/tile_elementwise.hpp>
 
 template <typename BlockFmhaShape_>
 struct FmhaBwdTilePartitioner
