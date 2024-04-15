@@ -41,13 +41,13 @@ struct iterator_range
     reference front() const { return *begin(); }
 
     template <bool Cond = is_bidirectional_iterator_v<sentinel>>
-    reference back() const
+    std::enable_if_t<Cond, reference> back() const
     {
         return *std::prev(end());
     }
 
     template <bool Cond = is_random_access_iterator_v<iterator>>
-    reference operator[](size_type pos) const
+    std::enable_if_t<Cond, reference> operator[](size_type pos) const
     {
         return *std::next(begin(), static_cast<difference_type>(pos));
     }
