@@ -292,6 +292,10 @@ struct HostTensorView : private HostTensorDescriptor
 {
     using Descriptor = HostTensorDescriptor;
     using Data       = span<T>;
+    using reference  = typename Data::reference;
+    using iterator   = typename Data::iterator;
+    using pointer    = typename Data::pointer;
+    using size_type  = std::size_t;
 
     protected:
     using Descriptor::Descriptor;
@@ -322,7 +326,7 @@ struct HostTensorView : private HostTensorDescriptor
     using Descriptor::get_num_of_dimension;
     using Descriptor::get_strides;
 
-    std::size_t get_element_space_size_in_bytes() const
+    size_type get_element_space_size_in_bytes() const
     {
         return sizeof(T) * get_element_space_size();
     }
@@ -408,40 +412,25 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     template <typename... Is>
-    T& operator()(Is... is)
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, std::size_t>)&&...),
+                     reference>
+    operator()(Is... is) const
     {
         return mData[Descriptor::GetOffsetFromMultiIndex(is...)];
     }
 
-    template <typename... Is>
-    const T& operator()(Is... is) const
-    {
-        return mData[Descriptor::GetOffsetFromMultiIndex(is...)];
-    }
-
-    T& operator()(std::vector<std::size_t> idx)
+    reference operator()(span<const std::size_t> idx) const
     {
         return mData[Descriptor::GetOffsetFromMultiIndex(idx)];
     }
 
-    const T& operator()(std::vector<std::size_t> idx) const
-    {
-        return mData[Descriptor::GetOffsetFromMultiIndex(idx)];
-    }
+    iterator begin() const { return mData.begin(); }
 
-    typename Data::iterator begin() { return mData.begin(); }
+    iterator end() const { return std::next(begin(), size()); }
 
-    typename Data::iterator end() { return std::next(begin(), size()); }
+    pointer data() const { return mData.data(); }
 
-    typename Data::pointer data() { return mData.data(); }
-
-    typename Data::const_iterator begin() const { return mData.begin(); }
-
-    typename Data::const_iterator end() const { return std::next(begin(), size()); }
-
-    typename Data::const_pointer data() const { return mData.data(); }
-
-    typename Data::size_type size() const { return get_element_space_size(); }
+    size_type size() const { return get_element_space_size(); }
 
     protected:
     void set_data(Data data)
