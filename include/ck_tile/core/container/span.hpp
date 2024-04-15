@@ -47,9 +47,8 @@ class span
     {
     }
 
-    template <typename Container>
-    CK_TILE_HOST_DEVICE constexpr span(const Container& container)
-        : span(container.data(), container.size())
+    template <typename ContiguousRange>
+    CK_TILE_HOST_DEVICE constexpr span(ContiguousRange&& range) : span(range.data(), range.size())
     {
     }
 
