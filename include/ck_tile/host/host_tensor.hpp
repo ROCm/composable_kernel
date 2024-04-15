@@ -123,6 +123,7 @@ struct HostTensorDescriptor
                          const std::initializer_list<Y>& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
+        assert(mLens.size() == mStrides.size());
     }
 
     template <typename Lengths,
@@ -133,6 +134,7 @@ struct HostTensorDescriptor
     HostTensorDescriptor(const Lengths& lens, const Strides& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
+        assert(mLens.size() == mStrides.size());
     }
 
     std::size_t get_num_of_dimension() const { return mLens.size(); }
@@ -168,6 +170,7 @@ struct HostTensorDescriptor
 
     std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
     {
+        assert(iss.size() == this->get_num_of_dimension());
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
@@ -272,62 +275,28 @@ CK_TILE_HOST auto make_ParallelTensorFunctor(F f, Xs... xs)
 }
 
 template <typename T>
-struct HostTensor : HostTensorDescriptor
+struct HostTensorView : private HostTensorDescriptor
 {
     using Descriptor = HostTensorDescriptor;
-    using Data       = std::vector<T>;
+    using Data       = span<T>;
 
-    template <typename X>
-    HostTensor(std::initializer_list<X> lens)
-        : Descriptor(lens), mData(Descriptor::get_element_space_size())
+    protected:
+    using Descriptor::Descriptor;
+
+    public:
+    explicit HostTensorView(Descriptor desc, Data data) : Descriptor(std::move(desc)), mData(data)
     {
+        assert(Descriptor::get_element_space_size() <= mData.size());
     }
 
-    template <typename X, typename Y>
-    HostTensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
-        : Descriptor(lens, strides), mData(Descriptor::get_element_space_size())
-    {
-    }
+    HostTensorView()                      = delete;
+    HostTensorView(const HostTensorView&) = default;
+    HostTensorView(HostTensorView&&)      = default;
 
-    template <typename Lengths>
-    HostTensor(const Lengths& lens) : Descriptor(lens), mData(Descriptor::get_element_space_size())
-    {
-    }
+    ~HostTensorView() = default;
 
-    template <typename Lengths, typename Strides>
-    HostTensor(const Lengths& lens, const Strides& strides)
-        : Descriptor(lens, strides), mData(get_element_space_size())
-    {
-    }
-
-    HostTensor(const Descriptor& desc)
-        : Descriptor(desc), mData(Descriptor::get_element_space_size())
-    {
-    }
-
-    template <typename OutT>
-    HostTensor<OutT> CopyAsType() const
-    {
-        HostTensor<OutT> ret(static_cast<const HostTensorDescriptor&>(*this));
-        std::transform(mData.cbegin(), mData.cend(), ret.mData.begin(), [](auto value) {
-            return ck_tile::type_convert<OutT>(value);
-        });
-        return ret;
-    }
-
-    HostTensor()                  = delete;
-    HostTensor(const HostTensor&) = default;
-    HostTensor(HostTensor&&)      = default;
-
-    ~HostTensor() = default;
-
-    HostTensor& operator=(const HostTensor&) = default;
-    HostTensor& operator=(HostTensor&&) = default;
-
-    template <typename FromT>
-    explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
-    {
-    }
+    HostTensorView& operator=(const HostTensorView&) = default;
+    HostTensorView& operator=(HostTensorView&&) = default;
 
     using Descriptor::get_element_size;
     using Descriptor::get_element_space_size;
@@ -340,7 +309,6 @@ struct HostTensor : HostTensorDescriptor
         return sizeof(T) * get_element_space_size();
     }
 
-    // void SetZero() { ck_tile::ranges::fill<T>(mData, 0); }
     void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
 
     template <typename F>
@@ -454,12 +422,6 @@ struct HostTensor : HostTensorDescriptor
     }
 
     template <typename... Is>
-    std::size_t GetOffsetFromMultiIndex(Is... is) const
-    {
-        return Descriptor::GetOffsetFromMultiIndex(is...);
-    }
-
-    template <typename... Is>
     T& operator()(Is... is)
     {
         return mData[Descriptor::GetOffsetFromMultiIndex(is...)];
@@ -495,26 +457,77 @@ struct HostTensor : HostTensorDescriptor
 
     typename Data::size_type size() const { return mData.size(); }
 
-    template <typename U = T>
-    auto AsSpan() const
+    protected:
+    void set_data(Data data)
     {
-        constexpr std::size_t FromSize = sizeof(T);
-        constexpr std::size_t ToSize   = sizeof(U);
-
-        using Element = std::add_const_t<std::remove_reference_t<U>>;
-        return ck_tile::span<Element>{reinterpret_cast<Element*>(data()),
-                                      size() * FromSize / ToSize};
+        assert(Descriptor::get_element_space_size() <= data.size());
+        mData = data;
     }
 
-    template <typename U = T>
-    auto AsSpan()
-    {
-        constexpr std::size_t FromSize = sizeof(T);
-        constexpr std::size_t ToSize   = sizeof(U);
+    private:
+    Data mData;
+};
 
-        using Element = std::remove_reference_t<U>;
-        return ck_tile::span<Element>{reinterpret_cast<Element*>(data()),
-                                      size() * FromSize / ToSize};
+template <typename T>
+struct HostTensor : HostTensorView<T>
+{
+    using View = HostTensorView<T>;
+    using Data = std::vector<T>;
+
+    template <typename X>
+    HostTensor(std::initializer_list<X> lens) : View(lens), mData(View::get_element_space_size())
+    {
+        View::set_data(mData);
+    }
+
+    template <typename X, typename Y>
+    HostTensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
+        : View(lens, strides), mData(View::get_element_space_size())
+    {
+        View::set_data(mData);
+    }
+
+    template <typename Lengths>
+    HostTensor(const Lengths& lens) : View(lens), mData(View::get_element_space_size())
+    {
+        View::set_data(mData);
+    }
+
+    template <typename Lengths, typename Strides>
+    HostTensor(const Lengths& lens, const Strides& strides)
+        : View(lens, strides), mData(View::get_element_space_size())
+    {
+        View::set_data(mData);
+    }
+
+    HostTensor(const typename View::Descriptor& desc)
+        : View(desc), mData(View::get_element_space_size())
+    {
+        View::set_data(mData);
+    }
+
+    template <typename FromT>
+    explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
+    {
+    }
+
+    HostTensor()                  = delete;
+    HostTensor(const HostTensor&) = default;
+    HostTensor(HostTensor&&)      = default;
+
+    ~HostTensor() = default;
+
+    HostTensor& operator=(const HostTensor&) = default;
+    HostTensor& operator=(HostTensor&&) = default;
+
+    template <typename OutT>
+    HostTensor<OutT> CopyAsType() const
+    {
+        HostTensor<OutT> ret(static_cast<const typename View::Descriptor&>(*this));
+        std::transform(mData.cbegin(), mData.cend(), ret.mData.begin(), [](auto value) {
+            return ck_tile::type_convert<OutT>(value);
+        });
+        return ret;
     }
 
     private:
