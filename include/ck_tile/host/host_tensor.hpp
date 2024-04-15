@@ -111,6 +111,7 @@ struct HostTensorDescriptor
 
     template <typename Lengths,
               typename = std::enable_if_t<
+                  !std::is_base_of_v<HostTensorDescriptor, Lengths> &&
                   std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
     explicit HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
     {
