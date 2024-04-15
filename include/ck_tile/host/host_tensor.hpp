@@ -156,7 +156,7 @@ struct HostTensorDescriptor
     }
 
     const std::vector<std::size_t>& get_lengths() const { return mLens; }
-    const std::vector<std::size_t>& GetStrides() const { return mStrides; }
+    const std::vector<std::size_t>& get_strides() const { return mStrides; }
 
     template <typename... Is>
     std::size_t GetOffsetFromMultiIndex(Is... is) const
@@ -188,7 +188,7 @@ CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old
     for(std::size_t i = 0; i < a.get_num_of_dimension(); i++)
     {
         new_lengths[i] = a.get_lengths()[new2old[i]];
-        new_strides[i] = a.GetStrides()[new2old[i]];
+        new_strides[i] = a.get_strides()[new2old[i]];
     }
 
     return HostTensorDescriptor(new_lengths, new_strides);
@@ -327,7 +327,7 @@ struct HostTensor
 
     decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
 
-    decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
+    decltype(auto) get_strides() const { return mDesc.get_strides(); }
 
     std::size_t get_num_of_dimension() const { return mDesc.get_num_of_dimension(); }
 
