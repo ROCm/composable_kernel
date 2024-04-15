@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <iostream>
 #include <iterator>
@@ -172,14 +173,15 @@ struct HostTensorDescriptor
     }
 
     template <typename... Is>
-    std::size_t GetOffsetFromMultiIndex(Is... is) const
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, std::size_t>)&&...),
+                     std::size_t>
+    GetOffsetFromMultiIndex(Is... is) const
     {
         assert(sizeof...(Is) == this->get_num_of_dimension());
-        std::initializer_list<std::size_t> iss{static_cast<std::size_t>(is)...};
-        return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
+        return GetOffsetFromMultiIndex(std::array{static_cast<std::size_t>(is)...});
     }
 
-    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    std::size_t GetOffsetFromMultiIndex(span<const std::size_t> iss) const
     {
         assert(iss.size() == this->get_num_of_dimension());
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
