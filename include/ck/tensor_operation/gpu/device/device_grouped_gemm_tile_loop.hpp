@@ -23,20 +23,20 @@ namespace device {
 /// @tparam     NumDTensor  The number of D input tensors.
 ///
 template <index_t NumDTensor = 0>
-struct GroupedGemmMultipleDKernelArguments
+struct GroupedGemmTileLoopKernelArguments
 {
     __host__ __device__
-    GroupedGemmMultipleDKernelArguments(const void* p_a_grid_,
-                                        const void* p_b_grid_,
-                                        std::array<const void*, NumDTensor> p_ds_grid_,
-                                        void* p_e_grid_,
-                                        index_t M_,
-                                        index_t N_,
-                                        index_t K_,
-                                        index_t StrideA_,
-                                        index_t StrideB_,
-                                        std::array<index_t, NumDTensor> StrideDs_,
-                                        index_t StrideE_)
+    GroupedGemmTileLoopKernelArguments(const void* p_a_grid_,
+                                       const void* p_b_grid_,
+                                       std::array<const void*, NumDTensor> p_ds_grid_,
+                                       void* p_e_grid_,
+                                       index_t M_,
+                                       index_t N_,
+                                       index_t K_,
+                                       index_t StrideA_,
+                                       index_t StrideB_,
+                                       std::array<index_t, NumDTensor> StrideDs_,
+                                       index_t StrideE_)
         : p_a_grid{p_a_grid_},
           p_b_grid{p_b_grid_},
           p_ds_grid{p_ds_grid_},
@@ -92,17 +92,17 @@ template <typename ALayout,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation>
-struct DeviceGroupedGemmMultipleD : public DeviceGroupedGemm<ALayout,
-                                                             BLayout,
-                                                             DsLayout,
-                                                             ELayout,
-                                                             ADataType,
-                                                             BDataType,
-                                                             DsDataType,
-                                                             EDataType,
-                                                             AElementwiseOperation,
-                                                             BElementwiseOperation,
-                                                             CDEElementwiseOperation>
+struct DeviceGroupedGemmTileLoop : public DeviceGroupedGemm<ALayout,
+                                                            BLayout,
+                                                            DsLayout,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            DsDataType,
+                                                            EDataType,
+                                                            AElementwiseOperation,
+                                                            BElementwiseOperation,
+                                                            CDEElementwiseOperation>
 {
     //----------------------------------------------------------------------------------------------
     /// @brief      Sets the device kernel arguments pointer.

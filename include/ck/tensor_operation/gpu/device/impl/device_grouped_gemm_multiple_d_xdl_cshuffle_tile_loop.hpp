@@ -16,7 +16,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_tile_loop.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
@@ -149,6 +149,7 @@ __global__ void
                         M, N, StrideDs[j]);
             });
 
+            // TODO check block-transfers!
             if(!GridwiseGemm::template CheckValidity(
                    a_grid_desc_mk, b_grid_desc_nk, ds_grid_desc_mn, e_grid_desc_mn, b2c_tile_map))
             {
@@ -173,35 +174,35 @@ __global__ void
 
         if(has_main_kblock_loop)
         {
-            GridwiseGemm::template Run<true, GemmSpec>(gemm_desc_ptr[group_id].p_a_grid,
-                                                       gemm_desc_ptr[group_id].p_b_grid,
-                                                       p_ds_grid,
-                                                       gemm_desc_ptr[group_id].p_e_grid,
-                                                       static_cast<void*>(p_shared),
-                                                       a_element_op,
-                                                       b_element_op,
-                                                       cde_element_op,
-                                                       a_grid_desc_mk,
-                                                       b_grid_desc_nk,
-                                                       ds_grid_desc_mn,
-                                                       e_grid_desc_mn,
-                                                       b2c_tile_map);
+            GridwiseGemm::template Run<true>(gemm_desc_ptr[group_id].p_a_grid,
+                                             gemm_desc_ptr[group_id].p_b_grid,
+                                             p_ds_grid,
+                                             gemm_desc_ptr[group_id].p_e_grid,
+                                             static_cast<void*>(p_shared),
+                                             a_element_op,
+                                             b_element_op,
+                                             cde_element_op,
+                                             a_grid_desc_mk,
+                                             b_grid_desc_nk,
+                                             ds_grid_desc_mn,
+                                             e_grid_desc_mn,
+                                             b2c_tile_map);
         }
         else
         {
-            GridwiseGemm::template Run<false, GemmSpec>(gemm_desc_ptr[group_id].p_a_grid,
-                                                        gemm_desc_ptr[group_id].p_b_grid,
-                                                        p_ds_grid,
-                                                        gemm_desc_ptr[group_id].p_e_grid,
-                                                        static_cast<void*>(p_shared),
-                                                        a_element_op,
-                                                        b_element_op,
-                                                        cde_element_op,
-                                                        a_grid_desc_mk,
-                                                        b_grid_desc_nk,
-                                                        ds_grid_desc_mn,
-                                                        e_grid_desc_mn,
-                                                        b2c_tile_map);
+            GridwiseGemm::template Run<false>(gemm_desc_ptr[group_id].p_a_grid,
+                                              gemm_desc_ptr[group_id].p_b_grid,
+                                              p_ds_grid,
+                                              gemm_desc_ptr[group_id].p_e_grid,
+                                              static_cast<void*>(p_shared),
+                                              a_element_op,
+                                              b_element_op,
+                                              cde_element_op,
+                                              a_grid_desc_mk,
+                                              b_grid_desc_nk,
+                                              ds_grid_desc_mn,
+                                              e_grid_desc_mn,
+                                              b2c_tile_map);
         }
 
         tile_id += get_grid_size();
@@ -264,17 +265,17 @@ template <typename ALayout,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
           typename ComputeDataType    = EDataType>
 struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
-    : public DeviceGroupedGemmMultipleD<ALayout,
-                                        BLayout,
-                                        DsLayout,
-                                        ELayout,
-                                        ADataType,
-                                        BDataType,
-                                        DsDataType,
-                                        EDataType,
-                                        AElementwiseOperation,
-                                        BElementwiseOperation,
-                                        CDEElementwiseOperation>
+    : public DeviceGroupedGemmTileLoop<ALayout,
+                                       BLayout,
+                                       DsLayout,
+                                       ELayout,
+                                       ADataType,
+                                       BDataType,
+                                       DsDataType,
+                                       EDataType,
+                                       AElementwiseOperation,
+                                       BElementwiseOperation,
+                                       CDEElementwiseOperation>
 {
     using DeviceOp                      = DeviceGroupedGemmMultipleDXdlCShuffleTileLoop;
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -369,7 +370,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         index_t tile_offset_;
     };
 
-    using KernelArguments             = GroupedGemmMultipleDKernelArguments<NumDTensor>;
+    using KernelArguments             = GroupedGemmTileLoopKernelArguments<NumDTensor>;
     using Block2ETileMap              = BlockToCTileMap_N00_M0_N01Adapt<MPerBlock, NPerBlock>;
     using OffsetedLocalBlock2ETileMap = OffsettedBlockToCTileMap<Block2ETileMap>;
 
