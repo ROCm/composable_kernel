@@ -285,7 +285,7 @@ struct HostTensorView : private HostTensorDescriptor
     using Descriptor::Descriptor;
 
     public:
-    explicit HostTensorView(Descriptor desc, Data data) : Descriptor(std::move(desc)), mData(data)
+    HostTensorView(Descriptor desc, Data data) : Descriptor(std::move(desc)), mData(data)
     {
         assert(Descriptor::get_element_space_size() <= mData.size());
     }
@@ -298,6 +298,11 @@ struct HostTensorView : private HostTensorDescriptor
 
     HostTensorView& operator=(const HostTensorView&) = default;
     HostTensorView& operator=(HostTensorView&&) = default;
+
+    operator HostTensorView<std::add_const_t<T>>() const
+    {
+        return {static_cast<const Descriptor&>(*this), mData};
+    }
 
     using Descriptor::get_element_size;
     using Descriptor::get_element_space_size;
