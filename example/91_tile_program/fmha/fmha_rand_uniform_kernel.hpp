@@ -232,9 +232,24 @@ struct FmhaRandUniformKernel
 
             static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
                 static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
-                    int block_row_start = (start_m0_idx / WG::kM) + (i_m0 * MWarp) + get_warp_id();
-                    int block_col_start = start_n0_idx / WG::kN + i_n0;
-                    uint2 rowcol        = make_uint2(block_row_start, block_col_start);
+                    const auto [block_row_start, block_col_start] = [&]() {
+                        if constexpr(MWarp > 1)
+                        {
+                            int block_row_start_ =
+                                (start_m0_idx / WG::kM) + (i_m0 * MWarp) + get_warp_id();
+                            int block_col_start_ = start_n0_idx / WG::kN + i_n0;
+                            return make_tuple(block_row_start_, block_col_start_);
+                        }
+                        else
+                        {
+                            int block_row_start_ = (start_m0_idx / WG::kM) + i_m0;
+                            int block_col_start_ =
+                                (start_n0_idx / WG::kN) + (i_n0 * NWarp) + get_warp_id();
+                            return make_tuple(block_row_start_, block_col_start_);
+                        };
+                    }();
+
+                    uint2 rowcol = make_uint2(block_row_start, block_col_start);
 
                     // generate random number
                     uint8_t random_uint8_t[16];
