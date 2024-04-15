@@ -103,7 +103,8 @@ struct HostTensorDescriptor
     }
 
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>>
-    HostTensorDescriptor(const std::initializer_list<X>& lens) : mLens(lens.begin(), lens.end())
+    explicit HostTensorDescriptor(const std::initializer_list<X>& lens)
+        : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
@@ -111,7 +112,7 @@ struct HostTensorDescriptor
     template <typename Lengths,
               typename = std::enable_if_t<
                   std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
-    HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
+    explicit HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
@@ -481,7 +482,8 @@ struct HostTensor : HostTensorView<T>
     using Data = std::vector<T>;
 
     template <typename X>
-    HostTensor(std::initializer_list<X> lens) : View(lens), mData(View::get_element_space_size())
+    explicit HostTensor(std::initializer_list<X> lens)
+        : View(lens), mData(View::get_element_space_size())
     {
         View::set_data(mData);
     }
@@ -494,7 +496,7 @@ struct HostTensor : HostTensorView<T>
     }
 
     template <typename Lengths>
-    HostTensor(const Lengths& lens) : View(lens), mData(View::get_element_space_size())
+    explicit HostTensor(const Lengths& lens) : View(lens), mData(View::get_element_space_size())
     {
         View::set_data(mData);
     }
@@ -506,7 +508,7 @@ struct HostTensor : HostTensorView<T>
         View::set_data(mData);
     }
 
-    HostTensor(const typename View::Descriptor& desc)
+    explicit HostTensor(const typename View::Descriptor& desc)
         : View(desc), mData(View::get_element_space_size())
     {
         View::set_data(mData);
