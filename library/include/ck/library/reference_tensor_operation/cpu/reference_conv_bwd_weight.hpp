@@ -117,24 +117,26 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                 ComputeTypeA v_out;
                                 ComputeTypeB v_in;
 
-                                ExecuteElementwiseOp(arg.out_element_op_,
-                                                     arg.elementwise_a_tensors_,
-                                                     Number<NumAElementwiseTensor>{},
-                                                     v_out,
-                                                     arg.output_(g, n, k, wo),
-                                                     g,
-                                                     n,
-                                                     k,
-                                                     wo);
-                                ExecuteElementwiseOp(arg.in_element_op_,
-                                                     arg.elementwise_b_tensors_,
-                                                     Number<NumBElementwiseTensor>{},
-                                                     v_in,
-                                                     arg.input_(g, n, c, wi),
-                                                     g,
-                                                     n,
-                                                     c,
-                                                     wi);
+                                ExecuteElementwiseOp(
+                                    arg.out_element_op_,
+                                    arg.elementwise_a_tensors_,
+                                    Number<NumAElementwiseTensor>{},
+                                    v_out,
+                                    ck::type_convert<float>(arg.output_(g, n, k, wo)),
+                                    g,
+                                    n,
+                                    k,
+                                    wo);
+                                ExecuteElementwiseOp(
+                                    arg.in_element_op_,
+                                    arg.elementwise_b_tensors_,
+                                    Number<NumBElementwiseTensor>{},
+                                    v_in,
+                                    ck::type_convert<float>(arg.input_(g, n, c, wi)),
+                                    g,
+                                    n,
+                                    c,
+                                    wi);
 
                                 v_acc += type_convert<float>(v_out) * type_convert<float>(v_in);
                             }
@@ -196,26 +198,28 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                     ComputeTypeA v_out;
                                     ComputeTypeB v_in;
 
-                                    ExecuteElementwiseOp(arg.out_element_op_,
-                                                         arg.elementwise_a_tensors_,
-                                                         Number<NumAElementwiseTensor>{},
-                                                         v_out,
-                                                         arg.output_(g, n, k, ho, wo),
-                                                         g,
-                                                         n,
-                                                         k,
-                                                         ho,
-                                                         wo);
-                                    ExecuteElementwiseOp(arg.in_element_op_,
-                                                         arg.elementwise_b_tensors_,
-                                                         Number<NumBElementwiseTensor>{},
-                                                         v_in,
-                                                         arg.input_(g, n, c, hi, wi),
-                                                         g,
-                                                         n,
-                                                         c,
-                                                         hi,
-                                                         wi);
+                                    ExecuteElementwiseOp(
+                                        arg.out_element_op_,
+                                        arg.elementwise_a_tensors_,
+                                        Number<NumAElementwiseTensor>{},
+                                        v_out,
+                                        ck::type_convert<float>(arg.output_(g, n, k, ho, wo)),
+                                        g,
+                                        n,
+                                        k,
+                                        ho,
+                                        wo);
+                                    ExecuteElementwiseOp(
+                                        arg.in_element_op_,
+                                        arg.elementwise_b_tensors_,
+                                        Number<NumBElementwiseTensor>{},
+                                        v_in,
+                                        ck::type_convert<float>(arg.input_(g, n, c, hi, wi)),
+                                        g,
+                                        n,
+                                        c,
+                                        hi,
+                                        wi);
 
                                     v_acc += type_convert<float>(v_out) * type_convert<float>(v_in);
                                 }
@@ -289,7 +293,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                                              arg.elementwise_a_tensors_,
                                                              Number<NumAElementwiseTensor>{},
                                                              v_out,
-                                                             arg.output_(g, n, k, do_, ho, wo),
+                                                             ck::type_convert<float>(
+                                                                 arg.output_(g, n, k, do_, ho, wo)),
                                                              g,
                                                              n,
                                                              k,
@@ -300,7 +305,8 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
                                                              arg.elementwise_b_tensors_,
                                                              Number<NumBElementwiseTensor>{},
                                                              v_in,
-                                                             arg.input_(g, n, c, di, hi, wi),
+                                                             ck::type_convert<float>(
+                                                                 arg.input_(g, n, c, di, hi, wi)),
                                                              g,
                                                              n,
                                                              c,
@@ -357,12 +363,13 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
               typename ElementwiseOp,
               typename ElementwiseTensor,
               typename NumTensor,
-              typename T>
+              typename Y,
+              typename X>
     static void ExecuteElementwiseOp(ElementwiseOp& elementwise_op,
                                      ElementwiseTensor& elementwise_tensors,
                                      NumTensor,
-                                     T& y,
-                                     const T& x,
+                                     Y& y,
+                                     const X& x,
                                      Args... dims)
     {
         if constexpr(NumTensor::value == 0)
