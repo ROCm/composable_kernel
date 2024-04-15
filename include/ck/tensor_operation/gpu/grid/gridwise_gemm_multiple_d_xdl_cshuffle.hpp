@@ -937,7 +937,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     }
 
     template <bool HasMainKBlockLoop,
-              GemmSpecialization GemmSpec,
               typename AGridDesc_MK,
               typename BGridDesc_NK,
               typename DsGridDesc_MN,
