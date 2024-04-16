@@ -1196,11 +1196,23 @@ struct ThreadwiseTensorSliceTransfer_v4
 
                 // TODO: if SrcData and DstData are vetor type, then static_cast may not compile
                 static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
-                    dst_tmp_vector.template AsType<typename vector_type<DstData, 1>::type>()(i) =
-                        type_convert<DstData>(
-                            src_tmp_vector
-                                .template AsType<typename vector_type<SrcData, 1>::type>()[i])
-                            .data;
+                    if constexpr(is_same_v<SrcData, f8_t> || is_same_v<SrcData, bf8_t>)
+                    {
+                        dst_tmp_vector.template AsType<typename vector_type<DstData, 1>::type>()(
+                            i) =
+                            type_convert<DstData>(
+                                src_tmp_vector
+                                    .template AsType<typename vector_type<SrcData, 1>::type>()[i])
+                                .data;
+                    }
+                    else
+                    {
+                        dst_tmp_vector.template AsType<typename vector_type<DstData, 1>::type>()(
+                            i) =
+                            type_convert<DstData>(
+                                src_tmp_vector
+                                    .template AsType<typename vector_type<SrcData, 1>::type>()[i]);
+                    }
                 });
 
                 // copy data from dst_tmp_vector into dst_buf

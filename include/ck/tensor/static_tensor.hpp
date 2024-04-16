@@ -115,7 +115,7 @@ struct StaticTensorTupleOfVectorBuffer
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
-    __host__ __device__ constexpr auto operator[](Idx) const
+    __host__ __device__ constexpr const S& operator[](Idx) const
     {
         constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
 
@@ -145,7 +145,7 @@ struct StaticTensorTupleOfVectorBuffer
     template <typename Idx,
               typename enable_if<is_known_at_compile_time<Idx>::value && Idx::Size() == ndim_,
                                  bool>::type = false>
-    __host__ __device__ constexpr auto operator()(Idx)
+    __host__ __device__ constexpr S& operator()(Idx)
     {
         constexpr auto coord = make_tensor_coordinate(desc_, to_multi_index(Idx{}));
 

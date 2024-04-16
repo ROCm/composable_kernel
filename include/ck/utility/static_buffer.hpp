@@ -93,23 +93,23 @@ struct StaticBufferTupleOfVector
     // Get S
     // i is offset of S
     template <index_t I>
-    __host__ __device__ constexpr auto operator[](Number<I> i) const
+    __host__ __device__ constexpr const S& operator[](Number<I> i) const
     {
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_s = i % s_per_v;
 
-        return S{base::operator[](i_v).template AsType<typename vector_type<S, 1>::type>()[i_s]};
+        return base::operator[](i_v).template AsType<typename vector_type<S, 1>::type>()[i_s];
     }
 
     // Set S
     // i is offset of S
     template <index_t I>
-    __host__ __device__ constexpr auto operator()(Number<I> i)
+    __host__ __device__ constexpr S& operator()(Number<I> i)
     {
         constexpr auto i_v = i / s_per_v;
         constexpr auto i_s = i % s_per_v;
 
-        return S{base::operator()(i_v).template AsType<typename vector_type<S, 1>::type>()(i_s)};
+        return base::operator()(i_v).template AsType<typename vector_type<S, 1>::type>()(i_s);
     }
 
     // Get X

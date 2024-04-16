@@ -241,8 +241,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
             using src_elem_conv_t = typename vector_type<SrcData, elem_op_vec_len>::conversion_type;
 
-            // static_assert(is_same_v<dst_vector_t, double>, "!!!!!");
-
             static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
                 // apply the src elementwise op and convert to DstData under the hood if needed
                 src_element_op_(
