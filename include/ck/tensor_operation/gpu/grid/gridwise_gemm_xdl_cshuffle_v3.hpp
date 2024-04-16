@@ -40,12 +40,30 @@ __global__ void
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+    typename GridwiseGemm::AsGridPointer p_as_grid;
+    typename GridwiseGemm::BsGridPointer p_bs_grid;
+    typename GridwiseGemm::DsGridPointer p_ds_grid;
+
+    static constexpr auto I0 = Number<0>{};
+
+    std::array<index_t, GridwiseGemm::NumATensor> StrideAs = {karg.StrideA};
+    std::array<index_t, GridwiseGemm::NumBTensor> StrideBs = {karg.StrideB};
+
+    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+
+    p_as_grid(I0) = karg.p_a_grid;
+    p_bs_grid(I0) = karg.p_b_grid;
+
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffsetMultiABD(
+        p_as_grid, p_bs_grid, karg, StrideAs, StrideBs);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+        splitk_batch_offset.p_as_grid_,
+        splitk_batch_offset.p_bs_grid_,
+        p_ds_grid,
         karg.p_c_grid,
+        StrideAs,
+        StrideBs,
         p_shared,
         karg);
 #else
@@ -157,6 +175,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
     using BsDataType = Tuple<BDataType>;
     using DsDataType = Tuple<>;
 
+    using AsLayout = Tuple<ALayout>;
+    using BsLayout = Tuple<BLayout>;
+
     static constexpr auto MakeAsGridPointer()
     {
         return generate_tuple(
@@ -232,7 +253,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         return (K + K_t - 1) / K_t * (KPerBlock / BK1Value);
     }
 
-    __host__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * KPerBlock;
@@ -667,6 +688,58 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+    };
+
+    struct SplitKBatchOffsetMultiABD
+    {
+        __device__ SplitKBatchOffsetMultiABD(AsGridPointer& p_as_grid,
+                                             BsGridPointer& p_bs_grid,
+                                             Argument& karg,
+                                             const std::array<index_t, NumATensor>& StrideAs,
+                                             const std::array<index_t, NumBTensor>& StrideBs)
+        {
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                using ALayout_ = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
+                if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout_>)
+                {
+                    as_k_split_offset[i] = blockIdx.z * karg.KRead;
+                }
+                else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout_>)
+                {
+                    as_k_split_offset[i] = blockIdx.z * karg.KRead * StrideAs[i];
+                }
+
+                p_as_grid_(i) = p_as_grid[i] + as_k_split_offset[i];
+            });
+
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                using BLayout_ = remove_cvref_t<tuple_element_t<i.value, BsLayout>>;
+                if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout_>)
+                {
+                    bs_k_split_offset[i] = blockIdx.z * karg.KRead * StrideBs[i];
+                }
+                else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout_>)
+                {
+                    bs_k_split_offset[i] = blockIdx.z * karg.KRead;
+                }
+
+                p_bs_grid_(i) = p_bs_grid[i] + bs_k_split_offset[i];
+            });
+
+            if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
+            {
+                karg.K = karg.KRead;
+            }
+            else
+            {
+                karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
+            }
+        }
+
+        AsGridPointer p_as_grid_;
+        BsGridPointer p_bs_grid_;
+        std::array<index_t, NumATensor> as_k_split_offset;
+        std::array<index_t, NumBTensor> bs_k_split_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -1232,21 +1305,22 @@ struct GridwiseGemm_xdl_cshuffle_v3
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
-    __device__ static void Run(const ADataType* p_a_grid,
-                               const BDataType* p_b_grid,
+    __device__ static void Run(AsGridPointer& p_as_grid,
+                               BsGridPointer& p_bs_grid,
+                               DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
+                               std::array<index_t, NumATensor> StrideAs,
+                               std::array<index_t, NumBTensor> StrideBs,
                                void* p_shared,
                                const Problem& problem)
     {
-        std::array<index_t, NumATensor> StrideAs = {problem.StrideA};
-        std::array<index_t, NumBTensor> StrideBs = {problem.StrideB};
+        // std::array<index_t, NumATensor> StrideAs = {problem.StrideA};
+        // std::array<index_t, NumBTensor> StrideBs = {problem.StrideB};
 
-        AsGridPointer p_as_grid;
-        BsGridPointer p_bs_grid;
-        DsGridPointer p_ds_grid;
+        // AsGridPointer p_as_grid;
+        // BsGridPointer p_bs_grid;
+        // DsGridPointer p_ds_grid;
 
-        p_as_grid(I0) = p_a_grid;
-        p_bs_grid(I0) = p_b_grid;
 #if 0
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
