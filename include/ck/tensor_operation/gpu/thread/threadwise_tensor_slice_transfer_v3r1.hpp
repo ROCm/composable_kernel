@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,43 +7,12 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor/static_tensor.hpp"
 #include "ck/utility/is_detected.hpp"
 
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_util.hpp"
+
 namespace ck {
-
-namespace detail {
-// TODO: How to fix this? It uses an struct instead of lambda because lambda
-// doesn't have constructor
-template <index_t SrcVectorDim,
-          index_t SrcScalarPerVector,
-          index_t DstVectorDim,
-          index_t DstScalarPerVector>
-struct lambda_scalar_per_access_for_src_and_dst
-{
-    __host__ __device__ constexpr auto operator()(index_t i) const
-    {
-        if(i == SrcVectorDim && i == DstVectorDim)
-        {
-            return math::lcm(SrcScalarPerVector, DstScalarPerVector);
-        }
-        else if(i == SrcVectorDim)
-        {
-            return SrcScalarPerVector;
-        }
-        else if(i == DstVectorDim)
-        {
-            return DstScalarPerVector;
-        }
-        else
-        {
-            return 1;
-        }
-    }
-};
-
-} // namespace detail
 
 // Assume:
 //   1. src_desc and dst_desc are not known at compile-time

@@ -288,10 +288,13 @@ struct ConvertF8RNE
 
 struct Scale
 {
-    __host__ __device__ Scale(float scale) : scale_(scale) {}
+    __host__ __device__ Scale(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        y = ck::type_convert<Y>(ck::type_convert<float>(x) * scale_);
+    }
 
     template <>
     __host__ __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
@@ -499,6 +502,36 @@ struct FastGelu
         this->operator()<float, float>(y_f, x);
 
         y = type_convert<half_t>(y_f);
+    }
+
+    template <>
+    __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, x);
+
+        y = type_convert<bhalf_t>(y_f);
+    }
+
+    template <>
+    __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, type_convert<float>(x));
+
+        y = type_convert<bhalf_t>(y_f);
+    }
+
+    template <>
+    __host__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, type_convert<float>(x));
+
+        y = type_convert<bhalf_t>(y_f);
     }
 };
 

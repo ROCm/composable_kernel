@@ -14,6 +14,8 @@ namespace element_wise {
 template <typename... UnaryOpsSet>
 struct UnaryCombinedOp
 {
+    __host__ __device__ UnaryCombinedOp() : unary_ops_() {}
+
     __host__ __device__ UnaryCombinedOp(UnaryOpsSet... unary_ops) : unary_ops_(unary_ops...) {}
 
     template <typename Y, typename X>
@@ -32,6 +34,8 @@ struct UnaryCombinedOp
 template <typename BinaryOp, typename UnaryOp0, typename UnaryOp1>
 struct BinaryWithUnaryCombinedOp
 {
+    __host__ __device__ BinaryWithUnaryCombinedOp() : binary_op_(), unary_op0_(), unary_op1_() {}
+
     __host__ __device__ BinaryWithUnaryCombinedOp(BinaryOp binary_op,
                                                   UnaryOp0 unary_op0,
                                                   UnaryOp1 unary_op1)
@@ -63,6 +67,11 @@ template <typename BinaryOp0,
           typename UnaryOp2>
 struct TrinaryWithUnaryCombinedOp
 {
+    __host__ __device__ TrinaryWithUnaryCombinedOp()
+        : binary_op0_(), binary_op1_(), unary_op0_(), unary_op1_(), unary_op2_()
+    {
+    }
+
     __host__ __device__ TrinaryWithUnaryCombinedOp(BinaryOp0 binary_op0,
                                                    BinaryOp0 binary_op1,
                                                    UnaryOp0 unary_op0,
