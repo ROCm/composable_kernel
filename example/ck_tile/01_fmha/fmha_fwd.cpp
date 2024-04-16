@@ -658,10 +658,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(lse)
         {
+            auto lse_host_slice =
+                lse_host.index({Slice(0, b, b + 1), Slice(2, query_offset)}).squeeze(0);
+
             ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-            lse_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = lse_host(b, idx[0], idx[1] + query_offset);
-            });
+            lse_host_result.ForEach([&](auto& self, auto i) { self(i) = lse_host_slice(i); });
 
             bool lse_pass = ck_tile::check_err(lse_host_result,
                                                lse_host_ref,
