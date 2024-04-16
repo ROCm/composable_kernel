@@ -64,3 +64,5 @@ build*/
 # Python virtualenv
 .venv/
 
+# Python cache
+__pycache__/
