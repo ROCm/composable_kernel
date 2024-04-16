@@ -297,16 +297,46 @@ struct HostTensorSlice
 
     HostTensorSlice(size_type dim_,
                     std::optional<size_type> start_ = std::nullopt,
-                    std::optional<size_type> end_   = std::nullopt,
-                    std::optional<size_type> step_  = std::nullopt)
-        : dim(dim_), start(start_), end(end_), step(step_)
+                    std::optional<size_type> end_   = std::nullopt)
+        : dim(dim_), start(start_), end(end_)
     {
     }
 
     size_type dim;
     std::optional<size_type> start;
     std::optional<size_type> end;
-    std::optional<size_type> step;
+};
+
+struct HostTensorSlicer
+{
+    using size_type = std::size_t;
+
+    HostTensorSlicer(size_type length_, size_type start_, size_type end_)
+        : length(length_), start(start_), end(end_)
+    {
+        if(!(0 < length && start < end && end <= length))
+        {
+            throw std::invalid_argument("invalid slice");
+        }
+    }
+
+    bool merge(size_type new_start, size_type new_end)
+    {
+        std::ignore = new_start;
+        std::ignore = new_end;
+        return false;
+    }
+
+    size_type operator()(size_type idx) const { return start + idx; }
+
+    size_type get_length() const { return end - start; }
+
+    size_type get_start() const { return start; }
+
+    private:
+    size_type length;
+    size_type start;
+    size_type end;
 };
 
 template <typename T>
@@ -314,43 +344,13 @@ struct HostTensorView : private HostTensorDescriptor
 {
     using Descriptor = HostTensorDescriptor;
     using Data       = span<T>;
+    using Slicer     = HostTensorSlicer;
     using reference  = typename Data::reference;
     using iterator   = typename Data::iterator;
     using pointer    = typename Data::pointer;
     using size_type  = std::size_t;
 
     static inline constexpr size_type MaxNumDims = 6;
-
-    private:
-    struct Slicer
-    {
-        Slicer(size_type length_, size_type start_, size_type end_)
-            : length(length_), start(start_), end(end_)
-        {
-            if(!(0 < length && start < end && end <= length))
-            {
-                throw std::invalid_argument("invalid slice");
-            }
-        }
-
-        bool merge(size_type new_start, size_type new_end)
-        {
-            std::ignore = new_start;
-            std::ignore = new_end;
-            return false;
-        }
-
-        size_type operator()(size_type idx) const { return start + idx; }
-
-        size_type get_length() const { return end - start; }
-
-        size_type get_start() const { return start; }
-
-        private:
-        size_type length;
-        size_type start;
-        size_type end;
-    };
 
     protected:
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
@@ -404,9 +404,16 @@ struct HostTensorView : private HostTensorDescriptor
     HostTensorView& operator=(const HostTensorView&) = default;
     HostTensorView& operator=(HostTensorView&&) = default;
 
+    friend struct HostTensorView<std::remove_const_t<T>>;
+
     operator HostTensorView<std::add_const_t<T>>() const
     {
-        return {static_cast<const Descriptor&>(*this), mData};
+        using std::begin, std::end;
+
+        HostTensorView<std::add_const_t<T>> view(static_cast<const Descriptor&>(*this), mData);
+        std::copy(begin(get_slicers()), end(get_slicers()), begin(view.get_slicers()));
+
+        return view;
     }
 
     using Descriptor::get_element_size;
@@ -429,6 +436,8 @@ struct HostTensorView : private HostTensorDescriptor
             throw std::invalid_argument("transpose with invalid dim0 or dim1");
         }
 
+        using std::begin, std::end;
+
         std::vector<size_type> order(get_num_of_dimension());
         std::iota(std::begin(order), std::end(order), 0);
 
@@ -436,16 +445,19 @@ struct HostTensorView : private HostTensorDescriptor
 
         auto newLengths = make_permutation_range(get_lengths(), order);
         auto newStrides = make_permutation_range(get_strides(), order);
+        auto newSlicers = make_permutation_range(get_slicers(), order);
 
-        return {Descriptor(newLengths, newStrides), mData};
+        HostTensorView view(Descriptor(newLengths, newStrides), mData);
+        std::copy(begin(newSlicers), end(newSlicers), begin(view.get_slicers()));
+
+        return view;
     }
 
     HostTensorView index(std::initializer_list<HostTensorSlice> slices) const
     {
         using std::begin, std::end;
 
-        std::array<std::optional<Slicer>, MaxNumDims> newSlicers;
-        std::copy_n(begin(mSlicers), get_num_of_dimension(), begin(newSlicers));
+        std::vector<std::optional<Slicer>> newSlicers(begin(get_slicers()), end(get_slicers()));
 
         const auto lengths = get_lengths();
         std::vector<size_type> newLengths(begin(lengths), end(lengths));
@@ -462,7 +474,6 @@ struct HostTensorView : private HostTensorDescriptor
 
             const size_type start = (slice.start ? *slice.start : 0);
             const size_type end   = (slice.end ? *slice.end : length);
-            // const size_type step = (slice.step ? *slice.step : 1);
 
             auto& slicer = newSlicers[slice.dim];
             if(slicer)
@@ -480,7 +491,7 @@ struct HostTensorView : private HostTensorDescriptor
         }
 
         HostTensorView view(Descriptor(newLengths, get_strides()), mData);
-        std::copy_n(begin(newSlicers), get_num_of_dimension(), begin(view.mSlicers));
+        std::copy(begin(newSlicers), end(newSlicers), begin(view.get_slicers()));
 
         return view;
     }
@@ -517,7 +528,7 @@ struct HostTensorView : private HostTensorDescriptor
         auto view = [&]() -> HostTensorView {
             HostTensorDescriptor desc(newLengths, newStrides);
 
-            auto& slicer = mSlicers[dim];
+            auto& slicer = get_slicer(dim);
             if(slicer)
             {
                 return {desc, mData.subspan(stride * slicer->get_start())};
@@ -528,12 +539,13 @@ struct HostTensorView : private HostTensorDescriptor
             }
         }();
 
+        auto src  = get_slicers();
+        auto dest = view.get_slicers();
+
         // copy all slicers in [0, dim)
-        std::copy(begin(mSlicers), next(begin(mSlicers), dim), begin(view.mSlicers));
+        std::copy(begin(src), next(begin(src), dim), begin(dest));
         // copy all slicers in [dim + 1, get_num_of_dimension())
-        std::copy(next(begin(mSlicers), dim + 1),
-                  next(begin(mSlicers), get_num_of_dimension()),
-                  next(begin(view.mSlicers), dim));
+        std::copy(next(begin(src), dim + 1), end(src), next(begin(dest), dim));
 
         return view;
     }
@@ -626,7 +638,7 @@ struct HostTensorView : private HostTensorDescriptor
         std::array<size_type, MaxNumDims> real_idx;
         for(size_type dim = 0; dim < std::size(idx); ++dim)
         {
-            auto& slicer  = mSlicers[dim];
+            auto& slicer  = get_slicer(dim);
             real_idx[dim] = (slicer ? (*slicer)(idx[dim]) : idx[dim]);
         }
 
@@ -647,6 +659,24 @@ struct HostTensorView : private HostTensorDescriptor
     {
         assert(get_element_space_size() <= data.size());
         mData = data;
+    }
+
+    auto& get_slicer(size_type dim) { return mSlicers[dim]; }
+
+    auto& get_slicer(size_type dim) const { return mSlicers[dim]; }
+
+    auto get_slicers()
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mSlicers), next(begin(mSlicers), get_num_of_dimension()));
+    }
+
+    auto get_slicers() const
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mSlicers), next(begin(mSlicers), get_num_of_dimension()));
     }
 
     private:
