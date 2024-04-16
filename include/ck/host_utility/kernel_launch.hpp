@@ -8,6 +8,7 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
