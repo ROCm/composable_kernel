@@ -36,7 +36,8 @@ __global__ void
                                 const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__))
+    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__) || \
+    defined(__gfx12__))
     GridwiseTensorRearrangeKernel::Run(in_grid_desc,
                                        p_in_global,
                                        out_grid_desc,
