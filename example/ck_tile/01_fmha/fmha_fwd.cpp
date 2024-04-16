@@ -572,18 +572,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             auto bias_host_view_slice =
                 bias_host_view.index({Slice(2, query_offset), Slice(3, key_offset)}).squeeze(0);
 
-            ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
-            // clang-format off
-            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_slice(i); });
-            // clang-format on
-
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
             ck_tile::reference_batched_elementwise<SMPLComputeDataType,
                                                    BiasDataType,
                                                    SMPLComputeDataType,
                                                    SMPLComputeDataType>(
-                s_host_ref, bias_host_ref, s_host_ref);
+                s_host_ref, bias_host_view_slice, s_host_ref);
         }
 
         if(mask.type == mask_enum::no_mask)
