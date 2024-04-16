@@ -434,7 +434,7 @@ struct HostTensorView : private HostTensorDescriptor
         return {Descriptor(newLengths, newStrides), mData};
     }
 
-    HostTensorView slice(std::vector<HostTensorSlice> slices) const
+    HostTensorView index(std::vector<HostTensorSlice> slices) const
     {
         HostTensorView view(Descriptor(get_lengths(), get_strides()), mData);
         for(size_type idx = 0; idx < std::size(slices); ++idx)
