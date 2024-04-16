@@ -108,7 +108,7 @@ permutation_iterator(ElementIterator, IndexIterator)
     -> permutation_iterator<ElementIterator, IndexIterator>;
 
 template <typename ElementRange, typename IndexRange>
-constexpr auto make_permutation_range(ElementRange& elements, IndexRange& indices)
+constexpr auto make_permutation_range(ElementRange&& elements, IndexRange&& indices)
 {
     return iterator_range(permutation_iterator(std::begin(elements), std::begin(indices)),
                           permutation_iterator(std::begin(elements), std::end(indices)));
