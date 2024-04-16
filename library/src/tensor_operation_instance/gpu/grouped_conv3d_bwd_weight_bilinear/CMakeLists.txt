@@ -1,3 +1,4 @@
+# ONLY XDL_KERNELS
 set(GROUPED_CONV3D_BWD_WEIGHT_BILINEAR
     xdl/device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
     xdl/device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
