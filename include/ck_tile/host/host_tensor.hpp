@@ -338,7 +338,7 @@ struct HostTensorView : private HostTensorDescriptor
 
         size_type operator()(size_type idx) const { return start + idx; }
 
-        size_type get_logical_length() const { return end - start; }
+        size_type get_length() const { return end - start; }
 
         private:
         size_type length;
@@ -436,10 +436,15 @@ struct HostTensorView : private HostTensorDescriptor
 
     HostTensorView index(std::vector<HostTensorSlice> slices) const
     {
-        HostTensorView view(Descriptor(get_lengths(), get_strides()), mData);
+        std::array<std::optional<Slicer>, MaxNumDims> newSlicers;
+        std::copy_n(std::begin(mSlicers), get_num_of_dimension(), std::begin(newSlicers));
+
+        const auto lengths = get_lengths();
+        std::vector<size_type> newLengths(std::begin(lengths), std::end(lengths));
+
         for(size_type idx = 0; idx < std::size(slices); ++idx)
         {
-            auto& slice = slices[idx];
+            const auto& slice = slices[idx];
             if(get_num_of_dimension() < slice.dim)
             {
                 throw std::invalid_argument("invalid dim for slice");
@@ -451,16 +456,23 @@ struct HostTensorView : private HostTensorDescriptor
             const size_type end   = (slice.end ? *slice.end : length);
             // const size_type step = (slice.step ? *slice.step : 1);
 
-            auto& slicer = view.mSlicers[slice.dim];
+            auto& slicer = newSlicers[slice.dim];
             if(slicer)
             {
-                slicer->merge(start, end);
+                if(!slicer->merge(start, end))
+                {
+                    throw std::invalid_argument("slice conflict with others");
+                }
             }
             else
             {
                 slicer.emplace(length, start, end);
             }
+            newLengths[slice.dim] = slicer->get_length();
         }
+
+        HostTensorView view(Descriptor(newLengths, get_strides()), mData);
+        std::copy_n(std::begin(newSlicers), get_num_of_dimension(), std::begin(view.mSlicers));
 
         return view;
     }
