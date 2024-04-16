@@ -533,7 +533,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 ? std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, 1, hdim_v}
                 : std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, real_seqlen_k, 1};
 
-        ck_tile::HostTensor<QDataType> q_host_ref({nhead, real_seqlen_q, hdim_q});
         ck_tile::HostTensor<KDataType> k_host_ref({nhead, real_seqlen_k, hdim_q});
         ck_tile::HostTensor<VDataType> v_host_ref(v_host_ref_lengths, v_host_ref_strides);
         ck_tile::HostTensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v});
@@ -555,14 +554,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             o_host_view.index({Slice(0, b, b + 1), Slice(2, query_offset)}).squeeze(0);
 
         // clang-format off
-        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(i); });
         k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(i[0] / nr, i[1], i[2]); });
         v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice(i[0] / nr, i[1], i[2]); });
         // clang-format on
 
         // reference
         ck_tile::reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
-            q_host_ref,
+            q_host_view_slice,
             k_host_ref,
             s_host_ref,
             ck_tile::identity{},
