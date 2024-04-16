@@ -320,11 +320,17 @@ struct HostTensorSlicer
         }
     }
 
-    bool merge(size_type new_start, size_type new_end)
+    bool update(size_type new_start, size_type new_end)
     {
-        std::ignore = new_start;
-        std::ignore = new_end;
-        return false;
+        if(!(new_start < new_end && new_end <= get_length()))
+        {
+            return false;
+        }
+
+        end = start + new_end;
+        start += new_start;
+
+        return true;
     }
 
     size_type operator()(size_type idx) const { return start + idx; }
@@ -478,7 +484,7 @@ struct HostTensorView : private HostTensorDescriptor
             auto& slicer = newSlicers[slice.dim];
             if(slicer)
             {
-                if(!slicer->merge(start, end))
+                if(!slicer->update(start, end))
                 {
                     throw std::invalid_argument("slice conflict with others");
                 }
