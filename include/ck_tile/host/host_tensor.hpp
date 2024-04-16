@@ -434,7 +434,7 @@ struct HostTensorView : private HostTensorDescriptor
                      reference>
     operator()(Is... is) const
     {
-        return mData[Descriptor::GetOffsetFromMultiIndex(is...)];
+        return (*this)(std::array{static_cast<std::size_t>(is)...});
     }
 
     reference operator()(span<const std::size_t> idx) const
