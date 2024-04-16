@@ -434,7 +434,7 @@ struct HostTensorView : private HostTensorDescriptor
         return {Descriptor(newLengths, newStrides), mData};
     }
 
-    HostTensorView index(std::vector<HostTensorSlice> slices) const
+    HostTensorView index(std::initializer_list<HostTensorSlice> slices) const
     {
         std::array<std::optional<Slicer>, MaxNumDims> newSlicers;
         std::copy_n(std::begin(mSlicers), get_num_of_dimension(), std::begin(newSlicers));
@@ -444,13 +444,13 @@ struct HostTensorView : private HostTensorDescriptor
 
         for(size_type idx = 0; idx < std::size(slices); ++idx)
         {
-            const auto& slice = slices[idx];
+            const auto& slice = *std::next(std::begin(slices), idx);
             if(get_num_of_dimension() < slice.dim)
             {
                 throw std::invalid_argument("invalid dim for slice");
             }
 
-            const size_type length = get_lengths()[slice.dim];
+            const size_type length = lengths[slice.dim];
 
             const size_type start = (slice.start ? *slice.start : 0);
             const size_type end   = (slice.end ? *slice.end : length);
