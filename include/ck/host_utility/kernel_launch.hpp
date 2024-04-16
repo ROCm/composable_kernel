@@ -6,6 +6,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck/ck.hpp"
+#include <ck/host_utility/device_prop.hpp>
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
