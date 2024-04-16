@@ -109,15 +109,6 @@ struct HostTensorDescriptor
         this->CalculateStrides();
     }
 
-    template <typename Lengths,
-              typename = std::enable_if_t<
-                  !std::is_base_of_v<HostTensorDescriptor, Lengths> &&
-                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
-    explicit HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
-    {
-        this->CalculateStrides();
-    }
-
     template <typename X,
               typename Y,
               typename = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
@@ -127,6 +118,15 @@ struct HostTensorDescriptor
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
         assert(mLens.size() == mStrides.size());
+    }
+
+    template <typename Lengths,
+              typename = std::enable_if_t<
+                  !std::is_base_of_v<HostTensorDescriptor, Lengths> &&
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
+    explicit HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
+    {
+        this->CalculateStrides();
     }
 
     template <typename Lengths,
