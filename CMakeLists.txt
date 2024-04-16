@@ -70,9 +70,9 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 
 #for IGLP scheduler
-if(CMAKE_CXX_COMPILER MATCHES ".*hipcc")
-    add_compile_options(-mllvm -enable-post-misched=0)
-endif()
+# if(CMAKE_CXX_COMPILER MATCHES ".*hipcc")
+add_compile_options(-mllvm -enable-post-misched=0)
+# endif()
 
 if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
