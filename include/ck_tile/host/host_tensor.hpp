@@ -160,11 +160,15 @@ struct HostTensorDescriptor
         return space;
     }
 
+    std::size_t get_length(std::size_t dim) const { return mLens[dim]; }
+
     auto get_lengths() const
     {
         using iterator = remove_cvref_t<decltype(mLens)>::const_iterator;
         return iterator_range<iterator>(mLens);
     }
+
+    std::size_t get_stride(std::size_t dim) const { return mStrides[dim]; }
 
     auto get_strides() const
     {
@@ -340,6 +344,8 @@ struct HostTensorView : private HostTensorDescriptor
 
         size_type get_length() const { return end - start; }
 
+        size_type get_start() const { return start; }
+
         private:
         size_type length;
         size_type start;
@@ -436,15 +442,17 @@ struct HostTensorView : private HostTensorDescriptor
 
     HostTensorView index(std::initializer_list<HostTensorSlice> slices) const
     {
+        using std::begin, std::end;
+
         std::array<std::optional<Slicer>, MaxNumDims> newSlicers;
-        std::copy_n(std::begin(mSlicers), get_num_of_dimension(), std::begin(newSlicers));
+        std::copy_n(begin(mSlicers), get_num_of_dimension(), begin(newSlicers));
 
         const auto lengths = get_lengths();
-        std::vector<size_type> newLengths(std::begin(lengths), std::end(lengths));
+        std::vector<size_type> newLengths(begin(lengths), end(lengths));
 
         for(size_type idx = 0; idx < std::size(slices); ++idx)
         {
-            const auto& slice = *std::next(std::begin(slices), idx);
+            const auto& slice = *std::next(begin(slices), idx);
             if(get_num_of_dimension() < slice.dim)
             {
                 throw std::invalid_argument("invalid dim for slice");
@@ -472,7 +480,60 @@ struct HostTensorView : private HostTensorDescriptor
         }
 
         HostTensorView view(Descriptor(newLengths, get_strides()), mData);
-        std::copy_n(std::begin(newSlicers), get_num_of_dimension(), std::begin(view.mSlicers));
+        std::copy_n(begin(newSlicers), get_num_of_dimension(), begin(view.mSlicers));
+
+        return view;
+    }
+
+    HostTensorView squeeze(size_type dim) const
+    {
+        assert(0 < get_num_of_dimension());
+
+        if(get_num_of_dimension() == 1 || get_num_of_dimension() <= dim || 1 < get_length(dim))
+        {
+            return *this;
+        }
+
+        using std::begin, std::end, std::next;
+
+        // check if the squeezing dimension has the largest stride
+        const size_type stride = get_stride(dim);
+
+        const auto strides    = get_strides();
+        const auto max_stride = std::max_element(begin(strides), end(strides));
+        if(stride < *max_stride)
+        {
+            return *this;
+        }
+
+        // remove length/stride on dim
+        const auto lengths = get_lengths();
+        std::vector<size_type> newLengths(begin(lengths), end(lengths));
+        std::vector<size_type> newStrides(begin(strides), end(strides));
+
+        newLengths.erase(next(begin(newLengths), dim));
+        newStrides.erase(next(begin(newStrides), dim));
+
+        auto view = [&]() -> HostTensorView {
+            HostTensorDescriptor desc(newLengths, newStrides);
+
+            auto& slicer = mSlicers[dim];
+            if(slicer)
+            {
+                return {desc, mData.subspan(stride * slicer->get_start())};
+            }
+            else
+            {
+                return {desc, mData};
+            }
+        }();
+
+        // copy all slicers in [0, dim)
+        std::copy(begin(mSlicers), next(begin(mSlicers), dim), begin(view.mSlicers));
+        // copy all slicers in [dim + 1, get_num_of_dimension())
+        std::copy(next(begin(mSlicers), dim + 1),
+                  next(begin(mSlicers), get_num_of_dimension()),
+                  next(begin(view.mSlicers), dim));
 
         return view;
     }
