@@ -297,42 +297,54 @@ struct HostTensorView : private HostTensorDescriptor
     using pointer    = typename Data::pointer;
     using size_type  = std::size_t;
 
+    static inline constexpr size_type MaxNumDims = 6;
+
     protected:
-    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>>
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
     explicit HostTensorView(std::initializer_list<X> lens) : Descriptor(lens)
     {
+        assert(get_num_of_dimension() <= MaxNumDims);
+        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     template <typename X,
               typename Y,
-              typename = std::enable_if_t<std::is_convertible_v<X, std::size_t> &&
-                                          std::is_convertible_v<Y, std::size_t>>>
+              typename = std::enable_if_t<std::is_convertible_v<X, size_type> &&
+                                          std::is_convertible_v<Y, size_type>>>
     HostTensorView(std::initializer_list<X> lens, std::initializer_list<Y> strides)
         : Descriptor(lens, strides)
     {
+        assert(get_num_of_dimension() <= MaxNumDims);
+        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     template <typename Lengths,
               typename = std::enable_if_t<
                   !std::is_base_of_v<HostTensorDescriptor, Lengths> &&
-                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, size_type>>>
     explicit HostTensorView(const Lengths& lens) : Descriptor(lens)
     {
+        assert(get_num_of_dimension() <= MaxNumDims);
+        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     template <typename Lengths,
               typename Strides,
               typename = std::enable_if_t<
-                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t> &&
-                  std::is_convertible_v<ck_tile::ranges::range_value_t<Strides>, std::size_t>>>
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, size_type> &&
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Strides>, size_type>>>
     HostTensorView(const Lengths& lens, const Strides& strides) : Descriptor(lens, strides)
     {
+        assert(get_num_of_dimension() <= MaxNumDims);
+        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     public:
     HostTensorView(Descriptor desc, Data data) : Descriptor(std::move(desc)), mData(data)
     {
         assert(get_element_space_size() <= mData.size());
+        assert(get_num_of_dimension() <= MaxNumDims);
+        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     HostTensorView()                      = delete;
@@ -362,14 +374,14 @@ struct HostTensorView : private HostTensorDescriptor
 
     void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
 
-    HostTensorView transpose(std::size_t dim0, std::size_t dim1)
+    HostTensorView transpose(size_type dim0, size_type dim1)
     {
         if(get_num_of_dimension() <= dim0 || get_num_of_dimension() <= dim1)
         {
             throw std::invalid_argument("transpose with invalid dim0 or dim1");
         }
 
-        std::vector<std::size_t> order(get_num_of_dimension());
+        std::vector<size_type> order(get_num_of_dimension());
         std::iota(std::begin(order), std::end(order), 0);
 
         std::swap(order[dim0], order[dim1]);
@@ -454,16 +466,23 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     template <typename... Is>
-    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, std::size_t>)&&...),
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
                      reference>
     operator()(Is... is) const
     {
-        return (*this)(std::array{static_cast<std::size_t>(is)...});
+        return (*this)(std::array{static_cast<size_type>(is)...});
     }
 
-    reference operator()(span<const std::size_t> idx) const
+    reference operator()(span<const size_type> idx) const
     {
-        return mData[Descriptor::GetOffsetFromMultiIndex(idx)];
+        assert(std::size(idx) <= get_num_of_dimension());
+
+        std::array<size_type, MaxNumDims> real_idx;
+        std::transform(
+            std::begin(idx), std::end(idx), std::begin(mOffsets), std::begin(real_idx), plus());
+
+        return mData[Descriptor::GetOffsetFromMultiIndex(
+            span<const size_type>(std::data(real_idx), std::size(idx)))];
     }
 
     iterator begin() const { return mData.begin(); }
@@ -515,6 +534,7 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     Data mData;
+    std::array<size_type, MaxNumDims> mOffsets;
 };
 
 template <typename T>
