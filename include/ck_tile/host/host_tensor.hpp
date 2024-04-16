@@ -333,6 +333,24 @@ struct HostTensorView : private HostTensorDescriptor
 
     void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
 
+    HostTensorView transpose(std::size_t dim0, std::size_t dim1)
+    {
+        if(get_num_of_dimension() <= dim0 || get_num_of_dimension() <= dim1)
+        {
+            throw std::invalid_argument("transpose with invalid dim0 or dim1");
+        }
+
+        std::vector<std::size_t> order(get_num_of_dimension());
+        std::iota(std::begin(order), std::end(order), 0);
+
+        std::swap(order[dim0], order[dim1]);
+
+        auto newLengths = make_permutation_range(get_lengths(), order);
+        auto newStrides = make_permutation_range(get_strides(), order);
+
+        return {Descriptor(newLengths, newStrides), mData};
+    }
+
     template <typename F>
     void ForEach(F&& f)
     {
