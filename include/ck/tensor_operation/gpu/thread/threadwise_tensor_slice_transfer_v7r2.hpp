@@ -133,6 +133,21 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             Number<num>{});
     }
 
+    template <typename DataTypes, index_t ScalarPerVector>
+    __device__ static auto generate_oob_vectors()
+    {
+        auto data_types = DataTypes{};
+
+        constexpr index_t num = data_types.Size();
+
+        return generate_tuple(
+            [&](auto i) {
+                ignore = i;
+                return vector_type_maker_t<bool, ScalarPerVector>{};
+            },
+            Number<num>{});
+    }
+
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
     template <typename SrcBuffers,
@@ -146,6 +161,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
             auto dst_vectors = generate_vectors<DstDatas, DstScalarPerVector>();
+            auto oob_vectors = generate_oob_vectors<DstDatas, DstScalarPerVector>();
 
             // copy data from src_bufs into src_vectors
             static_for<0, nSrc, 1>{}([&](auto i) {
@@ -155,9 +171,9 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
                                                                                 src_coords_[i]);
 
+                oob_vectors(i).template AsType<bool>()(I0) = is_src_valid;
                 src_vectors(i).template AsType<src_vector_t>()(I0) =
-                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
-                                                           is_src_valid);
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
             });
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -219,6 +235,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             });
 
             dst_vectors_tuple_(thread_scratch_id)(iAccess) = dst_vectors;
+            oob_vectors_tuple_(thread_scratch_id)(iAccess) = oob_vectors;
 
             // move coordinate
             if constexpr(iAccess.value != num_access - 1)
@@ -257,6 +274,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
         // loop over space-filling curve
         static_for<0, num_access, 1>{}([&](auto iAccess) {
             auto dst_vectors = dst_vectors_tuple_[thread_scratch_id][iAccess];
+            auto oob_vectors = oob_vectors_tuple_[thread_scratch_id][iAccess];
 
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
@@ -269,10 +287,13 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                 constexpr InMemoryDataOperationEnum DstInMemOp =
                     static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
 
+                const bool is_src_valid = oob_vectors[i].template AsType<bool>()[I0];
+
+                const auto dst_t = is_src_valid ? dst_vectors[i].template AsType<dst_vector_t>()[I0]
+                                                : dst_vector_t{0};
+
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
-                    dst_coords_[i].GetOffset(),
-                    is_dst_valid,
-                    dst_vectors[i].template AsType<dst_vector_t>()[I0]);
+                    dst_coords_[i].GetOffset(), is_dst_valid, dst_t);
             });
 
             // move coordinate
@@ -381,10 +402,15 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     using SrcVectorsType = decltype(generate_vectors<SrcDatas, SrcScalarPerVector>());
     using DstVectorsType = decltype(generate_vectors<DstDatas, DstScalarPerVector>());
 
+    using OOBVectorsType = decltype(generate_oob_vectors<DstDatas, DstScalarPerVector>());
+
     static constexpr auto num_access = SrcSpaceFillingCurve::GetNumOfAccess();
 
     using DstVectorTuple = StaticallyIndexedArray<DstVectorsType, num_access>;
+    using OOBVectorTuple = StaticallyIndexedArray<OOBVectorsType, num_access>;
+
     StaticallyIndexedArray<DstVectorTuple, NumThreadScratch> dst_vectors_tuple_;
+    StaticallyIndexedArray<OOBVectorTuple, NumThreadScratch> oob_vectors_tuple_;
 
     SrcCoords src_coords_;
     DstCoords dst_coords_;

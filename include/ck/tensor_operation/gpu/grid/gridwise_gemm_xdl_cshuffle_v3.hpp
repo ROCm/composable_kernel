@@ -46,24 +46,23 @@ __global__ void
 
     static constexpr auto I0 = Number<0>{};
 
-    std::array<index_t, GridwiseGemm::NumATensor> StrideAs = {karg.StrideA};
-    std::array<index_t, GridwiseGemm::NumBTensor> StrideBs = {karg.StrideB};
+    karg.StrideAs = {karg.StrideA};
+    karg.StrideBs = {karg.StrideB};
+    karg.StrideDs = {};
 
     // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
     p_as_grid(I0) = karg.p_a_grid;
     p_bs_grid(I0) = karg.p_b_grid;
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffsetMultiABD(
-        p_as_grid, p_bs_grid, karg, StrideAs, StrideBs);
+    auto splitk_batch_offset =
+        typename GridwiseGemm::SplitKBatchOffsetMultiABD(p_as_grid, p_bs_grid, karg);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         splitk_batch_offset.p_as_grid_,
         splitk_batch_offset.p_bs_grid_,
         p_ds_grid,
         karg.p_c_grid,
-        StrideAs,
-        StrideBs,
         p_shared,
         karg);
 #else
@@ -374,12 +373,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
     }
 
     __host__ __device__ static auto
-    MakeAsGridDescriptor_AK0_M_AK1(index_t M,
-                                   index_t MPad,
-                                   index_t K,
-                                   index_t KPad,
-                                   std::array<index_t, NumATensor>& StrideAs,
-                                   index_t AK0)
+    MakeAsGridDescriptor_AK0_M_AK1(const index_t M,
+                                   const index_t MPad,
+                                   const index_t K,
+                                   const index_t KPad,
+                                   const std::array<index_t, NumATensor>& StrideAs,
+                                   const index_t AK0)
     {
         return generate_tuple(
             [&](auto i) {
@@ -471,12 +470,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
     }
 
     __host__ __device__ static auto
-    MakeBsGridDescriptor_BK0_N_BK1(index_t K,
-                                   index_t KPad,
-                                   index_t N,
-                                   index_t NPad,
-                                   std::array<index_t, NumBTensor>& StrideBs,
-                                   index_t BK0)
+    MakeBsGridDescriptor_BK0_N_BK1(const index_t K,
+                                   const index_t KPad,
+                                   const index_t N,
+                                   const index_t NPad,
+                                   const std::array<index_t, NumBTensor>& StrideBs,
+                                   const index_t BK0)
     {
         return generate_tuple(
             [&](auto i) {
@@ -557,10 +556,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
     }
 
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
-        index_t M, index_t MPad, index_t N, index_t NPad, std::array<index_t, NumDTensor> StrideCs)
+        index_t M, index_t MPad, index_t N, index_t NPad, std::array<index_t, NumDTensor> StrideDs)
     {
         return generate_tuple(
-            [&](auto i) { return MakeCGridDescriptor_M_N(M, MPad, N, NPad, StrideCs[i]); },
+            [&](auto i) { return MakeCGridDescriptor_M_N(M, MPad, N, NPad, StrideDs[i]); },
             Number<NumDTensor>{});
     }
 
@@ -626,6 +625,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t MBlock;
         index_t NBlock;
 
+        std::array<index_t, NumATensor> StrideAs;
+        std::array<index_t, NumBTensor> StrideBs;
         std::array<index_t, NumDTensor> StrideDs;
     };
 
@@ -694,9 +695,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     {
         __device__ SplitKBatchOffsetMultiABD(AsGridPointer& p_as_grid,
                                              BsGridPointer& p_bs_grid,
-                                             Argument& karg,
-                                             const std::array<index_t, NumATensor>& StrideAs,
-                                             const std::array<index_t, NumBTensor>& StrideBs)
+                                             Argument& karg)
         {
             static_for<0, NumATensor, 1>{}([&](auto i) {
                 using ALayout_ = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
@@ -706,7 +705,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 }
                 else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout_>)
                 {
-                    as_k_split_offset[i] = blockIdx.z * karg.KRead * StrideAs[i];
+                    as_k_split_offset[i] = blockIdx.z * karg.KRead * karg.StrideAs[i];
                 }
 
                 p_as_grid_(i) = p_as_grid[i] + as_k_split_offset[i];
@@ -716,7 +715,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 using BLayout_ = remove_cvref_t<tuple_element_t<i.value, BsLayout>>;
                 if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout_>)
                 {
-                    bs_k_split_offset[i] = blockIdx.z * karg.KRead * StrideBs[i];
+                    bs_k_split_offset[i] = blockIdx.z * karg.KRead * karg.StrideBs[i];
                 }
                 else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout_>)
                 {
@@ -1309,8 +1308,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                BsGridPointer& p_bs_grid,
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
-                               std::array<index_t, NumATensor> StrideAs,
-                               std::array<index_t, NumBTensor> StrideBs,
                                void* p_shared,
                                const Problem& problem)
     {
@@ -1328,9 +1325,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
             problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
 #else
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
-            problem.M, problem.MPadded, problem.K, problem.KPadded, StrideAs, problem.AK0);
+            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
-            problem.K, problem.KPadded, problem.N, problem.NPadded, StrideBs, problem.BK0);
+            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
 #endif
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
@@ -1339,12 +1336,15 @@ struct GridwiseGemm_xdl_cshuffle_v3
             MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 c_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        DsGridDesc_M_N ds_grid_desc_m_n;
+        const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
+            problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
 
+#if 0
         static_for<0, NumDTensor, 1>{}([&](auto j) {
             ds_grid_desc_m_n(j) = MakeCGridDescriptor_M_N(
                 problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs[j]);
         });
+#endif
 
         const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
