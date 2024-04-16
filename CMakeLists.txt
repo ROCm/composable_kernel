@@ -26,6 +26,8 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
+find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
