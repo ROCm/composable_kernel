@@ -10,38 +10,9 @@
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_util.hpp"
+
 namespace ck {
-
-// Do following things to avoid "alloca" in LLVM-IR, which would cause scratch memory
-// and sometimes useless instructions:
-//   1. Don't save a reference to tensor descriptor in class, pass in tensor descriptor as argument
-//   instead
-//   2. Don't construct a new tensor coordinate everytime when using it, update and reuse the same
-//   tensor coordinate instead
-//   3. Don't use a pointer to VGPR buffer, use vector instead
-
-namespace detail {
-// TODO: How to fix this? It uses an struct instead of lambda because lambda
-// doesn't have constructor
-template <index_t VectorDim, index_t ScalarPerVector>
-struct lambda_scalar_per_access
-{
-    __host__ __device__ constexpr auto operator()(index_t i) const
-    {
-        return (i == VectorDim) ? ScalarPerVector : 1;
-    }
-};
-
-template <index_t VectorDim>
-struct lambda_scalar_step_in_vector
-{
-    __host__ __device__ constexpr auto operator()(index_t i) const
-    {
-        return (i == VectorDim) ? 1 : 0;
-    }
-};
-} // namespace detail
-
 // Assume:
 //   1. src:
 //     1. SrcDesc is known at compile-time

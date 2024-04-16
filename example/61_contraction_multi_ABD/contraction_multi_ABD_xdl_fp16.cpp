@@ -102,7 +102,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceContractionMultiple
     S<1, 0, 2>,
     S<1, 0, 2>,
     2,
-    8,
+    1,
     8,
     1,
     S<4, 64, 1>,
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
     std::vector<ck::index_t> a0_ms_ks_strides{128 * 32 * 64, 32 * 64, 64, 1};
     // A1[M1, K1] -> A1[M0, M1, K0, K1]
     std::vector<ck::index_t> a1_ms_ks_lengths{30, 128, 32, 64};
-    std::vector<ck::index_t> a1_ms_ks_strides{0, 64, 0, 1};
+    std::vector<ck::index_t> a1_ms_ks_strides{0, 64, 1, 0};
     // B[N0, N1, K0, K1]
     std::vector<ck::index_t> b_ns_ks_lengths{32, 64, 32, 64};
     std::vector<ck::index_t> b_ns_ks_strides{64 * 32 * 64, 32 * 64, 64, 1};
