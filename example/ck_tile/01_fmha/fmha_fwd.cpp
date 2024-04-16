@@ -507,11 +507,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     bool pass = true;
 
-    auto q_host_view = (i_perm ? q_host : q_host.transpose(1, 2));
-    auto k_host_view = (i_perm ? k_host : k_host.transpose(1, 2));
-    auto v_host_view = (i_perm ? v_host : v_host.transpose(1, 2));
+    auto q_host_view    = (i_perm ? q_host : q_host.transpose(1, 2));
+    auto k_host_view    = (i_perm ? k_host : k_host.transpose(1, 2));
+    auto v_host_view    = (i_perm ? v_host : v_host.transpose(1, 2));
     auto bias_host_view = (i_perm ? bias_host : bias_host.transpose(1, 2));
-    auto o_host_view = (o_perm ? o_host : o_host.transpose(1, 2));
+    auto o_host_view    = (o_perm ? o_host : o_host.transpose(1, 2));
 
     for(ck_tile::index_t wb = 0; wb < batch; ++wb)
     {
@@ -541,9 +541,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         ck_tile::index_t nr = nhead / nhead_k;
 
+        using Slice            = ck_tile::HostTensorSlice;
+        auto q_host_view_slice = q_host_view.slice({Slice(2, query_offset)});
+        auto k_host_view_slice = k_host_view.slice({Slice(2, key_offset)});
+        auto o_host_view_slice = o_host_view.slice({Slice(2, query_offset)});
+
         // clang-format off
-        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view(b, i[0], i[1] + query_offset, i[2]); });
-        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view(b, i[0] / nr, i[1] + key_offset, i[2]); });
+        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(b, i[0], i[1], i[2]); });
+        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(b, i[0] / nr, i[1], i[2]); });
         if (is_v_rowmajor) {
             v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view(b, i[0] / nr, i[2] + key_offset, i[1]); });
         } else {
@@ -562,9 +567,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(use_bias)
         {
+            auto bias_host_view_slice =
+                bias_host_view.slice({Slice(2, query_offset), Slice(3, key_offset)});
+
             ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
             // clang-format off
-            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view(0, 0, i[1] + query_offset, i[2] + key_offset); });
+            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_slice(0, i[0], i[1], i[2]); });
             // clang-format on
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
@@ -633,7 +641,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
         // clang-format off
-        o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host_view(b, idx[0], idx[1] + query_offset, idx[2]); });
+        o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host_view_slice(b, idx[0], idx[1], idx[2]); });
         // clang-format on
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
