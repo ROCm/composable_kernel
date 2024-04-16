@@ -545,15 +545,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::index_t nr = nhead / nhead_k;
 
         using Slice            = ck_tile::HostTensorSlice;
-        auto q_host_view_slice = q_host_view.index({Slice(2, query_offset)});
-        auto k_host_view_slice = k_host_view.index({Slice(2, key_offset)});
-        auto v_host_view_slice = v_host_view.index({Slice(3, key_offset)});
-        auto o_host_view_slice = o_host_view.index({Slice(2, query_offset)});
+        auto q_host_view_slice = q_host_view.index({Slice(0, b, b + 1), Slice(2, query_offset)});
+        auto k_host_view_slice = k_host_view.index({Slice(0, b, b + 1), Slice(2, key_offset)});
+        auto v_host_view_slice = v_host_view.index({Slice(0, b, b + 1), Slice(3, key_offset)});
+        auto o_host_view_slice = o_host_view.index({Slice(0, b, b + 1), Slice(2, query_offset)});
 
         // clang-format off
-        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(b, i[0], i[1], i[2]); });
-        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(b, i[0] / nr, i[1], i[2]); });
-        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice(b, i[0] / nr, i[1], i[2]); });
+        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(0, i[0], i[1], i[2]); });
+        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(0, i[0] / nr, i[1], i[2]); });
+        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice(0, i[0] / nr, i[1], i[2]); });
         // clang-format on
 
         // reference
@@ -641,7 +641,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
         // clang-format off
-        o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host_view_slice(b, idx[0], idx[1], idx[2]); });
+        o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host_view_slice(0, idx[0], idx[1], idx[2]); });
         // clang-format on
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
