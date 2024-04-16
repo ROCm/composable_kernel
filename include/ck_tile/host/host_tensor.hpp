@@ -287,6 +287,24 @@ CK_TILE_HOST auto make_ParallelTensorFunctor(F f, Xs... xs)
     return ParallelTensorFunctor<F, Xs...>(f, xs...);
 }
 
+struct HostTensorSlice
+{
+    using size_type = std::size_t;
+
+    HostTensorSlice(size_type dim_,
+                    std::optional<size_type> start_ = std::nullopt,
+                    std::optional<size_type> end_   = std::nullopt,
+                    std::optional<size_type> step_  = std::nullopt)
+        : dim(dim_), start(start_), end(end_), step(step_)
+    {
+    }
+
+    size_type dim;
+    std::optional<size_type> start;
+    std::optional<size_type> end;
+    std::optional<size_type> step;
+};
+
 template <typename T>
 struct HostTensorView : private HostTensorDescriptor
 {
@@ -299,12 +317,40 @@ struct HostTensorView : private HostTensorDescriptor
 
     static inline constexpr size_type MaxNumDims = 6;
 
+    private:
+    struct Slicer
+    {
+        Slicer(size_type length_, size_type start_, size_type end_)
+            : length(length_), start(start_), end(end_)
+        {
+            if(!(0 < length && start < end && end <= length))
+            {
+                throw std::invalid_argument("invalid slice");
+            }
+        }
+
+        bool merge(size_type new_start, size_type new_end)
+        {
+            std::ignore = new_start;
+            std::ignore = new_end;
+            return false;
+        }
+
+        size_type operator()(size_type idx) const { return start + idx; }
+
+        size_type get_logical_length() const { return end - start; }
+
+        private:
+        size_type length;
+        size_type start;
+        size_type end;
+    };
+
     protected:
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
     explicit HostTensorView(std::initializer_list<X> lens) : Descriptor(lens)
     {
         assert(get_num_of_dimension() <= MaxNumDims);
-        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     template <typename X,
@@ -315,7 +361,6 @@ struct HostTensorView : private HostTensorDescriptor
         : Descriptor(lens, strides)
     {
         assert(get_num_of_dimension() <= MaxNumDims);
-        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     template <typename Lengths,
@@ -325,7 +370,6 @@ struct HostTensorView : private HostTensorDescriptor
     explicit HostTensorView(const Lengths& lens) : Descriptor(lens)
     {
         assert(get_num_of_dimension() <= MaxNumDims);
-        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     template <typename Lengths,
@@ -336,7 +380,6 @@ struct HostTensorView : private HostTensorDescriptor
     HostTensorView(const Lengths& lens, const Strides& strides) : Descriptor(lens, strides)
     {
         assert(get_num_of_dimension() <= MaxNumDims);
-        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     public:
@@ -344,7 +387,6 @@ struct HostTensorView : private HostTensorDescriptor
     {
         assert(get_element_space_size() <= mData.size());
         assert(get_num_of_dimension() <= MaxNumDims);
-        std::fill_n(std::begin(mOffsets), get_num_of_dimension(), 0);
     }
 
     HostTensorView()                      = delete;
@@ -374,7 +416,7 @@ struct HostTensorView : private HostTensorDescriptor
 
     void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
 
-    HostTensorView transpose(size_type dim0, size_type dim1)
+    HostTensorView transpose(size_type dim0, size_type dim1) const
     {
         if(get_num_of_dimension() <= dim0 || get_num_of_dimension() <= dim1)
         {
@@ -390,6 +432,37 @@ struct HostTensorView : private HostTensorDescriptor
         auto newStrides = make_permutation_range(get_strides(), order);
 
         return {Descriptor(newLengths, newStrides), mData};
+    }
+
+    HostTensorView slice(std::vector<HostTensorSlice> slices) const
+    {
+        HostTensorView view(Descriptor(get_lengths(), get_strides()), mData);
+        for(size_type idx = 0; idx < std::size(slices); ++idx)
+        {
+            auto& slice = slices[idx];
+            if(get_num_of_dimension() < slice.dim)
+            {
+                throw std::invalid_argument("invalid dim for slice");
+            }
+
+            const size_type length = get_lengths()[slice.dim];
+
+            const size_type start = (slice.start ? *slice.start : 0);
+            const size_type end   = (slice.end ? *slice.end : length);
+            // const size_type step = (slice.step ? *slice.step : 1);
+
+            auto& slicer = view.mSlicers[slice.dim];
+            if(slicer)
+            {
+                slicer->merge(start, end);
+            }
+            else
+            {
+                slicer.emplace(length, start, end);
+            }
+        }
+
+        return view;
     }
 
     template <typename F>
@@ -478,8 +551,11 @@ struct HostTensorView : private HostTensorDescriptor
         assert(std::size(idx) <= get_num_of_dimension());
 
         std::array<size_type, MaxNumDims> real_idx;
-        std::transform(
-            std::begin(idx), std::end(idx), std::begin(mOffsets), std::begin(real_idx), plus());
+        for(size_type dim = 0; dim < std::size(idx); ++dim)
+        {
+            auto& slicer  = mSlicers[dim];
+            real_idx[dim] = (slicer ? (*slicer)(idx[dim]) : idx[dim]);
+        }
 
         return mData[Descriptor::GetOffsetFromMultiIndex(
             span<const size_type>(std::data(real_idx), std::size(idx)))];
@@ -534,7 +610,7 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     Data mData;
-    std::array<size_type, MaxNumDims> mOffsets;
+    std::array<std::optional<Slicer>, MaxNumDims> mSlicers;
 };
 
 template <typename T>
