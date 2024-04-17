@@ -30,8 +30,8 @@ CK_TILE_HOST void reference_im2col(HostTensorView<T> in_mtx_host_ref,
                                    int /*InRightPadH*/,
                                    int /*InRightPadW*/)
 {
-    int GemmM = in_mtx_host_ref.get_lengths()[0];
-    int GemmK = in_mtx_host_ref.get_lengths()[1];
+    int GemmM = in_mtx_host_ref.get_length(0);
+    int GemmK = in_mtx_host_ref.get_length(1);
 
     for(int gemm_m = 0; gemm_m < GemmM; ++gemm_m)
     {

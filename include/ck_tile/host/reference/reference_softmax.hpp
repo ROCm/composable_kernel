@@ -14,7 +14,7 @@ CK_TILE_HOST void reference_softmax(HostTensorView<const ADataType> a_m_n,
                                     HostTensorView<BDataType> b_m_n)
 {
     auto f = [&](auto m) {
-        const int N = a_m_n.get_lengths()[1];
+        const int N = a_m_n.get_length(1);
 
         AccDataType v_max = ck_tile::numeric<ADataType>::Lowest();
 
@@ -45,6 +45,6 @@ CK_TILE_HOST void reference_softmax(HostTensorView<const ADataType> a_m_n,
         }
     };
 
-    make_ParallelTensorFunctor(f, b_m_n.get_lengths()[0])(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(f, b_m_n.get_length(0))(std::thread::hardware_concurrency());
 }
 } // namespace ck_tile

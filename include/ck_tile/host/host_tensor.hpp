@@ -207,8 +207,8 @@ CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old
 
     for(std::size_t i = 0; i < a.get_num_of_dimension(); i++)
     {
-        new_lengths[i] = a.get_lengths()[new2old[i]];
-        new_strides[i] = a.get_strides()[new2old[i]];
+        new_lengths[i] = a.get_length(new2old[i]);
+        new_strides[i] = a.get_stride(new2old[i]);
     }
 
     return HostTensorDescriptor(new_lengths, new_strides);
@@ -668,18 +668,17 @@ struct HostTensorView : private HostTensorDescriptor
         {
         case 1: {
             auto f = [&](auto i) { (*this)(i) = g(i); };
-            make_ParallelTensorFunctor(f, get_lengths()[0])(num_thread);
+            make_ParallelTensorFunctor(f, get_length(0))(num_thread);
             break;
         }
         case 2: {
             auto f = [&](auto i0, auto i1) { (*this)(i0, i1) = g(i0, i1); };
-            make_ParallelTensorFunctor(f, get_lengths()[0], get_lengths()[1])(num_thread);
+            make_ParallelTensorFunctor(f, get_length(0), get_length(1))(num_thread);
             break;
         }
         case 3: {
             auto f = [&](auto i0, auto i1, auto i2) { (*this)(i0, i1, i2) = g(i0, i1, i2); };
-            make_ParallelTensorFunctor(f, get_lengths()[0], get_lengths()[1], get_lengths()[2])(
-                num_thread);
+            make_ParallelTensorFunctor(f, get_length(0), get_length(1), get_length(2))(num_thread);
             break;
         }
         case 4: {
@@ -687,20 +686,16 @@ struct HostTensorView : private HostTensorDescriptor
                 (*this)(i0, i1, i2, i3) = g(i0, i1, i2, i3);
             };
             make_ParallelTensorFunctor(
-                f, get_lengths()[0], get_lengths()[1], get_lengths()[2], get_lengths()[3])(
-                num_thread);
+                f, get_length(0), get_length(1), get_length(2), get_length(3))(num_thread);
             break;
         }
         case 5: {
             auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4) {
                 (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4);
             };
-            make_ParallelTensorFunctor(f,
-                                       get_lengths()[0],
-                                       get_lengths()[1],
-                                       get_lengths()[2],
-                                       get_lengths()[3],
-                                       get_lengths()[4])(num_thread);
+            make_ParallelTensorFunctor(
+                f, get_length(0), get_length(1), get_length(2), get_length(3), get_length(4))(
+                num_thread);
             break;
         }
         case 6: {
@@ -708,12 +703,12 @@ struct HostTensorView : private HostTensorDescriptor
                 (*this)(i0, i1, i2, i3, i4, i5) = g(i0, i1, i2, i3, i4, i5);
             };
             make_ParallelTensorFunctor(f,
-                                       get_lengths()[0],
-                                       get_lengths()[1],
-                                       get_lengths()[2],
-                                       get_lengths()[3],
-                                       get_lengths()[4],
-                                       get_lengths()[5])(num_thread);
+                                       get_length(0),
+                                       get_length(1),
+                                       get_length(2),
+                                       get_length(3),
+                                       get_length(4),
+                                       get_length(5))(num_thread);
             break;
         }
         default: throw std::runtime_error("unspported dimension");
@@ -799,7 +794,7 @@ struct HostTensorView : private HostTensorDescriptor
             return;
         }
         // else
-        for(size_t i = 0; i < get_lengths()[rank]; i++)
+        for(size_t i = 0; i < get_length(rank); i++)
         {
             idx[rank] = i;
             ForEach_impl(std::forward<F>(f), idx, rank + 1);
@@ -815,7 +810,7 @@ struct HostTensorView : private HostTensorDescriptor
             return;
         }
         // else
-        for(size_t i = 0; i < get_lengths()[rank]; i++)
+        for(size_t i = 0; i < get_length(rank); i++)
         {
             idx[rank] = i;
             ForEach_impl(std::forward<const F>(f), idx, rank + 1);
