@@ -18,7 +18,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d_splitk.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_dynamic_vector_dims.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_splitk_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
@@ -78,17 +78,17 @@ template <typename ALayout,
           // TODO: change gridwise_gemm_v2r4r2 to support AK1 & BK1
           enable_if_t<AK1 == BK1, bool> = false>
 struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
-    : public DeviceGroupedGemmMultipleDSplitK<ALayout,
-                                              BLayout,
-                                              DsLayout,
-                                              ELayout,
-                                              ADataType,
-                                              BDataType,
-                                              DsDataType,
-                                              EDataType,
-                                              AElementwiseOperation,
-                                              BElementwiseOperation,
-                                              CDEElementwiseOperation>
+    : public DeviceGroupedGemmSplitK<ALayout,
+                                     BLayout,
+                                     DsLayout,
+                                     ELayout,
+                                     ADataType,
+                                     BDataType,
+                                     DsDataType,
+                                     EDataType,
+                                     AElementwiseOperation,
+                                     BElementwiseOperation,
+                                     CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage;
 
