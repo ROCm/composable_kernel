@@ -59,6 +59,18 @@ struct iterator_range
         return static_cast<size_type>(std::distance(begin(), end()));
     }
 
+    template <bool Cond = is_bidirectional_iterator_v<sentinel>>
+    std::enable_if_t<Cond, std::reverse_iterator<sentinel>> rbegin() const
+    {
+        return std::reverse_iterator<sentinel>(end());
+    }
+
+    template <bool Cond = is_bidirectional_iterator_v<iterator>>
+    std::enable_if_t<Cond, std::reverse_iterator<iterator>> rend() const
+    {
+        return std::reverse_iterator<iterator>(begin());
+    }
+
     private:
     iterator first;
     sentinel last;
