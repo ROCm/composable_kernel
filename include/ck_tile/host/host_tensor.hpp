@@ -534,12 +534,12 @@ struct HostTensorView : private HostTensorDescriptor
 
         std::swap(order[dim0], order[dim1]);
 
-        auto newLengths = make_permutation_range(get_lengths(), order);
-        auto newStrides = make_permutation_range(get_strides(), order);
-        auto newSlicers = make_permutation_range(get_slicers(), order);
+        auto new_lengths = make_permutation_range(get_lengths(), order);
+        auto new_strides = make_permutation_range(get_strides(), order);
+        auto new_slicers = make_permutation_range(get_slicers(), order);
 
-        HostTensorView view(Descriptor(newLengths, newStrides), mData);
-        std::copy(begin(newSlicers), end(newSlicers), begin(view.get_slicers()));
+        HostTensorView view(Descriptor(new_lengths, new_strides), mData);
+        std::copy(begin(new_slicers), end(new_slicers), begin(view.get_slicers()));
 
         return view;
     }
@@ -548,10 +548,10 @@ struct HostTensorView : private HostTensorDescriptor
     {
         using std::begin, std::end;
 
-        std::vector<std::optional<Slicer>> newSlicers(begin(get_slicers()), end(get_slicers()));
+        std::vector<std::optional<Slicer>> new_slicers(begin(get_slicers()), end(get_slicers()));
 
         const auto lengths = get_lengths();
-        std::vector<size_type> newLengths(begin(lengths), end(lengths));
+        std::vector<size_type> new_lengths(begin(lengths), end(lengths));
 
         for(size_type idx = 0; idx < std::size(slices); ++idx)
         {
@@ -566,7 +566,7 @@ struct HostTensorView : private HostTensorDescriptor
             const size_type start = (slice.start ? *slice.start : 0);
             const size_type end   = (slice.end ? *slice.end : length);
 
-            auto& slicer = newSlicers[slice.dim];
+            auto& slicer = new_slicers[slice.dim];
             if(slicer)
             {
                 if(!slicer->update(start, end))
@@ -578,11 +578,11 @@ struct HostTensorView : private HostTensorDescriptor
             {
                 slicer.emplace(length, start, end);
             }
-            newLengths[slice.dim] = slicer->get_length();
+            new_lengths[slice.dim] = slicer->get_length();
         }
 
-        HostTensorView view(Descriptor(newLengths, get_strides()), mData);
-        std::copy(begin(newSlicers), end(newSlicers), begin(view.get_slicers()));
+        HostTensorView view(Descriptor(new_lengths, get_strides()), mData);
+        std::copy(begin(new_slicers), end(new_slicers), begin(view.get_slicers()));
 
         return view;
     }
@@ -610,14 +610,14 @@ struct HostTensorView : private HostTensorDescriptor
 
         // remove length/stride on dim
         const auto lengths = get_lengths();
-        std::vector<size_type> newLengths(begin(lengths), end(lengths));
-        std::vector<size_type> newStrides(begin(strides), end(strides));
+        std::vector<size_type> new_lengths(begin(lengths), end(lengths));
+        std::vector<size_type> new_strides(begin(strides), end(strides));
 
-        newLengths.erase(next(begin(newLengths), dim));
-        newStrides.erase(next(begin(newStrides), dim));
+        new_lengths.erase(next(begin(new_lengths), dim));
+        new_strides.erase(next(begin(new_strides), dim));
 
         auto view = [&]() -> HostTensorView {
-            HostTensorDescriptor desc(newLengths, newStrides);
+            HostTensorDescriptor desc(new_lengths, new_strides);
 
             auto& slicer = get_slicer(dim);
             if(slicer)
