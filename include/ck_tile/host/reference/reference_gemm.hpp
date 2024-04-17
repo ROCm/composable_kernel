@@ -16,15 +16,15 @@ template <typename ADataType,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
-                                 const HostTensor<BDataType>& b_n_k,
-                                 HostTensor<CDataType>& c_m_n,
+CK_TILE_HOST void reference_gemm(HostTensorView<const ADataType> a_m_k,
+                                 HostTensorView<const BDataType> b_n_k,
+                                 HostTensorView<CDataType> c_m_n,
                                  const AElementOp& a_element_op     = {},
                                  const BElementOp& b_element_op     = {},
                                  const ACCElementOp& acc_element_op = {})
 {
-    const int N = b_n_k.mDesc.get_lengths()[0];
-    const int K = b_n_k.mDesc.get_lengths()[1];
+    const int N = b_n_k.get_length(0);
+    const int K = b_n_k.get_length(1);
 
     auto f = [&](auto m) {
         for(int n = 0; n < N; ++n)
@@ -44,7 +44,6 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
         }
     };
 
-    make_ParallelTensorFunctor(f,
-                               c_m_n.mDesc.get_lengths()[0])(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(f, c_m_n.get_length(0))(std::thread::hardware_concurrency());
 }
 } // namespace ck_tile

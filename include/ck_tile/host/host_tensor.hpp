@@ -4,8 +4,10 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <iostream>
+#include <iterator>
 #include <iomanip>
 #include <numeric>
 #include <thread>
@@ -13,7 +15,6 @@
 #include <vector>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/ranges.hpp"
 
 namespace ck_tile {
 
@@ -102,15 +103,8 @@ struct HostTensorDescriptor
     }
 
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, std::size_t>>>
-    HostTensorDescriptor(const std::initializer_list<X>& lens) : mLens(lens.begin(), lens.end())
-    {
-        this->CalculateStrides();
-    }
-
-    template <typename Lengths,
-              typename = std::enable_if_t<
-                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
-    HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
+    explicit HostTensorDescriptor(const std::initializer_list<X>& lens)
+        : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
     }
@@ -123,6 +117,16 @@ struct HostTensorDescriptor
                          const std::initializer_list<Y>& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
+        assert(mLens.size() == mStrides.size());
+    }
+
+    template <typename Lengths,
+              typename = std::enable_if_t<
+                  !std::is_base_of_v<HostTensorDescriptor, Lengths> &&
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
+    explicit HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
+    {
+        this->CalculateStrides();
     }
 
     template <typename Lengths,
@@ -133,6 +137,7 @@ struct HostTensorDescriptor
     HostTensorDescriptor(const Lengths& lens, const Strides& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
+        assert(mLens.size() == mStrides.size());
     }
 
     std::size_t get_num_of_dimension() const { return mLens.size(); }
@@ -155,19 +160,34 @@ struct HostTensorDescriptor
         return space;
     }
 
-    const std::vector<std::size_t>& get_lengths() const { return mLens; }
-    const std::vector<std::size_t>& GetStrides() const { return mStrides; }
+    std::size_t get_length(std::size_t dim) const { return mLens[dim]; }
 
-    template <typename... Is>
-    std::size_t GetOffsetFromMultiIndex(Is... is) const
+    auto get_lengths() const
     {
-        assert(sizeof...(Is) == this->get_num_of_dimension());
-        std::initializer_list<std::size_t> iss{static_cast<std::size_t>(is)...};
-        return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
+        using iterator = remove_cvref_t<decltype(mLens)>::const_iterator;
+        return iterator_range<iterator>(mLens);
     }
 
-    std::size_t GetOffsetFromMultiIndex(std::vector<std::size_t> iss) const
+    std::size_t get_stride(std::size_t dim) const { return mStrides[dim]; }
+
+    auto get_strides() const
     {
+        using iterator = remove_cvref_t<decltype(mStrides)>::const_iterator;
+        return iterator_range<iterator>(mStrides);
+    }
+
+    template <typename... Is>
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, std::size_t>)&&...),
+                     std::size_t>
+    GetOffsetFromMultiIndex(Is... is) const
+    {
+        assert(sizeof...(Is) == this->get_num_of_dimension());
+        return GetOffsetFromMultiIndex(std::array{static_cast<std::size_t>(is)...});
+    }
+
+    std::size_t GetOffsetFromMultiIndex(span<const std::size_t> iss) const
+    {
+        assert(iss.size() == this->get_num_of_dimension());
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
@@ -187,8 +207,8 @@ CK_TILE_HOST HostTensorDescriptor transpose_host_tensor_descriptor_given_new2old
 
     for(std::size_t i = 0; i < a.get_num_of_dimension(); i++)
     {
-        new_lengths[i] = a.get_lengths()[new2old[i]];
-        new_strides[i] = a.GetStrides()[new2old[i]];
+        new_lengths[i] = a.get_length(new2old[i]);
+        new_strides[i] = a.get_stride(new2old[i]);
     }
 
     return HostTensorDescriptor(new_lengths, new_strides);
@@ -271,44 +291,582 @@ CK_TILE_HOST auto make_ParallelTensorFunctor(F f, Xs... xs)
     return ParallelTensorFunctor<F, Xs...>(f, xs...);
 }
 
-template <typename T>
-struct HostTensor
+struct HostTensorSlice
 {
-    using Descriptor = HostTensorDescriptor;
-    using Data       = std::vector<T>;
+    using size_type = std::size_t;
+
+    HostTensorSlice(size_type dim_,
+                    std::optional<size_type> start_ = std::nullopt,
+                    std::optional<size_type> end_   = std::nullopt)
+        : dim(dim_), start(start_), end(end_)
+    {
+    }
+
+    size_type dim;
+    std::optional<size_type> start;
+    std::optional<size_type> end;
+};
+
+struct HostTensorSlicer
+{
+    using size_type = std::size_t;
+
+    HostTensorSlicer(size_type length_, size_type start_, size_type end_)
+        : length(length_), start(start_), end(end_)
+    {
+        if(!(0 < length && start < end && end <= length))
+        {
+            throw std::invalid_argument("invalid slice");
+        }
+    }
+
+    bool update(size_type new_start, size_type new_end)
+    {
+        if(!(new_start < new_end && new_end <= get_length()))
+        {
+            return false;
+        }
+
+        end = start + new_end;
+        start += new_start;
+
+        return true;
+    }
+
+    size_type operator()(size_type idx) const { return start + idx; }
+
+    size_type get_length() const { return end - start; }
+
+    size_type get_start() const { return start; }
+
+    private:
+    size_type length;
+    size_type start;
+    size_type end;
+};
+
+namespace detail {
+template <typename TensorView>
+struct Repeat
+{
+    using const_reference = typename TensorView::const_reference;
+    using size_type       = typename TensorView::size_type;
+
+    static inline constexpr size_type MaxNumDims = TensorView::MaxNumDims;
+
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
+    Repeat(TensorView view, std::initializer_list<X> repeats)
+        : mView(std::move(view)), mLengths(get_num_of_dimension())
+    {
+        assert(mView.get_num_of_dimension() <= MaxNumDims);
+        assert(std::size(repeats) <= mView.get_num_of_dimension());
+
+        using std::rbegin, std::rend;
+        std::copy(rbegin(repeats), rend(repeats), rbegin(get_repeats()));
+
+        using std::begin, std::end;
+        std::transform(begin(mView.get_lengths()),
+                       end(mView.get_lengths()),
+                       begin(get_repeats()),
+                       begin(mLengths),
+                       multiplies());
+    }
+
+    size_type get_num_of_dimension() const { return mView.get_num_of_dimension(); }
+
+    size_type get_length(size_type dim) const { return mLengths[dim]; }
+
+    auto get_lengths() const
+    {
+        using std::begin, std::end;
+
+        return iterator_range(begin(mLengths), end(mLengths));
+    }
+
+    template <typename... Is>
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
+                     const_reference>
+    operator()(Is... is) const
+    {
+        return (*this)(std::array{static_cast<size_type>(is)...});
+    }
+
+    const_reference operator()(span<const size_type> idx) const
+    {
+        assert(std::size(idx) == get_num_of_dimension());
+
+        std::array<size_type, MaxNumDims> real_idx;
+        for(size_type dim = 0; dim < std::size(idx); ++dim)
+        {
+            real_idx[dim] = idx[dim] / get_repeat(dim);
+        }
+
+        return mView(span<const size_type>(std::data(real_idx), std::size(idx)));
+    }
+
+    private:
+    size_type get_repeat(size_type dim) const { return mRepeats[dim]; }
+
+    auto get_repeats()
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mRepeats), next(begin(mRepeats), get_num_of_dimension()));
+    }
+
+    auto get_repeats() const
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mRepeats), next(begin(mRepeats), get_num_of_dimension()));
+    }
+
+    TensorView mView;
+    std::array<size_type, MaxNumDims> mRepeats;
+    std::vector<size_type> mLengths;
+};
+} // namespace detail
+
+template <typename T>
+struct HostTensorView : private HostTensorDescriptor
+{
+    using Descriptor      = HostTensorDescriptor;
+    using Data            = span<T>;
+    using Slicer          = HostTensorSlicer;
+    using reference       = typename Data::reference;
+    using const_reference = typename Data::const_reference;
+    using iterator        = typename Data::iterator;
+    using pointer         = typename Data::pointer;
+    using size_type       = std::size_t;
+
+    static inline constexpr size_type MaxNumDims = 6;
+
+    protected:
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
+    explicit HostTensorView(std::initializer_list<X> lens) : Descriptor(lens)
+    {
+        assert(get_num_of_dimension() <= MaxNumDims);
+    }
+
+    template <typename X,
+              typename Y,
+              typename = std::enable_if_t<std::is_convertible_v<X, size_type> &&
+                                          std::is_convertible_v<Y, size_type>>>
+    HostTensorView(std::initializer_list<X> lens, std::initializer_list<Y> strides)
+        : Descriptor(lens, strides)
+    {
+        assert(get_num_of_dimension() <= MaxNumDims);
+    }
+
+    template <typename Lengths,
+              typename = std::enable_if_t<
+                  !std::is_base_of_v<HostTensorDescriptor, Lengths> &&
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, size_type>>>
+    explicit HostTensorView(const Lengths& lens) : Descriptor(lens)
+    {
+        assert(get_num_of_dimension() <= MaxNumDims);
+    }
+
+    template <typename Lengths,
+              typename Strides,
+              typename = std::enable_if_t<
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, size_type> &&
+                  std::is_convertible_v<ck_tile::ranges::range_value_t<Strides>, size_type>>>
+    HostTensorView(const Lengths& lens, const Strides& strides) : Descriptor(lens, strides)
+    {
+        assert(get_num_of_dimension() <= MaxNumDims);
+    }
+
+    public:
+    HostTensorView(Descriptor desc, Data data) : Descriptor(std::move(desc)), mData(data)
+    {
+        assert(get_element_space_size() <= mData.size());
+        assert(get_num_of_dimension() <= MaxNumDims);
+    }
+
+    HostTensorView()                      = delete;
+    HostTensorView(const HostTensorView&) = default;
+    HostTensorView(HostTensorView&&)      = default;
+
+    ~HostTensorView() = default;
+
+    HostTensorView& operator=(const HostTensorView&) = default;
+    HostTensorView& operator=(HostTensorView&&) = default;
+
+    friend struct HostTensorView<std::remove_const_t<T>>;
+
+    operator HostTensorView<std::add_const_t<T>>() const
+    {
+        using std::begin, std::end;
+
+        HostTensorView<std::add_const_t<T>> view(static_cast<const Descriptor&>(*this), mData);
+        std::copy(begin(get_slicers()), end(get_slicers()), begin(view.get_slicers()));
+
+        return view;
+    }
+
+    using Descriptor::get_element_size;
+    using Descriptor::get_element_space_size;
+    using Descriptor::get_length;
+    using Descriptor::get_lengths;
+    using Descriptor::get_num_of_dimension;
+    using Descriptor::get_stride;
+    using Descriptor::get_strides;
+
+    size_type get_element_space_size_in_bytes() const
+    {
+        return sizeof(T) * get_element_space_size();
+    }
+
+    void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
+
+    HostTensorView transpose(size_type dim0, size_type dim1) const
+    {
+        if(get_num_of_dimension() <= dim0 || get_num_of_dimension() <= dim1)
+        {
+            throw std::invalid_argument("transpose with invalid dim0 or dim1");
+        }
+
+        using std::begin, std::end;
+
+        std::vector<size_type> order(get_num_of_dimension());
+        std::iota(std::begin(order), std::end(order), 0);
+
+        std::swap(order[dim0], order[dim1]);
+
+        auto newLengths = make_permutation_range(get_lengths(), order);
+        auto newStrides = make_permutation_range(get_strides(), order);
+        auto newSlicers = make_permutation_range(get_slicers(), order);
+
+        HostTensorView view(Descriptor(newLengths, newStrides), mData);
+        std::copy(begin(newSlicers), end(newSlicers), begin(view.get_slicers()));
+
+        return view;
+    }
+
+    HostTensorView index(std::initializer_list<HostTensorSlice> slices) const
+    {
+        using std::begin, std::end;
+
+        std::vector<std::optional<Slicer>> newSlicers(begin(get_slicers()), end(get_slicers()));
+
+        const auto lengths = get_lengths();
+        std::vector<size_type> newLengths(begin(lengths), end(lengths));
+
+        for(size_type idx = 0; idx < std::size(slices); ++idx)
+        {
+            const auto& slice = *std::next(begin(slices), idx);
+            if(get_num_of_dimension() < slice.dim)
+            {
+                throw std::invalid_argument("invalid dim for slice");
+            }
+
+            const size_type length = lengths[slice.dim];
+
+            const size_type start = (slice.start ? *slice.start : 0);
+            const size_type end   = (slice.end ? *slice.end : length);
+
+            auto& slicer = newSlicers[slice.dim];
+            if(slicer)
+            {
+                if(!slicer->update(start, end))
+                {
+                    throw std::invalid_argument("slice conflict with others");
+                }
+            }
+            else
+            {
+                slicer.emplace(length, start, end);
+            }
+            newLengths[slice.dim] = slicer->get_length();
+        }
+
+        HostTensorView view(Descriptor(newLengths, get_strides()), mData);
+        std::copy(begin(newSlicers), end(newSlicers), begin(view.get_slicers()));
+
+        return view;
+    }
+
+    HostTensorView squeeze(size_type dim) const
+    {
+        assert(0 < get_num_of_dimension());
+
+        if(get_num_of_dimension() == 1 || get_num_of_dimension() <= dim || 1 < get_length(dim))
+        {
+            return *this;
+        }
+
+        using std::begin, std::end, std::next;
+
+        // check if the squeezing dimension has the largest stride
+        const size_type stride = get_stride(dim);
+
+        const auto strides    = get_strides();
+        const auto max_stride = std::max_element(begin(strides), end(strides));
+        if(stride < *max_stride)
+        {
+            return *this;
+        }
+
+        // remove length/stride on dim
+        const auto lengths = get_lengths();
+        std::vector<size_type> newLengths(begin(lengths), end(lengths));
+        std::vector<size_type> newStrides(begin(strides), end(strides));
+
+        newLengths.erase(next(begin(newLengths), dim));
+        newStrides.erase(next(begin(newStrides), dim));
+
+        auto view = [&]() -> HostTensorView {
+            HostTensorDescriptor desc(newLengths, newStrides);
+
+            auto& slicer = get_slicer(dim);
+            if(slicer)
+            {
+                return {desc, mData.subspan(stride * slicer->get_start())};
+            }
+            else
+            {
+                return {desc, mData};
+            }
+        }();
+
+        auto src  = get_slicers();
+        auto dest = view.get_slicers();
+
+        // copy all slicers in [0, dim)
+        std::copy(begin(src), next(begin(src), dim), begin(dest));
+        // copy all slicers in [dim + 1, get_num_of_dimension())
+        std::copy(next(begin(src), dim + 1), end(src), next(begin(dest), dim));
+
+        return view;
+    }
+
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
+    auto repeat(std::initializer_list<X> repeats) const
+    {
+        return detail::Repeat<HostTensorView>(*this, repeats);
+    }
+
+    template <typename F>
+    void ForEach(F&& f)
+    {
+        std::vector<size_t> idx(get_num_of_dimension(), 0);
+        ForEach_impl(std::forward<F>(f), idx, size_t(0));
+    }
+
+    template <typename F>
+    void ForEach(const F&& f) const
+    {
+        std::vector<size_t> idx(get_num_of_dimension(), 0);
+        ForEach_impl(std::forward<const F>(f), idx, size_t(0));
+    }
+
+    template <typename G>
+    void GenerateTensorValue(G g, std::size_t num_thread = 1)
+    {
+        switch(get_num_of_dimension())
+        {
+        case 1: {
+            auto f = [&](auto i) { (*this)(i) = g(i); };
+            make_ParallelTensorFunctor(f, get_length(0))(num_thread);
+            break;
+        }
+        case 2: {
+            auto f = [&](auto i0, auto i1) { (*this)(i0, i1) = g(i0, i1); };
+            make_ParallelTensorFunctor(f, get_length(0), get_length(1))(num_thread);
+            break;
+        }
+        case 3: {
+            auto f = [&](auto i0, auto i1, auto i2) { (*this)(i0, i1, i2) = g(i0, i1, i2); };
+            make_ParallelTensorFunctor(f, get_length(0), get_length(1), get_length(2))(num_thread);
+            break;
+        }
+        case 4: {
+            auto f = [&](auto i0, auto i1, auto i2, auto i3) {
+                (*this)(i0, i1, i2, i3) = g(i0, i1, i2, i3);
+            };
+            make_ParallelTensorFunctor(
+                f, get_length(0), get_length(1), get_length(2), get_length(3))(num_thread);
+            break;
+        }
+        case 5: {
+            auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4) {
+                (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4);
+            };
+            make_ParallelTensorFunctor(
+                f, get_length(0), get_length(1), get_length(2), get_length(3), get_length(4))(
+                num_thread);
+            break;
+        }
+        case 6: {
+            auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4, auto i5) {
+                (*this)(i0, i1, i2, i3, i4, i5) = g(i0, i1, i2, i3, i4, i5);
+            };
+            make_ParallelTensorFunctor(f,
+                                       get_length(0),
+                                       get_length(1),
+                                       get_length(2),
+                                       get_length(3),
+                                       get_length(4),
+                                       get_length(5))(num_thread);
+            break;
+        }
+        default: throw std::runtime_error("unspported dimension");
+        }
+    }
+
+    template <typename... Is>
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
+                     reference>
+    operator()(Is... is)
+    {
+        return (*this)(std::array{static_cast<size_type>(is)...});
+    }
+
+    template <typename... Is>
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
+                     const_reference>
+    operator()(Is... is) const
+    {
+        return (*this)(std::array{static_cast<size_type>(is)...});
+    }
+
+    reference operator()(span<const size_type> idx) { return get_impl(*this, idx); }
+
+    const_reference operator()(span<const size_type> idx) const { return get_impl(*this, idx); }
+
+    iterator begin() const { return mData.begin(); }
+
+    iterator end() const { return std::next(begin(), size()); }
+
+    pointer data() const { return mData.data(); }
+
+    size_type size() const { return get_element_space_size(); }
+
+    protected:
+    void set_data(Data data)
+    {
+        assert(get_element_space_size() <= data.size());
+        mData = data;
+    }
+
+    auto& get_slicer(size_type dim) { return mSlicers[dim]; }
+
+    auto& get_slicer(size_type dim) const { return mSlicers[dim]; }
+
+    auto get_slicers()
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mSlicers), next(begin(mSlicers), get_num_of_dimension()));
+    }
+
+    auto get_slicers() const
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mSlicers), next(begin(mSlicers), get_num_of_dimension()));
+    }
+
+    private:
+    template <typename Self>
+    static decltype(auto) get_impl(Self&& self, span<const size_type> idx)
+    {
+        assert(std::size(idx) == self.get_num_of_dimension());
+
+        std::array<size_type, MaxNumDims> real_idx;
+        for(size_type dim = 0; dim < std::size(idx); ++dim)
+        {
+            auto& slicer  = self.get_slicer(dim);
+            real_idx[dim] = (slicer ? (*slicer)(idx[dim]) : idx[dim]);
+        }
+
+        return self.mData[self.GetOffsetFromMultiIndex(
+            span<const size_type>(std::data(real_idx), std::size(idx)))];
+    }
+
+    template <typename F>
+    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    {
+        if(rank == get_num_of_dimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < get_length(rank); i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+        }
+    }
+
+    template <typename F>
+    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
+    {
+        if(rank == get_num_of_dimension())
+        {
+            f(*this, idx);
+            return;
+        }
+        // else
+        for(size_t i = 0; i < get_length(rank); i++)
+        {
+            idx[rank] = i;
+            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
+        }
+    }
+
+    Data mData;
+    std::array<std::optional<Slicer>, MaxNumDims> mSlicers;
+};
+
+template <typename T>
+using tensor_view_value_t =
+    remove_cvref_t<decltype(std::declval<remove_cvref_t<T>&>()(0, 0, 0, 0))>;
+
+template <typename T>
+struct HostTensor : HostTensorView<T>
+{
+    using View = HostTensorView<T>;
+    using Data = std::vector<T>;
 
     template <typename X>
-    HostTensor(std::initializer_list<X> lens) : mDesc(lens), mData(mDesc.get_element_space_size())
+    explicit HostTensor(std::initializer_list<X> lens)
+        : View(lens), mData(View::get_element_space_size())
     {
+        View::set_data(mData);
     }
 
     template <typename X, typename Y>
     HostTensor(std::initializer_list<X> lens, std::initializer_list<Y> strides)
-        : mDesc(lens, strides), mData(mDesc.get_element_space_size())
+        : View(lens, strides), mData(View::get_element_space_size())
     {
+        View::set_data(mData);
     }
 
     template <typename Lengths>
-    HostTensor(const Lengths& lens) : mDesc(lens), mData(mDesc.get_element_space_size())
+    explicit HostTensor(const Lengths& lens) : View(lens), mData(View::get_element_space_size())
     {
+        View::set_data(mData);
     }
 
     template <typename Lengths, typename Strides>
     HostTensor(const Lengths& lens, const Strides& strides)
-        : mDesc(lens, strides), mData(get_element_space_size())
+        : View(lens, strides), mData(View::get_element_space_size())
     {
+        View::set_data(mData);
     }
 
-    HostTensor(const Descriptor& desc) : mDesc(desc), mData(mDesc.get_element_space_size()) {}
-
-    template <typename OutT>
-    HostTensor<OutT> CopyAsType() const
+    explicit HostTensor(const typename View::Descriptor& desc)
+        : View(desc), mData(View::get_element_space_size())
     {
-        HostTensor<OutT> ret(mDesc);
-        std::transform(mData.cbegin(), mData.cend(), ret.mData.begin(), [](auto value) {
-            return ck_tile::type_convert<OutT>(value);
-        });
-        return ret;
+        View::set_data(mData);
+    }
+
+    template <typename FromT>
+    explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
+    {
     }
 
     HostTensor()                  = delete;
@@ -320,204 +878,17 @@ struct HostTensor
     HostTensor& operator=(const HostTensor&) = default;
     HostTensor& operator=(HostTensor&&) = default;
 
-    template <typename FromT>
-    explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
+    template <typename OutT>
+    HostTensor<OutT> CopyAsType() const
     {
+        HostTensor<OutT> ret(static_cast<const typename View::Descriptor&>(*this));
+        std::transform(mData.cbegin(), mData.cend(), ret.mData.begin(), [](auto value) {
+            return ck_tile::type_convert<OutT>(value);
+        });
+        return ret;
     }
 
-    decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
-
-    decltype(auto) GetStrides() const { return mDesc.GetStrides(); }
-
-    std::size_t get_num_of_dimension() const { return mDesc.get_num_of_dimension(); }
-
-    std::size_t get_element_size() const { return mDesc.get_element_size(); }
-
-    std::size_t get_element_space_size() const { return mDesc.get_element_space_size(); }
-
-    std::size_t get_element_space_size_in_bytes() const
-    {
-        return sizeof(T) * get_element_space_size();
-    }
-
-    // void SetZero() { ck_tile::ranges::fill<T>(mData, 0); }
-    void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
-
-    template <typename F>
-    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
-    {
-        if(rank == mDesc.get_num_of_dimension())
-        {
-            f(*this, idx);
-            return;
-        }
-        // else
-        for(size_t i = 0; i < mDesc.get_lengths()[rank]; i++)
-        {
-            idx[rank] = i;
-            ForEach_impl(std::forward<F>(f), idx, rank + 1);
-        }
-    }
-
-    template <typename F>
-    void ForEach(F&& f)
-    {
-        std::vector<size_t> idx(mDesc.get_num_of_dimension(), 0);
-        ForEach_impl(std::forward<F>(f), idx, size_t(0));
-    }
-
-    template <typename F>
-    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
-    {
-        if(rank == mDesc.get_num_of_dimension())
-        {
-            f(*this, idx);
-            return;
-        }
-        // else
-        for(size_t i = 0; i < mDesc.get_lengths()[rank]; i++)
-        {
-            idx[rank] = i;
-            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
-        }
-    }
-
-    template <typename F>
-    void ForEach(const F&& f) const
-    {
-        std::vector<size_t> idx(mDesc.get_num_of_dimension(), 0);
-        ForEach_impl(std::forward<const F>(f), idx, size_t(0));
-    }
-
-    template <typename G>
-    void GenerateTensorValue(G g, std::size_t num_thread = 1)
-    {
-        switch(mDesc.get_num_of_dimension())
-        {
-        case 1: {
-            auto f = [&](auto i) { (*this)(i) = g(i); };
-            make_ParallelTensorFunctor(f, mDesc.get_lengths()[0])(num_thread);
-            break;
-        }
-        case 2: {
-            auto f = [&](auto i0, auto i1) { (*this)(i0, i1) = g(i0, i1); };
-            make_ParallelTensorFunctor(f, mDesc.get_lengths()[0], mDesc.get_lengths()[1])(
-                num_thread);
-            break;
-        }
-        case 3: {
-            auto f = [&](auto i0, auto i1, auto i2) { (*this)(i0, i1, i2) = g(i0, i1, i2); };
-            make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2])(num_thread);
-            break;
-        }
-        case 4: {
-            auto f = [&](auto i0, auto i1, auto i2, auto i3) {
-                (*this)(i0, i1, i2, i3) = g(i0, i1, i2, i3);
-            };
-            make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2],
-                                       mDesc.get_lengths()[3])(num_thread);
-            break;
-        }
-        case 5: {
-            auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4) {
-                (*this)(i0, i1, i2, i3, i4) = g(i0, i1, i2, i3, i4);
-            };
-            make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2],
-                                       mDesc.get_lengths()[3],
-                                       mDesc.get_lengths()[4])(num_thread);
-            break;
-        }
-        case 6: {
-            auto f = [&](auto i0, auto i1, auto i2, auto i3, auto i4, auto i5) {
-                (*this)(i0, i1, i2, i3, i4, i5) = g(i0, i1, i2, i3, i4, i5);
-            };
-            make_ParallelTensorFunctor(f,
-                                       mDesc.get_lengths()[0],
-                                       mDesc.get_lengths()[1],
-                                       mDesc.get_lengths()[2],
-                                       mDesc.get_lengths()[3],
-                                       mDesc.get_lengths()[4],
-                                       mDesc.get_lengths()[5])(num_thread);
-            break;
-        }
-        default: throw std::runtime_error("unspported dimension");
-        }
-    }
-
-    template <typename... Is>
-    std::size_t GetOffsetFromMultiIndex(Is... is) const
-    {
-        return mDesc.GetOffsetFromMultiIndex(is...);
-    }
-
-    template <typename... Is>
-    T& operator()(Is... is)
-    {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
-    }
-
-    template <typename... Is>
-    const T& operator()(Is... is) const
-    {
-        return mData[mDesc.GetOffsetFromMultiIndex(is...)];
-    }
-
-    T& operator()(std::vector<std::size_t> idx)
-    {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-    }
-
-    const T& operator()(std::vector<std::size_t> idx) const
-    {
-        return mData[mDesc.GetOffsetFromMultiIndex(idx)];
-    }
-
-    typename Data::iterator begin() { return mData.begin(); }
-
-    typename Data::iterator end() { return mData.end(); }
-
-    typename Data::pointer data() { return mData.data(); }
-
-    typename Data::const_iterator begin() const { return mData.begin(); }
-
-    typename Data::const_iterator end() const { return mData.end(); }
-
-    typename Data::const_pointer data() const { return mData.data(); }
-
-    typename Data::size_type size() const { return mData.size(); }
-
-    template <typename U = T>
-    auto AsSpan() const
-    {
-        constexpr std::size_t FromSize = sizeof(T);
-        constexpr std::size_t ToSize   = sizeof(U);
-
-        using Element = std::add_const_t<std::remove_reference_t<U>>;
-        return ck_tile::span<Element>{reinterpret_cast<Element*>(data()),
-                                      size() * FromSize / ToSize};
-    }
-
-    template <typename U = T>
-    auto AsSpan()
-    {
-        constexpr std::size_t FromSize = sizeof(T);
-        constexpr std::size_t ToSize   = sizeof(U);
-
-        using Element = std::remove_reference_t<U>;
-        return ck_tile::span<Element>{reinterpret_cast<Element*>(data()),
-                                      size() * FromSize / ToSize};
-    }
-
-    Descriptor mDesc;
+    private:
     Data mData;
 };
 } // namespace ck_tile

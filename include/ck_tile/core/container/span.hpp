@@ -4,11 +4,15 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include <cstddef>
+
 #include <array>
+#include <cstddef>
+#include <limits>
 #include <type_traits>
 
 namespace ck_tile {
+
+inline constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 
 // implement the c++20 std::span, lightweight, non-owning reference to a sequence
 // weather it is dynamic or static range. Or can be seen as a view of a contiguous sequence
@@ -47,9 +51,9 @@ class span
     {
     }
 
-    template <typename Container>
-    CK_TILE_HOST_DEVICE constexpr span(const Container& container)
-        : span(container.data(), container.size())
+    template <typename ContiguousRange>
+    CK_TILE_HOST_DEVICE constexpr span(ContiguousRange&& range)
+        : span(std::data(range), std::size(range))
     {
     }
 
@@ -69,6 +73,13 @@ class span
     CK_TILE_HOST_DEVICE constexpr pointer data() const noexcept { return ptr_; }
 
     CK_TILE_HOST_DEVICE constexpr size_type size() const noexcept { return size_; }
+
+    CK_TILE_HOST_DEVICE constexpr span subspan(size_type offset,
+                                               size_type count = dynamic_extent) const
+    {
+        const size_type remain_size = (size() - offset);
+        return {data() + offset, std::min(count, remain_size)};
+    }
 
     private:
     pointer ptr_;

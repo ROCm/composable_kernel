@@ -407,36 +407,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
         // setup stride_* arguments
-        const ck_tile::index_t stride_q = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck_tile::index_t stride_k = (i_perm ? hdim_q : nhead_k * hdim_q);
-        const ck_tile::index_t stride_v = [&]() {
-            if(is_v_rowmajor)
-                return i_perm ? hdim_v : nhead_k * hdim_v;
-            else
-                return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
-        }();
-        const ck_tile::index_t stride_bias = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
-        const ck_tile::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_q    = q_host.get_stride(1 + i_perm);
+        const ck_tile::index_t stride_k    = k_host.get_stride(1 + i_perm);
+        const ck_tile::index_t stride_v    = v_host.get_stride(1 + i_perm);
+        const ck_tile::index_t stride_bias = shape_seqlen_k;
+        const ck_tile::index_t stride_o    = o_host.get_stride(1 + o_perm);
         // setup nhead_stride_* arguments
-        const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_v = [&]() {
-            if(is_v_rowmajor)
-                return i_perm ? shape_seqlen_k * hdim_v : hdim_v;
-            else
-                return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
-        }();
-        const ck_tile::index_t nhead_stride_bias =
-            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse = (shape_seqlen_q * 1);
-        const ck_tile::index_t nhead_stride_o   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_q    = q_host.get_stride(1 + !i_perm);
+        const ck_tile::index_t nhead_stride_k    = k_host.get_stride(1 + !i_perm);
+        const ck_tile::index_t nhead_stride_v    = v_host.get_stride(1 + !i_perm);
+        const ck_tile::index_t nhead_stride_bias = 0;
+        const ck_tile::index_t nhead_stride_lse  = shape_seqlen_q;
+        const ck_tile::index_t nhead_stride_o    = o_host.get_stride(1 + !o_perm);
         // setup batch_stride_* arguments
-        const ck_tile::index_t batch_stride_q    = (nhead * shape_seqlen_q * hdim_q);
-        const ck_tile::index_t batch_stride_k    = (nhead_k * shape_seqlen_k * hdim_q);
-        const ck_tile::index_t batch_stride_v    = (nhead_k * hdim_v * shape_seqlen_k);
-        const ck_tile::index_t batch_stride_bias = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
-        const ck_tile::index_t batch_stride_lse  = (nhead * shape_seqlen_q * 1);
-        const ck_tile::index_t batch_stride_o    = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_q    = q_host.get_stride(0);
+        const ck_tile::index_t batch_stride_k    = k_host.get_stride(0);
+        const ck_tile::index_t batch_stride_v    = v_host.get_stride(0);
+        const ck_tile::index_t batch_stride_bias = 0;
+        const ck_tile::index_t batch_stride_lse  = nhead * shape_seqlen_q;
+        const ck_tile::index_t batch_stride_o    = o_host.get_stride(0);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
@@ -507,90 +496,96 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     bool pass = true;
 
+    // unify dimension orders for simplication
+    auto q_host_view = (i_perm ? q_host : q_host.transpose(1, 2));
+    auto k_host_view = (i_perm ? k_host : k_host.transpose(1, 2));
+    auto v_host_view = [&] {
+        auto view = (i_perm ? v_host : v_host.transpose(1, 2));
+        return is_v_rowmajor ? view.transpose(2, 3) : view;
+    }();
+    auto bias_host_view = (i_perm ? bias_host : bias_host.transpose(1, 2));
+    auto o_host_view    = (o_perm ? o_host : o_host.transpose(1, 2));
+
+    // verify result individually for each batch/group
     for(ck_tile::index_t wb = 0; wb < batch; ++wb)
     {
         const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
         const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
         // adjust matrix index according to the mode
-        const ck_tile::index_t b            = (mode == mode_enum::batch ? wb : 0);
-        const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
-        const ck_tile::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
+        const ck_tile::index_t b           = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t query_start = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
+        const ck_tile::index_t query_end   = query_start + real_seqlen_q;
+        const ck_tile::index_t key_start   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
+        const ck_tile::index_t key_end     = key_start + real_seqlen_k;
+        const ck_tile::index_t nr          = nhead / nhead_k;
 
-        const auto v_host_ref_lengths =
-            std::array<ck_tile::index_t, 3>{nhead, hdim_v, real_seqlen_k};
-        const auto v_host_ref_strides =
-            is_v_rowmajor
-                ? std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, 1, hdim_v}
-                : std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, real_seqlen_k, 1};
+        // clang-format off
+        using Slice = ck_tile::HostTensorSlice;
+        auto q_host_view_slice = q_host_view
+                .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
+                .squeeze(0);
+        auto k_host_view_slice = k_host_view
+                .index({Slice(0, b, b + 1), Slice(2, key_start, key_end)})
+                .squeeze(0)
+                .repeat({nr, 1, 1});
+        auto v_host_view_slice = v_host_view
+                .index({Slice(0, b, b + 1), Slice(3, key_start, key_end)})
+                .squeeze(0)
+                .repeat({nr, 1, 1});
+        auto o_host_view_slice = o_host_view
+                .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
+                .squeeze(0);
+        // clang-format on
 
-        ck_tile::HostTensor<QDataType> q_host_ref({nhead, real_seqlen_q, hdim_q});
-        ck_tile::HostTensor<KDataType> k_host_ref({nhead, real_seqlen_k, hdim_q});
-        ck_tile::HostTensor<VDataType> v_host_ref(v_host_ref_lengths, v_host_ref_strides);
-        ck_tile::HostTensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v});
+        // create local tensors to speed-up computation
+        ck_tile::HostTensor<QDataType> q_host_ref(q_host_view_slice.get_lengths());
+        ck_tile::HostTensor<KDataType> k_host_ref(k_host_view_slice.get_lengths());
+        ck_tile::HostTensor<VDataType> v_host_ref(v_host_view_slice.get_lengths());
+        ck_tile::HostTensor<ODataType> o_host_ref(o_host_view_slice.get_lengths());
 
         ck_tile::HostTensor<SMPLComputeDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<PDataType> p_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<SMPLComputeDataType> lse_host_ref({nhead, real_seqlen_q});
 
-        ck_tile::index_t nr = nhead / nhead_k;
-
-        // clang-format off
-        // permute
-        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
-        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
-
-        if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
-        else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
-
-        if (is_v_rowmajor) {
-            //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-            if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
-            //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-            else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[2] + key_offset, i[0] / nr, i[1]); });
-        }
-        else {
-            if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[1], i[2] + key_offset); });
-            else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[1], i[0] / nr, i[2] + key_offset); });
-        }
-        // clang-format on
+        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(i); });
+        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(i); });
+        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice(i); });
 
         // reference
-        ck_tile::reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
-            q_host_ref,
-            k_host_ref,
-            s_host_ref,
-            ck_tile::identity{},
-            ck_tile::identity{},
-            ck_tile::scales(scale_s));
+        ck_tile::reference_batched_gemm<SaccDataType>(q_host_ref,
+                                                      k_host_ref,
+                                                      s_host_ref,
+                                                      ck_tile::identity{},
+                                                      ck_tile::identity{},
+                                                      ck_tile::scales(scale_s));
 
         if(use_bias)
         {
-            ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
             // clang-format off
-            if(i_perm)
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
-            else
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+            auto bias_host_view_slice = bias_host_view
+                    .index({Slice(2, query_start, query_end), Slice(3, key_start, key_end)})
+                    .squeeze(0);
             // clang-format on
+
+            // create local tensor to speed-up computation
+            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_host_view_slice.get_lengths());
+            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_slice(i); });
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
-            ck_tile::reference_batched_elementwise<SMPLComputeDataType,
-                                                   BiasDataType,
-                                                   SMPLComputeDataType,
-                                                   SMPLComputeDataType>(
+            ck_tile::reference_batched_elementwise<SMPLComputeDataType>(
                 s_host_ref, bias_host_ref, s_host_ref);
         }
 
         if(mask.type == mask_enum::no_mask)
         {
-            ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
+            ck_tile::reference_batched_masking(s_host_ref,
+                                               FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         }
         else if(mask.type == mask_enum::window_generic)
         {
-            ck_tile::reference_batched_masking<SaccDataType>(
+            ck_tile::reference_batched_masking(
                 s_host_ref,
                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                     mask.left, mask.right, real_seqlen_q, real_seqlen_k));
@@ -600,7 +595,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             // if left window size is negative, means causal
             // else means generic (for current batch)
             if(mask.left < 0)
-                ck_tile::reference_batched_masking<SaccDataType>(
+                ck_tile::reference_batched_masking(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
                         mask.left,
@@ -609,7 +604,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
             else
-                ck_tile::reference_batched_masking<SaccDataType>(
+                ck_tile::reference_batched_masking(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                         mask.left,
@@ -618,31 +613,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
         }
+
         if(lse)
         {
-            ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+            ck_tile::reference_batched_softmax<SMPLComputeDataType>(
                 s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
         }
         else
         {
-            ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+            ck_tile::reference_batched_softmax<SMPLComputeDataType>(
                 s_host_ref, p_host_ref, p_compute_element_func);
         }
 
-        ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
-            p_host_ref,
-            v_host_ref,
-            o_host_ref,
-            ck_tile::identity{},
-            ck_tile::identity{},
-            oacc_element_func);
+        ck_tile::reference_batched_gemm<OaccDataType>(p_host_ref,
+                                                      v_host_ref,
+                                                      o_host_ref,
+                                                      ck_tile::identity{},
+                                                      ck_tile::identity{},
+                                                      oacc_element_func);
 
-        ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
-        // clang-format off
-        // permute
-        if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b, idx[0], idx[1] + query_offset, idx[2]); });
-        else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b, idx[1] + query_offset, idx[0], idx[2]); });
-        // clang-format on
+        // create local tensor for value comparison (meet the requirement of check_err())
+        ck_tile::HostTensor<ODataType> o_host_result(o_host_view_slice.get_lengths());
+        o_host_result.ForEach([&](auto& self, auto i) { self(i) = o_host_view_slice(i); });
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
         bool cur_pass     = ck_tile::check_err(
@@ -661,10 +653,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(lse)
         {
-            ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-            lse_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = lse_host(b, idx[0], idx[1] + query_offset);
-            });
+            // clang-format off
+            auto lse_host_slice = lse_host
+                    .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
+                    .squeeze(0);
+            // clang-format on
+
+            // create local tensor for value comparison (meet the requirement of check_err())
+            ck_tile::HostTensor<SMPLComputeDataType> lse_host_result(lse_host_slice.get_lengths());
+            lse_host_result.ForEach([&](auto& self, auto i) { self(i) = lse_host_slice(i); });
 
             bool lse_pass = ck_tile::check_err(lse_host_result,
                                                lse_host_ref,

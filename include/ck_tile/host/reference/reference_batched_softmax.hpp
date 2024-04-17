@@ -9,17 +9,19 @@
 
 namespace ck_tile {
 
-template <typename ADataType,
-          typename CompDataType,
-          typename BDataType,
+template <typename CompDataType,
+          typename ATensorView,
+          typename BTensorView,
           typename CompElementOp = ck_tile::identity>
-CK_TILE_HOST void reference_batched_softmax(
-    const HostTensor<ADataType>& a_b_m_n,
-    HostTensor<BDataType>& b_b_m_n,
-    const CompElementOp& comp_element_op                                    = {},
-    std::optional<std::reference_wrapper<HostTensor<CompDataType>>> lse_b_m = std::nullopt)
+CK_TILE_HOST void
+reference_batched_softmax(const ATensorView& a_b_m_n,
+                          BTensorView& b_b_m_n,
+                          const CompElementOp& comp_element_op                = {},
+                          std::optional<HostTensorView<CompDataType>> lse_b_m = std::nullopt)
 {
-    const int N = a_b_m_n.mDesc.get_lengths()[2];
+    using BDataType = tensor_view_value_t<BTensorView>;
+
+    const int N = a_b_m_n.get_length(2);
 
     auto f = [&](auto batch, auto m) {
         CompDataType v_max = -ck_tile::numeric<CompDataType>::infinity();
@@ -59,13 +61,13 @@ CK_TILE_HOST void reference_batched_softmax(
             b_b_m_n(batch, m, n) = ck_tile::type_convert<BDataType>(comp_element_op(v_b));
         }
         // lse
-        if(lse_b_m)
+        if(lse_b_m.has_value())
         {
-            lse_b_m->get()(batch, m) = v_max + ck_tile::log(v_exp_sum);
+            (*lse_b_m)(batch, m) = v_max + ck_tile::log(v_exp_sum);
         }
     };
 
-    make_ParallelTensorFunctor(f, b_b_m_n.mDesc.get_lengths()[0], b_b_m_n.mDesc.get_lengths()[1])(
+    make_ParallelTensorFunctor(f, b_b_m_n.get_length(0), b_b_m_n.get_length(1))(
         std::thread::hardware_concurrency());
 }
 } // namespace ck_tile

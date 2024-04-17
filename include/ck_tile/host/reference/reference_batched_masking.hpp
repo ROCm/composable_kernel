@@ -9,11 +9,13 @@
 
 namespace ck_tile {
 
-template <typename CDataType, typename MaskingType>
-CK_TILE_HOST void reference_batched_masking(HostTensor<CDataType>& c_b_m_n, const MaskingType& mask)
+template <typename CTensorView, typename MaskingType>
+CK_TILE_HOST void reference_batched_masking(CTensorView& c_b_m_n, const MaskingType& mask)
 {
-    const int M = c_b_m_n.mDesc.get_lengths()[1];
-    const int N = c_b_m_n.mDesc.get_lengths()[2];
+    using CDataType = tensor_view_value_t<CTensorView>;
+
+    const int M = c_b_m_n.get_length(1);
+    const int N = c_b_m_n.get_length(2);
 
     auto f = [&](auto batch) {
         for(int n = 0; n < N; ++n)
@@ -26,7 +28,6 @@ CK_TILE_HOST void reference_batched_masking(HostTensor<CDataType>& c_b_m_n, cons
         }
     };
 
-    make_ParallelTensorFunctor(f,
-                               c_b_m_n.mDesc.get_lengths()[0])(std::thread::hardware_concurrency());
+    make_ParallelTensorFunctor(f, c_b_m_n.get_length(0))(std::thread::hardware_concurrency());
 }
 } // namespace ck_tile
