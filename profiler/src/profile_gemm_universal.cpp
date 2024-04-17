@@ -80,6 +80,7 @@ int profile_gemm_universal(int argc, char* argv[])
 
     using F32 = float;
     using F16 = ck::half_t;
+    using BF16 = ck::bhalf_t;
     using F8  = ck::f8_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
@@ -152,6 +153,14 @@ int profile_gemm_universal(int argc, char* argv[])
     else if(data_type == GemmDataType::F8_F16_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(F8{}, F16{}, F32{}, F16{}, Row{}, Col{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+    {
+        return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Col{}, Row{});
     }
     else
     {
