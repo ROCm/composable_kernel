@@ -533,6 +533,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 ? std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, 1, hdim_v}
                 : std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, real_seqlen_k, 1};
 
+        ck_tile::HostTensor<QDataType> q_host_ref({nhead, real_seqlen_q, hdim_q});
         ck_tile::HostTensor<KDataType> k_host_ref({nhead, real_seqlen_k, hdim_q});
         ck_tile::HostTensor<VDataType> v_host_ref(v_host_ref_lengths, v_host_ref_strides);
         ck_tile::HostTensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v});
@@ -545,32 +546,48 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         using Slice = ck_tile::HostTensorSlice;
         auto q_host_view_slice =
-            q_host_view.index({Slice(0, b, b + 1), Slice(2, query_offset)}).squeeze(0);
+            q_host_view
+                .index({Slice(0, b, b + 1), Slice(2, query_offset, query_offset + real_seqlen_q)})
+                .squeeze(0);
         auto k_host_view_slice =
-            k_host_view.index({Slice(0, b, b + 1), Slice(2, key_offset)}).squeeze(0);
+            k_host_view
+                .index({Slice(0, b, b + 1), Slice(2, key_offset, key_offset + real_seqlen_k)})
+                .squeeze(0);
         auto v_host_view_slice =
-            v_host_view.index({Slice(0, b, b + 1), Slice(3, key_offset)}).squeeze(0);
+            v_host_view
+                .index({Slice(0, b, b + 1), Slice(3, key_offset, key_offset + real_seqlen_k)})
+                .squeeze(0);
         auto o_host_view_slice =
             o_host_view.index({Slice(0, b, b + 1), Slice(2, query_offset)}).squeeze(0);
 
+        ck_tile::RepeatHostTensorView<KDataType> k_host_view_slice_repeat(k_host_view_slice,
+                                                                          {nr, 1, 1});
+        ck_tile::RepeatHostTensorView<VDataType> v_host_view_slice_repeat(v_host_view_slice,
+                                                                          {nr, 1, 1});
         // clang-format off
-        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(i[0] / nr, i[1], i[2]); });
-        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice(i[0] / nr, i[1], i[2]); });
+        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(i); });
+        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice_repeat(i); });
+        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice_repeat(i); });
         // clang-format on
 
         // reference
-        ck_tile::reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
-            q_host_view_slice,
-            k_host_ref,
-            s_host_ref,
-            ck_tile::identity{},
-            ck_tile::identity{},
-            ck_tile::scales(scale_s));
+        ck_tile::reference_batched_gemm<SaccDataType>(q_host_ref,
+                                                      k_host_ref,
+                                                      s_host_ref,
+                                                      ck_tile::identity{},
+                                                      ck_tile::identity{},
+                                                      ck_tile::scales(scale_s));
 
         if(use_bias)
         {
             auto bias_host_view_slice =
-                bias_host_view.index({Slice(2, query_offset), Slice(3, key_offset)}).squeeze(0);
+                bias_host_view
+                    .index({Slice(2, query_offset, query_offset + real_seqlen_q),
+                            Slice(3, key_offset, key_offset + real_seqlen_k)})
+                    .squeeze(0);
+
+            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_host_view_slice.get_lengths());
+            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_slice(i); });
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
@@ -578,7 +595,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                    BiasDataType,
                                                    SMPLComputeDataType,
                                                    SMPLComputeDataType>(
-                s_host_ref, bias_host_view_slice, s_host_ref);
+                s_host_ref, bias_host_ref, s_host_ref);
         }
 
         if(mask.type == mask_enum::no_mask)
@@ -628,13 +645,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 s_host_ref, p_host_ref, p_compute_element_func);
         }
 
-        ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
-            p_host_ref,
-            v_host_ref,
-            o_host_ref,
-            ck_tile::identity{},
-            ck_tile::identity{},
-            oacc_element_func);
+        ck_tile::reference_batched_gemm<OaccDataType>(p_host_ref,
+                                                      v_host_ref,
+                                                      o_host_ref,
+                                                      ck_tile::identity{},
+                                                      ck_tile::identity{},
+                                                      oacc_element_func);
 
         ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
         // clang-format off
