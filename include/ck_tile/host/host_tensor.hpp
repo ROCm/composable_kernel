@@ -345,6 +345,90 @@ struct HostTensorSlicer
     size_type end;
 };
 
+namespace detail {
+template <typename TensorView>
+struct Repeat
+{
+    using value_type      = typename TensorView::value_type;
+    using const_reference = typename TensorView::const_reference;
+    using reference       = const_reference;
+    using size_type       = typename TensorView::size_type;
+
+    static inline constexpr size_type MaxNumDims = TensorView::MaxNumDims;
+
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
+    Repeat(TensorView view, std::initializer_list<X> repeats)
+        : mView(std::move(view)), mLengths(get_num_of_dimension())
+    {
+        assert(mView.get_num_of_dimension() <= MaxNumDims);
+        assert(std::size(repeats) <= mView.get_num_of_dimension());
+
+        using std::rbegin, std::rend;
+        std::copy(rbegin(repeats), rend(repeats), rbegin(get_repeats()));
+
+        using std::begin, std::end;
+        std::transform(begin(mView.get_lengths()),
+                       end(mView.get_lengths()),
+                       begin(get_repeats()),
+                       begin(mLengths),
+                       multiplies());
+    }
+
+    size_type get_num_of_dimension() const { return mView.get_num_of_dimension(); }
+
+    size_type get_length(size_type dim) const { return mLengths[dim]; }
+
+    auto get_lengths() const
+    {
+        using std::begin, std::end;
+
+        return iterator_range(begin(mLengths), end(mLengths));
+    }
+
+    template <typename... Is>
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
+                     const_reference>
+    operator()(Is... is) const
+    {
+        return (*this)(std::array{static_cast<size_type>(is)...});
+    }
+
+    const_reference operator()(span<const size_type> idx) const
+    {
+        assert(std::size(idx) == get_num_of_dimension());
+
+        std::array<size_type, MaxNumDims> real_idx;
+        for(size_type dim = 0; dim < std::size(idx); ++dim)
+        {
+            real_idx[dim] = idx[dim] / get_repeat(dim);
+        }
+
+        return mView(span<const size_type>(std::data(real_idx), std::size(idx)));
+    }
+
+    private:
+    size_type get_repeat(size_type dim) const { return mRepeats[dim]; }
+
+    auto get_repeats()
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mRepeats), next(begin(mRepeats), get_num_of_dimension()));
+    }
+
+    auto get_repeats() const
+    {
+        using std::begin, std::next;
+
+        return iterator_range(begin(mRepeats), next(begin(mRepeats), get_num_of_dimension()));
+    }
+
+    TensorView mView;
+    std::array<size_type, MaxNumDims> mRepeats;
+    std::vector<size_type> mLengths;
+};
+} // namespace detail
+
 template <typename T>
 struct HostTensorView : private HostTensorDescriptor
 {
@@ -560,6 +644,12 @@ struct HostTensorView : private HostTensorDescriptor
         return view;
     }
 
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
+    auto repeat(std::initializer_list<X> repeats) const
+    {
+        return detail::Repeat<HostTensorView>(*this, repeats);
+    }
+
     template <typename F>
     void ForEach(F&& f)
     {
@@ -737,92 +827,6 @@ struct HostTensorView : private HostTensorDescriptor
 
     Data mData;
     std::array<std::optional<Slicer>, MaxNumDims> mSlicers;
-};
-
-template <typename T>
-struct RepeatHostTensorView
-{
-    // static_assert(std::is_const_v<T>);
-
-    using View = HostTensorView<T>;
-
-    using value_type      = typename View::value_type;
-    using const_reference = typename View::const_reference;
-    using reference       = const_reference;
-    using size_type       = typename View::size_type;
-
-    static inline constexpr size_type MaxNumDims = View::MaxNumDims;
-
-    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
-    RepeatHostTensorView(View& view, std::initializer_list<X> repeats)
-        : mView(view), mLengths(view.get_num_of_dimension())
-    {
-        assert(mView.get_num_of_dimension() <= MaxNumDims);
-        assert(std::size(repeats) <= mView.get_num_of_dimension());
-
-        using std::rbegin, std::rend;
-        std::copy(rbegin(repeats), rend(repeats), rbegin(get_repeats()));
-
-        using std::begin, std::end;
-        std::transform(begin(mView.get_lengths()),
-                       end(mView.get_lengths()),
-                       begin(get_repeats()),
-                       begin(mLengths),
-                       multiplies());
-    }
-
-    size_type get_num_of_dimension() const { return mView.get_num_of_dimension(); }
-
-    size_type get_length(size_type dim) const { return mLengths[dim]; }
-
-    auto get_lengths() const
-    {
-        using std::begin, std::end;
-
-        return iterator_range(begin(mLengths), end(mLengths));
-    }
-
-    template <typename... Is>
-    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
-                     const_reference>
-    operator()(Is... is) const
-    {
-        return (*this)(std::array{static_cast<size_type>(is)...});
-    }
-
-    const_reference operator()(span<const size_type> idx) const
-    {
-        assert(std::size(idx) == get_num_of_dimension());
-
-        std::array<size_type, MaxNumDims> real_idx;
-        for(size_type dim = 0; dim < std::size(idx); ++dim)
-        {
-            real_idx[dim] = idx[dim] / get_repeat(dim);
-        }
-
-        return mView(span<const size_type>(std::data(real_idx), std::size(idx)));
-    }
-
-    private:
-    size_type get_repeat(size_type dim) const { return mRepeats[dim]; }
-
-    auto get_repeats()
-    {
-        using std::begin, std::next;
-
-        return iterator_range(begin(mRepeats), next(begin(mRepeats), get_num_of_dimension()));
-    }
-
-    auto get_repeats() const
-    {
-        using std::begin, std::next;
-
-        return iterator_range(begin(mRepeats), next(begin(mRepeats), get_num_of_dimension()));
-    }
-
-    View& mView;
-    std::array<size_type, MaxNumDims> mRepeats;
-    std::vector<size_type> mLengths;
 };
 
 template <typename T>
