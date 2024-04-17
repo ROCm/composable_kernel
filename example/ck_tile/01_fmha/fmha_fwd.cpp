@@ -543,7 +543,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::HostTensor<KDataType> k_host_ref(k_host_view_slice.get_lengths());
         ck_tile::HostTensor<VDataType> v_host_ref(v_host_view_slice.get_lengths());
         ck_tile::HostTensor<ODataType> o_host_ref(o_host_view_slice.get_lengths());
-
+        // create local tensors for holding intermediate result
         ck_tile::HostTensor<SMPLComputeDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<PDataType> p_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<SMPLComputeDataType> lse_host_ref({nhead, real_seqlen_q});
