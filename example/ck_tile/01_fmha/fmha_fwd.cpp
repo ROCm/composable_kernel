@@ -524,26 +524,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
         // adjust matrix index according to the mode
-        const ck_tile::index_t b            = (mode == mode_enum::batch ? wb : 0);
-        const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
-        const ck_tile::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
-        const ck_tile::index_t nr           = nhead / nhead_k;
+        const ck_tile::index_t b           = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t query_start = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
+        const ck_tile::index_t query_end   = query_start + real_seqlen_q;
+        const ck_tile::index_t key_start   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
+        const ck_tile::index_t key_end     = key_start + real_seqlen_k;
+        const ck_tile::index_t nr          = nhead / nhead_k;
 
         // clang-format off
         using Slice = ck_tile::HostTensorSlice;
         auto q_host_view_slice = q_host_view
-                .index({Slice(0, b, b + 1), Slice(2, query_offset, query_offset + real_seqlen_q)})
+                .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
                 .squeeze(0);
         auto k_host_view_slice = k_host_view
-                .index({Slice(0, b, b + 1), Slice(2, key_offset, key_offset + real_seqlen_k)})
+                .index({Slice(0, b, b + 1), Slice(2, key_start, key_end)})
                 .squeeze(0)
                 .repeat({nr, 1, 1});
         auto v_host_view_slice = v_host_view
-                .index({Slice(0, b, b + 1), Slice(3, key_offset, key_offset + real_seqlen_k)})
+                .index({Slice(0, b, b + 1), Slice(3, key_start, key_end)})
                 .squeeze(0)
                 .repeat({nr, 1, 1});
         auto o_host_view_slice = o_host_view
-                .index({Slice(0, b, b + 1), Slice(2, query_offset, query_offset + real_seqlen_q)})
+                .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
                 .squeeze(0);
         // clang-format on
 
@@ -573,8 +575,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             // clang-format off
             auto bias_host_view_slice = bias_host_view
-                    .index({Slice(2, query_offset, query_offset + real_seqlen_q),
-                            Slice(3, key_offset, key_offset + real_seqlen_k)})
+                    .index({Slice(2, query_start, query_end),
+                            Slice(3, key_start, key_end)})
                     .squeeze(0);
             // clang-format on
 
@@ -584,21 +586,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
-            ck_tile::reference_batched_elementwise<SMPLComputeDataType,
-                                                   BiasDataType,
-                                                   SMPLComputeDataType,
-                                                   SMPLComputeDataType>(
+            ck_tile::reference_batched_elementwise<SMPLComputeDataType>(
                 s_host_ref, bias_host_ref, s_host_ref);
         }
 
         if(mask.type == mask_enum::no_mask)
         {
-            ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
+            ck_tile::reference_batched_masking(s_host_ref,
+                                               FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         }
         else if(mask.type == mask_enum::window_generic)
         {
-            ck_tile::reference_batched_masking<SaccDataType>(
+            ck_tile::reference_batched_masking(
                 s_host_ref,
                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                     mask.left, mask.right, real_seqlen_q, real_seqlen_k));
@@ -608,7 +607,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             // if left window size is negative, means causal
             // else means generic (for current batch)
             if(mask.left < 0)
-                ck_tile::reference_batched_masking<SaccDataType>(
+                ck_tile::reference_batched_masking(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
                         mask.left,
@@ -617,7 +616,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
             else
-                ck_tile::reference_batched_masking<SaccDataType>(
+                ck_tile::reference_batched_masking(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                         mask.left,
@@ -629,12 +628,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(lse)
         {
-            ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+            ck_tile::reference_batched_softmax<SMPLComputeDataType>(
                 s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
         }
         else
         {
-            ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+            ck_tile::reference_batched_softmax<SMPLComputeDataType>(
                 s_host_ref, p_host_ref, p_compute_element_func);
         }
 
@@ -669,7 +668,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             // clang-format off
             auto lse_host_slice = lse_host
                     .index({Slice(0, b, b + 1), 
-                            Slice(2, query_offset, query_offset + real_seqlen_q)})
+                            Slice(2, query_start, query_end)})
                     .squeeze(0);
             // clang-format on
 
