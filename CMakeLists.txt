@@ -171,7 +171,7 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
    add_compile_options(-fno-offload-uniform-block)
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
-   medssage("Adding the enable-post-misched=0 compiler flag")
+   message("Adding the enable-post-misched=0 compiler flag")
    add_compile_options(-mllvm -enable-post-misched=0)
 endif()
 #
