@@ -424,7 +424,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_k    = k_host.get_stride(0);
         const ck_tile::index_t batch_stride_v    = v_host.get_stride(0);
         const ck_tile::index_t batch_stride_bias = 0;
-        const ck_tile::index_t batch_stride_lse  = (nhead * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_lse  = nhead * shape_seqlen_q;
         const ck_tile::index_t batch_stride_o    = o_host.get_stride(0);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
