@@ -527,7 +527,7 @@ FMHA_BWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 #include "fmha_bwd.hpp"
 """
 
-FMHA_BWD_KERNEL_BODY="""
+FMHA_BWD_DQ_DK_DV_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_load_strategy_{F_idx} = ck::Sequence<{F_sloq}, {F_sloqt}, {F_slok}, {F_slokt}, {F_slov}, {F_sloo}, {F_sloot}>;
@@ -596,22 +596,22 @@ using fmha_bwd_epilogue_{F_idx} =
                                            typename FmhaBwdTypeConfig<{F_dtype}>::KGradDataType,
                                            typename FmhaBwdTypeConfig<{F_dtype}>::VGradDataType>>;
 
-using fmha_bwd_kernel_{F_idx} = 
-    FmhaBwdKernel<FmhaBwdTilePartitioner<fmha_bwd_shape_{F_idx}>,
-                  fmha_bwd_pipeline_{F_idx},
-                  fmha_bwd_epilogue_{F_idx}>;
+using fmha_bwd_dq_dk_dv_kernel_{F_idx} = 
+    FmhaBwdQKVGradKernel<FmhaBwdTilePartitioner<fmha_bwd_shape_{F_idx}>,
+                         fmha_bwd_pipeline_{F_idx},
+                         fmha_bwd_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+using dq_dk_dv_trait_{F_idx} = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, fmha_mask_{F_idx}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 #include <iostream>
 
 template<>
-float fmha_bwd_<trait_{F_idx}>(const StreamConfig& s, fmha_bwd_args a)
+float fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_{F_idx}>(const StreamConfig& s, fmha_bwd_args a)
 {{
-    using k_ = fmha_bwd_kernel_{F_idx};
+    using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     if(s.log_level_ > 0)
         std::cout << ", " << k_::GetName() << std::flush;
-    auto [kargs, grids] = fmha_bwd_create_kargs_and_grids<k_>(a);
+    auto [kargs, grids] = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
     constexpr dim3 blocks             = k_::BlockSize();
     constexpr ck::index_t kBlockPerCu = k_::kBlockPerCu;
     return launch_kernel<blocks.x, kBlockPerCu>(s, k_{{}}, grids, blocks, 0, kargs);
@@ -638,13 +638,16 @@ FMHA_BWD_API_PER_HDIM_CASE="""        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <
 
 FMHA_BWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_dbias == {F_dbias}) && (t.has_dropout == {F_dropout}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-                using trait_ = fmha_bwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
-                return fmha_bwd_<trait_>(s, a);
+                using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad0}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1}, {F_dvpad}>;
+                r  = fmha_bwd_dot_do_o_<dot_do_o_trait_>(s, a);
+                r += fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_>(s, a);
+                return r;
             }}
 """
 
 @dataclass
-class FmhaBwdApiTrait:
+class FmhaBwdQKVGradApiTrait:
     # sync with fmha_bwd_traits<>, to generate fallback calls
     hdim      : str
     dtype     : str  # data type
@@ -666,15 +669,16 @@ class FmhaBwdApiTrait:
     def name(self) -> str:
         return f'{self.hdim}-{self.dtype}-{self.mode}-{self.mask}-{self.bias}-{self.dbias}-{self.dropout}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
 
-    @property
-    def scheck(self) -> str:
+    def scheck(self, spad1 : str) -> str:
         if self.mode == 'group':
             return 'true' # always support
-        elif self.spad == 't':
+        elif self.spad == 't' and spad1 == 't':
             return f'a.seqlen_q % {self.bm0} != 0'
-        else:
-            return f'a.seqlen_q % {self.bm0} == 0'
-    
+        elif self.spad == 'f' and spad1 == 't':
+            return f'a.seqlen_q % {self.bm0} == 0 and a.seqlen_q % 256 != 0' # BlockSize
+        else: # self.skpad == 'f' and skpad1 == 'f'
+            return f'a.seqlen_q % 256 == 0' # BlockSize
+
     @property
     def skcheck(self) -> str:
         if self.mode == 'group':
@@ -696,32 +700,35 @@ class FmhaBwdApiTrait:
 
 class FmhaBwdApiPool:
     def __init__(self, mask_impl):
-        self.pool = dict()
+        self.dq_dk_dv_pool = dict()
         self.mask_impl = mask_impl
 
-    def register_traits(self, trait : FmhaBwdApiTrait) -> None:
+    def register_dq_dk_dv_traits(self, trait : FmhaBwdQKVGradApiTrait) -> None:
         # TODO: do we need to check duplication?
-        if trait.dtype not in self.pool.keys():
-            self.pool[trait.dtype] = dict()
-        if trait.hdim not in self.pool[trait.dtype].keys():
-            self.pool[trait.dtype][trait.hdim] = list()
+        if trait.dtype not in self.dq_dk_dv_pool.keys():
+            self.dq_dk_dv_pool[trait.dtype] = dict()
+        if trait.hdim not in self.dq_dk_dv_pool[trait.dtype].keys():
+            self.dq_dk_dv_pool[trait.dtype][trait.hdim] = list()
 
-        self.pool[trait.dtype][trait.hdim].append(copy.copy(trait))
+        self.dq_dk_dv_pool[trait.dtype][trait.hdim].append(copy.copy(trait))
 
     @property
     def api(self) -> str:
         per_dtypes=str()
-        for i, dtype in enumerate(self.pool.keys()):
+        for i, dtype in enumerate(self.dq_dk_dv_pool.keys()):
             per_hdim_case=str()
-            for j, hdim in enumerate(self.pool[dtype].keys()):
-                traits=self.pool[dtype][hdim]
+            for j, hdim in enumerate(self.dq_dk_dv_pool[dtype].keys()):
+                traits=self.dq_dk_dv_pool[dtype][hdim]
                 inners=str()
                 for k, trait in enumerate(traits):
                     if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_mask=get_mask_map(self.mask_impl)[trait.mask],
-                                   F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout=BOOL_MAP[trait.dropout],
-                                   F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
-                                   F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad])
+                    for spad1 in ["t", "f"]:
+                        if ((spad1 == "f" and trait.spad == "t") or (trait.mode == "group" and spad1 == "f")):
+                            continue
+                        inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_mask=get_mask_map(self.mask_impl)[trait.mask],
+                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias=BOOL_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout=BOOL_MAP[trait.dropout],
+                                    F_scheck=trait.scheck(spad1=spad1), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
+                                    F_spad0=BOOL_MAP[trait.spad], F_spad1=BOOL_MAP[spad1], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad])
             
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_BWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
@@ -737,7 +744,7 @@ class FmhaBwdApiPool:
 # GEMM4: dS@K^T=dQ(N4 must be equal to headdim_qk)
 # Is it necessary to distinguish between K0~K4?
 @dataclass
-class FmhaBwdTileSize:
+class FmhaBwdQKVGradTileSize:
     F_bm0       : int  # tile size along q seqlen (block size)
     F_bn0       : int  # tile size along k seqlen
     F_bk0       : int  # tile size along gemm0 unroll(F_bhdq)
@@ -765,7 +772,7 @@ class FmhaBwdTileSize:
         return f"b{self.F_bm0}x{self.F_bn0}"
 
 @dataclass
-class FmhaBwdLoadStrategy:
+class FmhaBwdQKVGradLoadStrategy:
     F_qloadonce        : str  # if q load whole block length (qkhdim) to LDS at once
     F_qtloadonce       : str  # if q^t load whole block length (qkhdim) to LDS at once
     F_kloadonce        : str  # if k load whole block length (qkhdim) to LDS at once
@@ -779,12 +786,12 @@ class FmhaBwdLoadStrategy:
         f"{BOOL_MAP[self.F_vloadonce][0]}{BOOL_MAP[self.F_doloadonce][0]}{BOOL_MAP[self.F_dotloadonce][0]}"
 
 @dataclass
-class FmhaBwdKernel:
+class FmhaBwdQKVGradKernel:
     direction   : str
     F_idx       : int  # this is not a tunable, but a counter to differentiate symbol    
     F_hdim      : int  # hdim
     F_dtype     : str  # data type
-    F_tile      : FmhaBwdTileSize
+    F_tile      : FmhaBwdQKVGradTileSize
     F_spad      : str  # true/false
     F_skpad     : str  #
     F_dpad      : str  #
@@ -794,13 +801,13 @@ class FmhaBwdKernel:
     F_dropout   : str  #
     F_mask      : str  # value from MASK_MAP
     F_mode      : str  # value from MODE_MAP
-    F_loadst    : FmhaBwdLoadStrategy
+    F_loadst    : FmhaBwdQKVGradLoadStrategy
     mask_impl   : str
 
     @property
     def template(self) -> str:
         return FMHA_BWD_KERNEL_HEADER + \
-            FMHA_BWD_KERNEL_BODY.format(
+            FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
                 F_idx       = self.F_idx,
                 F_hdim      = self.F_hdim,
                 F_dtype     = DTYPE_MAP[self.F_dtype],
@@ -864,8 +871,8 @@ class FmhaBwdKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-    def api_trait(self) -> FmhaBwdApiTrait:
-        return FmhaBwdApiTrait(hdim=str(self.F_hdim),
+    def api_trait(self) -> FmhaBwdQKVGradApiTrait:
+        return FmhaBwdQKVGradApiTrait(hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 mode=self.F_mode,
                 bm0=self.F_tile.F_bm0,
@@ -883,30 +890,30 @@ class FmhaBwdKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size & load strategy.
-def get_fmha_bwd_tile_loadst_dict_from_dtype(direction : str, dtype : str) -> Optional[dict]:
+def get_fmha_bwd_dq_dk_dv_tile_loadst_dict_from_dtype(direction : str, dtype : str) -> Optional[dict]:
     if direction == 'bwd':
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '32'  : [FmhaBwdTileSize(128, 128, 32, 32, 32, 32, 32,  32,  32, 1, 4, 1, 4, 1, 1, 4, 1, 1, 32, 32, 16, 1),
-                         FmhaBwdLoadStrategy("t", "f", "t", "f", "t", "t", "f")],
-                '64'  : [FmhaBwdTileSize( 64, 128, 32, 32, 32, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
-                         FmhaBwdLoadStrategy("f", "f", "t", "t", "t", "f", "f")],
-                '128' : [FmhaBwdTileSize( 64, 128, 32, 32, 32, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
-                         FmhaBwdLoadStrategy("f", "f", "t", "f", "t", "f", "f")]
+                '32'  : [FmhaBwdQKVGradTileSize(128, 128, 32, 32, 32, 32, 32,  32,  32, 1, 4, 1, 4, 1, 1, 4, 1, 1, 32, 32, 16, 1),
+                         FmhaBwdQKVGradLoadStrategy("t", "f", "t", "f", "t", "t", "f")],
+                '64'  : [FmhaBwdQKVGradTileSize( 64, 128, 32, 32, 32, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
+                         FmhaBwdQKVGradLoadStrategy("f", "f", "t", "t", "t", "f", "f")],
+                '128' : [FmhaBwdQKVGradTileSize( 64, 128, 32, 32, 32, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
+                         FmhaBwdQKVGradLoadStrategy("f", "f", "t", "f", "t", "f", "f")]
             }
         else:
             return None
     else:
         return None
 
-def get_bwd_blobs(kernel_filter : Optional[str], mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdKernel]]:
+def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdQKVGradKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for pad
     #       support this in future
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
     for direction, dtype in itertools.product(["bwd"], DTYPE_MAP.keys()):
-        d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
         for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
@@ -917,14 +924,14 @@ def get_bwd_blobs(kernel_filter : Optional[str], mask_impl) -> Tuple[FmhaBwdApiP
                 continue
             if (bias == "f" and dbias == "t"):
                 continue
-            k = FmhaBwdKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
+            k = FmhaBwdQKVGradKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad, 
                                 F_bias=bias, F_dbias=dbias, F_dropout=dropout, F_mask=mask, F_mode=mode,
                                 F_loadst=loadst, mask_impl=mask_impl)
             if kernel_filter != None:
                 if not fnmatch.fnmatch(k.name, kernel_filter):
                     continue
-            api_pool.register_traits(k.api_trait())
+            api_pool.register_dq_dk_dv_traits(k.api_trait())
             gen.append(k)
 
     return (api_pool, gen)
@@ -952,10 +959,10 @@ using fmha_bwd_dot_do_o_kernel_{F_idx} =
     FmhaBwdOGradDotOKernel<FmhaBwdOGradDotOTilePartitioner</* BlockSize = */ 256>,
                   fmha_bwd_dot_do_o_{F_idx}>;
 
-using trait_{F_idx} = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
+using dot_do_o_trait_{F_idx} = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
 
 template<>
-float fmha_bwd_dot_do_o_<trait_{F_idx}>(const StreamConfig& s, fmha_bwd_dot_do_o_args a)
+float fmha_bwd_dot_do_o_<dot_do_o_trait_{F_idx}>(const StreamConfig& s, fmha_bwd_args a)
 {{
     using k_ = fmha_bwd_dot_do_o_kernel_{F_idx};
     auto [kargs, grids] = fmha_bwd_dot_do_o_create_kargs_and_grids<k_>(a);
@@ -964,91 +971,6 @@ float fmha_bwd_dot_do_o_<trait_{F_idx}>(const StreamConfig& s, fmha_bwd_dot_do_o
     return launch_kernel<blocks.x, kBlockPerCu>(s, k_{{}}, grids, blocks, 0, kargs);
 }}
 """
-
-FMHA_BWD_DOT_DO_O_API_FILENAME="fmha_bwd_dot_do_o_api.cpp"
-FMHA_BWD_DOT_DO_O_API="""
-float fmha_bwd_dot_do_o(fmha_bwd_dot_do_o_traits t, fmha_bwd_dot_do_o_args a, const StreamConfig& s){{
-    float r = -1;
-{F_dispatch}
-    return r;
-}}
-"""
-
-FMHA_BWD_DOT_DO_O_API_PER_DTYPE="""    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
-{F_hdim_case}
-    }}
-"""
-FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE="""        {F_if} (t.hdim_v <= {F_hdim}) {{
-{F_inner_dispatch}
-        }}
-"""
-
-FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && ({F_scheck}) && ({F_dvcheck})) {{
-                using trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
-                return fmha_bwd_dot_do_o_<trait_>(s, a);
-            }}
-"""
-
-@dataclass
-class FmhaBwdOGradDotOApiTrait:
-    # sync with fmha_bwd_dot_do_o_traits<>, to generate fallback calls
-    hdim      : str
-    dtype     : str  # data type
-    mode      : str  # value from MODE_MAP
-    bhdv      : int  # v head_dim
-    spad      : str
-    dvpad     : str
-
-    @property
-    def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.spad}-{self.dvpad}'
-
-    @property
-    def scheck(self) -> str:
-        if self.mode == 'group':
-            return 'true' # always support
-        elif self.spad == 't':
-            return f'a.seqlen_q % 256 != 0' # BlockSize
-        else:
-            return f'a.seqlen_q % 256 == 0' # BlockSize
-
-    @property
-    def dvcheck(self) -> str:
-        if self.dvpad == 't': return f'a.hdim_v % {self.bhdv} != 0'
-        else :                return f'a.hdim_v % {self.bhdv} == 0'
-
-class FmhaBwdOGradDotOApiPool:
-    def __init__(self):
-        self.pool = dict()
-
-    def register_traits(self, trait : FmhaBwdOGradDotOApiTrait) -> None:
-        # TODO: do we need to check duplication?
-        if trait.dtype not in self.pool.keys():
-            self.pool[trait.dtype] = dict()
-        if trait.hdim not in self.pool[trait.dtype].keys():
-            self.pool[trait.dtype][trait.hdim] = list()
-
-        self.pool[trait.dtype][trait.hdim].append(copy.copy(trait))
-
-    @property
-    def api(self) -> str:
-        per_dtypes=str()
-        for i, dtype in enumerate(self.pool.keys()):
-            per_hdim_case=str()
-            for j, hdim in enumerate(self.pool[dtype].keys()):
-                traits=self.pool[dtype][hdim]
-                inners=str()
-                for k, trait in enumerate(traits):
-                    if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_BWD_DOT_DO_O_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_scheck=trait.scheck, F_dvcheck=trait.dvcheck,
-                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype], F_spad=BOOL_MAP[trait.spad], F_dvpad=BOOL_MAP[trait.dvpad])
-            
-                if_j = 'if' if j == 0 else 'else if'
-                per_hdim_case = per_hdim_case + FMHA_BWD_DOT_DO_O_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
-            if_i = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_BWD_DOT_DO_O_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
-
-        return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_DOT_DO_O_API.format(F_dispatch = per_dtypes)
 
 @dataclass
 class FmhaBwdOGradDotOKernel:
@@ -1084,25 +1006,16 @@ class FmhaBwdOGradDotOKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-    def api_trait(self) -> FmhaBwdOGradDotOApiTrait:
-        return FmhaBwdOGradDotOApiTrait(hdim=str(self.F_hdim),
-                dtype=self.F_dtype,
-                mode=self.F_mode,
-                bhdv=self.F_hdim,
-                spad=self.F_spad,
-                dvpad=self.F_dvpad)
-
-def get_bwd_dot_do_o_blobs() -> Tuple[FmhaBwdOGradDotOApiPool, List[FmhaBwdOGradDotOKernel]]:
+def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
         return 2
 
     gen = list()
-    api_pool = FmhaBwdOGradDotOApiPool()
 
     for direction, dtype in itertools.product(["bwd"], DTYPE_MAP.keys()):
-        d = get_fmha_bwd_tile_loadst_dict_from_dtype(direction, dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_loadst_dict_from_dtype(direction, dtype)
         if d == None:
             continue
         for hdim_str, mode, spad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -1112,10 +1025,9 @@ def get_bwd_dot_do_o_blobs() -> Tuple[FmhaBwdOGradDotOApiPool, List[FmhaBwdOGrad
             k = FmhaBwdOGradDotOKernel(direction=direction+"_dot_do_o", F_idx=0, F_hdim=hdim, F_dtype=dtype,
                                 F_spad=spad, F_dvpad=dvpad, F_mode=mode,
                                 F_occupancy=get_occupancy(dtype, hdim))
-            api_pool.register_traits(k.api_trait())
             gen.append(k)
 
-    return (api_pool, gen)
+    return gen
 
 def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
     (autogen_dir / kernel.filename).write_text(kernel.template)
@@ -1123,17 +1035,14 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_single_bwd_kernel(kernel: FmhaBwdKernel, autogen_dir: Path) -> None:
+def write_single_bwd_dq_dk_dv_kernel(kernel: FmhaBwdQKVGradKernel, autogen_dir: Path) -> None:
     (autogen_dir / kernel.filename).write_text(kernel.template)
-
-def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
-    (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
 def write_single_bwd_dot_do_o_kernel(kernel: FmhaBwdOGradDotOKernel, autogen_dir: Path) -> None:
     (autogen_dir / kernel.filename).write_text(kernel.template)
 
-def write_bwd_dot_do_o_api(api_pool : FmhaBwdOGradDotOApiPool, autogen_dir: Path) -> None:
-    (autogen_dir / FMHA_BWD_DOT_DO_O_API_FILENAME).write_text(api_pool.api)
+def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
+    (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
 def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optional[str], receipt, mask_impl) -> None:
     if output_dir is None:
@@ -1148,13 +1057,12 @@ def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optio
             write_single_fwd_kernel(kernel, output_dir)
         write_fwd_api(api_pool, output_dir)
     else:
-        api_pool, kernels = get_bwd_dot_do_o_blobs()
+        kernels = get_bwd_dot_do_o_blobs()
         for kernel in kernels:
             write_single_bwd_dot_do_o_kernel(kernel, output_dir)
-        write_bwd_dot_do_o_api(api_pool, output_dir)
-        api_pool, kernels = get_bwd_blobs(kernel_filter, mask_impl)
+        api_pool, kernels = get_bwd_dq_dk_dv_blobs(kernel_filter, mask_impl)
         for kernel in kernels:
-            write_single_bwd_kernel(kernel, output_dir)
+            write_single_bwd_dq_dk_dv_kernel(kernel, output_dir)
         write_bwd_api(api_pool, output_dir)
 
 # list all the files that will be generated
@@ -1168,11 +1076,10 @@ def list_blobs(output_file: Optional[str], direction: str, kernel_filter : Optio
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
             f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
         else:
-            _, kernels = get_bwd_dot_do_o_blobs()
+            kernels = get_bwd_dot_do_o_blobs()
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-            f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_DOT_DO_O_API_FILENAME) + "\n")
-            _, kernels = get_bwd_blobs(kernel_filter, mask_impl)
+            _, kernels = get_bwd_dq_dk_dv_blobs(kernel_filter, mask_impl)
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
             f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME) + "\n")
