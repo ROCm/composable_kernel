@@ -45,9 +45,10 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
             float total_time = 0;
 
             hip_check_error(hipEventElapsedTime(&total_time, start, stop));
-            total_time /= 10;
+            total_time /= stream_config.nrepeat_;
             stream_config.cold_niters_ =
-                (1000.0 / total_time); // we need longer runtime to ramp up the clk on MI300s
+                (stream_config.time_limit_ms /
+                 total_time); // we need longer runtime to ramp up the clk on MI300s
             stream_config.nrepeat_ = stream_config.cold_niters_;
         }
 #endif
@@ -148,9 +149,10 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             float total_time = 0;
 
             hip_check_error(hipEventElapsedTime(&total_time, start, stop));
-            total_time /= 10;
+            total_time /= stream_config.nrepeat_;
             stream_config.cold_niters_ =
-                (1000.0 / total_time); // we need longer runtime to ramp up the clk on MI300s
+                (stream_config.nrepeat_ /
+                 total_time); // we need longer runtime to ramp up the clk on MI300s
             stream_config.nrepeat_ = stream_config.cold_niters_;
         }
 #endif
