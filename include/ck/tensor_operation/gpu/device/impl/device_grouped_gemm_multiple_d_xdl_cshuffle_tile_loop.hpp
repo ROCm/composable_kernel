@@ -96,7 +96,7 @@ __global__ void
 
     do
     {
-        index_t M, N, K;
+        index_t M = 0, N = 0, K = 0;
         index_t StrideA, StrideB, StrideE;
         std::array<index_t, NumDTensor> StrideDs;
 
@@ -130,35 +130,34 @@ __global__ void
                 OffsettedBlockToCTileMap(LocalBlock2ETileMap(M, N), group_offset, tile_offset);
             grid_size_grp = b2c_tile_map.CalculateGridSize(M, N);
 
-            StrideA  = gemm_desc_ptr[group_id].StrideA;
-            StrideB  = gemm_desc_ptr[group_id].StrideB;
-            StrideDs = gemm_desc_ptr[group_id].StrideDs;
-            StrideE  = gemm_desc_ptr[group_id].StrideE;
-
-            a_grid_desc_mk =
-                GridwiseGemm::template MakeAGridDescriptor_M_K<ALayout, GemmSpec>(M, K, StrideA);
-            b_grid_desc_nk =
-                GridwiseGemm::template MakeBGridDescriptor_N_K<BLayout, GemmSpec>(K, N, StrideB);
-            e_grid_desc_mn =
-                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
-
-            static_for<0, NumDTensor, 1>{}([&](auto j) {
-                using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
-                ds_grid_desc_mn(j) =
-                    GridwiseGemm::template MakeEGridDescriptor_M_N<DLayout, GemmSpec>(
-                        M, N, StrideDs[j]);
-            });
-
-            // TODO check block-transfers!
-            if(!GridwiseGemm::template CheckValidity(
-                   a_grid_desc_mk, b_grid_desc_nk, ds_grid_desc_mn, e_grid_desc_mn, b2c_tile_map))
-            {
-                grid_size_grp = 0;
-                continue;
-            }
-
             gemm_tile_id_start = group_offset;
             gemm_tile_id_end   = group_offset + grid_size_grp;
+        }
+
+        StrideA  = gemm_desc_ptr[group_id].StrideA;
+        StrideB  = gemm_desc_ptr[group_id].StrideB;
+        StrideDs = gemm_desc_ptr[group_id].StrideDs;
+        StrideE  = gemm_desc_ptr[group_id].StrideE;
+
+        a_grid_desc_mk =
+            GridwiseGemm::template MakeAGridDescriptor_M_K<ALayout, GemmSpec>(M, K, StrideA);
+        b_grid_desc_nk =
+            GridwiseGemm::template MakeBGridDescriptor_N_K<BLayout, GemmSpec>(K, N, StrideB);
+        e_grid_desc_mn =
+            GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+
+        static_for<0, NumDTensor, 1>{}([&](auto j) {
+            using DLayout      = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+            ds_grid_desc_mn(j) = GridwiseGemm::template MakeEGridDescriptor_M_N<DLayout, GemmSpec>(
+                M, N, StrideDs[j]);
+        });
+
+        // TODO check block-transfers!
+        if(!GridwiseGemm::template CheckValidity(
+               a_grid_desc_mk, b_grid_desc_nk, ds_grid_desc_mn, e_grid_desc_mn, b2c_tile_map))
+        {
+            grid_size_grp = 0;
+            continue;
         }
 
         using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
