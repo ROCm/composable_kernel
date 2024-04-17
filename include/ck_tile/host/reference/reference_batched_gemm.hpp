@@ -23,9 +23,9 @@ CK_TILE_HOST void reference_batched_gemm(const ATensorView& a_b_m_k,
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})
 {
-    using ADataType = typename ATensorView::value_type;
-    using BDataType = typename BTensorView::value_type;
-    using CDataType = typename CTensorView::value_type;
+    using ADataType = tensor_view_value_t<ATensorView>;
+    using BDataType = tensor_view_value_t<BTensorView>;
+    using CDataType = tensor_view_value_t<CTensorView>;
 
     const int N = b_b_n_k.get_length(1);
     const int K = b_b_n_k.get_length(2);

@@ -19,7 +19,7 @@ reference_batched_softmax(const ATensorView& a_b_m_n,
                           const CompElementOp& comp_element_op                = {},
                           std::optional<HostTensorView<CompDataType>> lse_b_m = std::nullopt)
 {
-    using BDataType = typename BTensorView::value_type;
+    using BDataType = tensor_view_value_t<BTensorView>;
 
     const int N = a_b_m_n.get_length(2);
 

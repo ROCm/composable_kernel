@@ -349,9 +349,7 @@ namespace detail {
 template <typename TensorView>
 struct Repeat
 {
-    using value_type      = typename TensorView::value_type;
     using const_reference = typename TensorView::const_reference;
-    using reference       = const_reference;
     using size_type       = typename TensorView::size_type;
 
     static inline constexpr size_type MaxNumDims = TensorView::MaxNumDims;
@@ -435,7 +433,6 @@ struct HostTensorView : private HostTensorDescriptor
     using Descriptor      = HostTensorDescriptor;
     using Data            = span<T>;
     using Slicer          = HostTensorSlicer;
-    using value_type      = typename Data::value_type;
     using reference       = typename Data::reference;
     using const_reference = typename Data::const_reference;
     using iterator        = typename Data::iterator;
@@ -828,6 +825,10 @@ struct HostTensorView : private HostTensorDescriptor
     Data mData;
     std::array<std::optional<Slicer>, MaxNumDims> mSlicers;
 };
+
+template <typename T>
+using tensor_view_value_t =
+    remove_cvref_t<decltype(std::declval<remove_cvref_t<T>&>()(0, 0, 0, 0))>;
 
 template <typename T>
 struct HostTensor : HostTensorView<T>
