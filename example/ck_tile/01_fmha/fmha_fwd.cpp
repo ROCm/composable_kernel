@@ -575,8 +575,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             // clang-format off
             auto bias_host_view_slice = bias_host_view
-                    .index({Slice(2, query_start, query_end),
-                            Slice(3, key_start, key_end)})
+                    .index({Slice(2, query_start, query_end), Slice(3, key_start, key_end)})
                     .squeeze(0);
             // clang-format on
 
@@ -667,8 +666,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             // clang-format off
             auto lse_host_slice = lse_host
-                    .index({Slice(0, b, b + 1), 
-                            Slice(2, query_start, query_end)})
+                    .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
                     .squeeze(0);
             // clang-format on
 
