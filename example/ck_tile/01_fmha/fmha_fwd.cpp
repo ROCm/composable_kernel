@@ -496,7 +496,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     bool pass = true;
 
-    // unify dimension orders for simplication
+    // unify tensor views to [b, h, s, d] layout
     auto q_host_view = (i_perm ? q_host : q_host.transpose(1, 2));
     auto k_host_view = (i_perm ? k_host : k_host.transpose(1, 2));
     auto v_host_view = [&] {
