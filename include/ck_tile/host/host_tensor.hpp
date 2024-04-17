@@ -348,13 +348,14 @@ struct HostTensorSlicer
 template <typename T>
 struct HostTensorView : private HostTensorDescriptor
 {
-    using Descriptor = HostTensorDescriptor;
-    using Data       = span<T>;
-    using Slicer     = HostTensorSlicer;
-    using reference  = typename Data::reference;
-    using iterator   = typename Data::iterator;
-    using pointer    = typename Data::pointer;
-    using size_type  = std::size_t;
+    using Descriptor      = HostTensorDescriptor;
+    using Data            = span<T>;
+    using Slicer          = HostTensorSlicer;
+    using reference       = typename Data::reference;
+    using const_reference = typename Data::const_reference;
+    using iterator        = typename Data::iterator;
+    using pointer         = typename Data::pointer;
+    using size_type       = std::size_t;
 
     static inline constexpr size_type MaxNumDims = 6;
 
@@ -632,25 +633,22 @@ struct HostTensorView : private HostTensorDescriptor
     template <typename... Is>
     std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
                      reference>
+    operator()(Is... is)
+    {
+        return (*this)(std::array{static_cast<size_type>(is)...});
+    }
+
+    template <typename... Is>
+    std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, size_type>)&&...),
+                     const_reference>
     operator()(Is... is) const
     {
         return (*this)(std::array{static_cast<size_type>(is)...});
     }
 
-    reference operator()(span<const size_type> idx) const
-    {
-        assert(std::size(idx) <= get_num_of_dimension());
+    reference operator()(span<const size_type> idx) { return get_impl(*this, idx); }
 
-        std::array<size_type, MaxNumDims> real_idx;
-        for(size_type dim = 0; dim < std::size(idx); ++dim)
-        {
-            auto& slicer  = get_slicer(dim);
-            real_idx[dim] = (slicer ? (*slicer)(idx[dim]) : idx[dim]);
-        }
-
-        return mData[Descriptor::GetOffsetFromMultiIndex(
-            span<const size_type>(std::data(real_idx), std::size(idx)))];
-    }
+    const_reference operator()(span<const size_type> idx) const { return get_impl(*this, idx); }
 
     iterator begin() const { return mData.begin(); }
 
@@ -686,6 +684,22 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     private:
+    template <typename Self>
+    static decltype(auto) get_impl(Self&& self, span<const size_type> idx)
+    {
+        assert(std::size(idx) <= self.get_num_of_dimension());
+
+        std::array<size_type, MaxNumDims> real_idx;
+        for(size_type dim = 0; dim < std::size(idx); ++dim)
+        {
+            auto& slicer  = self.get_slicer(dim);
+            real_idx[dim] = (slicer ? (*slicer)(idx[dim]) : idx[dim]);
+        }
+
+        return self.mData[self.GetOffsetFromMultiIndex(
+            span<const size_type>(std::data(real_idx), std::size(idx)))];
+    }
+
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {
