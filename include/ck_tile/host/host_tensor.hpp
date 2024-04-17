@@ -530,7 +530,7 @@ struct HostTensorView : private HostTensorDescriptor
         using std::begin, std::end;
 
         std::vector<size_type> order(get_num_of_dimension());
-        std::iota(std::begin(order), std::end(order), 0);
+        std::iota(begin(order), end(order), 0);
 
         std::swap(order[dim0], order[dim1]);
 
