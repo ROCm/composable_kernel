@@ -9,22 +9,26 @@
 
 namespace ck_tile {
 
-template <typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
+template <typename AccDataType,
+          typename ATensorView,
+          typename BTensorView,
+          typename CTensorView,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-CK_TILE_HOST void reference_batched_gemm(HostTensorView<const ADataType> a_b_m_k,
-                                         HostTensorView<const BDataType> b_b_n_k,
-                                         HostTensorView<CDataType> c_b_m_n,
+CK_TILE_HOST void reference_batched_gemm(const ATensorView& a_b_m_k,
+                                         const BTensorView& b_b_n_k,
+                                         CTensorView& c_b_m_n,
                                          const AElementOp& a_element_op     = {},
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})
 {
-    const int N = b_b_n_k.get_lengths()[1];
-    const int K = b_b_n_k.get_lengths()[2];
+    using ADataType = typename ATensorView::value_type;
+    using BDataType = typename BTensorView::value_type;
+    using CDataType = typename CTensorView::value_type;
+
+    const int N = b_b_n_k.get_length(1);
+    const int K = b_b_n_k.get_length(2);
 
     auto f = [&](auto batch, auto m) {
         for(int n = 0; n < N; ++n)
@@ -44,7 +48,7 @@ CK_TILE_HOST void reference_batched_gemm(HostTensorView<const ADataType> a_b_m_k
         }
     };
 
-    make_ParallelTensorFunctor(f, c_b_m_n.get_lengths()[0], c_b_m_n.get_lengths()[1])(
+    make_ParallelTensorFunctor(f, c_b_m_n.get_length(0), c_b_m_n.get_length(1))(
         std::thread::hardware_concurrency());
 }
 } // namespace ck_tile
