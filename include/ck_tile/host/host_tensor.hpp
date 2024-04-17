@@ -6,9 +6,9 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
-#include <iomanip>
 #include <numeric>
 #include <thread>
 #include <utility>
