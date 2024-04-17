@@ -9,29 +9,33 @@
 
 namespace ck_tile {
 
-template <typename ADataType,
-          typename BDataType,
-          typename AccDataType,
-          typename CDataType,
+template <typename AccDataType,
+          typename ATensorView,
+          typename BTensorView,
+          typename CTensorView,
           typename AElementOp      = ck_tile::identity,
           typename BElementOp      = ck_tile::identity,
           typename BinaryElementOp = ck_tile::plus<AccDataType>>
-CK_TILE_HOST void reference_batched_elementwise(HostTensorView<const ADataType> a_b_m_n,
-                                                HostTensorView<const BDataType> b_b_m_n,
-                                                HostTensorView<CDataType> c_b_m_n,
+CK_TILE_HOST void reference_batched_elementwise(const ATensorView& a_b_m_n,
+                                                const BTensorView& b_b_m_n,
+                                                CTensorView& c_b_m_n,
                                                 const AElementOp& a_element_op           = {},
                                                 const BElementOp& b_element_op           = {},
                                                 const BinaryElementOp& binary_element_op = {})
 {
-    const ck_tile::index_t N = c_b_m_n.get_lengths()[2];
+    using ADataType = typename ATensorView::value_type;
+    using BDataType = typename BTensorView::value_type;
+    using CDataType = typename CTensorView::value_type;
 
-    const bool broadcast_a_dim_b = (a_b_m_n.get_lengths()[0] == 1);
-    const bool broadcast_a_dim_m = (a_b_m_n.get_lengths()[1] == 1);
-    const bool broadcast_a_dim_n = (a_b_m_n.get_lengths()[2] == 1);
+    const ck_tile::index_t N = c_b_m_n.get_length(2);
 
-    const bool broadcast_b_dim_b = (b_b_m_n.get_lengths()[0] == 1);
-    const bool broadcast_b_dim_m = (b_b_m_n.get_lengths()[1] == 1);
-    const bool broadcast_b_dim_n = (b_b_m_n.get_lengths()[2] == 1);
+    const bool broadcast_a_dim_b = (a_b_m_n.get_length(0) == 1);
+    const bool broadcast_a_dim_m = (a_b_m_n.get_length(1) == 1);
+    const bool broadcast_a_dim_n = (a_b_m_n.get_length(2) == 1);
+
+    const bool broadcast_b_dim_b = (b_b_m_n.get_length(0) == 1);
+    const bool broadcast_b_dim_m = (b_b_m_n.get_length(1) == 1);
+    const bool broadcast_b_dim_n = (b_b_m_n.get_length(2) == 1);
 
     auto f = [&](auto batch, auto m) {
         for(ck_tile::index_t n = 0; n < N; ++n)
@@ -58,7 +62,7 @@ CK_TILE_HOST void reference_batched_elementwise(HostTensorView<const ADataType> 
         }
     };
 
-    make_ParallelTensorFunctor(f, c_b_m_n.get_lengths()[0], c_b_m_n.get_lengths()[1])(
+    make_ParallelTensorFunctor(f, c_b_m_n.get_length(0), c_b_m_n.get_length(1))(
         std::thread::hardware_concurrency());
 }
 } // namespace ck_tile
