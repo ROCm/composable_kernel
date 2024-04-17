@@ -814,7 +814,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         // check device
         if(get_device_name() == "gfx908")
         {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, double> ||
                            is_same_v<AccDataType, int32_t>))
             {
                 return false;
