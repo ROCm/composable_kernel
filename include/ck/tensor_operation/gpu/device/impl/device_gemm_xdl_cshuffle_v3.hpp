@@ -177,8 +177,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         arg_,
                         stream_config.rotating_count,
                         get_matrix_size(arg.M, arg.K, arg.StrideA, ALayout{}) * sizeof(ADataType),
-                        get_matrix_size(arg.K, arg.N, arg.StrideB, BLayout{}) * sizeof(BDataType),
-                        get_matrix_size(arg.M, arg.N, arg.StrideC, CLayout{}) * sizeof(CDataType));
+                        get_matrix_size(arg.K, arg.N, arg.StrideB, BLayout{}) * sizeof(BDataType));
 
                     auto run_flush_cache = [&rotating_mem]() {
                         // flush icache

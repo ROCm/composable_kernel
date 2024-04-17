@@ -17,23 +17,16 @@ struct RotatingMemWrapper
 {
     using ADataType = decltype(Argument::p_a_grid);
     using BDataType = decltype(Argument::p_b_grid);
-    using CDataType = decltype(Argument::p_c_grid);
 
     RotatingMemWrapper() = delete;
     RotatingMemWrapper(Argument& arg_,
                        std::size_t rotating_count_,
                        std::size_t size_a_,
-                       std::size_t size_b_,
-                       std::size_t size_c_)
-        : arg(arg_),
-          rotating_count(rotating_count_),
-          size_a(size_a_),
-          size_b(size_b_),
-          size_c(size_c_)
+                       std::size_t size_b_)
+        : arg(arg_), rotating_count(rotating_count_), size_a(size_a_), size_b(size_b_)
     {
         p_a_grids.push_back(arg.p_a_grid);
         p_b_grids.push_back(arg.p_b_grid);
-        p_c_grids.push_back(arg.p_c_grid);
         for(size_t i = 0; i < rotating_count - 1; i++)
         {
             {
@@ -55,12 +48,6 @@ struct RotatingMemWrapper
                                           hipMemcpyDeviceToDevice));
                 p_b_grids.push_back(pBDeviceBuf);
             }
-
-            {
-                void* pCDeviceBuf;
-                hip_check_error(hipMalloc(static_cast<void**>(&pCDeviceBuf), size_c_));
-                p_c_grids.push_back(pCDeviceBuf);
-            }
         }
     }
 
@@ -71,12 +58,11 @@ struct RotatingMemWrapper
             int idx      = iter++ % rotating_count;
             arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[idx]);
             arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[idx]);
-            arg.p_c_grid = reinterpret_cast<CDataType>(p_c_grids[idx]);
         }
     }
     void Print()
     {
-        std::cout << "RotatingMemWrapper{" << size_a << "," << size_b << "," << size_c
+        std::cout << "RotatingMemWrapper{" << size_a << "," << size_b
                   << "} rotating_count: " << rotating_count << std::endl;
     }
     ~RotatingMemWrapper()
@@ -86,20 +72,12 @@ struct RotatingMemWrapper
             // restore ptr
             arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[0]);
             arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[0]);
-            arg.p_c_grid = reinterpret_cast<CDataType>(p_c_grids[0]);
-#if 0
-            // test rotating buffer gemm result
-            hip_check_error(hipMemcpy(static_cast<void*>(p_c_grids[0]),
-                                      const_cast<void*>(p_c_grids[--iter % rotating_count]),
-                                      size_c,
-                                      hipMemcpyDeviceToDevice));
-#endif
+
             // free device mem
             for(size_t i = 1; i < rotating_count; i++)
             {
                 hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
                 hip_check_error(hipFree(const_cast<void*>(p_b_grids[i])));
-                hip_check_error(hipFree(p_c_grids[i]));
             }
         }
     }
@@ -110,10 +88,8 @@ struct RotatingMemWrapper
     std::size_t rotating_count = 1;
     std::size_t size_a         = 0;
     std::size_t size_b         = 0;
-    std::size_t size_c         = 0;
     std::vector<const void*> p_a_grids;
     std::vector<const void*> p_b_grids;
-    std::vector<void*> p_c_grids;
 };
 
 static void flush_icache()
@@ -122,7 +98,7 @@ static void flush_icache()
     hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
     int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-    int flush_iter = 200;
+    int flush_iter = 10;
 
     for(int i = 0; i < flush_iter; i++)
     {

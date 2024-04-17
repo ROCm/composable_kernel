@@ -8,7 +8,7 @@
 namespace ck {
 static __global__ void flush_icache()
 {
-    static_for<0, Number<100>{}, 1>{}([](auto) {
+    static_for<0, Number<1000>{}, 1>{}([](auto) {
         asm __volatile__("s_icache_inv \n\t"
                          "s_nop 0 \n\t"
                          "s_nop 0 \n\t"
