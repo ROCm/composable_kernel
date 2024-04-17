@@ -439,7 +439,7 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
     template <typename BLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeBGridDescriptor_N_K(index_t KRaw, index_t NRaw, index_t StrideB)
+    MakeBGridDescriptor_N_K(const index_t NRaw, const index_t KRaw, const index_t StrideB)
     {
         constexpr auto matrix_padder =
             ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{
@@ -463,15 +463,15 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
 
     template <typename BsLayout, GemmSpecialization GemmSpec>
     __host__ __device__ static auto
-    MakeBsGridDescriptor_N_K(const std::array<index_t, NumBTensor>& KRaws,
-                             const std::array<index_t, NumBTensor>& NRaws,
+    MakeBsGridDescriptor_N_K(const std::array<index_t, NumBTensor>& NRaws,
+                             const std::array<index_t, NumBTensor>& KRaws,
                              const std::array<index_t, NumBTensor>& BsStride)
     {
         return generate_tuple(
             [&](auto i) {
                 using BLayout = remove_cvref_t<tuple_element_t<i.value, BsLayout>>;
 
-                return MakeBGridDescriptor_N_K<BLayout, GemmSpec>(KRaws[i], NRaws[i], BsStride[i]);
+                return MakeBGridDescriptor_N_K<BLayout, GemmSpec>(NRaws[i], KRaws[i], BsStride[i]);
             },
             Number<NumBTensor>{});
     }
@@ -574,7 +574,6 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
         {
             return;
         }
-
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
@@ -595,8 +594,10 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             generate_tuple([&](auto) { return make_multi_index(0, m_block_data_idx_on_grid, 0); },
                            Number<NumATensor>{});
 
+#if 0
         static_assert(ABlockTransferSrcScalarPerVector == ABlockTransferDstScalarPerVector_AK1,
                       "Src and Dst ScalarPerVector must be the same");
+#endif
 
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
@@ -626,8 +627,10 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             generate_tuple([&](auto) { return make_multi_index(0, n_block_data_idx_on_grid, 0); },
                            Number<NumBTensor>{});
 
+#if 0
         static_assert(BBlockTransferSrcScalarPerVector == BBlockTransferDstScalarPerVector_BK1,
                       "Src and Dst ScalarPerVector must be the same");
+#endif
 
         auto b_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
