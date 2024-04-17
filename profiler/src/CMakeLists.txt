@@ -1,7 +1,7 @@
 # ckProfiler
 set(PROFILER_SOURCES
 	profiler.cpp
-    	profile_gemm.cpp
+	#profile_gemm.cpp
     	#profile_reduce.cpp
     	#profile_groupnorm_bwd_data.cpp
     	#profile_groupnorm_fwd.cpp
@@ -78,7 +78,7 @@ add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
 target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
+#target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
 #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_fwd_instance)
 #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_bwd_data_instance)
 #target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_normalization_bwd_gamma_beta_instance)

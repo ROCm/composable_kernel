@@ -55,16 +55,11 @@ __global__ void
     p_as_grid(I0) = karg.p_a_grid;
     p_bs_grid(I0) = karg.p_b_grid;
 
-    auto splitk_batch_offset =
-        typename GridwiseGemm::SplitKBatchOffsetMultiABD(p_as_grid, p_bs_grid, karg);
+    // auto splitk_batch_offset =
+    //    typename GridwiseGemm::SplitKBatchOffsetMultiABD(p_as_grid, p_bs_grid, karg);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        splitk_batch_offset.p_as_grid_,
-        splitk_batch_offset.p_bs_grid_,
-        p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        karg);
+        p_as_grid, p_bs_grid, p_ds_grid, karg.p_c_grid, p_shared, karg);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -479,7 +474,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     {
         return generate_tuple(
             [&](auto i) {
-                return MakeBGridDescriptor_BK0_N_BK1(N, NPad, K, KPad, StrideBs[i], BK0);
+                return MakeBGridDescriptor_BK0_N_BK1(K, KPad, N, NPad, StrideBs[i], BK0);
             },
             Number<NumBTensor>{});
     }
@@ -1318,17 +1313,14 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // BsGridPointer p_bs_grid;
         // DsGridPointer p_ds_grid;
 
-#if 0
-        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
-        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
-            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
-#else
+        // const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
+        //    problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+        // const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
+        //    problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
             problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
-#endif
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideC);
 
@@ -1350,12 +1342,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-#if 0
-        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
-#else
+        // const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        //    p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+        // const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        //    p_bs_grid[I0], b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1369,7 +1360,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     p_bs_grid[i], bs_grid_desc_bk0_n_bk1[i].GetElementSpaceSize());
             },
             Number<NumBTensor>{});
-#endif
+
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
@@ -1472,7 +1463,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             2,
             ABlockTransferSrcScalarPerVector,
             ABlockTransferDstScalarPerVector_AK1,
-            uniform_sequence_gen_t<NumATensor, false>,
+            uniform_sequence_gen_t<NumATensor, AThreadTransferSrcResetCoordinateAfterRun>,
             Sequence<true>,
             BlockwiseGemmPipe::GlobalBufferNum>{as_grid_desc_ak0_m_ak1,
                                                 idx_as_block_begin,
@@ -1536,7 +1527,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             2,
             BBlockTransferSrcScalarPerVector,
             BBlockTransferDstScalarPerVector_BK1,
-            uniform_sequence_gen_t<NumBTensor, false>,
+            uniform_sequence_gen_t<NumBTensor, BThreadTransferSrcResetCoordinateAfterRun>,
             Sequence<true>,
             BlockwiseGemmPipe::GlobalBufferNum>{bs_grid_desc_bk0_n_bk1,
                                                 idx_bs_block_begin,
