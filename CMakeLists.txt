@@ -26,6 +26,8 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
+find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
@@ -80,9 +82,6 @@ if(INSTANCES_ONLY)
 endif()
 
 include(getopt)
-
-# CK config file to record supported datatypes, etc.
-configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 # CK version file to record release version as well as git commit hash
 find_package(Git REQUIRED)
@@ -158,6 +157,9 @@ else()
     set(CK_USE_XDL "ON")
     set(CK_USE_WMMA "ON")
 endif()
+
+# CK config file to record supported datatypes, etc.
+configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 find_package(hip)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
