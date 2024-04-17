@@ -407,25 +407,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
         // setup stride_* arguments
-        const ck_tile::index_t stride_q = q_host.get_stride(1 + i_perm);
-        const ck_tile::index_t stride_k = k_host.get_stride(1 + i_perm);
-        const ck_tile::index_t stride_v = [&]() {
-            if(is_v_rowmajor)
-                return i_perm ? hdim_v : nhead_k * hdim_v;
-            else
-                return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
-        }();
+        const ck_tile::index_t stride_q    = q_host.get_stride(1 + i_perm);
+        const ck_tile::index_t stride_k    = k_host.get_stride(1 + i_perm);
+        const ck_tile::index_t stride_v    = v_host.get_stride(1 + i_perm);
         const ck_tile::index_t stride_bias = shape_seqlen_k;
         const ck_tile::index_t stride_o    = o_host.get_stride(1 + o_perm);
         // setup nhead_stride_* arguments
-        const ck_tile::index_t nhead_stride_q = q_host.get_stride(1 + !i_perm);
-        const ck_tile::index_t nhead_stride_k = k_host.get_stride(1 + !i_perm);
-        const ck_tile::index_t nhead_stride_v = [&]() {
-            if(is_v_rowmajor)
-                return i_perm ? shape_seqlen_k * hdim_v : hdim_v;
-            else
-                return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
-        }();
+        const ck_tile::index_t nhead_stride_q    = q_host.get_stride(1 + !i_perm);
+        const ck_tile::index_t nhead_stride_k    = k_host.get_stride(1 + !i_perm);
+        const ck_tile::index_t nhead_stride_v    = v_host.get_stride(1 + !i_perm);
         const ck_tile::index_t nhead_stride_bias = 0;
         const ck_tile::index_t nhead_stride_lse  = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_o    = o_host.get_stride(1 + !o_perm);
