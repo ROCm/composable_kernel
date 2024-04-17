@@ -38,7 +38,7 @@ def getDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.1"){
+    if (params.ROCMVERSION != "6.2"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
