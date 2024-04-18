@@ -180,30 +180,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
     // TODO make A/B datatype different
     using ABDataType = InDataType;
 
-    // 1d
-    static constexpr bool is_GNWK_GKXC_GNWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNWK>;
-    // 2d
-    static constexpr bool is_NHWGK_GKYXC_NHWGC =
-        is_same_v<InLayout, tensor_layout::convolution::NHWGC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::NHWGK>;
-    static constexpr bool is_GNHWK_GKYXC_GNHWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNHWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNHWK>;
-    // 3d
-    static constexpr bool is_NDHWGK_GKZYXC_NDHWGC =
-        is_same_v<InLayout, tensor_layout::convolution::NDHWGC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::NDHWGK>;
-    static constexpr bool is_GNDHWK_GKZYXC_GNDHWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNDHWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNDHWK>;
-
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -412,8 +388,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X;
-                    const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-                    const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -451,8 +427,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y;
-                    const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-                    const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -491,8 +467,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 {
                     const index_t GemmM = K;
                     const index_t GemmN = C * X * Y * Z;
-                    const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-                    const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
                     return transform_tensor_descriptor(
                         wei_grid_desc,
@@ -881,21 +857,23 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         }
         if constexpr(NDimSpatial == 1)
         {
-            if constexpr(!is_GNWK_GKXC_GNWC)
+            if constexpr(!is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>())
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 2)
         {
-            if constexpr(!(is_NHWGK_GKYXC_NHWGC || is_GNHWK_GKYXC_GNHWC))
+            if constexpr(!(is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 3)
         {
-            if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC || is_GNDHWK_GKZYXC_GNDHWC))
+            if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }

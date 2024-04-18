@@ -166,8 +166,8 @@ struct TransformConvBwdWeightToGemm
         const index_t GemmM      = K;
         const index_t GemmN      = C * X;
 
-        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
@@ -365,8 +365,8 @@ struct TransformConvBwdWeightToGemm
         const index_t GemmM      = K;
         const index_t GemmN      = C * X * Y;
 
-        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
@@ -558,8 +558,8 @@ struct TransformConvBwdWeightToGemm
         const index_t GemmM      = K;
         const index_t GemmN      = C * Z * X * Y;
 
-        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmKBatch = batch_k;
         const index_t GemmK0 =
