@@ -355,32 +355,26 @@ struct Repeat
     static inline constexpr size_type MaxNumDims = TensorView::MaxNumDims;
 
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
-    Repeat(TensorView view, std::initializer_list<X> repeats)
-        : mView(std::move(view)), mLengths(get_num_of_dimension())
+    Repeat(TensorView view, std::initializer_list<X> repeats) : mView(std::move(view))
     {
         assert(mView.get_num_of_dimension() <= MaxNumDims);
         assert(std::size(repeats) <= mView.get_num_of_dimension());
 
         using std::rbegin, std::rend;
         std::copy(rbegin(repeats), rend(repeats), rbegin(get_repeats()));
-
-        using std::begin, std::end;
-        std::transform(begin(mView.get_lengths()),
-                       end(mView.get_lengths()),
-                       begin(get_repeats()),
-                       begin(mLengths),
-                       multiplies());
     }
 
     size_type get_num_of_dimension() const { return mView.get_num_of_dimension(); }
 
-    size_type get_length(size_type dim) const { return mLengths[dim]; }
+    size_type get_length(size_type dim) const { return mView.get_length(dim) * get_repeat(dim); }
 
     auto get_lengths() const
     {
-        using std::begin, std::end;
-
-        return iterator_range(begin(mLengths), end(mLengths));
+        return make_transform_range(make_zip_range(mView.get_lengths(), get_repeats()),
+                                    [](auto bundle) {
+                                        // length * repeat
+                                        return std::get<0>(bundle) * std::get<1>(bundle);
+                                    });
     }
 
     template <typename... Is>
@@ -423,7 +417,6 @@ struct Repeat
 
     TensorView mView;
     std::array<size_type, MaxNumDims> mRepeats;
-    std::vector<size_type> mLengths;
 };
 } // namespace detail
 
