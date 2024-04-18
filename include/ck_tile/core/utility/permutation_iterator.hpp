@@ -48,14 +48,14 @@ struct permutation_iterator
         return result;
     }
 
-    template <bool Cond = is_random_access_iterator_v<index_iterator>>
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
     std::enable_if_t<Cond, permutation_iterator&> operator+=(difference_type step)
     {
         std::advance(next_index, step);
         return *this;
     }
 
-    template <bool Cond = is_random_access_iterator_v<index_iterator>>
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
     std::enable_if_t<Cond, permutation_iterator> operator-=(difference_type step)
     {
         return (*this) += (-step);
@@ -76,7 +76,7 @@ struct permutation_iterator
         return !(lhs == rhs);
     }
 
-    template <bool Cond = is_random_access_iterator_v<index_iterator>>
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
     friend std::enable_if_t<Cond, permutation_iterator> operator+(const permutation_iterator& lhs,
                                                                   difference_type step)
     {
@@ -85,14 +85,14 @@ struct permutation_iterator
         return result;
     }
 
-    template <bool Cond = is_random_access_iterator_v<index_iterator>>
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
     friend std::enable_if_t<Cond, permutation_iterator> operator-(const permutation_iterator& lhs,
                                                                   difference_type step)
     {
         return lhs + (-step);
     }
 
-    template <bool Cond = is_random_access_iterator_v<index_iterator>>
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
     friend difference_type operator-(const permutation_iterator& lhs,
                                      const permutation_iterator& rhs)
     {
@@ -110,8 +110,10 @@ permutation_iterator(ElementIterator, IndexIterator)
 template <typename ElementRange, typename IndexRange>
 constexpr auto make_permutation_range(ElementRange&& elements, IndexRange&& indices)
 {
-    return iterator_range(permutation_iterator(std::begin(elements), std::begin(indices)),
-                          permutation_iterator(std::begin(elements), std::end(indices)));
+    using std::begin, std::end;
+
+    return iterator_range(permutation_iterator(begin(elements), begin(indices)),
+                          permutation_iterator(begin(elements), end(indices)));
 }
 
 } // namespace ck_tile
