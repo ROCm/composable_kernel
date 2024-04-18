@@ -57,6 +57,7 @@
 #include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/utility/ranges.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
+#include "ck_tile/core/utility/transform_iterator.hpp"
 #include "ck_tile/core/utility/transpose_vectors.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/unary_element_function.hpp"
