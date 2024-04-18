@@ -1087,7 +1087,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                       << __LINE__ << ", in function: " << __func__ << std::endl;
 
 #endif // DEBUG_LOG
-            if(karg.KBatch > 1){
+            if(karg.KBatch > 1)
+            {
                 return false;
             }
         }

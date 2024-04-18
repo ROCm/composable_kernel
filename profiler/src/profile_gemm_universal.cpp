@@ -78,10 +78,10 @@ int profile_gemm_universal(int argc, char* argv[])
         n_iter   = std::stoi(argv[16]);
     }
 
-    using F32 = float;
-    using F16 = ck::half_t;
+    using F32  = float;
+    using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-    using F8  = ck::f8_t;
+    using F8   = ck::f8_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
