@@ -188,15 +188,18 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto ds_read_b_mfma_rate =
             (mfma_cycle - 4 + 2 * ds_read_b_issue_cycle - 1) / (2 * ds_read_b_issue_cycle);
 
+        constexpr auto num_dsread_a_mfma =
+            (num_ds_read_inst_a + ds_read_a_mfma_rate - 1) / ds_read_a_mfma_rate;
+        constexpr auto num_dsread_b_mfma =
+            (num_ds_read_inst_b + ds_read_b_mfma_rate - 1) / ds_read_b_mfma_rate;
+
         // stage 1
         // Separate this part?
-        constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
-                                                      sizeof(ComputeDataType) / sizeof(BDataType)
-                                                  ? sizeof(ComputeDataType) / sizeof(ADataType)
-                                                  : sizeof(ComputeDataType) / sizeof(BDataType);
-        constexpr auto num_mfma_stage1 =
-            num_mfma_inst - num_mfma_per_ds_read * (num_ds_read_inst_a / ds_read_a_mfma_rate +
-                                                    num_ds_read_inst_b / ds_read_b_mfma_rate);
+        // constexpr auto num_mfma_per_ds_read = sizeof(ComputeDataType) / sizeof(ADataType) >
+        //                                               sizeof(ComputeDataType) / sizeof(BDataType)
+        //                                           ? sizeof(ComputeDataType) / sizeof(ADataType)
+        //                                           : sizeof(ComputeDataType) / sizeof(BDataType);
+        constexpr auto num_mfma_stage1 = num_mfma_inst - (num_dsread_a_mfma + num_dsread_b_mfma);
         constexpr auto num_mfma_per_issue =
             num_mfma_stage1 / (num_buffer_load_inst_a + num_buffer_load_inst_b);
         constexpr auto num_dswrite_per_issue_a = num_ds_write_inst_a / num_buffer_load_inst_a;
@@ -226,16 +229,36 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         });
 
         // stage 2
-        static_for<0, num_ds_read_inst_a / ds_read_a_mfma_rate, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0);  // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_ds_read, 0); // MFMA
+        static_for<0, num_dsread_a_mfma, 1>{}([&](auto i) {
+            if constexpr((num_ds_read_inst_a - (i + 1) * ds_read_a_mfma_rate) >=
+                         ds_read_a_mfma_rate)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100,
+                                                     num_ds_read_inst_a - (num_dsread_a_mfma - 1) *
+                                                                              ds_read_a_mfma_rate,
+                                                     0); // DS read
+            }
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
 
-        static_for<0, num_ds_read_inst_b / ds_read_b_mfma_rate, 1>{}([&](auto i) {
-            ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0);  // DS read
-            __builtin_amdgcn_sched_group_barrier(0x008, num_mfma_per_ds_read, 0); // MFMA
+        static_for<0, num_dsread_b_mfma, 1>{}([&](auto i) {
+            if constexpr((num_ds_read_inst_b - (i + 1) * ds_read_b_mfma_rate) >=
+                         ds_read_b_mfma_rate)
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_b_mfma_rate, 0); // DS read
+            }
+            else
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100,
+                                                     num_ds_read_inst_b - (num_dsread_b_mfma - 1) *
+                                                                              ds_read_b_mfma_rate,
+                                                     0); // DS read
+            }
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
         });
     }
 
