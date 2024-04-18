@@ -154,26 +154,13 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    auto get_matrix_size =
-                        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-                            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
-                            {
-                                return row * stride;
-                            }
-                            else
-                            {
-                                return col * stride;
-                            }
-                        };
-
                     Argument arg_ = arg;
                     ck::utility::RotatingMemWrapper<Argument> rotating_mem(
                         arg_,
                         stream_config.rotating_count,
-                        get_matrix_size(arg_.M, arg_.K, arg_.StrideA, ALayout{}) *
-                            sizeof(ADataType),
-                        get_matrix_size(arg_.K, arg_.N, arg_.StrideB, BLayout{}) *
-                            sizeof(BDataType));
+                        arg_.M * arg_.K * sizeof(ADataType),
+                        arg_.K * arg_.N * sizeof(BDataType));
+                    rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
                         // flush icache
