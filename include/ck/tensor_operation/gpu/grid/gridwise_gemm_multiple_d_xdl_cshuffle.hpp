@@ -257,6 +257,70 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
+    template <typename ALayout, typename BLayout, typename ELayout>
+    __host__ __device__ static bool
+    CheckTensorTransfersValidity(index_t MRaw, index_t NRaw, index_t KRaw)
+    {
+        // Check if the vector dim is K1 or M|N
+        const auto A_vector_dim_size = ABlockTransferSrcVectorDim == 2 ? KRaw : MRaw;
+        const auto B_vector_dim_size = BBlockTransferSrcVectorDim == 2 ? KRaw : NRaw;
+        const auto E_vector_dim_size = NRaw;
+
+        // check vector load for A tensor
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+        {
+            if(!(A_vector_dim_size == KRaw &&
+                 A_vector_dim_size % ABlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+        {
+            if(!(A_vector_dim_size == MRaw &&
+                 A_vector_dim_size % ABlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+        {
+            if(!(B_vector_dim_size == NRaw &&
+                 B_vector_dim_size % BBlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+        {
+            if(!(B_vector_dim_size == KRaw &&
+                 B_vector_dim_size % BBlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ELayout>)
+        {
+            if(!(E_vector_dim_size == NRaw &&
+                 E_vector_dim_size % CDEShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+                return false;
+        }
+        else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ELayout>)
+        {
+            if(!(E_vector_dim_size == NRaw &&
+                 CDEShuffleBlockTransferScalarPerVector_NPerBlock == 1))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     template <typename AGridDesc_M_K,
               typename BGridDesc_N_K,
               typename DsGridDesc_M_N,

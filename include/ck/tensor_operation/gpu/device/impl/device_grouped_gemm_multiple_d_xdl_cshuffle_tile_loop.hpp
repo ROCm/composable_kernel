@@ -152,12 +152,14 @@ __global__ void
                 M, N, StrideDs[j]);
         });
 
-        // TODO check block-transfers!
-        if(!GridwiseGemm::template CheckValidity(
-               a_grid_desc_mk, b_grid_desc_nk, ds_grid_desc_mn, e_grid_desc_mn, b2c_tile_map))
+        if(!(GridwiseGemm::template CheckValidity(
+                 a_grid_desc_mk, b_grid_desc_nk, ds_grid_desc_mn, e_grid_desc_mn, b2c_tile_map) &&
+             GridwiseGemm::template CheckTensorTransfersValidity<ALayout, BLayout, ELayout>(
+                 M, N, K)))
         {
             grid_size_grp = 0;
             continue;
+            // TODO ? throw an error?
         }
 
         using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
