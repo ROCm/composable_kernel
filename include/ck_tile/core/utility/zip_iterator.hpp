@@ -134,6 +134,12 @@ struct zip_iterator
         return lhs + (-step);
     }
 
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
+    friend difference_type operator-(const zip_iterator& lhs, const zip_iterator& rhs)
+    {
+        return std::get<0>(lhs.iters) - std::get<0>(rhs.iters);
+    }
+
     template <typename Tuple, std::size_t... Is>
     static void tuple_inc_impl(Tuple& tuple, std::index_sequence<Is...>)
     {
