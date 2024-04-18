@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -108,7 +108,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  out_element_op,
+                                                  {},
+                                                  {},
+                                                  {});
 
         ref_invoker.Run(ref_argument);
     }
