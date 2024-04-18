@@ -657,8 +657,8 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.0;COMPILER_VERSION=
-                                              0 21 * * * % ROCMVERSION=6.0;COMPILER_VERSION=;COMPILER_COMMIT=
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1;COMPILER_VERSION=
+                                              0 21 * * * % ROCMVERSION=6.1;COMPILER_VERSION=;COMPILER_COMMIT=
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;COMPILER_COMMIT=;USE_SCCACHE=false
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false''' : ""
 
