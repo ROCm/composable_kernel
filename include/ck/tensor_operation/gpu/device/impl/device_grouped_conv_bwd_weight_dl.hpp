@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -137,34 +137,6 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
                                                                          WeiElementwiseOperation,
                                                                          OutElementwiseOperation>
 {
-    // 1d
-    static constexpr bool is_NWGK_GKXC_NWGC =
-        is_same_v<InLayout, tensor_layout::convolution::NWGC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::NWGK>;
-    static constexpr bool is_GNWK_GKXC_GNWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNWK>;
-    // 2d
-    static constexpr bool is_NHWGK_GKYXC_NHWGC =
-        is_same_v<InLayout, tensor_layout::convolution::NHWGC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::NHWGK>;
-    static constexpr bool is_GNHWK_GKYXC_GNHWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNHWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNHWK>;
-    // 3d
-    static constexpr bool is_NDHWGK_GKZYXC_NDHWGC =
-        is_same_v<InLayout, tensor_layout::convolution::NDHWGC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::NDHWGK>;
-    static constexpr bool is_GNDHWK_GKZYXC_GNDHWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNDHWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNDHWK>;
-
     using DeviceOp = DeviceGroupedConvBwdWeight_Dl;
 
     using ADataType = OutDataType;
@@ -1065,9 +1037,15 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
         if(arg.k_batch_ != 1)
             return false;
 
-        if constexpr(!((NDimSpatial == 1 && (is_NWGK_GKXC_NWGC || is_GNWK_GKXC_GNWC)) ||
-                       (NDimSpatial == 2 && (is_NHWGK_GKYXC_NHWGC || is_GNHWK_GKYXC_GNHWC)) ||
-                       (NDimSpatial == 3 && (is_NDHWGK_GKZYXC_NDHWGC || is_GNDHWK_GKZYXC_GNDHWC))))
+        if constexpr(!((NDimSpatial == 1 &&
+                        (is_NWGK_GKXC_NWGC<InLayout, WeiLayout, OutLayout>() ||
+                         is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>())) ||
+                       (NDimSpatial == 2 &&
+                        (is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
+                         is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>())) ||
+                       (NDimSpatial == 3 &&
+                        (is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
+                         is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))))
         {
             return false;
         }
