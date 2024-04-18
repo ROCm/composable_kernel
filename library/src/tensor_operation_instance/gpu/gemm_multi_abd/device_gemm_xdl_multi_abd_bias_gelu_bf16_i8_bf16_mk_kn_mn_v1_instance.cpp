@@ -36,8 +36,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
                                                                   ck::Tuple<D0DataType>,
                                                                   AddFastGelu,
                                                                   GemmMNKPadding,
-                                                                  PipelineVersion::v1,
-                                                                  LoopScheduler::Default>{});
+                                                                  Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
@@ -59,8 +58,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
                                                                   ck::Tuple<D0DataType>,
                                                                   Add,
                                                                   GemmMNKPadding,
-                                                                  PipelineVersion::v1,
-                                                                  LoopScheduler::Default>{});
+                                                                  Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
@@ -82,8 +80,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
                                                                   ck::Tuple<>,
                                                                   PassThrough,
                                                                   GemmMNKPadding,
-                                                                  PipelineVersion::v1,
-                                                                  LoopScheduler::Default>{});
+                                                                  Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
@@ -105,8 +102,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
                                                                   ck::Tuple<>,
                                                                   FastGelu,
                                                                   GemmMNKPadding,
-                                                                  PipelineVersion::v1,
-                                                                  LoopScheduler::Default>{});
+                                                                  Interwave>{});
 }
 
 } // namespace instance

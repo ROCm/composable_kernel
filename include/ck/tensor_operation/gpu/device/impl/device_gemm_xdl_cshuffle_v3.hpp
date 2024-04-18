@@ -15,7 +15,6 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_abd.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -75,21 +74,15 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
-
-    static constexpr index_t NumATensor = 1;
-    static constexpr index_t NumBTensor = 1;
-    static constexpr index_t NumDTensor = 0;
-
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         CLayout,
-        Tuple<ADataType>,
-        Tuple<BDataType>,
+        ADataType,
+        BDataType,
         GemmAccDataType,
         CShuffleDataType,
-        Tuple<>,
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -601,25 +594,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                              index_t StrideB,
                              index_t StrideC,
                              index_t KBatch,
-                             AElementwiseOperation a_element_op,
-                             BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             AElementwiseOperation,
+                             BElementwiseOperation,
+                             CElementwiseOperation)
     {
-        return Argument{{p_a},
-                        {p_b},
-                        {},
-                        p_c,
-                        M,
-                        N,
-                        K,
-                        {StrideA},
-                        {StrideB},
-                        {},
-                        StrideC,
-                        KBatch,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -635,26 +614,20 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                       index_t StrideB,
                                                       index_t StrideC,
                                                       index_t KBatch,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+                                                      AElementwiseOperation,
+                                                      BElementwiseOperation,
+                                                      CElementwiseOperation) override
     {
-        return std::make_unique<Argument>(
-            std::array<const void*, NumATensor>{static_cast<const ADataType*>(p_a)},
-            std::array<const void*, NumBTensor>{static_cast<const BDataType*>(p_b)},
-            std::array<const void*, NumDTensor>{},
-            static_cast<CDataType*>(p_c),
-            M,
-            N,
-            K,
-            std::array<index_t, NumATensor>{StrideA},
-            std::array<index_t, NumBTensor>{StrideB},
-            std::array<index_t, NumDTensor>{},
-            StrideC,
-            KBatch,
-            a_element_op,
-            b_element_op,
-            c_element_op);
+        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
+                                          static_cast<const BDataType*>(p_b),
+                                          static_cast<CDataType*>(p_c),
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          KBatch);
     }
 
     // polymorphic

@@ -12,7 +12,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_v2.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_multi_abd.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_abd.hpp"
@@ -623,6 +623,25 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
+
+        static_for<0, NumATensor, 1>{}([&](auto i) {
+            using ALayout_ = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
+
+            static_assert(is_same<ALayout_, ALayout>::value, "");
+        });
+
+        static_for<0, NumBTensor, 1>{}([&](auto i) {
+            using BLayout_ = remove_cvref_t<tuple_element_t<i.value, BsLayout>>;
+
+            static_assert(is_same<BLayout_, BLayout>::value, "");
+        });
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DLayout_ = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+            static_assert(is_same<DLayout_, CLayout>::value, "");
+        });
+
         return Argument{p_as,
                         p_bs,
                         p_ds,
