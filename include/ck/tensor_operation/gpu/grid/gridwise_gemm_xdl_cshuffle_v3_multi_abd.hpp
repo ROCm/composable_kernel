@@ -9,12 +9,9 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_selector.hpp"
-//#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
-//#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r2.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r2.hpp"
 
 namespace ck {
 
@@ -148,8 +145,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
-    using ADataType = remove_cvref_t<tuple_element_t<0, AsDataType>>;
-    using BDataType = remove_cvref_t<tuple_element_t<0, BsDataType>>;
+    using LDSTypeA = ComputeTypeA;
+    using LDSTypeB = ComputeTypeB;
 
     // K1 should be Number<...>
     static constexpr auto AK0Number = Number<KPerBlock / AK1Value>{};
@@ -198,9 +195,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
     using BsGridPointer = decltype(MakeBsGridPointer());
     using DsGridPointer = decltype(MakeDsGridPointer());
 
-    static constexpr index_t KPack =
-        math::max(math::lcm(AK1Number, BK1Number),
-                  MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
+    static constexpr index_t KPack = math::max(
+        math::lcm(AK1Number, BK1Number),
+        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -776,9 +773,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(ADataType) < 1
+            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(LDSTypeA) < 1
                                                   ? 1
-                                                  : 32 * 4 / KPerBlock / sizeof(ADataType);
+                                                  : 32 * 4 / KPerBlock / sizeof(LDSTypeA);
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
@@ -824,20 +821,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
             constexpr auto KThreadRead      = 64 / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
-            constexpr auto kfold = (AK1Number * M0 * sizeof(ADataType) > 128)
+            constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) > 128)
                                        ? 1
-                                       : 128 / (AK1Number * M0 * sizeof(ADataType));
+                                       : 128 / (AK1Number * M0 * sizeof(LDSTypeA));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=mpair<=n0
-            constexpr auto mpair = (AK1Number * MPerXdl * sizeof(ADataType) > 128)
+            constexpr auto mpair = (AK1Number * MPerXdl * sizeof(LDSTypeA) > 128)
                                        ? 1
-                                       : ((128 / (AK1Number * MPerXdl * sizeof(ADataType))) > M0
+                                       : ((128 / (AK1Number * MPerXdl * sizeof(LDSTypeA))) > M0
                                               ? M0
-                                              : 128 / (AK1Number * MPerXdl * sizeof(ADataType)));
+                                              : 128 / (AK1Number * MPerXdl * sizeof(LDSTypeA)));
 
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -912,9 +909,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(BDataType) < 1
+            constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(LDSTypeB) < 1
                                            ? 1
-                                           : 32 * 4 / KPerBlock / sizeof(BDataType);
+                                           : 32 * 4 / KPerBlock / sizeof(LDSTypeB);
             ;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
@@ -958,20 +955,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
             constexpr auto KThreadRead      = 64 / NPerXdl;
             constexpr auto K0PerThreadRead  = BK0Number / KThreadRead;
 
-            constexpr auto kfold = (BK1Number * N0 * sizeof(BDataType) > 128)
+            constexpr auto kfold = (BK1Number * N0 * sizeof(LDSTypeB) > 128)
                                        ? 1
-                                       : 128 / (BK1Number * N0 * sizeof(BDataType));
+                                       : 128 / (BK1Number * N0 * sizeof(LDSTypeB));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=npair<=n0
-            constexpr auto npair = (BK1Number * NPerXdl * sizeof(BDataType) > 128)
+            constexpr auto npair = (BK1Number * NPerXdl * sizeof(LDSTypeB) > 128)
                                        ? 1
-                                       : ((128 / (BK1Number * NPerXdl * sizeof(BDataType))) > N0
+                                       : ((128 / (BK1Number * NPerXdl * sizeof(LDSTypeB))) > N0
                                               ? N0
-                                              : 128 / (BK1Number * NPerXdl * sizeof(BDataType)));
+                                              : 128 / (BK1Number * NPerXdl * sizeof(LDSTypeB)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -1054,8 +1051,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 BlkGemmPipelineVer,
                                 BlkGemmPipeSched,
                                 BlockSize,
-                                ADataType,
-                                BDataType,
+                                LDSTypeA,
+                                LDSTypeB,
                                 ComputeTypeA,
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
@@ -1097,8 +1094,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
-                          b_block_space_size_aligned * sizeof(BDataType)),
+        return math::max((a_block_space_size_aligned * sizeof(LDSTypeA) +
+                          b_block_space_size_aligned * sizeof(LDSTypeB)),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -1470,12 +1467,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             generate_tuple([&](auto) { return make_multi_index(0, m_block_data_idx_on_grid, 0); },
                            Number<NumATensor>{});
 
-        using AComputeDataType = ADataType;
-
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
             AsDataType,
-            Tuple<AComputeDataType>,
+            Tuple<LDSTypeA>,
             decltype(as_grid_desc_ak0_m_ak1),
             decltype(tie(a_block_desc_ak0_m_ak1)),
             AElementwiseOperation,
@@ -1534,12 +1529,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             generate_tuple([&](auto) { return make_multi_index(0, n_block_data_idx_on_grid, 0); },
                            Number<NumBTensor>{});
 
-        using BComputeDataType = BDataType;
-
         auto b_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
             BsDataType,
-            Tuple<BComputeDataType>,
+            Tuple<LDSTypeB>,
             decltype(bs_grid_desc_bk0_n_bk1),
             decltype(tie(b_block_desc_bk0_n_bk1)),
             BElementwiseOperation,
@@ -1569,11 +1562,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            static_cast<LDSTypeB*>(p_shared) +
+                a_block_space_size_aligned * sizeof(LDSTypeA) / sizeof(LDSTypeB),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
@@ -2047,12 +2040,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             generate_tuple([&](auto) { return make_multi_index(0, m_block_data_idx_on_grid, 0); },
                            Number<NumATensor>{});
 
-        using AComputeDataType = ADataType;
-
         auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
             AsDataType,
-            Tuple<AComputeDataType>,
+            Tuple<LDSTypeA>,
             decltype(as_grid_desc_ak0_m_ak1),
             decltype(tie(a_block_desc_ak0_m_ak1)),
             AElementwiseOperation,
@@ -2112,12 +2103,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             generate_tuple([&](auto) { return make_multi_index(0, n_block_data_idx_on_grid, 0); },
                            Number<NumBTensor>{});
 
-        using BComputeDataType = BDataType;
-
         auto b_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
             ThisThreadBlock,
             BsDataType,
-            Tuple<BComputeDataType>,
+            Tuple<LDSTypeB>,
             decltype(bs_grid_desc_bk0_n_bk1),
             decltype(tie(b_block_desc_bk0_n_bk1)),
             BElementwiseOperation,
@@ -2145,19 +2134,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<LDSTypeA*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared_0) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            static_cast<LDSTypeB*>(p_shared_0) +
+                a_block_space_size_aligned * sizeof(LDSTypeA) / sizeof(LDSTypeB),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<LDSTypeA*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared_1) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
+            static_cast<LDSTypeB*>(p_shared_1) +
+                a_block_space_size_aligned * sizeof(LDSTypeA) / sizeof(LDSTypeB),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);

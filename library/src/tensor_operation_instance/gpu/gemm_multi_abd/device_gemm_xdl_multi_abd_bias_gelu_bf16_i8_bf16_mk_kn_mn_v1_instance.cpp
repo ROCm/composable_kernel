@@ -32,11 +32,18 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<D0Layout>,
-                                                                  ck::Tuple<D0DataType>,
-                                                                  AddFastGelu,
-                                                                  GemmMNKPadding,
-                                                                  Interwave>{});
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<D0Layout>,
+                                                                       ck::Tuple<D0DataType>,
+                                                                       AddFastGelu,
+                                                                       GemmMNKPadding,
+                                                                       Interwave>{});
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<D0Layout>,
+                                                                      ck::Tuple<D0DataType>,
+                                                                      AddFastGelu,
+                                                                      GemmMNKPadding,
+                                                                      Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
@@ -54,11 +61,18 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<D0Layout>,
-                                                                  ck::Tuple<D0DataType>,
-                                                                  Add,
-                                                                  GemmMNKPadding,
-                                                                  Interwave>{});
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<D0Layout>,
+                                                                       ck::Tuple<D0DataType>,
+                                                                       Add,
+                                                                       GemmMNKPadding,
+                                                                       Interwave>{});
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<D0Layout>,
+                                                                      ck::Tuple<D0DataType>,
+                                                                      Add,
+                                                                      GemmMNKPadding,
+                                                                      Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
@@ -76,11 +90,18 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<>,
-                                                                  ck::Tuple<>,
-                                                                  PassThrough,
-                                                                  GemmMNKPadding,
-                                                                  Interwave>{});
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<>,
+                                                                       ck::Tuple<>,
+                                                                       PassThrough,
+                                                                       GemmMNKPadding,
+                                                                       Interwave>{});
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<>,
+                                                                      ck::Tuple<>,
+                                                                      PassThrough,
+                                                                      GemmMNKPadding,
+                                                                      Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
@@ -98,11 +119,18 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_instances<ck::Tuple<>,
-                                                                  ck::Tuple<>,
-                                                                  FastGelu,
-                                                                  GemmMNKPadding,
-                                                                  Interwave>{});
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<>,
+                                                                       ck::Tuple<>,
+                                                                       FastGelu,
+                                                                       GemmMNKPadding,
+                                                                       Interwave>{});
+    add_device_operation_instances(
+        instances,
+        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<>,
+                                                                      ck::Tuple<>,
+                                                                      FastGelu,
+                                                                      GemmMNKPadding,
+                                                                      Interwave>{});
 }
 
 } // namespace instance

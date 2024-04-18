@@ -167,14 +167,16 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             static_for<0, nSrc, 1>{}([&](auto i) {
                 using src_vector_t = typename remove_cvref_t<decltype(src_vectors[i])>::type;
 
-                const bool is_src_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
+#if 0
+              const bool is_src_valid =
+                  coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
                                                                                 src_coords_[i]);
+#endif
+
                 // oob_vectors(i).template AsType<bool>()(I0) = is_src_valid;
 
                 src_vectors(i).template AsType<src_vector_t>()(I0) =
-                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
-                                                           is_src_valid);
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
             });
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -291,7 +293,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     {
         using DstData = remove_cvref_t<decltype(DstDatas{}[I0])>;
 
-        using SrcThreadScratch =
+        using ElmThreadScratch =
             StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                             DstData,
                                             SrcScalarPerVector,
@@ -304,7 +306,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                                             decltype(GetDstThreadScratchDescriptor()),
                                             true>;
 
-        SrcThreadScratch elm_thread_scratch_;
+        ElmThreadScratch elm_thread_scratch_;
         DstThreadScratch dst_thread_scratch_;
 
         elm_thread_scratch_.data_ =
