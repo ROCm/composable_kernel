@@ -7,7 +7,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/iterator.hpp"
 #include "ck_tile/core/utility/iterator_range.hpp"
 
