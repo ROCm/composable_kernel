@@ -38,7 +38,7 @@ def getDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.1"){
+    if (params.ROCMVERSION != "6.2"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -681,8 +681,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.0', 
-            description: 'Specify which ROCM version to use: 6.0 (default).')
+            defaultValue: '6.1', 
+            description: 'Specify which ROCM version to use: 6.1 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
