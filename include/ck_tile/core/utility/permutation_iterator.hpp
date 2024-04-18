@@ -48,6 +48,21 @@ struct permutation_iterator
         return result;
     }
 
+    template <bool Cond = std::is_base_of_v<std::bidirectional_iterator_tag, iterator_category>>
+    permutation_iterator& operator--()
+    {
+        --next_index;
+        return *this;
+    }
+
+    template <bool Cond = std::is_base_of_v<std::bidirectional_iterator_tag, iterator_category>>
+    permutation_iterator operator--(int)
+    {
+        permutation_iterator result(*this);
+        ++(*this);
+        return result;
+    }
+
     template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
     std::enable_if_t<Cond, permutation_iterator&> operator+=(difference_type step)
     {
@@ -59,6 +74,12 @@ struct permutation_iterator
     std::enable_if_t<Cond, permutation_iterator> operator-=(difference_type step)
     {
         return (*this) += (-step);
+    }
+
+    template <bool Cond = std::is_base_of_v<std::random_access_iterator_tag, iterator_category>>
+    std::enable_if_t<Cond, reference> operator[](difference_type step) const
+    {
+        return *std::next(base(), *std::next(index(), step));
     }
 
     element_iterator base() const { return next_element; }
