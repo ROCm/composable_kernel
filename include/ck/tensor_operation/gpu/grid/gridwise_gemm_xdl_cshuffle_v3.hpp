@@ -9,8 +9,8 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_selector.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
+//#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+//#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -40,21 +40,16 @@ __global__ void
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    typename GridwiseGemm::AsGridPointer p_as_grid;
-    typename GridwiseGemm::BsGridPointer p_bs_grid;
-    typename GridwiseGemm::DsGridPointer p_ds_grid;
-
-    static constexpr auto I0 = Number<0>{};
-
-    karg.StrideAs = {karg.StrideA};
-    karg.StrideBs = {karg.StrideB};
-    karg.StrideDs = {};
-
-    p_as_grid(I0) = karg.p_a_grid;
-    p_bs_grid(I0) = karg.p_b_grid;
-
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        p_as_grid, p_bs_grid, p_ds_grid, karg.p_c_grid, p_shared, karg);
+        karg.p_as_grid,
+        karg.p_bs_grid,
+        karg.p_ds_grid,
+        karg.p_c_grid,
+        p_shared,
+        karg,
+        karg.a_element_op,
+        karg.b_element_op,
+        karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -79,21 +74,17 @@ __global__ void
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    typename GridwiseGemm::AsGridPointer p_as_grid;
-    typename GridwiseGemm::BsGridPointer p_bs_grid;
-    typename GridwiseGemm::DsGridPointer p_ds_grid;
-
-    static constexpr auto I0 = Number<0>{};
-
-    karg.StrideAs = {karg.StrideA};
-    karg.StrideBs = {karg.StrideB};
-    karg.StrideDs = {};
-
-    p_as_grid(I0) = karg.p_a_grid;
-    p_bs_grid(I0) = karg.p_b_grid;
-
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        p_as_grid, p_bs_grid, p_ds_grid, karg.p_c_grid, p_shared_0, p_shared_1, karg);
+        karg.p_as_grid,
+        karg.p_bs_grid,
+        karg.p_ds_grid,
+        karg.p_c_grid,
+        p_shared_0,
+        p_shared_1,
+        karg,
+        karg.a_element_op,
+        karg.b_element_op,
+        karg.c_element_op);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -102,10 +93,11 @@ __global__ void
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
-          typename ADataType,
-          typename BDataType,
+          typename AsDataType,
+          typename BsDataType,
           typename AccDataType,
           typename CShuffleDataType,
+          typename DsDataType,
           typename CDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -156,22 +148,18 @@ struct GridwiseGemm_xdl_cshuffle_v3
     static constexpr auto I6 = Number<6>{};
     static constexpr auto I7 = Number<7>{};
 
+    using ADataType = remove_cvref_t<tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<tuple_element_t<0, BsDataType>>;
+
     // K1 should be Number<...>
     static constexpr auto AK0Number = Number<KPerBlock / AK1Value>{};
     static constexpr auto BK0Number = Number<KPerBlock / BK1Value>{};
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
-    static constexpr index_t NumATensor = 1;
-    static constexpr index_t NumBTensor = 1;
-    static constexpr index_t NumDTensor = 0;
-
-    using AsDataType = Tuple<ADataType>;
-    using BsDataType = Tuple<BDataType>;
-    using DsDataType = Tuple<>;
-
-    using AsLayout = Tuple<ALayout>;
-    using BsLayout = Tuple<BLayout>;
+    static constexpr index_t NumATensor = AsDataType::Size();
+    static constexpr index_t NumBTensor = BsDataType::Size();
+    static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto MakeAsGridPointer()
     {
@@ -564,15 +552,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
         __host__ Problem(index_t M_,
                          index_t N_,
                          index_t K_,
-                         index_t StrideA_,
-                         index_t StrideB_,
+                         std::array<index_t, NumATensor> StrideAs_,
+                         std::array<index_t, NumBTensor> StrideBs_,
+                         std::array<index_t, NumDTensor> StrideDs_,
                          index_t StrideC_,
                          index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
-              StrideA{StrideA_},
-              StrideB{StrideB_},
+              StrideAs{StrideAs_},
+              StrideBs{StrideBs_},
+              StrideDs{StrideDs_},
               StrideC{StrideC_},
               KBatch{KBatch_},
               MPadded{CalculateMPadded(M_)},
@@ -592,9 +582,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                       << "M:" << M << ", "
                       << "N:" << N << ", "
                       << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
                       << "MP:" << MPadded << ", "
                       << "NP:" << NPadded << ", "
                       << "KRead:" << KRead << ", "
@@ -608,9 +595,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t M;
         index_t N;
         index_t K;
-        index_t StrideA;
-        index_t StrideB;
+
+        std::array<index_t, NumATensor> StrideAs;
+        std::array<index_t, NumBTensor> StrideBs;
+        std::array<index_t, NumDTensor> StrideDs;
         index_t StrideC;
+
         index_t KBatch;
         index_t MPadded;
         index_t NPadded;
@@ -620,35 +610,69 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
-
-        std::array<index_t, NumATensor> StrideAs;
-        std::array<index_t, NumBTensor> StrideBs;
-        std::array<index_t, NumDTensor> StrideDs;
     };
 
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public Problem
     {
-        __host__ Argument(const ADataType* p_a_grid_,
-                          const BDataType* p_b_grid_,
-                          CDataType* p_c_grid_,
+        __host__ Argument(std::array<const void*, NumATensor> p_as_grid_,
+                          std::array<const void*, NumBTensor> p_bs_grid_,
+                          std::array<const void*, NumDTensor> p_ds_grid_,
+                          void* p_c_grid_,
                           index_t M_,
                           index_t N_,
                           index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
+                          std::array<index_t, NumATensor> StrideAs_,
+                          std::array<index_t, NumBTensor> StrideBs_,
+                          std::array<index_t, NumDTensor> StrideDs_,
                           index_t StrideC_,
-                          index_t k_batch_)
-            : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
-              p_a_grid{p_a_grid_},
-              p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_}
+                          index_t k_batch_,
+                          AElementwiseOperation a_element_op_,
+                          BElementwiseOperation b_element_op_,
+                          CElementwiseOperation c_element_op_)
+            : Problem{M_, N_, K_, StrideAs_, StrideBs_, StrideDs_, StrideC_, k_batch_},
+              p_as_grid{},
+              p_bs_grid{},
+              p_ds_grid{},
+              p_c_grid{static_cast<CDataType*>(p_c_grid_)},
+              a_element_op{a_element_op_},
+              b_element_op{b_element_op_},
+              c_element_op{c_element_op_}
+
         {
+            // populate pointer, desc for As
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+
+                // A pointer
+                p_as_grid(i) = static_cast<const ADataType_*>(p_as_grid_[i]);
+            });
+
+            // populate pointer, desc for Bs
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+
+                // B pointer
+                p_bs_grid(i) = static_cast<const BDataType_*>(p_bs_grid_[i]);
+            });
+
+            // populate pointer, desc for Ds
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType_ = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+
+                // D pointer
+                p_ds_grid(i) = static_cast<const DDataType_*>(p_ds_grid_[i]);
+            });
         }
 
-        const ADataType* p_a_grid;
-        const BDataType* p_b_grid;
+        AsGridPointer p_as_grid;
+        BsGridPointer p_bs_grid;
+        DsGridPointer p_ds_grid;
         CDataType* p_c_grid;
+
+        const AElementwiseOperation a_element_op;
+        const BElementwiseOperation b_element_op;
+        const CElementwiseOperation c_element_op;
     };
 
     struct SplitKBatchOffset
@@ -687,6 +711,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t b_k_split_offset;
     };
 
+#if 0
     struct SplitKBatchOffsetMultiABD
     {
         __device__ SplitKBatchOffsetMultiABD(AsGridPointer& p_as_grid,
@@ -736,6 +761,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         std::array<index_t, NumATensor> as_k_split_offset;
         std::array<index_t, NumBTensor> bs_k_split_offset;
     };
+#endif
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
@@ -1305,7 +1331,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
                                void* p_shared,
-                               const Problem& problem)
+                               const Problem& problem,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CElementwiseOperation& c_element_op)
     {
         // std::array<index_t, NumATensor> StrideAs = {problem.StrideA};
         // std::array<index_t, NumBTensor> StrideBs = {problem.StrideB};
@@ -1371,10 +1400,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
             },
             Number<NumDTensor>{});
-
-        const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
-        const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
         const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
@@ -1748,14 +1773,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
             const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
-            using CDEElementwiseOperation = ck::tensor_operation::element_wise::PassThrough;
             using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
             const auto CDEShuffleBlockTransferScalarPerVector_NPerBlock =
                 CShuffleBlockTransferScalarPerVector_NPerBlock;
-
-            const auto cde_element_op = c_element_op;
 
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r2<
                 ThisThreadBlock,
@@ -1763,7 +1785,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 Tuple<EDataType>,
                 decltype(c_ds_desc_refs),
                 decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                CDEElementwiseOperation,
+                CElementwiseOperation,
                 Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make Sequence
                                                                             // support arbitray type
                 Sequence<1,
@@ -1787,7 +1809,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
-                 cde_element_op};
+                 c_element_op};
 
 #endif
 
@@ -1901,7 +1923,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                     CDataType* p_c_grid,
                                     void* p_shared_0,
                                     void* p_shared_1,
-                                    const Problem& problem)
+                                    const Problem& problem,
+                                    const AElementwiseOperation& a_element_op,
+                                    const BElementwiseOperation& b_element_op,
+                                    const CElementwiseOperation& c_element_op)
     {
         // const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
         //    problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
@@ -1952,10 +1977,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                     p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
             },
             Number<NumDTensor>{});
-
-        const AElementwiseOperation a_element_op{};
-        const BElementwiseOperation b_element_op{};
-        const CElementwiseOperation c_element_op{};
 
         // divide block work by [M, N]
         const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
@@ -2339,7 +2360,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
             const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
                 c_grid_desc_mblock_mperblock_nblock_nperblock;
 
-            using CDEElementwiseOperation = ck::tensor_operation::element_wise::PassThrough;
             using CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
                 CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
             const auto EGlobalMemoryDataOperation = CGlobalMemoryDataOperation;
@@ -2354,7 +2374,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 Tuple<EDataType>,
                 decltype(c_ds_desc_refs),
                 decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
-                CDEElementwiseOperation,
+                CElementwiseOperation,
                 Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // FIXME: make Sequence
                                                                             // support arbitray type
                 Sequence<1,
@@ -2378,7 +2398,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  idx_c_ds_block_begin,
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
-                 cde_element_op};
+                 c_element_op};
 
 #endif
 

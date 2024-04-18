@@ -37,7 +37,7 @@ using DeviceGemmV2Instance =
         S<8, 32, 1>, S<0, 2, 1>,  S<0, 2, 1>,
         1, 8, 8, 0,
         1, 1, S<1, 16, 1, 16>, 8,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v4>;
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
