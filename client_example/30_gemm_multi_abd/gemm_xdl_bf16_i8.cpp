@@ -37,7 +37,7 @@ using EDataType        = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Row;
+using B0Layout = Col;
 using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
@@ -74,12 +74,12 @@ struct SimpleDeviceMem
 int main(int argc, char* argv[])
 {
     // GEMM shape
-    ck::index_t M = 64;
-    ck::index_t N = 1024;
-    ck::index_t K = 512;
+    ck::index_t M = 4096;
+    ck::index_t N = 768;
+    ck::index_t K = 6144;
 
     ck::index_t StrideA = K;
-    ck::index_t StrideB = N;
+    ck::index_t StrideB = K;
     ck::index_t StrideE = N;
 
     if(argc == 1)
