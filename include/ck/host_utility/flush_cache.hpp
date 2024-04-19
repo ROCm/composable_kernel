@@ -4,6 +4,7 @@
 #pragma once
 
 #include <hip/hip_runtime.h>
+#include <set>
 
 #include "ck/ck.hpp"
 #include "ck/stream_config.hpp"
@@ -117,6 +118,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              Args& args)
 {
 #if CK_TIME_KERNEL
+#define MEDIAN 1
     if(stream_config.time_kernel_)
     {
 #if DEBUG_LOG
@@ -139,11 +141,19 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         }
 
         const int nrepeat = stream_config.nrepeat_;
+        if(nrepeat == 0)
+        {
+            return 0.0;
+        }
 #if DEBUG_LOG
         printf("Start running %d times...\n", nrepeat);
 #endif
 
+#if MEDIAN
+        std::set<float> times;
+#else
         float total_time = 0;
+#endif
         for(int i = 0; i < nrepeat; ++i)
         {
             if constexpr(!TimePreprocess)
@@ -172,19 +182,37 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             hip_check_error(hipEventSynchronize(stop));
             float cur_time = 0;
             hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
+#if MEDIAN
+            times.insert(cur_time);
+#else
             total_time += cur_time;
-#if 0            
-            std::cout << "i: " << i << " cur_time: " << cur_time << " total_time:" << total_time
-                      << std::endl;
+#endif
 
-            printf("args.p_a_grid: %p, args.p_b_grid:%p, args.p_c_grid: %p\n",
-                       static_cast<const void*>(args.p_a_grid),
-                       static_cast<const void*>(args.p_b_grid),
-                       static_cast<void*>(args.p_c_grid));
+#if DEBUG_LOG
+            std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
+
+            printf("args.p_a_grid: %p, args.p_b_grid:%p\n",
+                   static_cast<const void*>(args.p_a_grid),
+                   static_cast<const void*>(args.p_b_grid));
 #endif
         }
 
+#if MEDIAN
+        auto mid = times.begin();
+        std::advance(mid, (nrepeat - 1) / 2);
+        if(nrepeat % 2 == 1)
+        {
+            return *mid;
+        }
+        else
+        {
+            auto mid_next = mid;
+            std::advance(mid_next, 1);
+            return (*mid + *mid_next) / 2;
+        }
+#else
         return total_time / nrepeat;
+#endif
     }
     else
     {
