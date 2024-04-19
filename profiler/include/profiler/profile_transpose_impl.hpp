@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_3d_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/transpose_3d.hpp"
 

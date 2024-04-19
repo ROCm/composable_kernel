@@ -6,7 +6,7 @@
 #include <iostream>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_3d_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/transpose_3d.hpp"

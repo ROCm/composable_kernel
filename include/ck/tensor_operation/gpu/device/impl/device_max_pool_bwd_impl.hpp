@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,10 +8,13 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/device_max_pool_bwd.hpp"
+
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_put_element_1d.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
+#include "ck/tensor_operation/gpu/device/device_max_pool_bwd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/stream_utility.hpp"
@@ -36,9 +39,10 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
     using UnaryConvert = ck::tensor_operation::element_wise::UnaryConvert;
 
     static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
 
     template <typename Desc_M>
-    static auto PadDescriptor_M_1d(Desc_M desc_m, index_t loop_step)
+    static auto PadDescriptor_M_1d(Desc_M& desc_m, index_t loop_step)
     {
         const auto m   = desc_m.GetLength(I0);
         const auto pad = math::integer_least_multiple(m, loop_step) - m;
@@ -56,7 +60,18 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
         return PadDescriptor_M_1d(desc_m, loop_step);
     }
 
+    template <typename Desc_M>
+    static auto ExpendDescFirstDim(Desc_M desc_m)
+    {
+        return transform_tensor_descriptor(
+            desc_m,
+            make_tuple(make_unmerge_transform(make_tuple(I1, desc_m.GetLength(I0)))),
+            make_tuple(Sequence<0>{}),
+            make_tuple(Sequence<0, 1>{}));
+    }
+
     using InOutGrid1dDesc = decltype(MakeDescriptor_M(1, 1));
+    using InOutGrid2dDesc = decltype(ExpendDescFirstDim(InOutGrid1dDesc{}));
 
     using GridwisePutElementSet = GridwisePutElement_1D<InOutGrid1dDesc,
                                                         DOutDataType,
@@ -74,14 +89,30 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                                                               InMemoryDataOperationEnum::AtomicAdd,
                                                               InOutVectorSize>;
 
-    using GridwiseCasting = GridwiseElementwise_1D<Tuple<InOutGrid1dDesc>,
-                                                   Tuple<InOutGrid1dDesc>,
-                                                   Tuple<const DInDataType_AutomicAddPreCast*>,
-                                                   Tuple<DInDataType*>,
-                                                   UnaryConvert,
-                                                   InOutVectorSize,
-                                                   Sequence<InOutVectorSize>,
-                                                   Sequence<InOutVectorSize>>;
+    static constexpr index_t BlockSize  = 256;
+    static constexpr index_t MPerThread = 1;
+    static constexpr index_t NPerThread = InOutVectorSize;
+    static constexpr index_t MPerBlock  = 1;
+    static constexpr index_t NPerBlock  = BlockSize * NPerThread;
+
+    using Block2TileMap = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
+
+    using GridwiseCasting = GridwiseElementwise<Tuple<InOutGrid2dDesc>,
+                                                Tuple<InOutGrid2dDesc>,
+                                                Tuple<const DInDataType_AutomicAddPreCast*>,
+                                                Tuple<DInDataType*>,
+                                                Block2TileMap,
+                                                UnaryConvert,
+                                                BlockSize,
+                                                MPerBlock,
+                                                NPerBlock,
+                                                MPerThread,
+                                                NPerThread,
+                                                Sequence<0, 1>,
+                                                Sequence<InOutVectorSize>,
+                                                Sequence<InOutVectorSize>,
+                                                I1,
+                                                I1>;
 
     struct Argument : public BaseArgument
     {
@@ -98,7 +129,7 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
               p_din_{p_din},
               dout_length_raw_{dout_length},
               din_length_raw_{din_length},
-              blockSize_{256},
+              blockSize_{BlockSize},
               windowOverlap_{false}
         {
             for(size_t i = 0; i < window_lengths.size(); ++i)
@@ -195,12 +226,13 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                                                                   PassThrough>;
 
                     const auto cast_kernel =
-                        kernel_elementwise_1d<GridwiseCasting,
-                                              Tuple<InOutGrid1dDesc>,
-                                              Tuple<InOutGrid1dDesc>,
-                                              Tuple<const DInDataType_AutomicAddPreCast*>,
-                                              Tuple<DInDataType*>,
-                                              UnaryConvert>;
+                        kernel_elementwise<GridwiseCasting,
+                                           Tuple<InOutGrid2dDesc>,
+                                           Tuple<InOutGrid2dDesc>,
+                                           Tuple<const DInDataType_AutomicAddPreCast*>,
+                                           Tuple<DInDataType*>,
+                                           Block2TileMap,
+                                           UnaryConvert>;
 
                     float elapsed_time = launch_and_time_kernel(
                         stream_config,
@@ -214,16 +246,25 @@ struct DeviceMaxPoolBwdImpl : public DeviceMaxPoolBwd<DOutDataType, IndexDataTyp
                         static_cast<DInDataType_AutomicAddPreCast*>(arg.p_workspace_),
                         PassThrough{});
 
+                    InOutGrid2dDesc din_grid_desc_2d = ExpendDescFirstDim(din_grid_desc);
+                    const index_t M                  = din_grid_desc_2d.GetLength(I0);
+                    const index_t N                  = din_grid_desc_2d.GetLength(I1);
+                    const auto block_2_tile_map      = Block2TileMap(M, N);
+                    const auto cast_kernel_grid_size =
+                        block_2_tile_map.CalculateGridSize(din_grid_desc_2d);
+
                     elapsed_time += launch_and_time_kernel(
                         stream_config,
                         cast_kernel,
-                        dim3(gridSize),
+                        dim3(cast_kernel_grid_size),
                         dim3(arg.blockSize_),
                         0,
-                        ck::make_tuple(din_grid_desc),
-                        ck::make_tuple(din_grid_desc),
-                        static_cast<DInDataType_AutomicAddPreCast*>(arg.p_workspace_),
-                        arg.p_din_,
+                        ck::make_tuple(din_grid_desc_2d),
+                        ck::make_tuple(din_grid_desc_2d),
+                        ck::make_tuple(
+                            static_cast<const DInDataType_AutomicAddPreCast*>(arg.p_workspace_)),
+                        ck::make_tuple(arg.p_din_),
+                        block_2_tile_map,
                         UnaryConvert{});
 
                     return elapsed_time;

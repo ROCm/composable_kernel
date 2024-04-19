@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,7 +14,7 @@
 #include "ck/tensor_operation/gpu/device/device_cgemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v1.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_1d.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -80,42 +80,41 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto MPerThread       = Number<4>{};
+    static constexpr index_t MPerThread =
+        MPerBlock / CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
+    static constexpr index_t NPerThread =
+        NPerBlock / CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
+
     static constexpr auto AScalarPerVector = Number<4>{};
     static constexpr auto BScalarPerVector = Number<4>{};
     static constexpr auto CScalarPerVector = Number<4>{};
 
-    template <typename Desc_M>
-    static auto PadDescriptor_M_1d(Desc_M desc_m, index_t gridSize, index_t blockSize)
+    template <typename Desc_M_N>
+    static auto PadDescriptor_M_N(Desc_M_N desc)
     {
-        const auto M            = desc_m.GetLength(I0);
-        const index_t loop_step = gridSize * blockSize * MPerThread;
-        const auto pad          = math::integer_least_multiple(M, loop_step) - M;
-        const auto desc_m_pad =
-            transform_tensor_descriptor(desc_m,
-                                        make_tuple(make_right_pad_transform(M, pad)),
-                                        make_tuple(Sequence<0>{}),
-                                        make_tuple(Sequence<0>{}));
-        return desc_m_pad;
+        const auto M     = desc.GetLength(I0);
+        const auto N     = desc.GetLength(I1);
+        const auto pad_M = math::integer_divide_ceil(M, MPerThread) * MPerThread - M;
+        const auto pad_N = math::integer_divide_ceil(N, NPerThread) * NPerThread - N;
+
+        const auto padded_desc = transform_tensor_descriptor(
+            desc,
+            make_tuple(make_right_pad_transform(M, pad_M), make_right_pad_transform(N, pad_N)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return padded_desc;
     }
 
-    static auto MakeDescriptor_M(const std::vector<index_t>& lengths,
-                                 const std::vector<index_t>& strides,
-                                 index_t gridSize,
-                                 index_t blockSize)
+    static auto MakeDescriptor_M_N(const std::vector<index_t>& lengths,
+                                   const std::vector<index_t>& strides)
     {
         auto tupleOfShape  = generate_tuple([&](auto I) { return lengths[I]; }, Number<2>{});
         auto tupleOfStride = generate_tuple([&](auto I) { return strides[I]; }, Number<2>{});
 
         // nd desc - [s0, s1, s2, ...]
-        const auto desc   = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
-        const auto desc_m = transform_tensor_descriptor(
-            desc,
-            make_tuple(make_merge_transform(tupleOfShape)),
-            make_tuple(generate_sequence_v2([&](auto I) { return I; }, Number<2>{})),
-            make_tuple(Sequence<0>{}));
-
-        return PadDescriptor_M_1d(desc_m, gridSize, blockSize);
+        const auto desc = make_naive_tensor_descriptor(tupleOfShape, tupleOfStride);
+        return PadDescriptor_M_N(desc);
     }
 
     // GridwiseGemm
@@ -166,7 +165,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
 
-    using CGridDesc_M = decltype(MakeDescriptor_M({1, 1}, {1, 1}, 1, 1));
+    using CGridDesc_M_N = decltype(MakeDescriptor_M_N({1, 1}, {1, 1}));
 
     // Argument
     struct Argument : public tensor_operation::device::BaseArgument, public GridwiseGemm::Problem
@@ -195,17 +194,13 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
               p_c_grid_imag{p_c_grid_imag_},
               p_aux_grid{p_workspace}
         {
-            const index_t grid_size = std::get<1>(GridwiseGemm::CalculateGridSize(M_, N_));
-
             if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
             {
-                c_grid_desc_m =
-                    DeviceOp::MakeDescriptor_M({M_, N_}, {StrideC_, I1}, grid_size, BlockSize);
+                c_grid_desc_m_n = DeviceOp::MakeDescriptor_M_N({M_, N_}, {StrideC_, I1});
             }
             else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, CLayout>::value)
             {
-                c_grid_desc_m =
-                    DeviceOp::MakeDescriptor_M({M_, N_}, {I1, StrideC_}, grid_size, BlockSize);
+                c_grid_desc_m_n = DeviceOp::MakeDescriptor_M_N({M_, N_}, {I1, StrideC_});
             }
 
             p_aux_2_grid = p_workspace + GetCElementSpaceSize(M_, N_, StrideC_);
@@ -220,7 +215,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         CDataType* p_c_grid_imag;
         CDataType* p_aux_grid;
         CDataType* p_aux_2_grid;
-        CGridDesc_M c_grid_desc_m;
+        CGridDesc_M_N c_grid_desc_m_n;
     };
 
     // Invoker
@@ -248,40 +243,63 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
             using Add      = ck::tensor_operation::element_wise::Add;
             using Subtract = ck::tensor_operation::element_wise::Subtract;
 
-            using GridwiseBinAdd =
-                GridwiseElementwise_1D<Tuple<CGridDesc_M, CGridDesc_M>,
-                                       Tuple<CGridDesc_M>,
-                                       Tuple<const CDataType*, const CDataType*>,
-                                       Tuple<CDataType*>,
-                                       Add,
-                                       MPerThread,
-                                       Sequence<AScalarPerVector, BScalarPerVector>,
-                                       Sequence<CScalarPerVector>>;
+            using Block2TileMap = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
+
+            using GridwiseBinAdd = GridwiseElementwise<Tuple<CGridDesc_M_N, CGridDesc_M_N>,
+                                                       Tuple<CGridDesc_M_N>,
+                                                       Tuple<const CDataType*, const CDataType*>,
+                                                       Tuple<CDataType*>,
+                                                       Block2TileMap,
+                                                       Add,
+                                                       BlockSize,
+                                                       MPerBlock,
+                                                       NPerBlock,
+                                                       MPerThread,
+                                                       NPerThread,
+                                                       Sequence<0, 1>,
+                                                       Sequence<AScalarPerVector, BScalarPerVector>,
+                                                       Sequence<CScalarPerVector>,
+                                                       I1,
+                                                       I1>;
 
             using GridwiseBinSubtract =
-                GridwiseElementwise_1D<Tuple<CGridDesc_M, CGridDesc_M>,
-                                       Tuple<CGridDesc_M>,
-                                       Tuple<const CDataType*, const CDataType*>,
-                                       Tuple<CDataType*>,
-                                       Subtract,
-                                       MPerThread,
-                                       Sequence<AScalarPerVector, BScalarPerVector>,
-                                       Sequence<CScalarPerVector>>;
+                GridwiseElementwise<Tuple<CGridDesc_M_N, CGridDesc_M_N>,
+                                    Tuple<CGridDesc_M_N>,
+                                    Tuple<const CDataType*, const CDataType*>,
+                                    Tuple<CDataType*>,
+                                    Block2TileMap,
+                                    Subtract,
+                                    BlockSize,
+                                    MPerBlock,
+                                    NPerBlock,
+                                    MPerThread,
+                                    NPerThread,
+                                    Sequence<0, 1>,
+                                    Sequence<AScalarPerVector, BScalarPerVector>,
+                                    Sequence<CScalarPerVector>,
+                                    I1,
+                                    I1>;
 
-            const auto add_kernel = kernel_elementwise_1d<GridwiseBinAdd,
-                                                          Tuple<CGridDesc_M, CGridDesc_M>,
-                                                          Tuple<CGridDesc_M>,
-                                                          Tuple<const CDataType*, const CDataType*>,
-                                                          Tuple<CDataType*>,
-                                                          Add>;
+            const index_t M             = arg.c_grid_desc_m_n.GetLength(I0);
+            const index_t N             = arg.c_grid_desc_m_n.GetLength(I1);
+            const auto block_2_tile_map = Block2TileMap(M, N);
+
+            const auto add_kernel = kernel_elementwise<GridwiseBinAdd,
+                                                       Tuple<CGridDesc_M_N, CGridDesc_M_N>,
+                                                       Tuple<CGridDesc_M_N>,
+                                                       Tuple<const CDataType*, const CDataType*>,
+                                                       Tuple<CDataType*>,
+                                                       Block2TileMap,
+                                                       Add>;
 
             const auto subtract_kernel =
-                kernel_elementwise_1d<GridwiseBinSubtract,
-                                      Tuple<CGridDesc_M, CGridDesc_M>,
-                                      Tuple<CGridDesc_M>,
-                                      Tuple<const CDataType*, const CDataType*>,
-                                      Tuple<CDataType*>,
-                                      Subtract>;
+                kernel_elementwise<GridwiseBinSubtract,
+                                   Tuple<CGridDesc_M_N, CGridDesc_M_N>,
+                                   Tuple<CGridDesc_M_N>,
+                                   Tuple<const CDataType*, const CDataType*>,
+                                   Tuple<CDataType*>,
+                                   Block2TileMap,
+                                   Subtract>;
 
             if(GridwiseGemm::CalculateHasMainKBlockLoop(K))
             {
@@ -318,11 +336,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
-                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m_n, arg.c_grid_desc_m_n),
+                    make_tuple(arg.c_grid_desc_m_n),
                     make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
                                const_cast<const CDataType*>(arg.p_aux_2_grid)),
                     make_tuple(arg.p_c_grid_real),
+                    block_2_tile_map,
                     Subtract{});
 
                 ave_time += launch_and_time_kernel(stream_config,
@@ -352,11 +371,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
-                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m_n, arg.c_grid_desc_m_n),
+                    make_tuple(arg.c_grid_desc_m_n),
                     make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
                                const_cast<const CDataType*>(arg.p_aux_2_grid)),
                     make_tuple(arg.p_c_grid_imag),
+                    block_2_tile_map,
                     Add{});
             }
             else
@@ -394,11 +414,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
-                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m_n, arg.c_grid_desc_m_n),
+                    make_tuple(arg.c_grid_desc_m_n),
                     make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
                                const_cast<const CDataType*>(arg.p_aux_2_grid)),
                     make_tuple(arg.p_c_grid_real),
+                    block_2_tile_map,
                     Subtract{});
 
                 ave_time += launch_and_time_kernel(stream_config,
@@ -428,11 +449,12 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                     dim3(gdx, gdy, gdz),
                     dim3(BlockSize),
                     0,
-                    make_tuple(arg.c_grid_desc_m, arg.c_grid_desc_m),
-                    make_tuple(arg.c_grid_desc_m),
+                    make_tuple(arg.c_grid_desc_m_n, arg.c_grid_desc_m_n),
+                    make_tuple(arg.c_grid_desc_m_n),
                     make_tuple(const_cast<const CDataType*>(arg.p_aux_grid),
                                const_cast<const CDataType*>(arg.p_aux_2_grid)),
                     make_tuple(arg.p_c_grid_imag),
+                    block_2_tile_map,
                     Add{});
             }
 
