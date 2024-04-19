@@ -918,9 +918,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                    Problem::BlockFmhaShape::kK1>>;
 
         auto warp_gemm = [&]() {
-            if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
-                         std::is_same_v<typename Problem::KDataType, fp8_t> &&
-                         std::is_same_v<typename Problem::SaccDataType, float>)
+            if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::VDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::OaccDataType, float>)
             {
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
                 // return
