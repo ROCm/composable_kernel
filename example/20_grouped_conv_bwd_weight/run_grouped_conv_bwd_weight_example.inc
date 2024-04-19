@@ -119,7 +119,10 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                                   conv_param.input_right_pads_,
                                                   InElementOp{},
                                                   WeiElementOp{},
-                                                  OutElementOp{});
+                                                  OutElementOp{},
+                                                  {},
+                                                  {},
+                                                  {});
 
         ref_invoker.Run(ref_argument);
 
