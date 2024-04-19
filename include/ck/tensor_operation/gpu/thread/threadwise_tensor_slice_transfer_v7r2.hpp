@@ -167,13 +167,11 @@ struct ThreadwiseTensorSliceTransfer_v7r2
             static_for<0, nSrc, 1>{}([&](auto i) {
                 using src_vector_t = typename remove_cvref_t<decltype(src_vectors[i])>::type;
 
-#if 0
-              const bool is_src_valid =
-                  coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
-                                                                                src_coords_[i]);
-#endif
+                // const bool is_src_valid =
+                //    coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
+                //                                                                src_coords_[i]);
 
-                // oob_vectors(i).template AsType<bool>()(I0) = is_src_valid;
+                // oob_vectors(i) = is_src_valid;
 
                 src_vectors(i).template AsType<src_vector_t>()(I0) =
                     src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
@@ -276,7 +274,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
             static_for<0, nSrc, 1>{}([&](auto iSrc) {
                 using elm_vector_t = typename remove_cvref_t<decltype(elm_vectors[iSrc])>::type;
-                bool is_src_valid  = oob_vectors(iSrc).template AsType<bool>()[I0];
+                bool is_src_valid  = oob_vectors(iSrc);
                 elm_vectors(iSrc).template AsType<elm_vector_t>()(I0) =
                     is_src_valid ? elm_vectors(iSrc).template AsType<elm_vector_t>()[I0]
                                  : elm_vector_t{0};
@@ -633,7 +631,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     StaticallyIndexedArray<ElmVectorTuple, NumThreadScratch> elm_vectors_tuple_;
     StaticallyIndexedArray<DstVectorTuple, NumThreadScratch> dst_vectors_tuple_;
 
-    // using OOBVectorsType = decltype(generate_oob_vectors<DstDatas, 1>());
+    // using OOBVectorsType = decltype(generate_oob_vectors<DstDatas::Size()>());
     // using OOBVectorTuple = StaticallyIndexedArray<OOBVectorsType, src_num_access>;
     // StaticallyIndexedArray<OOBVectorTuple, NumThreadScratch> oob_vectors_tuple_;
 

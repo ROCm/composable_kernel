@@ -23,6 +23,7 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
+using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using F32  = float;
@@ -54,8 +55,29 @@ using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
+struct Scales_
+{
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
+
+    __host__ __device__ constexpr void
+    operator()(ck::bhalf2_t& y, const ck::int8x2_t& x0, const ck::bhalf2_t& x1) const
+    {
+        y = ck::bit_cast<ck::bhalf2_t>(ck::bit_cast<int16_t>(x0) * ck::bit_cast<int32_t>(x1));
+    }
+
+    __host__ __device__ constexpr void
+    operator()(ck::bhalf_t& y, const int8_t& x0, const ck::bhalf_t& x1) const
+    {
+        y = ck::type_convert<ck::bhalf_t>(ck::type_convert<float>(x0) *
+                                          ck::type_convert<float>(x1));
+    }
+
+    constexpr const static bool is_pack2_invocable = true;
+};
+
 using AElementOp   = PassThrough;
-using BElementOp   = Scales;
+using BElementOp   = Scales_;
 using CDEElementOp = AddFastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
@@ -67,8 +89,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl
 ///######|         |         |         |        |           |           |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 ///######|         |         |         |        |           |           |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
          < AsLayout, BsLayout, DsLayout, ELayout, AsDataType, BsDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    64,   8,   4,  32,   32,    2,    2,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<16, 16, 1>,    S<0, 2, 1>,     S<0, 2, 1>,             1,               8,              4,          0,          1,           1,               S<1, 32, 1, 8>,               8,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v4>;
-
 // clang-format on
+
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
