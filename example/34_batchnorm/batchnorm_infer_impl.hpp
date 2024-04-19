@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,7 +10,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/reduction_operator.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "batchnorm_common.hpp"
 
@@ -54,7 +54,12 @@ int bnorm_infer(
         ck::Tuple<YDataType>,                                                     // y
         NormalizeInInfer,
         Rank,
-        2,                           // MPerthread
+        64,                          // BlockSize
+        32,                          // MPerBlock
+        32,                          // NPerBlock
+        4,                           // MPerthread
+        4,                           // NPerthread
+        ck::Sequence<1, 0>,          // ThreadClusterArrangeOrder
         ck::Sequence<1, 1, 1, 1, 1>, // x, mean, variance, scale, bias
         ck::Sequence<1>>;            // scalarPerVector: y
 

@@ -9,7 +9,7 @@
 #include "ck/utility/math.hpp"
 #include "ck/utility/sequence.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_dynamic_vector_dims.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
@@ -190,7 +190,8 @@ struct DeviceElementwiseImpl
                                                       ThreadClusterArrangeOrder,
                                                       InScalarPerVectorSeq,
                                                       OutScalarPerVectorSeq,
-                                                      false>;
+                                                      I1,
+                                                      I0>;
 
     using GridwiseElementwiseOpSameInOutVectorDim = GridwiseElementwise<InGridDescTuple,
                                                                         OutGridDescTuple,
@@ -206,7 +207,8 @@ struct DeviceElementwiseImpl
                                                                         ThreadClusterArrangeOrder,
                                                                         InScalarPerVectorSeq,
                                                                         OutScalarPerVectorSeq,
-                                                                        true>;
+                                                                        I1,
+                                                                        I1>;
 
     struct Argument : public BaseArgument
     {

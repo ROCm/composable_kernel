@@ -814,8 +814,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         // check device
         if(get_device_name() == "gfx908")
         {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
-                           is_same_v<AccDataType, int32_t>))
+            // FIXME: re-enable fp64 when SWDEV-335738 is fixed
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
                 return false;
             }

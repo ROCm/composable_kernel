@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,6 +13,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/**
+ * \note This structure is deprecated (left for backwards compatibility). Please use
+ *       DeviceElementwise from device_elementwise.hpp.
+ */
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
