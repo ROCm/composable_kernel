@@ -14,26 +14,21 @@ template <typename ALayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
-          typename DsDataType,
           typename CDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation>
 struct DeviceGemmV2 : public BaseOperator
 {
-    static constexpr index_t NumDTensor = DsDataType::Size();
-
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_a,
                         const void* p_b,
-                        std::array<const void*, NumDTensor> p_ds,
                         void* p_c,
                         ck::index_t M,
                         ck::index_t N,
                         ck::index_t K,
                         ck::index_t StrideA,
                         ck::index_t StrideB,
-                        std::array<ck::index_t, NumDTensor> StrideDs,
                         ck::index_t StrideC,
                         ck::index_t KSplit,
                         AElementwiseOperation a_element_op,
