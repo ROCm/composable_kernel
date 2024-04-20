@@ -10,7 +10,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multi_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -22,6 +22,7 @@ namespace device {
 
 template <typename ALayout,
           typename BLayout,
+          typename DsLayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
@@ -67,6 +68,7 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                                                                      BLayout,
+                                                                     DsLayout,
                                                                      CLayout,
                                                                      ADataType,
                                                                      BDataType,
@@ -87,7 +89,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
         BDataType,
         GemmAccDataType,
         CShuffleDataType,
-        Tuple<>,
+        DsDataType,
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -425,6 +427,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -449,6 +452,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         }
                     }
                     else
+#endif
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
@@ -474,6 +478,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 }
                 else
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
@@ -498,6 +503,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         }
                     }
                     else
+#endif
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
@@ -527,6 +533,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
@@ -537,6 +544,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         Run(kernel);
                     }
                     else
+#endif
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
@@ -589,10 +597,10 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(const ADataType* p_a,
-                             const BDataType* p_b,
+    static auto MakeArgument(const void* p_a,
+                             const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
-                             CDataType* p_c,
+                             void* p_c,
                              index_t M,
                              index_t N,
                              index_t K,
@@ -600,15 +608,14 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                              index_t StrideB,
                              std::array<index_t, NumDTensor> StrideDs,
                              index_t StrideC,
-                             index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a,
-                        p_b,
+        return Argument{static_cast<const ADataType*>(p_a),
+                        static_cast<const BDataType*>(p_b),
                         p_ds,
-                        p_c,
+                        static_cast<CDataType*>(p_c),
                         M,
                         N,
                         K,
@@ -616,7 +623,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         StrideB,
                         StrideDs,
                         StrideC,
-                        KBatch,
+                        1,
                         a_element_op,
                         b_element_op,
                         c_element_op};
@@ -636,7 +643,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                                                       index_t StrideB,
                                                       std::array<ck::index_t, NumDTensor> StrideDs,
                                                       index_t StrideC,
-                                                      index_t KBatch,
                                                       AElementwiseOperation a_element_op,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
@@ -652,7 +658,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                                           StrideB,
                                           StrideDs,
                                           StrideC,
-                                          KBatch,
+                                          1,
                                           a_element_op,
                                           b_element_op,
                                           c_element_op);
