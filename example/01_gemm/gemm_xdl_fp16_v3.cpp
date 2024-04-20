@@ -25,7 +25,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 using DeviceGemmV2Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3<
         ALayout,   BLayout,  CLayout,   
-        ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
+        ADataType,   BDataType, ck::Tuple<>,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
         256,
         224, 256, 

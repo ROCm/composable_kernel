@@ -133,10 +133,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #ifdef BUILD_INT4_EXAMPLE
         static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+	{},
         static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #else
         static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+	{},
         static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
 #endif
         M,
@@ -144,6 +146,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         K,
         StrideA,
         StrideB,
+	{},
         StrideC,
         KBatch,
         a_element_op,

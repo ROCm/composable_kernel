@@ -25,6 +25,7 @@ template <typename ALayout,
           typename CLayout,
           typename ADataType,
           typename BDataType,
+          typename DsDataType,
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
@@ -69,11 +70,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        CLayout,
                                                        ADataType,
                                                        BDataType,
+                                                       DsDataType,
                                                        CDataType,
                                                        AElementwiseOperation,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
         ALayout,
@@ -83,6 +87,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         BDataType,
         GemmAccDataType,
         CShuffleDataType,
+        Tuple<>,
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -586,19 +591,35 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
+                             std::array<const void*, NumDTensor> p_ds,
                              CDataType* p_c,
                              index_t M,
                              index_t N,
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
+                             std::array<index_t, NumDTensor> StrideDs,
                              index_t StrideC,
                              index_t KBatch,
-                             AElementwiseOperation,
-                             BElementwiseOperation,
-                             CElementwiseOperation)
+                             AElementwiseOperation a_element_op,
+                             BElementwiseOperation b_element_op,
+                             CElementwiseOperation c_element_op)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch};
+        return Argument{p_a,
+                        p_b,
+                        p_ds,
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        StrideDs,
+                        StrideC,
+                        KBatch,
+                        a_element_op,
+                        b_element_op,
+                        c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -606,28 +627,35 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
     // polymorphic
     std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
                                                       const void* p_b,
+                                                      std::array<const void*, NumDTensor> p_ds,
                                                       void* p_c,
                                                       index_t M,
                                                       index_t N,
                                                       index_t K,
                                                       index_t StrideA,
                                                       index_t StrideB,
+                                                      std::array<ck::index_t, NumDTensor> StrideDs,
                                                       index_t StrideC,
                                                       index_t KBatch,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      CElementwiseOperation) override
+                                                      AElementwiseOperation a_element_op,
+                                                      BElementwiseOperation b_element_op,
+                                                      CElementwiseOperation c_element_op) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
+                                          p_ds,
                                           static_cast<CDataType*>(p_c),
                                           M,
                                           N,
                                           K,
                                           StrideA,
                                           StrideB,
+                                          StrideDs,
                                           StrideC,
-                                          KBatch);
+                                          KBatch,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op);
     }
 
     // polymorphic
