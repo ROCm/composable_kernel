@@ -79,7 +79,7 @@ struct PassThroughPack2
 
     __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::int8x2_t& x) const
     {
-	    y = ck::bit_cast<ck::bhalf2_t>(static_cast<int32_t>(ck::bit_cast<int16_t>(x)));
+        y = ck::bit_cast<ck::bhalf2_t>(static_cast<int32_t>(ck::bit_cast<int16_t>(x)));
     }
 
     template <>
@@ -91,12 +91,10 @@ struct PassThroughPack2
     constexpr const static bool is_pack2_invocable = true;
 };
 
-
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
 using AElementOp   = PassThrough;
-using BElementOp   = PassThroughPack2;
+using BElementOp   = PassThrough;
 using CDEElementOp = MultiplyAddFastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
