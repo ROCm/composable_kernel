@@ -177,6 +177,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
@@ -187,6 +188,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         Run(kernel);
                     }
                     else
+#endif
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
@@ -199,6 +201,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
+#if 0
                     if(arg.KBatch > 1)
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
@@ -312,6 +315,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         }
                     }
                     else
+#endif
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                         {

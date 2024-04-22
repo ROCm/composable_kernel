@@ -72,25 +72,6 @@ struct MultiplyAddFastGelu
     }
 };
 
-struct PassThroughPack2
-{
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
-
-    __host__ __device__ constexpr void operator()(ck::bhalf2_t& y, const ck::int8x2_t& x) const
-    {
-        y = ck::bit_cast<ck::bhalf2_t>(static_cast<int32_t>(ck::bit_cast<int16_t>(x)));
-    }
-
-    template <>
-    __host__ __device__ void operator()<ck::bhalf_t, int8_t>(ck::bhalf_t& y, const int8_t& x) const
-    {
-        y = ck::type_convert<ck::bhalf_t>(x);
-    }
-
-    constexpr const static bool is_pack2_invocable = true;
-};
-
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
