@@ -27,13 +27,12 @@ struct FmhaFwdKernel
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
-    using QDataType              = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
-    using KDataType              = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
-    using VDataType              = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
-    using BiasDataType           = ck_tile::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
-    using LSEDataType            = ck_tile::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
-    using ODataType              = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
-    static constexpr bool kIsFp8 = FmhaPipeline::kIsFp8;
+    using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
+    using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
+    using VDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
+    using BiasDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
+    using LSEDataType  = ck_tile::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
+    using ODataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
 
     using VLayout = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
 
