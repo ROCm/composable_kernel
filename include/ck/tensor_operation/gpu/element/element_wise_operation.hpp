@@ -501,15 +501,21 @@ struct UnaryTypeConvert<ck::bhalf_t, float>
 
 struct ConvScale
 {
+    /// @brief Op to multiply convolution results by scale factors
+    /// @param e Output after scaling
+    /// @param c Convolution result
+    /// @param d0 Input scale factor
+    /// @param d1 Weights scale factor
+    /// @param d2 Output scale factor
     template <typename E, typename C, typename D0, typename D1, typename D2>
     __host__ __device__ void
     operator()(E& e, const C& c, const D0& d0, const D1& d1, const D2& d2) const;
 
     template <>
-    __host__ __device__ void operator()<float, float, float, float, float>(
-        float& e, const float& c, const float& d0, const float& d1, const float& d2) const
+    __host__ __device__ void operator()<f8_t, float, float, float, float>(
+        f8_t& e, const float& c, const float& d0, const float& d1, const float& d2) const
     {
-        e = c * d0 * d1 * d2;
+        e = type_convert<f8_t>(c * d0 * d1 * d2);
     };
 };
 
