@@ -231,8 +231,14 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             {d_tensors_device[i][0]->GetDeviceBuffer(), d_tensors_device[i][1]->GetDeviceBuffer()});
         p_Cs.push_back(c_tensors_device[i]->GetDeviceBuffer());
 
-        // The device op does not know problem size at lunch time.
-        gemm_descs.push_back({0, 0, 0, 0, 0, 0, {0, 0}});
+        // The device op does not have to know M problem size at lunch time.
+        gemm_descs.push_back({0,
+                              problem_size.Ns[i],
+                              problem_size.Ks[i],
+                              problem_size.stride_As[i],
+                              problem_size.stride_Bs[i],
+                              problem_size.stride_Cs[i],
+                              {problem_size.stride_Cs[i], problem_size.stride_Cs[i]}});
         ggemm_kargs.push_back(
             {a_tensors_device[i]->GetDeviceBuffer(),
              b_tensors_device[i]->GetDeviceBuffer(),

@@ -151,7 +151,7 @@ bool profile_grouped_gemm_tile_loop_impl(int do_verification,
         p_b.push_back(b_device_buf[i]->GetDeviceBuffer());
         p_c.push_back(c_device_buf[i]->GetDeviceBuffer());
 
-        gemm_descs.push_back({0, 0, 0, 0, 0, 0, {}});
+        gemm_descs.push_back({0, Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i], {}});
         gemm_kargs.push_back({a_device_buf[i]->GetDeviceBuffer(),
                               b_device_buf[i]->GetDeviceBuffer(),
                               {},
@@ -240,7 +240,7 @@ bool profile_grouped_gemm_tile_loop_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 1, n_warmup, n_iter});
+            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 0, n_warmup, n_iter});
             if(do_verification)
             {
                 bool instance_pass = true;

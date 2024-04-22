@@ -152,16 +152,6 @@ __global__ void
                 M, N, StrideDs[j]);
         });
 
-        if(!(GridwiseGemm::template CheckValidity(
-                 a_grid_desc_mk, b_grid_desc_nk, ds_grid_desc_mn, e_grid_desc_mn, b2c_tile_map) &&
-             GridwiseGemm::template CheckTensorTransfersValidity<ALayout, BLayout, ELayout>(
-                 M, N, K)))
-        {
-            grid_size_grp = 0;
-            continue;
-            // TODO ? throw an error?
-        }
-
         using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
         DsGridPointer p_ds_grid;
 
@@ -391,18 +381,19 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             : group_count_{static_cast<index_t>(gemm_descs.size())},
               occupancy_num_blocks_{occupancy_num_blocks},
               gpu_cu_count_{gpu_cu_count},
+              gemm_descs_{gemm_descs},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
         }
 
-        //  private:
         index_t group_count_;
         const void* p_dev_gemm_args_;
         int occupancy_num_blocks_;
         int gpu_cu_count_;
 
+        const std::vector<GemmDesc>& gemm_descs_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
@@ -561,13 +552,71 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         return true;
     }
 
-    static bool IsSupportedArgument([[maybe_unused]] const Argument& arg)
+    static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
         {
             return false;
         }
-        return true;
+
+        using DsGridDescMN = remove_cvref_t<
+            decltype(GridwiseGemm::template MakeDsGridDescriptor_M_N<DsLayout, GemmSpec>(
+                {}, {}, {}))>;
+
+        bool supported = true;
+
+        for(const auto& gdesc : arg.gemm_descs_)
+        {
+            const auto M = gdesc.M_;
+            const auto N = gdesc.N_;
+            const auto K = gdesc.K_;
+
+            const auto StrideA   = gdesc.stride_A_;
+            const auto StrideB   = gdesc.stride_B_;
+            const auto StrideE   = gdesc.stride_C_;
+            const auto& StrideDs = gdesc.stride_Ds_;
+
+            // If M dimension is unknown at launch time then validate just NK.
+            // If N or K dim is zero (or unknown) then the vector loads responsibility lies on
+            // the user.
+            if(N * K == 0)
+                continue;
+
+            const auto a_grid_desc_mk =
+                GridwiseGemm::template MakeAGridDescriptor_M_K<ALayout, GemmSpec>(M, K, StrideA);
+            const auto b_grid_desc_nk =
+                GridwiseGemm::template MakeBGridDescriptor_N_K<BLayout, GemmSpec>(K, N, StrideB);
+            const auto e_grid_desc_mn =
+                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+
+            DsGridDescMN ds_grid_desc_mn;
+            static_for<0, NumDTensor, 1>{}([&](auto j) {
+                using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
+                ds_grid_desc_mn(j) =
+                    GridwiseGemm::template MakeEGridDescriptor_M_N<DLayout, GemmSpec>(
+                        M, N, StrideDs[j]);
+            });
+
+            const auto b2c_tile_map = Block2ETileMap(M, N);
+
+            if(!(GridwiseGemm::template CheckValidity(a_grid_desc_mk,
+                                                      b_grid_desc_nk,
+                                                      ds_grid_desc_mn,
+                                                      e_grid_desc_mn,
+                                                      b2c_tile_map) &&
+                 GridwiseGemm::template CheckTensorTransfersValidity<ALayout, BLayout, ELayout>(
+                     M, N, K)))
+            {
+#if DEBUG_LOG
+                std::cout << "The provided GEMM problem size (M,N,K) [" << M << "," << N << "," << K
+                          << "] are not supported by current template parameters!"
+                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+#endif
+                supported = false;
+            }
+        }
+
+        return supported;
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
