@@ -19,7 +19,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_multiple_d_splitk.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_dynamic_vector_dims.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_xdl_splitk_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
@@ -252,7 +252,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                             Sequence<0, 1>,
                             ElementwiseInputSequence,
                             ck::Sequence<CDEShuffleBlockTransferScalarPerVector_NPerBlock>,
-                            true>;
+                            I1,
+                            I1>;
 
     // Block2CTileMap configuration parameter.
     static constexpr index_t B2E_M01 = 8;
