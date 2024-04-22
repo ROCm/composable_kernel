@@ -349,35 +349,6 @@ bool run(const ArgParser& arg_parser)
               << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", mask:" << mask
               << std::flush;
 
-    auto fmha_dot_do_o_traits =
-        fmha_bwd_dot_do_o_traits{hdim_v, data_type, mode == mode_enum::group};
-    auto fmha_dot_do_o_args = [&]() {
-        const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
-        const ck::index_t nhead_stride_o = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_d = max_seqlen_q;
-        const ck::index_t batch_stride_o = (nhead * shape_seqlen_q * hdim_v);
-        const ck::index_t batch_stride_d = (nhead * max_seqlen_q);
-
-        return fmha_bwd_dot_do_o_args{o_buf.GetDeviceBuffer(),
-                                      do_buf.GetDeviceBuffer(),
-                                      d_buf.GetDeviceBuffer(),
-                                      seqstart_q.GetDeviceBuffer(),
-                                      p_undrop,
-                                      batch,
-                                      nhead,
-                                      shape_seqlen_q,
-                                      hdim_v,
-                                      max_seqlen_q,
-                                      stride_o, // stride_do
-                                      stride_o,
-                                      nhead_stride_o, // nhead_stride_do
-                                      nhead_stride_o,
-                                      nhead_stride_d,
-                                      batch_stride_o, // batch_stride_do
-                                      batch_stride_o,
-                                      batch_stride_d};
-    }();
-
     auto fmha_traits = fmha_bwd_traits{hdim_q,
                                        hdim_v,
                                        data_type,
@@ -396,6 +367,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t stride_k       = (i_perm ? hdim_q : nhead_k * hdim_q);
         const ck::index_t stride_v       = (i_perm ? hdim_v : nhead_k * hdim_v);
         const ck::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         const ck::index_t stride_randval = (max_seqlen_k);
         const ck::index_t stride_do      = (o_perm ? hdim_v : nhead * hdim_v);
         const ck::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
@@ -407,6 +379,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t nhead_stride_v = (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
         const ck::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
+        const ck::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck::index_t nhead_stride_lsed    = max_seqlen_q;
@@ -417,6 +390,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
         const ck::index_t batch_stride_v       = (nhead_k * shape_seqlen_k * hdim_v);
         const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
         const ck::index_t batch_stride_lsed    = (nhead * max_seqlen_q);
@@ -428,6 +402,7 @@ bool run(const ArgParser& arg_parser)
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
                              bias_buf.GetDeviceBuffer(),
+                             o_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              do_buf.GetDeviceBuffer(),
                              d_buf.GetDeviceBuffer(),
@@ -442,6 +417,7 @@ bool run(const ArgParser& arg_parser)
                              shape_seqlen_q,
                              shape_seqlen_k,
                              batch,
+                             max_seqlen_q,
                              max_seqlen_k,
                              hdim_q,
                              hdim_v,
@@ -452,6 +428,7 @@ bool run(const ArgParser& arg_parser)
                              stride_k,
                              stride_v,
                              stride_bias,
+                             stride_o,
                              stride_randval,
                              stride_do,
                              stride_dk,
@@ -461,6 +438,7 @@ bool run(const ArgParser& arg_parser)
                              nhead_stride_k,
                              nhead_stride_v,
                              nhead_stride_bias,
+                             nhead_stride_o,
                              nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
@@ -469,6 +447,7 @@ bool run(const ArgParser& arg_parser)
                              batch_stride_k,
                              batch_stride_v,
                              batch_stride_bias,
+                             batch_stride_o,
                              batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
@@ -479,14 +458,12 @@ bool run(const ArgParser& arg_parser)
                              mask.right,
                              static_cast<ck::index_t>(mask.type),
                              p_drop,
+                             p_undrop,
                              s_randval,
                              {drop_seed, drop_offset}};
     }();
 
-    float ave_time = 0;
-
-    ave_time = fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_config);
-    ave_time += fmha_bwd(fmha_traits, fmha_args, stream_config);
+    float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
     if(ave_time < 0)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
@@ -668,7 +645,6 @@ bool run(const ArgParser& arg_parser)
     dq_buf.SetZero();
     dbias_buf.SetZero();
 
-    fmha_bwd_dot_do_o(fmha_dot_do_o_traits, fmha_dot_do_o_args, stream_config);
     fmha_bwd(fmha_traits, fmha_args, stream_config);
 
     dq_buf.FromDevice(dq_host.data());
