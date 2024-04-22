@@ -45,16 +45,6 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        // 1d NWGC is only supported by DL kernel
-        // DL kernel is only supported for split_k=1
-        if constexpr(std::is_same_v<InLayout, NWGC> && std::is_same_v<OutLayout, NWGK>)
-        {
-            if(split_k != 1)
-            {
-                return true;
-            }
-        }
-
         if(ck::is_navi3_supported())
         {
             // on navi3x only support for 3d is implemented
@@ -123,34 +113,10 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 };
 
 template <typename Tuple>
-class TestGroupedConvndBwdWeight1d : public TestGroupedConvndBwdWeight<Tuple>
-{
-};
-
-template <typename Tuple>
-class TestGroupedConvndBwdWeight2d : public TestGroupedConvndBwdWeight<Tuple>
-{
-};
-
-template <typename Tuple>
 class TestGroupedConvndBwdWeight3d : public TestGroupedConvndBwdWeight<Tuple>
 {
 };
 
-using KernelTypes1d = ::testing::Types<
-    std::tuple<float, float, float, GNWC, GKXC, GNWK, ck::Number<1>>,
-    std::tuple<ck::half_t, ck::half_t, ck::half_t, GNWC, GKXC, GNWK, ck::Number<1>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNWC, GKXC, GNWK, ck::Number<1>>,
-    std::tuple<float, float, float, NWGC, GKXC, NWGK, ck::Number<1>>,
-    std::tuple<ck::half_t, ck::half_t, ck::half_t, NWGC, GKXC, NWGK, ck::Number<1>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NWGC, GKXC, NWGK, ck::Number<1>>>;
-using KernelTypes2d = ::testing::Types<
-    std::tuple<float, float, float, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
-    std::tuple<ck::half_t, ck::half_t, ck::half_t, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
-    std::tuple<float, float, float, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
-    std::tuple<ck::half_t, ck::half_t, ck::half_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>>;
 using KernelTypes3d = ::testing::Types<
     std::tuple<float, float, float, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
@@ -161,36 +127,7 @@ using KernelTypes3d = ::testing::Types<
     std::tuple<ck::bhalf_t, float, ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
     std::tuple<int8_t, int8_t, int8_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>>;
 
-TYPED_TEST_SUITE(TestGroupedConvndBwdWeight1d, KernelTypes1d);
-TYPED_TEST_SUITE(TestGroupedConvndBwdWeight2d, KernelTypes2d);
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight3d, KernelTypes3d);
-
-TYPED_TEST(TestGroupedConvndBwdWeight1d, Test1D)
-{
-    this->conv_params.clear();
-    this->conv_params.push_back({1, 2, 128, 128, 256, {1}, {14}, {2}, {1}, {0}, {0}});
-    this->conv_params.push_back({1, 2, 32, 128, 256, {3}, {28}, {1}, {1}, {1}, {1}});
-    this->conv_params.push_back({1, 2, 128, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
-    this->conv_params.push_back({1, 1, 1, 1, 32, {3}, {32}, {1}, {1}, {1}, {1}});
-    this->conv_params.push_back({1, 1, 1, 64, 3, {3}, {32}, {1}, {1}, {1}, {1}});
-    this->conv_params.push_back({1, 1, 1, 1, 1, {3}, {32}, {1}, {1}, {1}, {1}});
-    this->Run();
-}
-
-TYPED_TEST(TestGroupedConvndBwdWeight2d, Test2D)
-{
-    this->conv_params.clear();
-    this->conv_params.push_back(
-        {2, 2, 64, 128, 256, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}});
-    this->conv_params.push_back(
-        {2, 2, 4, 128, 256, {3, 3}, {14, 14}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back(
-        {2, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}});
-    this->conv_params.push_back({2, 1, 1, 1, 32, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back({2, 1, 1, 64, 3, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->conv_params.push_back({2, 1, 1, 1, 1, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-    this->Run();
-}
 
 TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
 {

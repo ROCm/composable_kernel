@@ -1,6 +1,6 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,15 +10,25 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
 namespace ck {
 namespace tensor_operation {
 
-template <index_t NDimSpatial, device::ConvolutionForwardSpecialization ConvForwardSpecialization>
+template <index_t NDimSpatial,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t KPerBlock,
+          device::GemmSpecialization GemmSpec,
+          device::ConvolutionForwardSpecialization ConvForwardSpecialization>
 struct TransformConvFwdToGemm
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
+
+    static constexpr auto matrix_padder =
+        device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     // TODO: implement ck::tensor_layout::convolution that describe packed/strided dimemsion as
     // properties
@@ -537,6 +547,64 @@ struct TransformConvFwdToGemm
 
         const auto out_gemmm_gemmn_desc =
             make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(I0, KStride));
+
+        return out_gemmm_gemmn_desc;
+    }
+
+    template <typename ALay>
+    static auto
+    MakeAGridDescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_strides,
+                            const std::array<index_t, NDimSpatial>& conv_filter_dilations,
+                            const std::array<index_t, NDimSpatial>& input_left_pads,
+                            const std::array<index_t, NDimSpatial>& input_right_pads)
+    {
+        const auto in_gemmmraw_gemmkraw_desc = MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
+                                                                         a_g_n_c_wis_strides,
+                                                                         b_g_k_c_xs_lengths,
+                                                                         b_g_k_c_xs_strides,
+                                                                         e_g_n_k_wos_lengths,
+                                                                         e_g_n_k_wos_strides,
+                                                                         conv_filter_strides,
+                                                                         conv_filter_dilations,
+                                                                         input_left_pads,
+                                                                         input_right_pads);
+
+        const auto in_gemmm_gemmk_desc =
+            matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
+
+        return in_gemmm_gemmk_desc;
+    }
+
+    template <typename BLay>
+    static auto
+    MakeBGridDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    {
+        const auto wei_gemmnraw_gemmkraw_desc =
+            MakeBDescriptor_N_K<BLay>(b_g_k_c_xs_lengths, b_g_k_c_xs_strides);
+
+        const auto wei_gemmn_gemmk_desc =
+            matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
+
+        return wei_gemmn_gemmk_desc;
+    }
+
+    template <typename ELay>
+    static auto
+    MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
+    {
+        const auto out_gemmmraw_gemmnraw_desc =
+            MakeCDescriptor_M_N<ELay>(e_g_n_k_wos_lengths, e_g_n_k_wos_strides);
+
+        const auto out_gemmm_gemmn_desc =
+            matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
 
         return out_gemmm_gemmn_desc;
     }

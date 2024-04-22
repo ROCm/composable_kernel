@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -69,67 +69,6 @@ struct DeviceOperationInstanceFactory<
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
 #ifdef CK_USE_XDL
-        if constexpr(NumDimSpatial == 2)
-        {
-            if constexpr(is_same_v<InLayout, GNHWC> && is_same_v<WeiLayout, GKYXC> &&
-                         is_same_v<OutLayout, GNHWK>)
-            {
-#ifdef CK_ENABLE_FP16
-                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
-                             is_same_v<ComputeTypeB, F16>)
-                {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(op_ptrs);
-                }
-#endif
-#ifdef CK_ENABLE_FP32
-                if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
-                             is_same_v<ComputeTypeB, F32>)
-                {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f32_instances(op_ptrs);
-                }
-#endif
-#ifdef CK_ENABLE_BF16
-                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
-                             is_same_v<ComputeTypeB, BF16>)
-                {
-                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_bf16_instances(
-                        op_ptrs);
-                }
-#endif
-            }
-            if constexpr(is_same_v<InLayout, NHWGC> && is_same_v<WeiLayout, GKYXC> &&
-                         is_same_v<OutLayout, NHWGK>)
-            {
-#ifdef CK_ENABLE_FP16
-                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
-                             is_same_v<ComputeTypeB, F16>)
-                {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(op_ptrs);
-                }
-#endif
-#ifdef CK_ENABLE_FP32
-                if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                             is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
-                             is_same_v<ComputeTypeB, F32>)
-                {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(op_ptrs);
-                }
-#endif
-#ifdef CK_ENABLE_BF16
-                if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
-                             is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
-                             is_same_v<ComputeTypeB, BF16>)
-                {
-                    add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
-                        op_ptrs);
-                }
-#endif
-            }
-        }
         if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&
@@ -207,59 +146,6 @@ struct DeviceOperationInstanceFactory<
 #endif
 
 #ifdef CK_USE_WMMA
-        if constexpr(NumDimSpatial == 2)
-        {
-            if constexpr(is_same_v<InLayout, GNHWC> && is_same_v<WeiLayout, GKYXC> &&
-                         is_same_v<OutLayout, GNHWK>)
-            {
-#ifdef CK_ENABLE_FP16
-                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
-                             is_same_v<ComputeTypeB, F16>)
-                {
-                    add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_f16_1x1s1p0_instances(
-                        op_ptrs);
-                }
-#endif
-#ifdef CK_ENABLE_INT8
-                if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                             is_same_v<OutDataType, int8_t> && is_same_v<ComputeTypeA, int8_t> &&
-                             is_same_v<ComputeTypeB, int8_t>)
-                {
-                    add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_i8_instances(op_ptrs);
-                    add_device_grouped_conv2d_bwd_data_wmma_gnhwk_gkyxc_gnhwc_i8_1x1s1p0_instances(
-                        op_ptrs);
-                }
-#endif
-            }
-            if constexpr(is_same_v<InLayout, NHWGC> && is_same_v<WeiLayout, GKYXC> &&
-                         is_same_v<OutLayout, NHWGK>)
-            {
-#ifdef CK_ENABLE_FP16
-                if constexpr(is_same_v<InDataType, F16> && is_same_v<WeiDataType, F16> &&
-                             is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
-                             is_same_v<ComputeTypeB, F16>)
-                {
-                    add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_instances(
-                        op_ptrs);
-                    add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_f16_1x1s1p0_instances(
-                        op_ptrs);
-                }
-#endif
-#ifdef CK_ENABLE_INT8
-                if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
-                             is_same_v<OutDataType, int8_t> && is_same_v<ComputeTypeA, int8_t> &&
-                             is_same_v<ComputeTypeB, int8_t>)
-                {
-                    add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_i8_instances(op_ptrs);
-                    add_device_grouped_conv2d_bwd_data_wmma_nhwgk_gkyxc_nhwgc_i8_1x1s1p0_instances(
-                        op_ptrs);
-                }
-#endif
-            }
-        }
         if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, GNDHWC> && is_same_v<WeiLayout, GKZYXC> &&

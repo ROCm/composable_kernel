@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -117,78 +117,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
                                       true /* DoPadGemmM */,
                                       true /* DoPadGemmN */>{};
 
-    static auto GetDummyABDsEGridDescriptor()
-    {
-        const std::array<index_t, NDimSpatial + 3> dummy_tensor_lengths = {1};
-        const std::array<index_t, NDimSpatial + 3> dummy_tensor_strides = {1};
-        const std::array<index_t, NDimSpatial> dummy_spatial_lengths    = {1};
-
-        const auto a_grid_desc_ak0_m_ak1 =
-            transform_conv_to_gemm.template MakeADescriptor_AK0_M_AK1<ALayout>(
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths);
-
-        const auto b_grid_desc_bk0_n_bk1 =
-            transform_conv_to_gemm.template MakeBDescriptor_BK0_N_BK1<BLayout>(
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_tensor_lengths,
-                dummy_tensor_strides,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths,
-                dummy_spatial_lengths);
-
-        const auto ds_grid_desc_m_n = generate_tuple(
-            [&](auto i) {
-                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-
-                return transform_conv_to_gemm.template MakeCDescriptor_M_N<DLayout>(
-                    dummy_tensor_lengths,
-                    dummy_tensor_strides,
-                    dummy_tensor_lengths,
-                    dummy_tensor_strides,
-                    dummy_tensor_lengths,
-                    dummy_tensor_strides,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths,
-                    dummy_spatial_lengths);
-            },
-            Number<NumDTensor>{});
-
-        const auto e_grid_desc_m_n =
-            transform_conv_to_gemm.template MakeCDescriptor_M_N<ELayout>(dummy_tensor_lengths,
-                                                                         dummy_tensor_strides,
-                                                                         dummy_tensor_lengths,
-                                                                         dummy_tensor_strides,
-                                                                         dummy_tensor_lengths,
-                                                                         dummy_tensor_strides,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths,
-                                                                         dummy_spatial_lengths);
-
-        return make_tuple(
-            a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, ds_grid_desc_m_n, e_grid_desc_m_n);
-    }
-
     // desc
-    using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor());
+    using ABDsEGridDesc =
+        decltype(transform_conv_to_gemm.template GetDummyABDsEGridDescriptor<NumDTensor,
+                                                                             ALayout,
+                                                                             BLayout,
+                                                                             DsLayout,
+                                                                             ELayout>());
 
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<tuple_element_t<0, ABDsEGridDesc>>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<tuple_element_t<1, ABDsEGridDesc>>;

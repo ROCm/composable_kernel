@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -58,7 +58,12 @@ struct DeviceImageToColumnImpl
     static constexpr auto I2 = Number<2>{};
 
     static constexpr auto conv_to_gemm_transformer =
-        TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>{};
+        TransformConvFwdToGemm<NDimSpatial,
+                               MPerBlock,
+                               0 /* NPerBlock*/,
+                               KPerBlock,
+                               GemmSpecialization::MKPadding,
+                               ConvolutionForwardSpecialization::Default>{};
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpecialization::MKPadding, index_t, index_t, index_t>{

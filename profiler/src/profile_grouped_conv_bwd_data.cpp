@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -79,7 +79,6 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
 
     using namespace ck::tensor_layout::convolution;
 
-    constexpr auto I2 = ck::Number<2>{};
     constexpr auto I3 = ck::Number<3>{};
 
     auto profile = [&](auto num_dim_spatial_tmp,
@@ -111,40 +110,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
         return pass ? 0 : 1;
     };
 
-    if(num_dim_spatial == 2)
-    {
-        if(layout == ConvLayout::GNHWC_GKYXC_GNHWK)
-        {
-            if(data_type == ConvDataType::F32_F32_F32)
-            {
-                return profile(I2, GNHWK{}, GKYXC{}, GNHWC{}, F32{}, F32{}, F32{});
-            }
-            else if(data_type == ConvDataType::F16_F16_F16)
-            {
-                return profile(I2, GNHWK{}, GKYXC{}, GNHWC{}, F16{}, F16{}, F16{});
-            }
-            else if(data_type == ConvDataType::BF16_BF16_BF16)
-            {
-                return profile(I2, GNHWK{}, GKYXC{}, GNHWC{}, BF16{}, BF16{}, BF16{});
-            }
-        }
-        else if(layout == ConvLayout::NHWGC_GKYXC_NHWGK)
-        {
-            if(data_type == ConvDataType::F32_F32_F32)
-            {
-                return profile(I2, NHWGK{}, GKYXC{}, NHWGC{}, F32{}, F32{}, F32{});
-            }
-            else if(data_type == ConvDataType::F16_F16_F16)
-            {
-                return profile(I2, NHWGK{}, GKYXC{}, NHWGC{}, F16{}, F16{}, F16{});
-            }
-            else if(data_type == ConvDataType::BF16_BF16_BF16)
-            {
-                return profile(I2, NHWGK{}, GKYXC{}, NHWGC{}, BF16{}, BF16{}, BF16{});
-            }
-        }
-    }
-    else if(num_dim_spatial == 3)
+    if(num_dim_spatial == 3)
     {
         if(layout == ConvLayout::GNHWC_GKYXC_GNHWK)
         {

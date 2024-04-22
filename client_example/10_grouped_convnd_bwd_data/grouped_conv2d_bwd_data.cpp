@@ -18,22 +18,25 @@ using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
 using OutDataType = ck::half_t;
 
-using InLayout    = ck::tensor_layout::convolution::GNHWC;
-using WeiLayout   = ck::tensor_layout::convolution::GKYXC;
-using OutLayout   = ck::tensor_layout::convolution::GNHWK;
+using InLayout    = ck::tensor_layout::convolution::NDHWGC;
+using WeiLayout   = ck::tensor_layout::convolution::GKZYXC;
+using OutLayout   = ck::tensor_layout::convolution::NDHWGK;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr ck::index_t NumDimSpatial = 2;
-static constexpr ck::index_t G             = 32;
-static constexpr ck::index_t N             = 256;
-static constexpr ck::index_t K             = 192;
-static constexpr ck::index_t C             = 192;
+static constexpr ck::index_t NumDimSpatial = 3;
+static constexpr ck::index_t G             = 2;
+static constexpr ck::index_t N             = 16;
+static constexpr ck::index_t K             = 16;
+static constexpr ck::index_t C             = 16;
+static constexpr ck::index_t Z             = 1; // Z == 1 for 2d
 static constexpr ck::index_t Y             = 3;
 static constexpr ck::index_t X             = 3;
-static constexpr ck::index_t Hi            = 28;
-static constexpr ck::index_t Wi            = 28;
-static constexpr ck::index_t Ho            = 28;
-static constexpr ck::index_t Wo            = 28;
+static constexpr ck::index_t Di            = 1; // Di == 1 for 2d
+static constexpr ck::index_t Hi            = 14;
+static constexpr ck::index_t Wi            = 14;
+static constexpr ck::index_t Do            = 1; // Do == 1 for 2d
+static constexpr ck::index_t Ho            = 14;
+static constexpr ck::index_t Wo            = 14;
 
 struct SimpleDeviceMem
 {
@@ -53,46 +56,22 @@ struct SimpleDeviceMem
 
 int main()
 {
-    std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, Hi, Wi, C};
-    std::array<ck::index_t, NumDimSpatial + 3> in_strides{0, 0, 0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, C, Di, Hi, Wi};
+    std::array<ck::index_t, NumDimSpatial + 3> in_strides{
+        C, Di * Hi * Wi * G * C, 1, Hi * Wi * G * C, Wi * G * C, G * C};
 
-    std::array<ck::index_t, NumDimSpatial + 3> wei_lengths{G, K, Y, X, C};
-    std::array<ck::index_t, NumDimSpatial + 3> wei_strides{0, 0, 0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial + 3> wei_lengths{G, K, C, Z, Y, X};
+    std::array<ck::index_t, NumDimSpatial + 3> wei_strides{
+        K * Z * Y * X * C, Z * Y * X * C, 1, Y * X * C, X * C, C};
 
-    std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, Ho, Wo, K};
-    std::array<ck::index_t, NumDimSpatial + 3> out_strides{0, 0, 0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, K, Do, Ho, Wo};
+    std::array<ck::index_t, NumDimSpatial + 3> out_strides{
+        K, Do * Ho * Wo * G * K, 1, Ho * Wo * G * K, Wo * G * K, G * K};
 
-    std::partial_sum(rbegin(in_lengths),
-                     std::prev(rend(in_lengths)),
-                     std::next(rbegin(in_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(wei_lengths),
-                     std::prev(rend(wei_lengths)),
-                     std::next(rbegin(wei_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(out_lengths),
-                     std::prev(rend(out_lengths)),
-                     std::next(rbegin(out_strides)),
-                     std::multiplies<>{});
-
-    // transpose GNHWC/GKYXC/GNHWK to GNCHW/GKCYX/GNCHW
-    std::rotate(
-        rbegin(in_lengths), std::next(rbegin(in_lengths)), std::next(rbegin(in_lengths), 3));
-    std::rotate(
-        rbegin(in_strides), std::next(rbegin(in_strides)), std::next(rbegin(in_strides), 3));
-    std::rotate(
-        rbegin(wei_lengths), std::next(rbegin(wei_lengths)), std::next(rbegin(wei_lengths), 3));
-    std::rotate(
-        rbegin(wei_strides), std::next(rbegin(wei_strides)), std::next(rbegin(wei_strides), 3));
-    std::rotate(
-        rbegin(out_lengths), std::next(rbegin(out_lengths)), std::next(rbegin(out_lengths), 3));
-    std::rotate(
-        rbegin(out_strides), std::next(rbegin(out_strides)), std::next(rbegin(out_strides), 3));
-
-    std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
-    std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
-    std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
-    std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
+    std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> input_left_pads{0, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> input_right_pads{0, 1, 1};
 
     SimpleDeviceMem in(sizeof(InDataType) * G * N * Hi * Wi * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);
