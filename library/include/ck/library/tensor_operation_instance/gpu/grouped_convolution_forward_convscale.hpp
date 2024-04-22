@@ -21,7 +21,6 @@ namespace instance {
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ConvScale   = ck::tensor_operation::element_wise::ConvScale;
 
-#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP8
 void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
@@ -38,7 +37,6 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
                                                                 ConvScale,
                                                                 F8,
                                                                 F8>>>& instances);
-#endif
 #endif
 
 template <ck::index_t NumDimSpatial,
