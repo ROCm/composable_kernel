@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <cstdlib>
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -27,7 +27,12 @@ using DeviceElementwiseAddInstance =
                                                         ck::Tuple<CDataType>,
                                                         Add,
                                                         2,
+                                                        64,
+                                                        64,
+                                                        64,
                                                         8,
+                                                        8,
+                                                        ck::Sequence<1, 0>,
                                                         ck::Sequence<8, 8>,
                                                         ck::Sequence<8>>;
 
