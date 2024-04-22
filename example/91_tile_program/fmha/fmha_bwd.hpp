@@ -177,6 +177,7 @@ auto fmha_bwd_create_kargs_and_grids(fmha_bwd_args args)
                                             args.nhead_stride_do,
                                             args.nhead_stride_lsed,
                                             args.nhead_stride_dbias,
+                                            args.batch_stride_lsed,
                                             args.window_size_left,
                                             args.window_size_right,
                                             args.mask_type,
@@ -257,9 +258,12 @@ struct fmha_bwd_dot_do_o_args
     ck::index_t seqlen_q;
     ck::index_t hdim_v;
     ck::index_t max_seqlen_q;
+    ck::index_t stride_do;
     ck::index_t stride_o;
+    ck::index_t nhead_stride_do;
     ck::index_t nhead_stride_o;
     ck::index_t nhead_stride_d;
+    ck::index_t batch_stride_do;
     ck::index_t batch_stride_o;
     ck::index_t batch_stride_d;
 };
@@ -277,9 +281,12 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_dot_do_o_args args)
                                                      args.p_undrop,
                                                      args.seqstart_q_ptr,
                                                      args.hdim_v,
+                                                     args.stride_do,
                                                      args.stride_o,
+                                                     args.nhead_stride_do,
                                                      args.nhead_stride_o,
-                                                     args.nhead_stride_d);
+                                                     args.nhead_stride_d,
+                                                     args.batch_stride_d);
         }
         else
         { // create batch mode kernel arguments
@@ -289,9 +296,12 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_dot_do_o_args args)
                                                      args.p_undrop,
                                                      args.seqlen_q,
                                                      args.hdim_v,
+                                                     args.stride_do,
                                                      args.stride_o,
+                                                     args.nhead_stride_do,
                                                      args.nhead_stride_o,
                                                      args.nhead_stride_d,
+                                                     args.batch_stride_do,
                                                      args.batch_stride_o,
                                                      args.batch_stride_d);
         }

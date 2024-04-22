@@ -269,8 +269,8 @@ bool run(const ArgParser& arg_parser)
         use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
-    Tensor<LSEDataType> lse_host(std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
-    Tensor<DDataType> d_host(std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
+    Tensor<LSEDataType> lse_host(std::array<ck::index_t, 3>{batch, nhead, max_seqlen_q});
+    Tensor<DDataType> d_host(std::array<ck::index_t, 3>{batch, nhead, max_seqlen_q});
     Tensor<RandValOutputDataType> randval_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck::index_t, 4>{1, 1, 1, 1});
@@ -354,9 +354,9 @@ bool run(const ArgParser& arg_parser)
     auto fmha_dot_do_o_args = [&]() {
         const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         const ck::index_t nhead_stride_o = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_d = (shape_seqlen_q);
+        const ck::index_t nhead_stride_d = max_seqlen_q;
         const ck::index_t batch_stride_o = (nhead * shape_seqlen_q * hdim_v);
-        const ck::index_t batch_stride_d = (nhead * shape_seqlen_q);
+        const ck::index_t batch_stride_d = (nhead * max_seqlen_q);
 
         return fmha_bwd_dot_do_o_args{o_buf.GetDeviceBuffer(),
                                       do_buf.GetDeviceBuffer(),
@@ -368,9 +368,12 @@ bool run(const ArgParser& arg_parser)
                                       shape_seqlen_q,
                                       hdim_v,
                                       max_seqlen_q,
+                                      stride_o, // stride_do
                                       stride_o,
+                                      nhead_stride_o, // nhead_stride_do
                                       nhead_stride_o,
                                       nhead_stride_d,
+                                      batch_stride_o, // batch_stride_do
                                       batch_stride_o,
                                       batch_stride_d};
     }();
@@ -406,7 +409,7 @@ bool run(const ArgParser& arg_parser)
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
         const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_lsed    = (shape_seqlen_q);
+        const ck::index_t nhead_stride_lsed    = max_seqlen_q;
         const ck::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * shape_seqlen_k : shape_seqlen_k);
         // setup batch_stride_* arguments
@@ -416,7 +419,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
-        const ck::index_t batch_stride_lsed    = (nhead * shape_seqlen_q);
+        const ck::index_t batch_stride_lsed    = (nhead * max_seqlen_q);
         const ck::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
         const ck::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
         const ck::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * shape_seqlen_k);
@@ -645,7 +648,7 @@ bool run(const ArgParser& arg_parser)
         if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
         else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
 
-        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
+        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(wb, idx[0], idx[1]) = self(idx); });
         // clang-format on
 
         q_host_refs.push_back(q_host_ref);
