@@ -1,13 +1,63 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
+
+// 1d
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NWGK_GKXC_NWGC()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NWGC> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NWGK>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_GNWK_GKXC_GNWC()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::GNWC> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::GNWK>;
+}
+// 2d
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NHWGK_GKYXC_NHWGC()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NHWGC> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NHWGK>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_GNHWK_GKYXC_GNHWC()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::GNHWC> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::GNHWK>;
+}
+// 3d
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NDHWGK_GKZYXC_NDHWGC()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NDHWGC> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NDHWGK>;
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_GNDHWK_GKZYXC_GNDHWC()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::GNDHWC> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::GNDHWK>;
+}
 
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0, typename = void>
 struct ComputePtrOffsetOfStridedBatch
