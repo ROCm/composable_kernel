@@ -28,7 +28,7 @@ struct RotatingMemWrapper
     {
         p_a_grids.push_back(arg.p_a_grid);
         p_b_grids.push_back(arg.p_b_grid);
-        for(size_t i = 0; i < rotating_count - 1; i++)
+        for(size_t i = 1; i < rotating_count; i++)
         {
             {
                 void* pADeviceBuf;
@@ -56,9 +56,9 @@ struct RotatingMemWrapper
     {
         if(rotating_count > 1)
         {
-            int idx      = iter++ % rotating_count;
-            arg.p_a_grid = reinterpret_cast<ADataType>(p_a_grids[idx]);
-            arg.p_b_grid = reinterpret_cast<BDataType>(p_b_grids[idx]);
+            std::size_t idx = iter++ % rotating_count;
+            arg.p_a_grid    = reinterpret_cast<ADataType>(p_a_grids[idx]);
+            arg.p_b_grid    = reinterpret_cast<BDataType>(p_b_grids[idx]);
         }
     }
     void Print()
@@ -104,8 +104,8 @@ inline void flush_icache()
     for(int i = 0; i < flush_iter; i++)
     {
         ck::flush_icache<<<dim3(gpu_block3), dim3(64), 0, nullptr>>>();
+        hip_check_error(hipGetLastError());
     }
-    hip_check_error(hipGetLastError());
 }
 // if TimePrePress == false, return time does not include preprocess's time
 template <bool TimePreprocess, typename Args, typename F, typename PreProcessFunc>
