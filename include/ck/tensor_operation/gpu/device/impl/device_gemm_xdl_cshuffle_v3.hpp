@@ -167,7 +167,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         ck::utility::flush_icache();
                         // rotating mem
                         rotating_mem.Next();
-                        //clear c mem
+                        // clear c mem
                         if(arg_.KBatch > 1)
                             hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
                                                              0,
