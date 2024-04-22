@@ -14,9 +14,9 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I8  = int8_t;
+using I8   = int8_t;
 using BF16 = bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = tensor_layout::gemm::RowMajor;
 using Col = tensor_layout::gemm::ColumnMajor;
@@ -24,7 +24,7 @@ using Col = tensor_layout::gemm::ColumnMajor;
 template <index_t... Is>
 using S = Sequence<Is...>;
 
-using PassThrough = element_wise::PassThrough;
+using PassThrough         = element_wise::PassThrough;
 using MultiplyAddFastGelu = element_wise::MultiplyAddFastGelu;
 
 static constexpr auto GemmDefault    = GemmSpecialization::Default;
@@ -37,11 +37,7 @@ static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 
 using DsLayout = ck::Tuple<Row, Row>;
 
-template <
-	typename DsDType,
-	 typename CElementwiseOp,
-GemmSpecialization GemmSpec
-	>
+template <typename DsDType, typename CElementwiseOp, GemmSpecialization GemmSpec>
 using device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_comp_instances = std::tuple<
     // clang-format off
         //#########################| ALayout| BLayout| CLayout|AData| BData|  DsData| CData| AccData| Cshuffle|           A|           B|               C|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
@@ -60,12 +56,10 @@ using device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_comp_instances = s
     // clang-format on
     >;
 
-template <
-	typename DsDType,
-	 typename CElementwiseOp,
-	GemmSpecialization GemmSpec,
-BlockGemmPipelineScheduler BlkGemmPipeSched
-	>
+template <typename DsDType,
+          typename CElementwiseOp,
+          GemmSpecialization GemmSpec,
+          BlockGemmPipelineScheduler BlkGemmPipeSched>
 using device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_mem_instances = std::tuple<
     // clang-format off
         //#########################| ALayout| BLayout| CLayout|AData| BData|  DsData| CData| AccData| Cshuffle|           A|           B|              C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|    Block-wiseGemm|               Block-wiseGemm|

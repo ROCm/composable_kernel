@@ -69,7 +69,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
                      is_same_v<D0DataType, bhalf_t> && is_same_v<D1DataType, bhalf_t> &&
                      is_same_v<EDataType, bhalf_t>)
         {
@@ -77,7 +77,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                          is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
                          is_same_v<ELayout, Row>)
             {
-                add_device_gemm_add_add_fastgelu_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
+                add_device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_multiply_add_fastgelu_mnkpadding_instances(
                     op_ptrs);
             }
         }
