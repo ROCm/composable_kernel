@@ -663,7 +663,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 const bool valid_a_access_dim_k =
                     ABlockTransferSrcVectorDim == 2 && arg.as_kz_consecutive_[i];
                 const bool valid_a_access_dim = valid_a_access_dim_m || valid_a_access_dim_k;
-                if(!(valid_a_vector_size && valid_a_access_dim))
+                if(!((valid_a_vector_size && valid_a_access_dim) ||
+                     ABlockTransferSrcScalarPerVector == 1))
                 {
                     valid_as_access = false;
                 }
@@ -682,7 +683,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 const bool valid_b_access_dim_k =
                     BBlockTransferSrcVectorDim == 2 && arg.bs_kz_consecutive_[i];
                 const bool valid_b_access_dim = valid_b_access_dim_n || valid_b_access_dim_k;
-                if(!(valid_b_vector_size && valid_b_access_dim))
+                if(!((valid_b_vector_size && valid_b_access_dim) ||
+                     BBlockTransferSrcScalarPerVector == 1))
                 {
                     valid_bs_access = false;
                 }
@@ -698,7 +700,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                     arg.ds_max_read_elems_[i] % CDEBlockTransferScalarPerVector_NPerBlock == 0;
                 // Vector read of Ds is always on N dimension.
                 const bool valid_d_access_dim = arg.ds_nz_consecutive_[i];
-                if(!(valid_d_vector_size && valid_d_access_dim))
+                if(!((valid_d_vector_size && valid_d_access_dim) ||
+                     CDEBlockTransferScalarPerVector_NPerBlock == 1))
                 {
                     valid_ds_access = false;
                 }
@@ -712,7 +715,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 arg.e_max_write_elems_ % CDEBlockTransferScalarPerVector_NPerBlock == 0;
             // Vector write of E is always on N dimension.
             const bool valid_e_access_dim = arg.e_nz_consecutive_;
-            if(!(valid_e_vector_size && valid_e_access_dim))
+            if(!((valid_e_vector_size && valid_e_access_dim) ||
+                 CDEBlockTransferScalarPerVector_NPerBlock == 1))
             {
                 return false;
             }

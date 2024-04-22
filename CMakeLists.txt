@@ -26,6 +26,8 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
+find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
@@ -168,7 +170,10 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
    message("Adding the fno-offload-uniform-block compiler flag")
    add_compile_options(-fno-offload-uniform-block)
 endif()
-
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
+   message("Adding the enable-post-misched=0 compiler flag")
+   add_compile_options(-mllvm -enable-post-misched=0)
+endif()
 #
 # Seperate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
