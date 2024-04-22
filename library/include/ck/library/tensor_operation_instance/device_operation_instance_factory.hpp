@@ -32,6 +32,7 @@ using F16_F16_Tuple = ck::Tuple<F16, F16>;
 
 using F64_Tuple     = ck::Tuple<F64>;
 using F32_Tuple     = ck::Tuple<F32>;
+using BF16_Tuple    = ck::Tuple<BF16>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
 using I8_Tuple      = ck::Tuple<I8>;
@@ -99,6 +100,7 @@ using Scale               = ck::tensor_operation::element_wise::Scale;
 using Bilinear            = ck::tensor_operation::element_wise::Bilinear;
 using AddAddFastGelu      = ck::tensor_operation::element_wise::AddAddFastGelu;
 using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
+using Multiply            = ck::tensor_operation::element_wise::Multiply;
 using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
 using AddRelu             = ck::tensor_operation::element_wise::AddRelu;
 using AddSilu             = ck::tensor_operation::element_wise::AddSilu;

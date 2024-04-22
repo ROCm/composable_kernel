@@ -8,32 +8,31 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_multiply_add_fastgelu_mnkpadding_instances(
+void add_device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_multiply_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
-                                                    ck::Tuple<Row, Row>,
+                                                    ck::Tuple<Row>,
                                                     Row,
                                                     BF16,
                                                     I8,
-                                                    ck::Tuple<BF16, BF16>,
+                                                    ck::Tuple<BF16>,
                                                     BF16,
                                                     PassThrough,
                                                     PassThrough,
-                                                    MultiplyAddFastGelu>>>& instances)
+                                                    Multiply>>>& instances)
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_comp_instances<
-            ck::Tuple<Row, Row>,
-            ck::Tuple<BF16, BF16>,
-            MultiplyAddFastGelu,
-            GemmMNKPadding>{});
+        device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<Row>,
+                                                                               ck::Tuple<BF16>,
+                                                                               Multiply,
+                                                                               GemmMNKPadding>{});
 
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<Row, Row>,
-                                                                              ck::Tuple<BF16, BF16>,
-                                                                              MultiplyAddFastGelu,
+        device_gemm_xdl_universal_multi_d_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<Row>,
+                                                                              ck::Tuple<BF16>,
+                                                                              Multiply,
                                                                               GemmMNKPadding,
                                                                               Intrawave>{});
 }

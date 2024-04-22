@@ -65,7 +65,9 @@ template <typename ALayout,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = CDataType,
-          typename ComputeTypeB                       = ComputeTypeA>
+          typename ComputeTypeB                       = ComputeTypeA,
+          typename LDSTypeA                           = ComputeTypeA,
+          typename LDSTypeB                           = ComputeTypeB>
 struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                                                                      BLayout,
                                                                      DsLayout,
@@ -128,7 +130,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
-        ComputeTypeB>;
+        ComputeTypeB,
+        LDSTypeA,
+        LDSTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
