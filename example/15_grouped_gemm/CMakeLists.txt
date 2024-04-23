@@ -33,8 +33,8 @@ foreach(gpu IN LISTS GPU_TARGETS)
         add_example_executable(example_grouped_gemm_xdl_fixed_nk_fp8 grouped_gemm_xdl_fixed_nk_fp8.cpp)
         add_dependencies(example_grouped_gemm example_grouped_gemm_xdl_fixed_nk_fp8)
 
-        add_example_executable(example_grouped_gemm_multiple_d_splitk_xdl_fp16 grouped_gemm_multiple_d_splitk_xdl_fp16.cpp)
-        add_dependencies(example_grouped_gemm example_grouped_gemm_multiple_d_splitk_xdl_fp16)
+        add_example_executable(example_grouped_gemm_multiple_d_splitk_xdl_single_kernel_fp16 grouped_gemm_multiple_d_splitk_xdl_single_kernel_fp16.cpp)
+        add_dependencies(example_grouped_gemm example_grouped_gemm_multiple_d_splitk_xdl_single_kernel_fp16)
         
         if(USE_BITINT_EXTENSION_INT4)
             add_example_executable(example_grouped_gemm_xdl_int4 grouped_gemm_xdl_int4.cpp)
