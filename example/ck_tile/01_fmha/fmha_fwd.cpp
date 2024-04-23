@@ -497,14 +497,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool pass = true;
 
     // unify tensor views to [b, h, s, d] layout
-    auto q_host_view = (i_perm ? q_host : q_host.transpose(1, 2));
-    auto k_host_view = (i_perm ? k_host : k_host.transpose(1, 2));
-    auto v_host_view = [&] {
+    auto q_host_view_bhsd = (i_perm ? q_host : q_host.transpose(1, 2));
+    auto k_host_view_bhsd = (i_perm ? k_host : k_host.transpose(1, 2));
+    auto v_host_view_bhsd = [&] {
         auto view = (i_perm ? v_host : v_host.transpose(1, 2));
         return is_v_rowmajor ? view.transpose(2, 3) : view;
     }();
-    auto bias_host_view = (i_perm ? bias_host : bias_host.transpose(1, 2));
-    auto o_host_view    = (o_perm ? o_host : o_host.transpose(1, 2));
+    auto o_host_view_bhsd = (o_perm ? o_host : o_host.transpose(1, 2));
+    // unify bias tensor view to [1, 1, s_q, s_k] layout
+    auto bias_host_view_bhsd = (i_perm ? bias_host : bias_host.transpose(1, 2));
 
     // verify result individually for each batch/group
     for(ck_tile::index_t wb = 0; wb < batch; ++wb)
@@ -522,35 +523,36 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // clang-format off
         using Slice = ck_tile::HostTensorSlice;
-        auto q_host_view_slice = q_host_view
+        // tensor layout will be in [h, s, d] layout in verification
+        auto q_host_view_hsd = q_host_view_bhsd
                 .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
                 .squeeze(0);
-        auto k_host_view_slice = k_host_view
+        auto k_host_view_hsd = k_host_view_bhsd
                 .index({Slice(0, b, b + 1), Slice(2, key_start, key_end)})
                 .squeeze(0)
                 .repeat({nr, 1, 1});
-        auto v_host_view_slice = v_host_view
+        auto v_host_view_hsd = v_host_view_bhsd
                 .index({Slice(0, b, b + 1), Slice(3, key_start, key_end)})
                 .squeeze(0)
                 .repeat({nr, 1, 1});
-        auto o_host_view_slice = o_host_view
+        auto o_host_view_hsd = o_host_view_bhsd
                 .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
                 .squeeze(0);
         // clang-format on
 
         // create local tensors to speed-up computation
-        ck_tile::HostTensor<QDataType> q_host_ref(q_host_view_slice.get_lengths());
-        ck_tile::HostTensor<KDataType> k_host_ref(k_host_view_slice.get_lengths());
-        ck_tile::HostTensor<VDataType> v_host_ref(v_host_view_slice.get_lengths());
-        ck_tile::HostTensor<ODataType> o_host_ref(o_host_view_slice.get_lengths());
+        ck_tile::HostTensor<QDataType> q_host_ref(q_host_view_hsd.get_lengths());
+        ck_tile::HostTensor<KDataType> k_host_ref(k_host_view_hsd.get_lengths());
+        ck_tile::HostTensor<VDataType> v_host_ref(v_host_view_hsd.get_lengths());
+        ck_tile::HostTensor<ODataType> o_host_ref(o_host_view_hsd.get_lengths());
         // create local tensors for holding intermediate result
         ck_tile::HostTensor<SMPLComputeDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<PDataType> p_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<SMPLComputeDataType> lse_host_ref({nhead, real_seqlen_q});
 
-        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_slice(i); });
-        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_slice(i); });
-        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_slice(i); });
+        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_hsd(i); });
+        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_hsd(i); });
+        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_hsd(i); });
 
         // reference
         ck_tile::reference_batched_gemm<SaccDataType>(q_host_ref,
@@ -563,14 +565,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(use_bias)
         {
             // clang-format off
-            auto bias_host_view_slice = bias_host_view
+            auto bias_host_view_hsd = bias_host_view_bhsd
                     .index({Slice(2, query_start, query_end), Slice(3, key_start, key_end)})
                     .squeeze(0);
             // clang-format on
 
             // create local tensor to speed-up computation
-            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_host_view_slice.get_lengths());
-            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_slice(i); });
+            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_host_view_hsd.get_lengths());
+            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_hsd(i); });
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
@@ -633,8 +635,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                       oacc_element_func);
 
         // create local tensor for value comparison (meet the requirement of check_err())
-        ck_tile::HostTensor<ODataType> o_host_result(o_host_view_slice.get_lengths());
-        o_host_result.ForEach([&](auto& self, auto i) { self(i) = o_host_view_slice(i); });
+        ck_tile::HostTensor<ODataType> o_host_result(o_host_view_hsd.get_lengths());
+        o_host_result.ForEach([&](auto& self, auto i) { self(i) = o_host_view_hsd(i); });
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
         bool cur_pass     = ck_tile::check_err(
