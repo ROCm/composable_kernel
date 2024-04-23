@@ -10,16 +10,16 @@
 namespace ck_tile {
 
 template <typename CompDataType,
-          typename ATensorView,
-          typename BTensorView,
+          typename ATensor,
+          typename BTensor,
           typename CompElementOp = ck_tile::identity>
 CK_TILE_HOST void
-reference_batched_softmax(const ATensorView& a_b_m_n,
-                          BTensorView& b_b_m_n,
-                          const CompElementOp& comp_element_op                = {},
-                          std::optional<HostTensorView<CompDataType>> lse_b_m = std::nullopt)
+reference_batched_softmax(const ATensor& a_b_m_n,
+                          BTensor& b_b_m_n,
+                          const CompElementOp& comp_element_op            = {},
+                          std::optional<HostTensor<CompDataType>> lse_b_m = std::nullopt)
 {
-    using BDataType = tensor_view_value_t<BTensorView>;
+    using BDataType = tensor_view_value_t<BTensor>;
 
     const int N = a_b_m_n.get_length(2);
 

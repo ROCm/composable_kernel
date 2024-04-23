@@ -10,20 +10,20 @@
 namespace ck_tile {
 
 template <typename AccDataType,
-          typename ATensorView,
-          typename BTensorView,
-          typename CTensorView,
+          typename ATensor,
+          typename BTensor,
+          typename CTensor,
           typename AElementOp      = ck_tile::identity,
           typename BElementOp      = ck_tile::identity,
           typename BinaryElementOp = ck_tile::plus<AccDataType>>
-CK_TILE_HOST void reference_batched_elementwise(const ATensorView& a_b_m_n,
-                                                const BTensorView& b_b_m_n,
-                                                CTensorView& c_b_m_n,
+CK_TILE_HOST void reference_batched_elementwise(const ATensor& a_b_m_n,
+                                                const BTensor& b_b_m_n,
+                                                CTensor& c_b_m_n,
                                                 const AElementOp& a_element_op           = {},
                                                 const BElementOp& b_element_op           = {},
                                                 const BinaryElementOp& binary_element_op = {})
 {
-    using CDataType = tensor_view_value_t<CTensorView>;
+    using CDataType = tensor_view_value_t<CTensor>;
 
     const ck_tile::index_t N = c_b_m_n.get_length(2);
 

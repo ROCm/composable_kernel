@@ -10,22 +10,22 @@
 namespace ck_tile {
 
 template <typename AccDataType,
-          typename ATensorView,
-          typename BTensorView,
-          typename CTensorView,
+          typename ATensor,
+          typename BTensor,
+          typename CTensor,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-CK_TILE_HOST void reference_batched_gemm(const ATensorView& a_b_m_k,
-                                         const BTensorView& b_b_n_k,
-                                         CTensorView& c_b_m_n,
+CK_TILE_HOST void reference_batched_gemm(const ATensor& a_b_m_k,
+                                         const BTensor& b_b_n_k,
+                                         CTensor& c_b_m_n,
                                          const AElementOp& a_element_op     = {},
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})
 {
-    using ADataType = tensor_view_value_t<ATensorView>;
-    using BDataType = tensor_view_value_t<BTensorView>;
-    using CDataType = tensor_view_value_t<CTensorView>;
+    using ADataType = tensor_view_value_t<ATensor>;
+    using BDataType = tensor_view_value_t<BTensor>;
+    using CDataType = tensor_view_value_t<CTensor>;
 
     const int N = b_b_n_k.get_length(1);
     const int K = b_b_n_k.get_length(2);
