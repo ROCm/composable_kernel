@@ -815,8 +815,7 @@ struct HostTensorView : private HostTensorDescriptor
 };
 
 template <typename T>
-using tensor_view_value_t =
-    remove_cvref_t<decltype(std::declval<remove_cvref_t<T>&>()(0, 0, 0, 0))>;
+using tensor_value_t = remove_cvref_t<decltype(std::declval<remove_cvref_t<T>&>()(0, 0, 0, 0))>;
 
 template <typename T>
 struct HostTensor : HostTensorView<T>

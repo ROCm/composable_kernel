@@ -23,7 +23,7 @@ CK_TILE_HOST void reference_batched_elementwise(const ATensor& a_b_m_n,
                                                 const BElementOp& b_element_op           = {},
                                                 const BinaryElementOp& binary_element_op = {})
 {
-    using CDataType = tensor_view_value_t<CTensor>;
+    using CDataType = tensor_value_t<CTensor>;
 
     const ck_tile::index_t N = c_b_m_n.get_length(2);
 

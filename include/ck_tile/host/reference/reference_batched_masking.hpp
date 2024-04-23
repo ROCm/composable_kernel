@@ -12,7 +12,7 @@ namespace ck_tile {
 template <typename CTensor, typename MaskingType>
 CK_TILE_HOST void reference_batched_masking(CTensor& c_b_m_n, const MaskingType& mask)
 {
-    using CDataType = tensor_view_value_t<CTensor>;
+    using CDataType = tensor_value_t<CTensor>;
 
     const int M = c_b_m_n.get_length(1);
     const int N = c_b_m_n.get_length(2);
