@@ -1,4 +1,6 @@
 # ONLY XDL_KERNELS
+# TODO: Remove this check (at now it is needed for multi target compilation)
+if(NOT DEFINED __gfx1030__)
 set(GEMM_UNIVERSAL_INSTANCES)
 
 list(APPEND GEMM_UNIVERSAL_INSTANCES 
@@ -68,3 +70,4 @@ list(APPEND GEMM_UNIVERSAL_INSTANCES
         )
 
 add_instance_library(device_gemm_universal_instance ${GEMM_UNIVERSAL_INSTANCES})
+endif()

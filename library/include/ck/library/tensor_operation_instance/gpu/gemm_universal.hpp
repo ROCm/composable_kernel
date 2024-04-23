@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,9 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
+// TODO: Remove this check (at now it is needed for multi target compilation)
+#ifndef __gfx1030__
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP16
 void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
@@ -315,6 +318,8 @@ void add_device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_mnkpadding_instanc
         DeviceGemmV2<Row, Col, Row, F8, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
+#endif
+#endif
 
 template <typename ADataType,
           typename BDataType,
@@ -347,6 +352,9 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
+// TODO: Remove this check (at now it is needed for multi target compilation)
+#ifndef __gfx1030__
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<CDataType, half_t>)
@@ -494,6 +502,8 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
             }
         }
+#endif
+#endif
 #endif
         return op_ptrs;
     }
