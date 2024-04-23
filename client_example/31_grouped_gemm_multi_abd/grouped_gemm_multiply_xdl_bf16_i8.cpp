@@ -139,7 +139,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         c_tensors_device.emplace_back(std::make_unique<SimpleDeviceMem>(
             sizeof(EDataType) * problem_size.Ms[i] * problem_size.Ns[i]));
 
-        gemm_descs.push_back({0,
+        gemm_descs.push_back({problem_size.Ms[i],
                               problem_size.Ns[i],
                               problem_size.Ks[i],
                               problem_size.stride_As[i],
@@ -265,9 +265,9 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
-        problem_size.Ms.push_back(32 + rand() % 256);
-        problem_size.Ns.push_back(512);
-        problem_size.Ks.push_back(1024);
+        problem_size.Ms.push_back(1 + rand() % 1024);
+        problem_size.Ns.push_back(4096);
+        problem_size.Ks.push_back(4096);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ns[i]);

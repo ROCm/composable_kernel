@@ -271,9 +271,9 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
-        problem_size.Ms.push_back(32 + rand() % 256);
-        problem_size.Ns.push_back(512);
-        problem_size.Ks.push_back(1024);
+        problem_size.Ms.push_back(1 + rand() % 1024);
+        problem_size.Ns.push_back(4096);
+        problem_size.Ks.push_back(4096);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ns[i]);
