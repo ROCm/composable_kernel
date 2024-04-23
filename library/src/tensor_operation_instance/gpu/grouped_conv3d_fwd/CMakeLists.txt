@@ -1,3 +1,4 @@
+# ONLY XDL_AND_WMMA_KERNELS
 set(GROUPED_CONV3D_FWD
    xdl/device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
@@ -33,6 +34,18 @@ endif()
 if(DTYPES MATCHES "fp8" OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp)
+endif()
+
+if(DTYPES MATCHES "bf8" OR NOT DEFINED DTYPES)
+    list(APPEND GROUPED_CONV3D_FWD
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instance.cpp)
+endif()
+
+if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
+    list(APPEND GROUPED_CONV3D_FWD
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp)
+    list(APPEND GROUPED_CONV3D_FWD
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_fp8_instance.cpp)
 endif()
 
 add_instance_library(device_grouped_conv3d_fwd_instance ${GROUPED_CONV3D_FWD})
