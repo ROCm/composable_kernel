@@ -227,7 +227,6 @@ bool profile_ggemm_multid_splitk(int do_verification,
 
         auto argument_ptr = gemm_ptr->MakeArgumentPointer(
             p_a, p_b, p_ds, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
-
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();
 
         DeviceMem gemm_arg_dev_mem(gptr->GetDeviceKernelArgSize(argument_ptr.get()));
@@ -263,7 +262,7 @@ bool profile_ggemm_multid_splitk(int do_verification,
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false, 1});
 
                 if(do_verification)
                 {
@@ -308,12 +307,10 @@ bool profile_ggemm_multid_splitk(int do_verification,
                               << std::endl;
 
                     pass = pass && instance_pass;
-                    // std::cout << ">>>>>CPU verification end!" << std::endl;
                 }
 
                 if(time_kernel)
                 {
-                    // std::cout << ">>>>>GPU time profiling start!" << std::endl;
                     float avg_time = invoker_ptr->Run(
                         argument_ptr.get(),
                         StreamConfig{nullptr, time_kernel, 0, warmup_iter, kernel_iter});
@@ -342,7 +339,6 @@ bool profile_ggemm_multid_splitk(int do_verification,
                         best_gb_per_sec = gb_per_sec;
                         best_kbatch     = kbatch_curr;
                     }
-                    // std::cout << ">>>>>GPU time profiling end!" << std::endl;
                 }
             }
             else
