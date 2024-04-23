@@ -16,7 +16,7 @@
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dq_dk_dv_pipeline_ks_vr_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 #include "ck/tile_program/block_tile/block_dropout.hpp"
@@ -25,8 +25,8 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-template <typename Problem, typename Policy = BlockFmhaBwdPipelineDefaultPolicy>
-struct BlockFmhaBwdPipelineV9
+template <typename Problem, typename Policy = BlockFmhaBwdDQDKDVPipelineKSVRDefaultPolicy>
+struct BlockFmhaBwdDQDKDVPipelineKSVR
 {
     using QDataType             = remove_cvref_t<typename Problem::QDataType>;
     using KDataType             = remove_cvref_t<typename Problem::KDataType>;
@@ -60,13 +60,13 @@ struct BlockFmhaBwdPipelineV9
     static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
-    static constexpr bool kQLoadOnce      = BlockFmhaShape::kQLoadOnce;
-    static constexpr bool kQTLoadOnce     = BlockFmhaShape::kQTLoadOnce;
-    static constexpr bool kKLoadOnce      = BlockFmhaShape::kKLoadOnce;
-    static constexpr bool kKTLoadOnce     = BlockFmhaShape::kKTLoadOnce;
-    static constexpr bool kVLoadOnce      = BlockFmhaShape::kVLoadOnce;
-    static constexpr bool kOGradLoadOnce  = BlockFmhaShape::kOGradLoadOnce;
-    static constexpr bool kOGradTLoadOnce = BlockFmhaShape::kOGradTLoadOnce;
+    static constexpr bool kQLoadOnce      = false;
+    static constexpr bool kQTLoadOnce     = false;
+    static constexpr bool kKLoadOnce      = true;
+    static constexpr bool kKTLoadOnce     = false;
+    static constexpr bool kVLoadOnce      = true;
+    static constexpr bool kOGradLoadOnce  = false;
+    static constexpr bool kOGradTLoadOnce = false;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -98,7 +98,7 @@ struct BlockFmhaBwdPipelineV9
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
 
-    static constexpr const char* name = "v9";
+    static constexpr const char* name = "ks_vr";
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
@@ -122,7 +122,7 @@ struct BlockFmhaBwdPipelineV9
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                const QTDramBlockWindowTmp& qt_dram_block_window_tmp,
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
-               const KTDramBlockWindowTmp& kt_dram_block_window_tmp,
+               const KTDramBlockWindowTmp& /*kt_dram_block_window_tmp*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
                const RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
@@ -146,7 +146,6 @@ struct BlockFmhaBwdPipelineV9
             is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
                 is_same_v<QDataType, remove_cvref_t<typename QTDramBlockWindowTmp::DataType>> &&
                 is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
-                is_same_v<KDataType, remove_cvref_t<typename KTDramBlockWindowTmp::DataType>> &&
                 is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>> &&
                 is_same_v<OGradDataType,
                           remove_cvref_t<typename OGradDramBlockWindowTmp::DataType>> &&
@@ -161,7 +160,6 @@ struct BlockFmhaBwdPipelineV9
         static_assert(kM0 == QDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kQKHeaddim == QTDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kN0 == KDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
-                          kQKHeaddim == KTDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kN0 == VDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kM0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.GetWindowLengths()[Number<1>{}] &&
@@ -176,8 +174,7 @@ struct BlockFmhaBwdPipelineV9
 
         // Q tile in LDS
         QDataType* q_lds_ptr = static_cast<QDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
-            Policy::template GetSmemSizeKT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
         auto q_lds           = make_tensor_view<AddressSpaceEnum::Lds>(
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
         auto q_lds_window =
@@ -185,8 +182,7 @@ struct BlockFmhaBwdPipelineV9
 
         // QT tile in LDS
         QDataType* qt_lds_ptr = static_cast<QDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
-            Policy::template GetSmemSizeKT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
         auto qt_lds           = make_tensor_view<AddressSpaceEnum::Lds>(
             qt_lds_ptr, Policy::template MakeQTLdsBlockDescriptor<Problem>());
         auto qt_lds_window =
@@ -200,17 +196,15 @@ struct BlockFmhaBwdPipelineV9
             make_tile_window(k_lds, make_tuple(Number<kN0>{}, Number<kQKHeaddim>{}), {0, 0});
 
         // KT tile in LDS
-        KDataType* kt_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
-        auto kt_lds           = make_tensor_view<AddressSpaceEnum::Lds>(
-            kt_lds_ptr, Policy::template MakeKTLdsBlockDescriptor<Problem>());
+        auto kt_lds = make_tensor_view<AddressSpaceEnum::Lds>(
+            reinterpret_cast<KDataType*>(smem_ptr),
+            Policy::template MakeKLdsBlockDescriptorAsKT<Problem>());
         auto kt_lds_window =
             make_tile_window(kt_lds, make_tuple(Number<kQKHeaddim>{}, Number<kN0>{}), {0, 0});
 
         // OGrad tile in LDS
         OGradDataType* do_lds_ptr = static_cast<OGradDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
-            Policy::template GetSmemSizeKT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
         auto do_lds               = make_tensor_view<AddressSpaceEnum::Lds>(
             do_lds_ptr, Policy::template MakeOGradLdsBlockDescriptor<Problem>());
         auto do_lds_window =
@@ -218,8 +212,7 @@ struct BlockFmhaBwdPipelineV9
 
         // OGradT tile in LDS
         OGradDataType* dot_lds_ptr = static_cast<OGradDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
-            Policy::template GetSmemSizeKT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
         auto dot_lds               = make_tensor_view<AddressSpaceEnum::Lds>(
             dot_lds_ptr, Policy::template MakeOGradTLdsBlockDescriptor<Problem>());
         auto dot_lds_window =
@@ -227,8 +220,7 @@ struct BlockFmhaBwdPipelineV9
 
         // SGrad tile in LDS
         GemmDataType* ds_lds_ptr = static_cast<GemmDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
-            Policy::template GetSmemSizeKT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
         auto ds_lds              = make_tensor_view<AddressSpaceEnum::Lds>(
             ds_lds_ptr, Policy::template MakeSGradLdsBlockDescriptor<Problem>());
         auto ds_lds_window =
@@ -236,8 +228,7 @@ struct BlockFmhaBwdPipelineV9
 
         // BiasT/BiasGradT tile in LDS, use the same size and layout
         BiasDataType* biast_lds_ptr = static_cast<BiasDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>() +
-            Policy::template GetSmemSizeKT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>()));
         auto biast_lds              = make_tensor_view<AddressSpaceEnum::Lds>(
             biast_lds_ptr, Policy::template MakeBiasTLdsBlockDescriptor<Problem>());
         auto biast_lds_shuffle_window =
@@ -305,23 +296,6 @@ struct BlockFmhaBwdPipelineV9
         auto k_block_tile = load_tile(k_dram_window);
 
         store_tile(k_lds_window, k_block_tile); // // persistent K in LDS
-
-        auto kt_dram_block_window = kt_dram_block_window_tmp;
-
-        auto kt_dram_window = make_tile_window(
-            kt_dram_block_window.GetBottomTensorView(),
-            kt_dram_block_window.GetWindowLengths(),
-            kt_dram_block_window.GetWindowOrigin(),
-            Policy::template MakeKTDramTileDistribution<Problem>()); // K^T DRAM tile window for
-                                                                     // load
-
-        auto kt_block_tile = load_tile(kt_dram_window);
-
-        auto kt_shuffle_tmp = make_static_distributed_tensor<KDataType>(
-            Policy::template MakeShuffledKTRegBlockDescriptor<Problem>());
-        shuffle_distributed_tensor(kt_shuffle_tmp, kt_block_tile);
-
-        store_tile(kt_lds_window, kt_shuffle_tmp); // persistent K^T in LDS
 
         auto q_dram_block_window = make_tile_window(q_dram_block_window_tmp.GetBottomTensorView(),
                                                     q_dram_block_window_tmp.GetWindowLengths(),

@@ -15,7 +15,7 @@
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dot_do_o_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 
@@ -23,7 +23,7 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-template <typename Problem, typename Policy = BlockFmhaBwdPipelineDefaultPolicy>
+template <typename Problem, typename Policy = BlockFmhaBwdOGradDotODefaultPolicy>
 struct BlockFmhaBwdOGradDotO
 {
     using ODataType     = remove_cvref_t<typename Problem::ODataType>;
