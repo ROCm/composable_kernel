@@ -550,9 +550,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::HostTensor<PDataType> p_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<SMPLComputeDataType> lse_host_ref({nhead, real_seqlen_q});
 
-        q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_view_hsd(i); });
-        k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host_view_hsd(i); });
-        v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host_view_hsd(i); });
+        q_host_ref.for_each([&](auto& self, auto i) { self(i) = q_host_view_hsd(i); });
+        k_host_ref.for_each([&](auto& self, auto i) { self(i) = k_host_view_hsd(i); });
+        v_host_ref.for_each([&](auto& self, auto i) { self(i) = v_host_view_hsd(i); });
 
         // reference
         ck_tile::reference_batched_gemm<SaccDataType>(q_host_ref,
@@ -572,7 +572,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             // create local tensor to speed-up computation
             ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_host_view_hsd.get_lengths());
-            bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host_view_hsd(i); });
+            bias_host_ref.for_each([&](auto& self, auto i) { self(i) = bias_host_view_hsd(i); });
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
@@ -636,7 +636,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // create local tensor for value comparison (meet the requirement of check_err())
         ck_tile::HostTensor<ODataType> o_host_result(o_host_view_hsd.get_lengths());
-        o_host_result.ForEach([&](auto& self, auto i) { self(i) = o_host_view_hsd(i); });
+        o_host_result.for_each([&](auto& self, auto i) { self(i) = o_host_view_hsd(i); });
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
         bool cur_pass     = ck_tile::check_err(
@@ -663,7 +663,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             // create local tensor for value comparison (meet the requirement of check_err())
             ck_tile::HostTensor<SMPLComputeDataType> lse_host_result(lse_host_slice.get_lengths());
-            lse_host_result.ForEach([&](auto& self, auto i) { self(i) = lse_host_slice(i); });
+            lse_host_result.for_each([&](auto& self, auto i) { self(i) = lse_host_slice(i); });
 
             bool lse_pass = ck_tile::check_err(lse_host_result,
                                                lse_host_ref,

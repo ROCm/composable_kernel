@@ -88,7 +88,7 @@ struct HostTensorDescriptor
 {
     HostTensorDescriptor() = default;
 
-    void CalculateStrides()
+    void calculate_strides()
     {
         mStrides.clear();
         mStrides.resize(mLens.size(), 0);
@@ -106,7 +106,7 @@ struct HostTensorDescriptor
     explicit HostTensorDescriptor(const std::initializer_list<X>& lens)
         : mLens(lens.begin(), lens.end())
     {
-        this->CalculateStrides();
+        this->calculate_strides();
     }
 
     template <typename X,
@@ -126,7 +126,7 @@ struct HostTensorDescriptor
                   std::is_convertible_v<ck_tile::ranges::range_value_t<Lengths>, std::size_t>>>
     explicit HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
     {
-        this->CalculateStrides();
+        this->calculate_strides();
     }
 
     template <typename Lengths,
@@ -179,13 +179,13 @@ struct HostTensorDescriptor
     template <typename... Is>
     std::enable_if_t<((std::is_integral_v<Is> && std::is_convertible_v<Is, std::size_t>)&&...),
                      std::size_t>
-    GetOffsetFromMultiIndex(Is... is) const
+    get_offset_from_multi_index(Is... is) const
     {
         assert(sizeof...(Is) == this->get_num_of_dimension());
-        return GetOffsetFromMultiIndex(std::array{static_cast<std::size_t>(is)...});
+        return get_offset_from_multi_index(std::array{static_cast<std::size_t>(is)...});
     }
 
-    std::size_t GetOffsetFromMultiIndex(span<const std::size_t> iss) const
+    std::size_t get_offset_from_multi_index(span<const std::size_t> iss) const
     {
         assert(iss.size() == this->get_num_of_dimension());
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
@@ -250,7 +250,7 @@ struct ParallelTensorFunctor
         mN1d = mStrides[0] * mLens[0];
     }
 
-    std::array<std::size_t, NDIM> GetNdIndices(std::size_t i) const
+    std::array<std::size_t, NDIM> get_nd_indices(std::size_t i) const
     {
         std::array<std::size_t, NDIM> indices;
 
@@ -277,7 +277,7 @@ struct ParallelTensorFunctor
             auto f = [this, iw_begin, iw_end] {
                 for(std::size_t iw = iw_begin; iw < iw_end; ++iw)
                 {
-                    call_f_unpack_args(this->mF, this->GetNdIndices(iw));
+                    call_f_unpack_args(this->mF, this->get_nd_indices(iw));
                 }
             };
             threads[it] = joinable_thread(f);
@@ -641,17 +641,17 @@ struct HostTensorView : private HostTensorDescriptor
     }
 
     template <typename F>
-    void ForEach(F&& f)
+    void for_each(F&& f)
     {
         std::vector<size_t> idx(get_num_of_dimension(), 0);
-        ForEach_impl(std::forward<F>(f), idx, size_t(0));
+        for_each_impl(std::forward<F>(f), idx, size_t(0));
     }
 
     template <typename F>
-    void ForEach(const F&& f) const
+    void for_each(const F&& f) const
     {
         std::vector<size_t> idx(get_num_of_dimension(), 0);
-        ForEach_impl(std::forward<const F>(f), idx, size_t(0));
+        for_each_impl(std::forward<const F>(f), idx, size_t(0));
     }
 
     template <typename G>
@@ -774,12 +774,12 @@ struct HostTensorView : private HostTensorDescriptor
             real_idx[dim] = (slicer ? (*slicer)(idx[dim]) : idx[dim]);
         }
 
-        return self.mData[self.GetOffsetFromMultiIndex(
+        return self.mData[self.get_offset_from_multi_index(
             span<const size_type>(std::data(real_idx), std::size(idx)))];
     }
 
     template <typename F>
-    void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
+    void for_each_impl(F&& f, std::vector<size_t>& idx, size_t rank)
     {
         if(rank == get_num_of_dimension())
         {
@@ -790,12 +790,12 @@ struct HostTensorView : private HostTensorDescriptor
         for(size_t i = 0; i < get_length(rank); i++)
         {
             idx[rank] = i;
-            ForEach_impl(std::forward<F>(f), idx, rank + 1);
+            for_each_impl(std::forward<F>(f), idx, rank + 1);
         }
     }
 
     template <typename F>
-    void ForEach_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
+    void for_each_impl(const F&& f, std::vector<size_t>& idx, size_t rank) const
     {
         if(rank == get_num_of_dimension())
         {
@@ -806,7 +806,7 @@ struct HostTensorView : private HostTensorDescriptor
         for(size_t i = 0; i < get_length(rank); i++)
         {
             idx[rank] = i;
-            ForEach_impl(std::forward<const F>(f), idx, rank + 1);
+            for_each_impl(std::forward<const F>(f), idx, rank + 1);
         }
     }
 
@@ -878,8 +878,9 @@ struct HostTensor : HostTensorView<T>
     {
         View::set_data(mData);
     }
-    zs template <typename FromT>
-    explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
+
+    template <typename FromT>
+    explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template copy_as<T>())
     {
     }
 
@@ -893,7 +894,7 @@ struct HostTensor : HostTensorView<T>
     HostTensor& operator=(HostTensor&&) = default;
 
     template <typename OutT>
-    HostTensor<OutT> CopyAsType() const
+    HostTensor<OutT> copy_as() const
     {
         HostTensor<OutT> ret(static_cast<const typename View::Descriptor&>(*this));
         std::transform(mData.cbegin(), mData.cend(), ret.mData.begin(), [](auto value) {
