@@ -35,6 +35,7 @@ using F32_Tuple     = ck::Tuple<F32>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
 using I8_Tuple      = ck::Tuple<I8>;
+using BF16_Tuple    = ck::Tuple<BF16>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
@@ -108,6 +109,7 @@ using ScaleAdd       = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu           = ck::tensor_operation::element_wise::Gelu;
 using Swish          = ck::tensor_operation::element_wise::Swish;
 using Add            = ck::tensor_operation::element_wise::Add;
+using Multiply       = ck::tensor_operation::element_wise::Multiply;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;

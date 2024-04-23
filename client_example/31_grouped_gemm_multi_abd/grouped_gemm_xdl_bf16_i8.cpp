@@ -49,11 +49,10 @@ using ELayout  = Row;
 
 using Scales      = ck::tensor_operation::element_wise::Scales;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AElementOp   = PassThrough;
 using BElementOp   = Scales;
-using CDEElementOp = FastGelu;
+using CDEElementOp = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -225,7 +224,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             op_ptr->SetElementwiseOps(
                 argument_ptr.get(), a_element_op, b_element_op, cde_element_op);
 
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+            float ave_time =
+                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true, 0, 20, 50});
 
             std::size_t flop = std::size_t(2) * sum_of_m * problem_size.Ns[0] * problem_size.Ks[0];
 
@@ -271,13 +271,16 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
-        problem_size.Ms.push_back(32 + rand() % 32);
-        problem_size.Ns.push_back(1024);
-        problem_size.Ks.push_back(512);
+        problem_size.Ms.push_back(32 + rand() % 256);
+        problem_size.Ns.push_back(512);
+        problem_size.Ks.push_back(1024);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ns[i]);
         problem_size.stride_Cs.push_back(problem_size.Ns[i]);
+
+        std::cout << " M = " << problem_size.Ms[i] << " N = " << problem_size.Ns[i] << " K "
+                  << problem_size.Ks[i] << std::endl;
     }
 
     return !run_grouped_gemm(problem_size, config);
