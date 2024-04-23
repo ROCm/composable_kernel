@@ -550,15 +550,20 @@ struct TransformConvFwdToGemm
 };
 
 // TODO: remove hack for getting layout type
-using layouts = std::variant<ck::tensor_layout::convolution::GNHWC,
+using layouts = std::variant<ck::tensor_layout::convolution::GNWK,
                              ck::tensor_layout::convolution::GNHWK,
-                             ck::tensor_layout::convolution::GKYXC>;
+                             ck::tensor_layout::convolution::NHWGK,
+                             ck::tensor_layout::convolution::GNDHWK,
+                             ck::tensor_layout::convolution::NDHWGK>;
 // wrapper class to call member functions on TransformConvToGemm struct at runtime
 struct TransformConv
 {
-    std::function<void()> grid_desc;
-    // void* data_type;
-    std::any data_type;
+    std::variant<ck::tensor_layout::convolution::GNWK,
+                 ck::tensor_layout::convolution::GNHWK,
+                 ck::tensor_layout::convolution::NHWGK,
+                 ck::tensor_layout::convolution::GNDHWK,
+                 ck::tensor_layout::convolution::NDHWGK>
+        layout;
     template <index_t NDimSpatial,
               device::ConvolutionForwardSpecialization ConvForwardSpecialization>
     TransformConv(layouts ELayout,
@@ -576,8 +581,24 @@ struct TransformConv
                    ck::Array<index_t, NDimSpatial + 3> out_strides,
                    TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
     {
-        return conv_fwd_to_gemm.template MakeCDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(
-            out_lengths, out_strides);
+        // decltype(ELayout)::foo = 1;
+        if(NDimSpatial == 2)
+        {
+            return conv_fwd_to_gemm
+                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(out_lengths,
+                                                                                     out_strides);
+        }
+        else if(NDimSpatial == 3)
+        {
+            return conv_fwd_to_gemm
+                .template MakeCDescriptor_M_N<tensor_layout::convolution::GNDHWK>(out_lengths,
+                                                                                  out_strides);
+        }
+        else if(NDimSpatial == 1)
+        {
+            return conv_fwd_to_gemm.template MakeCDescriptor_M_N<tensor_layout::convolution::GNWK>(
+                out_lengths, out_strides);
+        }
     }
 };
 

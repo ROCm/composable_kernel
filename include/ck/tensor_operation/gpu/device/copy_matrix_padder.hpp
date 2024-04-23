@@ -7,6 +7,9 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include <typeindex>
+#include <any>
+#include <utility>
 
 namespace ck {
 namespace tensor_operation {
@@ -183,6 +186,7 @@ struct CopyMatrixPadder : public CopyGemmPadder<GemmSpec, MPerTileType, NPerTile
 // wrapper class to call member functions on Matrix/GemmPadder struct at runtime
 struct Padder
 {
+    // std::pair<std::any, std::type_index> obj;
     template <GemmSpecialization GemmSpec,
               typename MPerTileType,
               typename NPerTileType,
@@ -191,7 +195,21 @@ struct Padder
     Padder(CopyMatrixPadder<GemmSpec, MPerTileType, NPerTileType, KPerTileType> matrix_padder,
            CDesc_MRaw_NRaw conv_desc)
     {
+
+        // obj = std::make_pair(std::any{}, std::type_index{});
     }
+    template <typename T>
+    T get_type(T object)
+    {
+        T value = std::any_cast<T>(object);
+        // decltype(value)::foo = 1;
+        return object;
+    }
+
+    /**template <typename T>
+    std::pair<std::any, T> get_pair(T res, std::any object) {
+            return std::make_pair(object, res);
+    }**/
 
     template <GemmSpecialization GemmSpec,
               typename MPerTileType,
@@ -202,8 +220,17 @@ struct Padder
     grid_desc(CopyMatrixPadder<GemmSpec, MPerTileType, NPerTileType, KPerTileType> matrix_padder,
               CDesc_MRaw_NRaw conv_desc)
     {
+        // std::pair<std::any, T> obj = std::make_pair(std::any{}, nullptr);
+        std::any object = matrix_padder.PadCDescriptor_M_N(conv_desc);
+        auto res        = matrix_padder.PadCDescriptor_M_N(conv_desc);
+        //                 return {object, type_index};
 
-        return matrix_padder.PadCDescriptor_M_N(conv_desc);
+        auto type = get_type(res);
+        // auto tmp = get_pair(res, object);
+        // obj.second = type;
+        // obj.first = object;
+
+        return res;
     }
 };
 
