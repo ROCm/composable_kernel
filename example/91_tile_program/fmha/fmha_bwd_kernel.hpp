@@ -24,7 +24,7 @@
 // dQ[seqlen_q, hdim_q] = dS'[seqlen_q, seqlen_k] @ K^T[hdim_q, seqlen_k] * Scale[1]
 
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
-struct FmhaBwdQKVGradKernel
+struct FmhaBwdDQDKDVKernel
 {
     using TilePartitioner                    = ck::remove_cvref_t<TilePartitioner_>;
     using FmhaPipeline                       = ck::remove_cvref_t<FmhaPipeline_>;

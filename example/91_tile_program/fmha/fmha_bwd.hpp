@@ -9,8 +9,11 @@
 #include "ck/host_utility/kernel_launch.hpp"
 
 #include "ck/tile_program/block_tile/block_masking.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_enum.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_problem.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_dispatcher.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dq_dk_dv_pipeline_ks_kts_vr.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dq_dk_dv_pipeline_ks_vr.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dq_dk_dv_pipeline_qs_ks_vr_dos.hpp"
 #include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dot_do_o.hpp"
 #include "ck/tile_program/tile/tile_fmha_shape.hpp"
 #include "ck/tile_program/tile/tile_fmha_traits.hpp"
@@ -138,117 +141,117 @@ struct fmha_bwd_args
     std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
 
-template <typename FmhaBwdQKVGradKernel>
+template <typename FmhaBwdDQDKDVKernel>
 auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
 {
     assert(args.nhead_q % args.nhead_k == 0);
     auto kargs = [&] {
         // create group mode kernel arguments
-        if constexpr(FmhaBwdQKVGradKernel::kIsGroupMode)
+        if constexpr(FmhaBwdDQDKDVKernel::kIsGroupMode)
         {
-            return FmhaBwdQKVGradKernel::MakeKargs(args.q_ptr,
-                                                   args.k_ptr,
-                                                   args.v_ptr,
-                                                   args.bias_ptr,
-                                                   args.lse_ptr,
-                                                   args.do_ptr,
-                                                   args.d_ptr,
-                                                   args.rand_val_ptr,
-                                                   args.dq_ptr,
-                                                   args.dk_ptr,
-                                                   args.dv_ptr,
-                                                   args.dbias_ptr,
-                                                   args.seqstart_q_ptr,
-                                                   args.seqstart_k_ptr,
-                                                   args.seqlen_k_ptr,
-                                                   args.hdim_q,
-                                                   args.hdim_v,
-                                                   args.nhead_q,
-                                                   args.nhead_q / args.nhead_k,
-                                                   args.scale,
-                                                   args.stride_q,
-                                                   args.stride_k,
-                                                   args.stride_v,
-                                                   args.stride_bias,
-                                                   args.stride_randval,
-                                                   args.stride_do,
-                                                   args.stride_dk,
-                                                   args.stride_dv,
-                                                   args.stride_dbias,
-                                                   args.nhead_stride_q,
-                                                   args.nhead_stride_k,
-                                                   args.nhead_stride_v,
-                                                   args.nhead_stride_bias,
-                                                   args.nhead_stride_randval,
-                                                   args.nhead_stride_do,
-                                                   args.nhead_stride_lsed,
-                                                   args.nhead_stride_dbias,
-                                                   args.batch_stride_lsed,
-                                                   args.window_size_left,
-                                                   args.window_size_right,
-                                                   args.mask_type,
-                                                   args.p_drop,
-                                                   args.s_randval,
-                                                   args.drop_seed_offset);
+            return FmhaBwdDQDKDVKernel::MakeKargs(args.q_ptr,
+                                                  args.k_ptr,
+                                                  args.v_ptr,
+                                                  args.bias_ptr,
+                                                  args.lse_ptr,
+                                                  args.do_ptr,
+                                                  args.d_ptr,
+                                                  args.rand_val_ptr,
+                                                  args.dq_ptr,
+                                                  args.dk_ptr,
+                                                  args.dv_ptr,
+                                                  args.dbias_ptr,
+                                                  args.seqstart_q_ptr,
+                                                  args.seqstart_k_ptr,
+                                                  args.seqlen_k_ptr,
+                                                  args.hdim_q,
+                                                  args.hdim_v,
+                                                  args.nhead_q,
+                                                  args.nhead_q / args.nhead_k,
+                                                  args.scale,
+                                                  args.stride_q,
+                                                  args.stride_k,
+                                                  args.stride_v,
+                                                  args.stride_bias,
+                                                  args.stride_randval,
+                                                  args.stride_do,
+                                                  args.stride_dk,
+                                                  args.stride_dv,
+                                                  args.stride_dbias,
+                                                  args.nhead_stride_q,
+                                                  args.nhead_stride_k,
+                                                  args.nhead_stride_v,
+                                                  args.nhead_stride_bias,
+                                                  args.nhead_stride_randval,
+                                                  args.nhead_stride_do,
+                                                  args.nhead_stride_lsed,
+                                                  args.nhead_stride_dbias,
+                                                  args.batch_stride_lsed,
+                                                  args.window_size_left,
+                                                  args.window_size_right,
+                                                  args.mask_type,
+                                                  args.p_drop,
+                                                  args.s_randval,
+                                                  args.drop_seed_offset);
         }
         else
         { // create batch mode kernel arguments
-            return FmhaBwdQKVGradKernel::MakeKargs(args.q_ptr,
-                                                   args.k_ptr,
-                                                   args.v_ptr,
-                                                   args.bias_ptr,
-                                                   args.lse_ptr,
-                                                   args.do_ptr,
-                                                   args.d_ptr,
-                                                   args.rand_val_ptr,
-                                                   args.dq_ptr,
-                                                   args.dk_ptr,
-                                                   args.dv_ptr,
-                                                   args.dbias_ptr,
-                                                   args.seqlen_q,
-                                                   args.seqlen_k,
-                                                   args.hdim_q,
-                                                   args.hdim_v,
-                                                   args.nhead_q,
-                                                   args.nhead_q / args.nhead_k,
-                                                   args.scale,
-                                                   args.stride_q,
-                                                   args.stride_k,
-                                                   args.stride_v,
-                                                   args.stride_bias,
-                                                   args.stride_randval,
-                                                   args.stride_do,
-                                                   args.stride_dk,
-                                                   args.stride_dv,
-                                                   args.stride_dbias,
-                                                   args.nhead_stride_q,
-                                                   args.nhead_stride_k,
-                                                   args.nhead_stride_v,
-                                                   args.nhead_stride_bias,
-                                                   args.nhead_stride_randval,
-                                                   args.nhead_stride_do,
-                                                   args.nhead_stride_lsed,
-                                                   args.nhead_stride_dbias,
-                                                   args.batch_stride_q,
-                                                   args.batch_stride_k,
-                                                   args.batch_stride_v,
-                                                   args.batch_stride_bias,
-                                                   args.batch_stride_randval,
-                                                   args.batch_stride_do,
-                                                   args.batch_stride_lsed,
-                                                   args.batch_stride_dk,
-                                                   args.batch_stride_dv,
-                                                   args.batch_stride_dbias,
-                                                   args.window_size_left,
-                                                   args.window_size_right,
-                                                   args.mask_type,
-                                                   args.p_drop,
-                                                   args.s_randval,
-                                                   args.drop_seed_offset);
+            return FmhaBwdDQDKDVKernel::MakeKargs(args.q_ptr,
+                                                  args.k_ptr,
+                                                  args.v_ptr,
+                                                  args.bias_ptr,
+                                                  args.lse_ptr,
+                                                  args.do_ptr,
+                                                  args.d_ptr,
+                                                  args.rand_val_ptr,
+                                                  args.dq_ptr,
+                                                  args.dk_ptr,
+                                                  args.dv_ptr,
+                                                  args.dbias_ptr,
+                                                  args.seqlen_q,
+                                                  args.seqlen_k,
+                                                  args.hdim_q,
+                                                  args.hdim_v,
+                                                  args.nhead_q,
+                                                  args.nhead_q / args.nhead_k,
+                                                  args.scale,
+                                                  args.stride_q,
+                                                  args.stride_k,
+                                                  args.stride_v,
+                                                  args.stride_bias,
+                                                  args.stride_randval,
+                                                  args.stride_do,
+                                                  args.stride_dk,
+                                                  args.stride_dv,
+                                                  args.stride_dbias,
+                                                  args.nhead_stride_q,
+                                                  args.nhead_stride_k,
+                                                  args.nhead_stride_v,
+                                                  args.nhead_stride_bias,
+                                                  args.nhead_stride_randval,
+                                                  args.nhead_stride_do,
+                                                  args.nhead_stride_lsed,
+                                                  args.nhead_stride_dbias,
+                                                  args.batch_stride_q,
+                                                  args.batch_stride_k,
+                                                  args.batch_stride_v,
+                                                  args.batch_stride_bias,
+                                                  args.batch_stride_randval,
+                                                  args.batch_stride_do,
+                                                  args.batch_stride_lsed,
+                                                  args.batch_stride_dk,
+                                                  args.batch_stride_dv,
+                                                  args.batch_stride_dbias,
+                                                  args.window_size_left,
+                                                  args.window_size_right,
+                                                  args.mask_type,
+                                                  args.p_drop,
+                                                  args.s_randval,
+                                                  args.drop_seed_offset);
         }
     }();
 
-    dim3 grids = FmhaBwdQKVGradKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_k);
+    dim3 grids = FmhaBwdDQDKDVKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_k);
     return ck::make_tuple(kargs, grids);
 }
 
@@ -299,6 +302,7 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
 template <ck::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
+          ck::BlockFmhaBwdPipelineEnum FmhaBwdPipelineEnum_,
           typename FmhaMask_,
           bool kHasBias_,
           bool kHasBiasGrad_,
@@ -309,17 +313,18 @@ template <ck::index_t HDim_,
           bool kPadDv_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
-    static constexpr ck::index_t HDim  = HDim_;
-    using DataType                     = ck::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode = kIsGroupMode_;
-    using FmhaMask                     = ck::remove_cvref_t<FmhaMask_>;
-    static constexpr bool kHasBias     = kHasBias_;
-    static constexpr bool kHasBiasGrad = kHasBiasGrad_;
-    static constexpr bool kHasDropout  = kHasDropout_;
-    static constexpr bool kPadS        = kPadS_;
-    static constexpr bool kPadSK       = kPadSK_;
-    static constexpr bool kPadD        = kPadD_;
-    static constexpr bool kPadDv       = kPadDv_;
+    static constexpr ck::index_t HDim         = HDim_;
+    using DataType                            = ck::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode        = kIsGroupMode_;
+    static constexpr auto FmhaBwdPipelineEnum = FmhaBwdPipelineEnum_;
+    using FmhaMask                            = ck::remove_cvref_t<FmhaMask_>;
+    static constexpr bool kHasBias            = kHasBias_;
+    static constexpr bool kHasBiasGrad        = kHasBiasGrad_;
+    static constexpr bool kHasDropout         = kHasDropout_;
+    static constexpr bool kPadS               = kPadS_;
+    static constexpr bool kPadSK              = kPadSK_;
+    static constexpr bool kPadD               = kPadD_;
+    static constexpr bool kPadDv              = kPadDv_;
 };
 
 template <typename Traits_>

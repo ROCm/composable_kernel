@@ -16,7 +16,7 @@
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/tile/slice_tile.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
+#include "ck/tile_program/block_tile_pipeline/block_fmha_bwd_dq_dk_dv_pipeline_qs_ks_vr_dos_default_policy.hpp"
 #include "ck/tile_program/block_tile/block_reduce.hpp"
 #include "ck/tile_program/tile/shuffle_distributed_tensor.hpp"
 #include "ck/tile_program/block_tile/block_dropout.hpp"
@@ -25,8 +25,8 @@ namespace ck {
 namespace tile_program {
 namespace block {
 
-template <typename Problem, typename Policy = BlockFmhaBwdPipelineDefaultPolicy>
-struct BlockFmhaBwdPipelineV10
+template <typename Problem, typename Policy = BlockFmhaBwdDQDKDVPipelineQSKSVROGradSDefaultPolicy>
+struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
 {
     using QDataType             = remove_cvref_t<typename Problem::QDataType>;
     using KDataType             = remove_cvref_t<typename Problem::KDataType>;
@@ -60,13 +60,13 @@ struct BlockFmhaBwdPipelineV10
     static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
-    static constexpr bool kQLoadOnce      = BlockFmhaShape::kQLoadOnce;
-    static constexpr bool kQTLoadOnce     = BlockFmhaShape::kQTLoadOnce;
-    static constexpr bool kKLoadOnce      = BlockFmhaShape::kKLoadOnce;
-    static constexpr bool kKTLoadOnce     = BlockFmhaShape::kKTLoadOnce;
-    static constexpr bool kVLoadOnce      = BlockFmhaShape::kVLoadOnce;
-    static constexpr bool kOGradLoadOnce  = BlockFmhaShape::kOGradLoadOnce;
-    static constexpr bool kOGradTLoadOnce = BlockFmhaShape::kOGradTLoadOnce;
+    static constexpr bool kQLoadOnce      = true;
+    static constexpr bool kQTLoadOnce     = false;
+    static constexpr bool kKLoadOnce      = true;
+    static constexpr bool kKTLoadOnce     = false;
+    static constexpr bool kVLoadOnce      = true;
+    static constexpr bool kOGradLoadOnce  = true;
+    static constexpr bool kOGradTLoadOnce = false;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -98,7 +98,7 @@ struct BlockFmhaBwdPipelineV10
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
 
-    static constexpr const char* name = "v10";
+    static constexpr const char* name = "qs_ks_vr_dos";
 
     __host__ __device__ static constexpr ck::index_t GetSmemSize()
     {
