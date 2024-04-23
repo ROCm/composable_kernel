@@ -114,10 +114,10 @@ struct FmhaFwdKernel
         ck_tile::index_t nhead_ratio_qk;
         float scale_s;
 
-        ck_tile::index_t stride_q;
-        ck_tile::index_t stride_k;
-        ck_tile::index_t stride_v;
-        ck_tile::index_t stride_o;
+        ck_tile::index_t row_stride_q;
+        ck_tile::index_t row_stride_k;
+        ck_tile::index_t row_stride_v;
+        ck_tile::index_t row_stride_o;
 
         ck_tile::index_t nhead_stride_q;
         ck_tile::index_t nhead_stride_k;
@@ -128,7 +128,7 @@ struct FmhaFwdKernel
     struct FmhaFwdCommonBiasKargs
     {
         const void* bias_ptr               = nullptr;
-        ck_tile::index_t stride_bias       = 0;
+        ck_tile::index_t row_stride_bias   = 0;
         ck_tile::index_t nhead_stride_bias = 0;
     };
 
@@ -204,11 +204,11 @@ struct FmhaFwdKernel
               float scale_s,
               float scale_p,
               float scale_o,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_o,
+              ck_tile::index_t row_stride_q,
+              ck_tile::index_t row_stride_k,
+              ck_tile::index_t row_stride_v,
+              ck_tile::index_t row_stride_bias,
+              ck_tile::index_t row_stride_o,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
@@ -239,10 +239,10 @@ struct FmhaFwdKernel
 #else
                      scale_s,
 #endif
-                     stride_q,
-                     stride_k,
-                     stride_v,
-                     stride_o,
+                     row_stride_q,
+                     row_stride_k,
+                     row_stride_v,
+                     row_stride_o,
                      nhead_stride_q,
                      nhead_stride_k,
                      nhead_stride_v,
@@ -259,7 +259,7 @@ struct FmhaFwdKernel
         if constexpr(kHasBias)
         {
             kargs.bias_ptr          = bias_ptr;
-            kargs.stride_bias       = stride_bias;
+            kargs.row_stride_bias   = row_stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
             kargs.batch_stride_bias = batch_stride_bias;
         }
@@ -301,11 +301,11 @@ struct FmhaFwdKernel
               float scale_s,
               float scale_p,
               float scale_o,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
-              ck_tile::index_t stride_o,
+              ck_tile::index_t row_stride_q,
+              ck_tile::index_t row_stride_k,
+              ck_tile::index_t row_stride_v,
+              ck_tile::index_t row_stride_bias,
+              ck_tile::index_t row_stride_o,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
@@ -330,10 +330,10 @@ struct FmhaFwdKernel
 #else
                      scale_s,
 #endif
-                     stride_q,
-                     stride_k,
-                     stride_v,
-                     stride_o,
+                     row_stride_q,
+                     row_stride_k,
+                     row_stride_v,
+                     row_stride_o,
                      nhead_stride_q,
                      nhead_stride_k,
                      nhead_stride_v,
@@ -349,7 +349,7 @@ struct FmhaFwdKernel
         if constexpr(kHasBias)
         {
             kargs.bias_ptr          = bias_ptr;
-            kargs.stride_bias       = stride_bias;
+            kargs.row_stride_bias   = row_stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
         }
         if constexpr(kHasMask)
@@ -412,11 +412,11 @@ struct FmhaFwdKernel
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
 
-            batch_offset_q = query_start * kargs.stride_q;
-            batch_offset_k = key_start * kargs.stride_k;
+            batch_offset_q = query_start * kargs.row_stride_q;
+            batch_offset_k = key_start * kargs.row_stride_k;
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                batch_offset_v = key_start * kargs.stride_v;
+                batch_offset_v = key_start * kargs.row_stride_v;
             }
             else
             {
@@ -424,7 +424,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasBias)
             {
-                batch_offset_bias = query_start * kargs.stride_bias + key_start;
+                batch_offset_bias = query_start * kargs.row_stride_bias + key_start;
             }
             else
             {
@@ -434,7 +434,7 @@ struct FmhaFwdKernel
             {
                 batch_offset_lse = query_start;
             }
-            batch_offset_o = query_start * kargs.stride_o;
+            batch_offset_o = query_start * kargs.row_stride_o;
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
@@ -494,7 +494,7 @@ struct FmhaFwdKernel
             const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                make_tuple(kargs.stride_q, 1),
+                make_tuple(kargs.row_stride_q, 1),
                 number<FmhaPipeline::kAlignmentQ>{},
                 number<1>{});
             if constexpr(FmhaPipeline::kQLoadOnce)
@@ -516,7 +516,7 @@ struct FmhaFwdKernel
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
                 make_tuple(kargs.seqlen_k, kargs.hdim_q),
-                make_tuple(kargs.stride_k, 1),
+                make_tuple(kargs.row_stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
@@ -531,7 +531,7 @@ struct FmhaFwdKernel
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
                     make_tuple(kargs.seqlen_k, kargs.hdim_v),
-                    make_tuple(kargs.stride_v, 1),
+                    make_tuple(kargs.row_stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
@@ -552,7 +552,7 @@ struct FmhaFwdKernel
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
                     make_tuple(kargs.hdim_v, kargs.seqlen_k),
-                    make_tuple(kargs.stride_v, 1),
+                    make_tuple(kargs.row_stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
@@ -597,7 +597,7 @@ struct FmhaFwdKernel
                     const auto bias_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                         bias_ptr,
                         make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                        make_tuple(kargs.stride_bias, 1),
+                        make_tuple(kargs.row_stride_bias, 1),
                         number<FmhaPipeline::kAlignmentBias>{},
                         number<1>{});
 
@@ -694,7 +694,7 @@ struct FmhaFwdKernel
             const auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.stride_o, 1),
+                make_tuple(kargs.row_stride_o, 1),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
 

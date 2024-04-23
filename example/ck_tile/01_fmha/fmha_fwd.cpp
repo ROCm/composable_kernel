@@ -407,11 +407,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
         // setup stride_* arguments
-        const ck_tile::index_t stride_q    = q_host.get_stride(1 + i_perm);
-        const ck_tile::index_t stride_k    = k_host.get_stride(1 + i_perm);
-        const ck_tile::index_t stride_v    = v_host.get_stride(1 + i_perm);
-        const ck_tile::index_t stride_bias = shape_seqlen_k;
-        const ck_tile::index_t stride_o    = o_host.get_stride(1 + o_perm);
+        const ck_tile::index_t row_stride_q    = q_host.get_stride(1 + i_perm);
+        const ck_tile::index_t row_stride_k    = k_host.get_stride(1 + i_perm);
+        const ck_tile::index_t row_stride_v    = v_host.get_stride(1 + i_perm);
+        const ck_tile::index_t row_stride_bias = shape_seqlen_k;
+        const ck_tile::index_t row_stride_o    = o_host.get_stride(1 + o_perm);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q    = q_host.get_stride(1 + !i_perm);
         const ck_tile::index_t nhead_stride_k    = k_host.get_stride(1 + !i_perm);
@@ -447,11 +447,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              scale_s,
                              scale_p,
                              scale_o,
-                             stride_q,
-                             stride_k,
-                             stride_v,
-                             stride_bias,
-                             stride_o,
+                             row_stride_q,
+                             row_stride_k,
+                             row_stride_v,
+                             row_stride_bias,
+                             row_stride_o,
                              nhead_stride_q,
                              nhead_stride_k,
                              nhead_stride_v,
