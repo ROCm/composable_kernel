@@ -815,7 +815,30 @@ struct HostTensorView : private HostTensorDescriptor
 };
 
 template <typename T>
-using tensor_value_t = remove_cvref_t<decltype(std::declval<remove_cvref_t<T>&>()(0, 0, 0, 0))>;
+using tensor_value_t =
+    remove_cvref_t<decltype(std::declval<remove_cvref_t<T>&>()(0, 0, 0, 0, 0, 0))>;
+
+template <typename T, typename = void>
+struct is_tensor : std::false_type
+{
+};
+
+template <typename T>
+struct is_tensor<T,
+                 std::void_t<decltype(std::declval<T&>().get_lengths()),
+                             decltype(std::declval<T&>()(0, 0, 0, 0, 0, 0)),
+                             decltype(std::declval<T&>()(std::declval<span<const std::size_t>>()))>>
+    : std::bool_constant<
+          std::is_convertible_v<decltype(*std::begin(std::declval<T&>().get_lengths())),
+                                std::size_t> &&
+          std::is_lvalue_reference_v<decltype(std::declval<T&>()(0, 0, 0, 0, 0, 0))> &&
+          std::is_same_v<decltype(std::declval<T&>()(0, 0, 0, 0, 0, 0)),
+                         decltype(std::declval<T&>()(std::declval<span<const std::size_t>>()))>>
+{
+};
+
+template <typename T>
+inline constexpr bool is_tensor_v = is_tensor<T>::value;
 
 template <typename T>
 struct HostTensor : HostTensorView<T>
@@ -855,8 +878,7 @@ struct HostTensor : HostTensorView<T>
     {
         View::set_data(mData);
     }
-
-    template <typename FromT>
+    zs template <typename FromT>
     explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
     {
     }
@@ -883,4 +905,5 @@ struct HostTensor : HostTensorView<T>
     private:
     Data mData;
 };
+
 } // namespace ck_tile
