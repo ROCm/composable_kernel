@@ -30,7 +30,6 @@ struct BlockFmhaPipelineQSKSVS
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = false;
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static constexpr bool kIsFp8 = Problem::kIsFp8;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 

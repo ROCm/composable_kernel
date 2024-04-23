@@ -102,4 +102,11 @@ using WarpGemmMfma_f32_32x32x16_bf8_fp8_CTransposed = WarpGemmImpl<
 using WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed = WarpGemmImpl<
     WarpGemmAtrributeMfmaTransposedCDistribution<WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8>>;
 
+template <index_t swizzle_factor = 2>
+using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
+    WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
+        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t>,
+        2,
+        swizzle_factor>>;
+
 } // namespace ck_tile

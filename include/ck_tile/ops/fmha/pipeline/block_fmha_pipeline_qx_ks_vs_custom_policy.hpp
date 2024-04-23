@@ -97,16 +97,15 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             {
                 return WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
-            else if constexpr(Problem::kIsFp8)
+            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
-                return WarpGemmImpl<
-                    WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::QDataType,
-                                                                       typename Problem::KDataType>,
-                        2,
-                        swizzle_factor>>{};
-            }
+                // TODO: hard coded here. Otherwise, it may incorrect result
+                constexpr index_t swizzle_factor = 4;
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                    swizzle_factor>{};
+            } // TODO - bf8_t
         }();
 
         using BlockGemmPolicy =
@@ -221,16 +220,15 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
             {
                 return WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
             }
-            else if constexpr(Problem::kIsFp8)
+            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                constexpr index_t swizzle_factor = 4; // TODO: hard coded here
-                return WarpGemmImpl<
-                    WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-                        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::QDataType,
-                                                                       typename Problem::KDataType>,
-                        2,
-                        swizzle_factor>>{};
-            }
+                // TODO: hard coded here. Otherwise, it may incorrect result
+                constexpr index_t swizzle_factor = 4;
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                    swizzle_factor>{};
+            } // TODO - bf8_t
         }();
 
         using BlockGemmPolicy =
@@ -920,12 +918,11 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                    Problem::BlockFmhaShape::kK1>>;
 
         auto warp_gemm = [&]() {
-            if constexpr(Problem::kIsFp8)
+            if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::VDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::OaccDataType, float>)
             {
-                return WarpGemmImpl<WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution<
-                    WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename Problem::PDataType,
-                                                                   typename Problem::VDataType>,
-                    2>>{};
+                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
                 // return
                 // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
                 //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
