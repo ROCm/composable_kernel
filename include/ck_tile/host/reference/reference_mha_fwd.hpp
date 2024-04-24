@@ -45,8 +45,9 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
 {
     assert(!(seqstart_q.has_value() ^ seqstart_k.has_value()));
 
-    const bool is_batch_mode     = !seqstart_q.has_value();
-    const ck_tile::index_t batch = (is_batch_mode ? query_bhsd.get_length(0) : 1);
+    const bool is_batch_mode = !seqstart_q.has_value();
+    const ck_tile::index_t batch =
+        (is_batch_mode ? query_bhsd.get_length(0) : seqstart_q->size() - 1);
     const ck_tile::index_t nhead = query_bhsd.get_length(1);
 
     using QueryDataType = tensor_value_t<QueryTensor>;
