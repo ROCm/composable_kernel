@@ -15,38 +15,38 @@
 
 namespace ck_tile {
 
-template <typename BiasDataType,
-          typename LSEDataType,
-          typename SaccDataType,
+template <typename SaccDataType,
           typename SMPLComputeDataType,
           typename PDataType,
           typename OaccDataType,
-          typename QTensor,
-          typename KTensor,
-          typename VTensor,
-          typename OTensor,
+          typename QueryTensor,
+          typename KeyTensor,
+          typename ValueTensor,
+          typename BiasTensor,
+          typename OutputTensor,
+          typename LSETensor,
           typename MaskingType,
           typename PComputeElementFunction = ck_tile::identity,
           typename OAccElementFunction     = ck_tile::identity>
-CK_TILE_HOST void
-reference_batched_fmha(const QTensor& query_bhsd,
-                       const KTensor& key_bhsd,
-                       const VTensor& value_bhsd,
-                       OTensor& output_bhsd,
-                       index_t nhead_k,
-                       float scale_s,
-                       const MaskingType& mask,
-                       PComputeElementFunction p_compute_element_func,
-                       OAccElementFunction oacc_element_func,
-                       std::optional<HostTensorView<const BiasDataType>> bias = std::nullopt,
-                       std::optional<HostTensorView<LSEDataType>> lse         = std::nullopt)
+CK_TILE_HOST void reference_batched_fmha(const QueryTensor& query_bhsd,
+                                         const KeyTensor& key_bhsd,
+                                         const ValueTensor& value_bhsd,
+                                         std::optional<BiasTensor> bias_bhss,
+                                         OutputTensor& output_bhsd,
+                                         std::optional<LSETensor> lse_bhs,
+                                         index_t nhead_k,
+                                         float scale_s,
+                                         const MaskingType& mask,
+                                         PComputeElementFunction p_compute_element_func = {},
+                                         OAccElementFunction oacc_element_func          = {})
 {
     index_t batch = query_bhsd.get_length(0);
     index_t nhead = query_bhsd.get_length(1);
 
-    using QDataType = tensor_value_t<QTensor>;
-    using KDataType = tensor_value_t<KTensor>;
-    using VDataType = tensor_value_t<VTensor>;
+    using QueryDataType = tensor_value_t<QueryTensor>;
+    using KeyDataType   = tensor_value_t<KeyTensor>;
+    using ValueDataType = tensor_value_t<ValueTensor>;
+    using BiasDataType  = tensor_value_t<BiasTensor>;
 
     // verify result individually for each batch/group
     for(ck_tile::index_t b = 0; b < batch; ++b)
@@ -81,9 +81,9 @@ reference_batched_fmha(const QTensor& query_bhsd,
         // clang-format on
 
         // create local tensors to speed-up computation
-        ck_tile::HostTensor<QDataType> q_host_ref(query_view_hsd.get_lengths());
-        ck_tile::HostTensor<KDataType> k_host_ref(key_view_hsd.get_lengths());
-        ck_tile::HostTensor<VDataType> v_host_ref(value_view_hsd.get_lengths());
+        ck_tile::HostTensor<QueryDataType> q_host_ref(query_view_hsd.get_lengths());
+        ck_tile::HostTensor<KeyDataType> k_host_ref(key_view_hsd.get_lengths());
+        ck_tile::HostTensor<ValueDataType> v_host_ref(value_view_hsd.get_lengths());
         // create local tensors for holding intermediate result
         ck_tile::HostTensor<SMPLComputeDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k});
         ck_tile::HostTensor<PDataType> p_host_ref({nhead, real_seqlen_q, real_seqlen_k});
@@ -101,17 +101,17 @@ reference_batched_fmha(const QTensor& query_bhsd,
                                                       ck_tile::identity{},
                                                       ck_tile::scales(scale_s));
 
-        if(bias.has_value())
+        if(bias_bhss.has_value())
         {
             // clang-format off
-            auto bias_host_view_hsd = (*bias)
+            auto bias_view_hss = (*bias_bhss)
                     .index({Slice(2, query_start, query_end), Slice(3, key_start, key_end)})
                     .squeeze(0);
             // clang-format on
 
             // create local tensor to speed-up computation
-            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_host_view_hsd.get_lengths());
-            bias_host_ref.for_each([&](auto& self, auto i) { self(i) = bias_host_view_hsd(i); });
+            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_view_hss.get_lengths());
+            bias_host_ref.for_each([&](auto& self, auto i) { self(i) = bias_view_hss(i); });
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
@@ -155,16 +155,16 @@ reference_batched_fmha(const QTensor& query_bhsd,
                         mask.type == mask_enum::mask_top_left));
         }
 
-        if(lse.has_value())
+        if(lse_bhs.has_value())
         {
             // clang-format off
-            auto les_host_view_hsd = (*lse)
+            auto lse_view_hs = (*lse_bhs)
                     .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
                     .squeeze(0);
             // clang-format on
 
             ck_tile::reference_batched_softmax<SMPLComputeDataType>(
-                s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
+                s_host_ref, p_host_ref, p_compute_element_func, lse_view_hs);
         }
         else
         {

@@ -502,7 +502,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return is_v_rowmajor ? view.transpose(2, 3) : view;
     }();
     // unify bias tensor view to [1, 1, s_q, s_k] layout
-    auto bias_host_view_bhsd = (i_perm ? bias_host : bias_host.transpose(1, 2));
+    auto bias_host_view_bhss = (i_perm ? bias_host : bias_host.transpose(1, 2));
 
     ck_tile::HostTensor<ODataType> o_host_ref(
         get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
@@ -513,23 +513,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto o_host_view_bhsd     = (o_perm ? o_host : o_host.transpose(1, 2));
     auto o_host_ref_view_bhsd = (o_perm ? o_host_ref : o_host_ref.transpose(1, 2));
 
-    ck_tile::reference_batched_fmha<BiasDataType,
-                                    LSEDataType,
-                                    SaccDataType,
-                                    SMPLComputeDataType,
-                                    PDataType,
-                                    OaccDataType>(
+    ck_tile::reference_batched_fmha<SaccDataType, SMPLComputeDataType, PDataType, OaccDataType>(
         q_host_view_bhsd,
         k_host_view_bhsd,
         v_host_view_bhsd,
+        (use_bias ? std::make_optional(bias_host_view_bhss) : std::nullopt),
         o_host_ref_view_bhsd,
+        (lse ? std::make_optional(lse_host_ref) : std::nullopt),
         nhead_k,
         scale_s,
         mask,
         p_compute_element_func,
-        oacc_element_func,
-        (use_bias ? std::make_optional(bias_host_view_bhsd) : std::nullopt),
-        (lse ? std::make_optional(lse_host_ref) : std::nullopt));
+        oacc_element_func);
 
     auto [rtol, atol] = get_elimit<DataType>(init_method);
     bool pass         = true;
