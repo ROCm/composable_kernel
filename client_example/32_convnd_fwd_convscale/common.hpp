@@ -144,9 +144,9 @@ bool run_grouped_conv_fwd_convscale(
     out_strides.fill(0);
     in_strides.back()  = 1;
     wei_strides.back() = 1;
-    d0_strides.back()  = 1;
-    d1_strides.back()  = 1;
-    d2_strides.back()  = 1;
+    d0_strides.back()  = 0;
+    d1_strides.back()  = 0;
+    d2_strides.back()  = 0;
     out_strides.back() = 1;
 
     std::partial_sum(rbegin(in_lengths),
@@ -244,10 +244,10 @@ bool run_grouped_conv_fwd_convscale(
     input_left_pads.fill(1);
     input_right_pads.fill(1);
 
-    std::size_t ds_size = 3; // 3 element-wise scale multipliers
-    std::size_t flop    = GetFlops<NumDimSpatial>(out_lengths, wei_lengths, ds_size);
-    std::size_t num_bytes =
-        in_mem_size + wei_mem_size + d0_mem_size + d1_mem_size + d2_mem_size + out_mem_size;
+    std::size_t ds_size   = 3; // 3 element-wise scale multipliers
+    std::size_t flop      = GetFlops<NumDimSpatial>(out_lengths, wei_lengths, ds_size);
+    std::size_t num_bytes = in_mem_size + wei_mem_size + sizeof(D0DataType) + sizeof(D1DataType) +
+                            sizeof(D2DataType) + out_mem_size;
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
         NumDimSpatial,
