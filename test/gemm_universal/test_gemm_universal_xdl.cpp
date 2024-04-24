@@ -46,7 +46,7 @@ using KernelTypes = ::testing::Types<
     std::tuple<      F16,       F16,       F16>,
     std::tuple<      F16,        F8,       F16>,
     std::tuple<      F8,        F16,       F16>,
-    std::tuple<     BF16,      BF16,      BF16>,
+    std::tuple<     BF16,      BF16,      BF16>
     >;
 // clang-format on
 
