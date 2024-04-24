@@ -16,8 +16,8 @@ template <typename CompDataType,
 CK_TILE_HOST void
 reference_batched_softmax(const ATensor& a_b_m_n,
                           BTensor& b_b_m_n,
-                          const CompElementOp& comp_element_op            = {},
-                          std::optional<HostTensor<CompDataType>> lse_b_m = std::nullopt)
+                          const CompElementOp& comp_element_op                = {},
+                          std::optional<HostTensorView<CompDataType>> lse_b_m = std::nullopt)
 {
     using BDataType = tensor_value_t<BTensor>;
 
