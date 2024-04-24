@@ -209,7 +209,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::string vlayout = arg_parser.get_str("vlayout");
     bool use_bias       = arg_parser.get_bool("bias");
-    bool lse            = arg_parser.get_bool("lse");
+    bool store_lse      = arg_parser.get_bool("lse");
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
@@ -303,7 +303,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
-        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
+        store_lse
+            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<ODataType> o_host(
@@ -373,7 +374,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s
-              << ", bias:" << use_bias << ", lse:" << lse << ", squant:" << squant
+              << ", bias:" << use_bias << ", lse:" << store_lse << ", squant:" << squant
               << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
@@ -383,7 +384,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        is_v_rowmajor,
                                        mask.type,
                                        use_bias,
-                                       lse,
+                                       store_lse,
                                        squant};
 
     auto p_compute_element_func = [&]() {
@@ -515,7 +516,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         v_host_view_bhsd,
         (use_bias ? std::make_optional(bias_host_view_bhss) : std::nullopt),
         o_host_ref_view_bhsd,
-        (lse ? std::make_optional(lse_host_ref) : std::nullopt),
+        (store_lse ? std::make_optional(lse_host_ref) : std::nullopt),
         nhead_k,
         scale_s,
         mask,
@@ -537,7 +538,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         pass &= cur_pass;
     }
 
-    if(pass && lse)
+    if(pass && store_lse)
     {
         bool cur_pass = ck_tile::check_err(lse_host,
                                            lse_host_ref,
