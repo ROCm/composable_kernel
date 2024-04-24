@@ -37,9 +37,9 @@ using B0DataType       = I8;
 using B1DataType       = BF16;
 using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
 using AccDataType      = F32;
-using CShuffleDataType = BF16;
+using CShuffleDataType = F32;
 using D0DataType       = BF16;
-using DsDataType       = ck::Tuple<D0DataType>;
+using DsDataType       = ck::Tuple<>;
 using EDataType        = BF16;
 
 using A0Layout = Row;
@@ -48,16 +48,16 @@ using B0Layout = Row;
 using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<>;
 using ELayout  = Row;
 
 using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AElementOp   = PassThrough;
 using BElementOp   = Multiply;
-using CDEElementOp = AddFastGelu;
+using CDEElementOp = FastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -181,7 +181,7 @@ int main(int argc, char* argv[])
 
     constexpr ck::index_t NumATensor = 1;
     constexpr ck::index_t NumBTensor = 2;
-    constexpr ck::index_t NumDTensor = 1;
+    constexpr ck::index_t NumDTensor = 0;
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
@@ -190,14 +190,14 @@ int main(int argc, char* argv[])
         device_op.MakeArgument(std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
                                std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
                                                                    b1_device_buf.GetDeviceBuffer()},
-                               std::array<const void*, NumDTensor>{d_device_buf.GetDeviceBuffer()},
+                               std::array<const void*, NumDTensor>{},
                                e_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
                                std::array<ck::index_t, NumATensor>{StrideA},
                                std::array<ck::index_t, NumBTensor>{StrideB, 0},
-                               std::array<ck::index_t, NumDTensor>{StrideD},
+                               std::array<ck::index_t, NumDTensor>{},
                                StrideE,
                                a_element_op,
                                b_element_op,
@@ -260,7 +260,7 @@ int main(int argc, char* argv[])
         {
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d_m_n(m, n));
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n));
             }
         }
 

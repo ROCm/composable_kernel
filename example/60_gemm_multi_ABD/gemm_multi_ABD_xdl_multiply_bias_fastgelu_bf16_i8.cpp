@@ -35,29 +35,28 @@ using A0DataType       = BF16;
 using AsDataType       = ck::Tuple<A0DataType>;
 using B0DataType       = I8;
 using B1DataType       = BF16;
-using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
+using BsDataType       = ck::Tuple<B0DataType>;
 using AccDataType      = F32;
-using CShuffleDataType = BF16;
+using CShuffleDataType = F32;
 using D0DataType       = BF16;
-using DsDataType       = ck::Tuple<D0DataType>;
+using DsDataType       = ck::Tuple<B1DataType, D0DataType>;
 using EDataType        = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
 using B0Layout = Row;
 using B1Layout = B0Layout;
-using BsLayout = ck::Tuple<B0Layout, B1Layout>;
+using BsLayout = ck::Tuple<B0Layout>;
 using D0Layout = Row;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<B1Layout, D0Layout>;
 using ELayout  = Row;
 
-using Multiply    = ck::tensor_operation::element_wise::Multiply;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using PassThrough         = ck::tensor_operation::element_wise::PassThrough;
+using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
 
 using AElementOp   = PassThrough;
-using BElementOp   = Multiply;
-using CDEElementOp = AddFastGelu;
+using BElementOp   = PassThrough;
+using CDEElementOp = MultiplyAddFastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
@@ -180,24 +179,24 @@ int main(int argc, char* argv[])
     auto cde_element_op = CDEElementOp{};
 
     constexpr ck::index_t NumATensor = 1;
-    constexpr ck::index_t NumBTensor = 2;
-    constexpr ck::index_t NumDTensor = 1;
+    constexpr ck::index_t NumBTensor = 1;
+    constexpr ck::index_t NumDTensor = 2;
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
     auto argument =
         device_op.MakeArgument(std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
-                               std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
-                                                                   b1_device_buf.GetDeviceBuffer()},
-                               std::array<const void*, NumDTensor>{d_device_buf.GetDeviceBuffer()},
+                               std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer()},
+                               std::array<const void*, NumDTensor>{b1_device_buf.GetDeviceBuffer(),
+                                                                   d_device_buf.GetDeviceBuffer()},
                                e_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
                                std::array<ck::index_t, NumATensor>{StrideA},
-                               std::array<ck::index_t, NumBTensor>{StrideB, 0},
-                               std::array<ck::index_t, NumDTensor>{StrideD},
+                               std::array<ck::index_t, NumBTensor>{StrideB},
+                               std::array<ck::index_t, NumDTensor>{0, StrideD},
                                StrideE,
                                a_element_op,
                                b_element_op,
@@ -233,6 +232,7 @@ int main(int argc, char* argv[])
 
         Tensor<B1DataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
 
+#if 0
         for(int n = 0; n < N; ++n)
         {
             for(int k = 0; k < K; ++k)
@@ -240,9 +240,10 @@ int main(int argc, char* argv[])
                 b_element_op(b_k_n(k, n), b0_k_n(k, n), b1_k_n(k, n));
             }
         }
+#endif
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
-                                                                                B1DataType,
+                                                                                B0DataType,
                                                                                 CShuffleDataType,
                                                                                 AccDataType,
                                                                                 PassThrough,
@@ -252,7 +253,7 @@ int main(int argc, char* argv[])
         auto ref_invoker            = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a0_m_k, b_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
+            a0_m_k, b0_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
@@ -260,7 +261,7 @@ int main(int argc, char* argv[])
         {
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d_m_n(m, n));
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), b1_k_n(0, n), d_m_n(m, n));
             }
         }
 

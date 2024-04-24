@@ -27,7 +27,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
                                                       ck::Tuple<D0DataType>,
                                                       EDataType,
                                                       AElementOp,
-                                                      BElementOp,
+                                                      Multiply,
                                                       AddFastGelu>>>& instances)
 {
     add_device_operation_instances(instances,
@@ -36,6 +36,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
                                        ck::Tuple<D0Layout>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<D0DataType>,
+                                       Multiply,
                                        AddFastGelu,
                                        GemmMNKPadding,
                                        Interwave>{});
@@ -45,6 +46,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
                                        ck::Tuple<D0Layout>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<D0DataType>,
+                                       Multiply,
                                        AddFastGelu,
                                        GemmMNKPadding,
                                        Interwave>{});
@@ -60,7 +62,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
                                                       ck::Tuple<D0DataType>,
                                                       EDataType,
                                                       AElementOp,
-                                                      BElementOp,
+                                                      Multiply,
                                                       Add>>>& instances)
 {
     add_device_operation_instances(instances,
@@ -69,6 +71,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
                                        ck::Tuple<D0Layout>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<D0DataType>,
+                                       Multiply,
                                        Add,
                                        GemmMNKPadding,
                                        Interwave>{});
@@ -78,6 +81,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
                                        ck::Tuple<D0Layout>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<D0DataType>,
+                                       Multiply,
                                        Add,
                                        GemmMNKPadding,
                                        Interwave>{});
@@ -93,7 +97,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
                                                       ck::Tuple<>,
                                                       EDataType,
                                                       AElementOp,
-                                                      BElementOp,
+                                                      Multiply,
                                                       PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
@@ -102,6 +106,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
                                        ck::Tuple<>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<>,
+                                       Multiply,
                                        PassThrough,
                                        GemmMNKPadding,
                                        Interwave>{});
@@ -111,6 +116,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
                                        ck::Tuple<>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<>,
+                                       Multiply,
                                        PassThrough,
                                        GemmMNKPadding,
                                        Interwave>{});
@@ -126,7 +132,7 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
                                                       ck::Tuple<>,
                                                       EDataType,
                                                       AElementOp,
-                                                      BElementOp,
+                                                      Multiply,
                                                       FastGelu>>>& instances)
 {
     add_device_operation_instances(instances,
@@ -135,15 +141,18 @@ void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
                                        ck::Tuple<>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<>,
+                                       Multiply,
                                        FastGelu,
                                        GemmMNKPadding,
                                        Interwave>{});
+
     add_device_operation_instances(instances,
                                    device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<
                                        ck::Tuple<B0Layout, B1Layout>,
                                        ck::Tuple<>,
                                        ck::Tuple<B0DataType, B1DataType>,
                                        ck::Tuple<>,
+                                       Multiply,
                                        FastGelu,
                                        GemmMNKPadding,
                                        Interwave>{});

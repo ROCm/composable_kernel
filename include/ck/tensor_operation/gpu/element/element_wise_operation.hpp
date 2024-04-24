@@ -221,6 +221,15 @@ struct MultiplyAdd
         e              = y;
     }
     template <>
+    __host__ __device__ void operator()<bhalf_t, float, bhalf_t, bhalf_t>(bhalf_t& e,
+                                                                          const float& c,
+                                                                          const bhalf_t& d0,
+                                                                          const bhalf_t& d1) const
+    {
+        const bhalf_t y = type_convert<bhalf_t>(c) * d0 + d1;
+        e               = y;
+    }
+    template <>
     __host__ __device__ void operator()<float, float, half_t, half_t>(float& e,
                                                                       const float& c,
                                                                       const half_t& d0,

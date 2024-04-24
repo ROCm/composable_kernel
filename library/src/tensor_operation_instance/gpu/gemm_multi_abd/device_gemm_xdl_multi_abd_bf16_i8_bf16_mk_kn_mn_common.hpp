@@ -33,7 +33,7 @@ using B0DataType = I8;
 using B1DataType = BF16;
 // using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
 using AccDataType      = F32;
-using CShuffleDataType = BF16;
+using CShuffleDataType = F32;
 using D0DataType       = BF16;
 // using DsDataType       = ck::Tuple<D0DataType>;
 using EDataType = BF16;
@@ -49,13 +49,16 @@ using ELayout = Row;
 
 using Multiply            = ck::tensor_operation::element_wise::Multiply;
 using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
-using PassThrough         = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
-using FastGelu            = ck::tensor_operation::element_wise::FastGelu;
-using Add                 = ck::tensor_operation::element_wise::Add;
+using MultiplyFastGelu    = ck::tensor_operation::element_wise::MultiplyFastGelu;
+using MultiplyAdd         = ck::tensor_operation::element_wise::MultiplyAdd;
+
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 using AElementOp = PassThrough;
-using BElementOp = Multiply;
+// using BElementOp = Multiply;
 // using CDEElementOp = AddFastGelu;
 
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
@@ -70,6 +73,7 @@ template <typename BsLayout,
           typename DsLayout,
           typename BsDataType,
           typename DsDataType,
+          typename BElementOp,
           typename CDEElementOp,
           ck::tensor_operation::device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched>
@@ -94,6 +98,7 @@ template <typename BsLayout,
           typename DsLayout,
           typename BsDataType,
           typename DsDataType,
+          typename BElementOp,
           typename CDEElementOp,
           ck::tensor_operation::device::GemmSpecialization GemmSpec,
           BlockGemmPipelineScheduler BlkGemmPipeSched>
