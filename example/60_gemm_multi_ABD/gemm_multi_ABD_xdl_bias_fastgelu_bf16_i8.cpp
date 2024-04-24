@@ -51,11 +51,11 @@ using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
-struct Scales_
+struct Multiply_
 {
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
@@ -77,7 +77,7 @@ struct Scales_
 };
 
 using AElementOp   = PassThrough;
-using BElementOp   = Scales_;
+using BElementOp   = Multiply_;
 using CDEElementOp = AddFastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;

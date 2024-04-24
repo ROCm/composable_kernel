@@ -92,15 +92,6 @@ struct Add
     };
 };
 
-struct Scales
-{
-    template <typename Y, typename X0, typename X1>
-    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const
-    {
-        y = ck::type_convert<Y>(ck::type_convert<float>(x0) * ck::type_convert<float>(x1));
-    }
-};
-
 struct Max
 {
     template <typename Y, typename X0, typename X1>
@@ -181,6 +172,16 @@ struct Multiply
     template <>
     __host__ __device__ constexpr void
     operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x0, const bhalf_t& x1) const
+    {
+        const float x1_tmp = ck::type_convert<float>(x0);
+        const float x2_tmp = ck::type_convert<float>(x1);
+        const float y_tmp  = x1_tmp * x2_tmp;
+        y                  = ck::type_convert<bhalf_t>(y_tmp);
+    }
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<bhalf_t>(bhalf_t& y, const int8_t& x0, const bhalf_t& x1) const
     {
         const float x1_tmp = ck::type_convert<float>(x0);
         const float x2_tmp = ck::type_convert<float>(x1);

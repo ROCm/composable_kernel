@@ -47,14 +47,14 @@ using D0Layout = Row;
 // using DsLayout = ck::Tuple<D0Layout>;
 using ELayout = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 using Add         = ck::tensor_operation::element_wise::Add;
 
 using AElementOp = PassThrough;
-using BElementOp = Scales;
+using BElementOp = Multiply;
 
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;

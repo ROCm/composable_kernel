@@ -17,7 +17,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
@@ -32,7 +32,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_g
                                                                  ck::Tuple<BF16>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  AddFastGelu>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_instances(
@@ -45,7 +45,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_i
                                                                  ck::Tuple<BF16>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  Add>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_instances(
@@ -58,7 +58,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_i
                                                                  ck::Tuple<>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  FastGelu>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instances(
@@ -71,7 +71,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_instan
                                                                  ck::Tuple<>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  PassThrough>>>& instances);
 
 // RCR
@@ -85,7 +85,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_g
                                                                  ck::Tuple<BF16>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  AddFastGelu>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_instances(
@@ -98,7 +98,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_i
                                                                  ck::Tuple<BF16>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  Add>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_instances(
@@ -111,7 +111,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_i
                                                                  ck::Tuple<>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  FastGelu>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instances(
@@ -124,7 +124,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_nk_mn_instan
                                                                  ck::Tuple<>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  PassThrough>>>& instances);
 
 // CRR
@@ -138,7 +138,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_bias_g
                                                                  ck::Tuple<BF16>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  AddFastGelu>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_bias_instances(
@@ -151,7 +151,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_bias_i
                                                                  ck::Tuple<BF16>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  Add>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_gelu_instances(
@@ -164,7 +164,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_gelu_i
                                                                  ck::Tuple<>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  FastGelu>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_instances(
@@ -177,7 +177,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_instan
                                                                  ck::Tuple<>,
                                                                  BF16,
                                                                  PassThrough,
-                                                                 Scales,
+                                                                 Multiply,
                                                                  PassThrough>>>& instances);
 
 // GEMM + Add + Gelu
@@ -199,7 +199,7 @@ struct DeviceOperationInstanceFactory<
                                                                    DsDataType,
                                                                    EDataType,
                                                                    PassThrough,
-                                                                   Scales,
+                                                                   Multiply,
                                                                    AddFastGelu>>
 {
     using DeviceOp = DeviceGroupedGemmMultiABDFixedNK<AsLayout,
@@ -211,7 +211,7 @@ struct DeviceOperationInstanceFactory<
                                                       DsDataType,
                                                       EDataType,
                                                       PassThrough,
-                                                      Scales,
+                                                      Multiply,
                                                       AddFastGelu>;
 
     static auto GetInstances()
@@ -270,7 +270,7 @@ struct DeviceOperationInstanceFactory<
                                                                    DsDataType,
                                                                    EDataType,
                                                                    PassThrough,
-                                                                   Scales,
+                                                                   Multiply,
                                                                    Add>>
 {
     using DeviceOp = DeviceGroupedGemmMultiABDFixedNK<AsLayout,
@@ -282,7 +282,7 @@ struct DeviceOperationInstanceFactory<
                                                       DsDataType,
                                                       EDataType,
                                                       PassThrough,
-                                                      Scales,
+                                                      Multiply,
                                                       Add>;
 
     static auto GetInstances()
@@ -341,7 +341,7 @@ struct DeviceOperationInstanceFactory<
                                                                    DsDataType,
                                                                    EDataType,
                                                                    PassThrough,
-                                                                   Scales,
+                                                                   Multiply,
                                                                    FastGelu>>
 {
     using DeviceOp = DeviceGroupedGemmMultiABDFixedNK<AsLayout,
@@ -353,7 +353,7 @@ struct DeviceOperationInstanceFactory<
                                                       DsDataType,
                                                       EDataType,
                                                       PassThrough,
-                                                      Scales,
+                                                      Multiply,
                                                       FastGelu>;
 
     static auto GetInstances()
@@ -412,7 +412,7 @@ struct DeviceOperationInstanceFactory<
                                                                    DsDataType,
                                                                    EDataType,
                                                                    PassThrough,
-                                                                   Scales,
+                                                                   Multiply,
                                                                    PassThrough>>
 {
     using DeviceOp = DeviceGroupedGemmMultiABDFixedNK<AsLayout,
@@ -424,7 +424,7 @@ struct DeviceOperationInstanceFactory<
                                                       DsDataType,
                                                       EDataType,
                                                       PassThrough,
-                                                      Scales,
+                                                      Multiply,
                                                       PassThrough>;
 
     static auto GetInstances()

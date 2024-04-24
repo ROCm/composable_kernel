@@ -27,11 +27,11 @@ using F32  = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using A0DataType       = BF16;
-using AsDataType       = ck::Tuple<A0DataType>;
-using B0DataType       = I8;
-using B1DataType       = BF16;
-using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
+using A0DataType = BF16;
+using AsDataType = ck::Tuple<A0DataType>;
+using B0DataType = I8;
+using B1DataType = BF16;
+// using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
 using AccDataType      = F32;
 using CShuffleDataType = BF16;
 using D0DataType       = BF16;
@@ -42,19 +42,20 @@ using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
 using B0Layout = Row;
 using B1Layout = B0Layout;
-using BsLayout = ck::Tuple<B0Layout, B1Layout>;
+// using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
 // using DsLayout = ck::Tuple<D0Layout>;
 using ELayout = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
-using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
-using Add         = ck::tensor_operation::element_wise::Add;
+using Multiply            = ck::tensor_operation::element_wise::Multiply;
+using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
+using PassThrough         = ck::tensor_operation::element_wise::PassThrough;
+using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
+using FastGelu            = ck::tensor_operation::element_wise::FastGelu;
+using Add                 = ck::tensor_operation::element_wise::Add;
 
 using AElementOp = PassThrough;
-using BElementOp = Scales;
+using BElementOp = Multiply;
 // using CDEElementOp = AddFastGelu;
 
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
@@ -65,7 +66,9 @@ static constexpr auto GemmMNPadding  = ck::tensor_operation::device::GemmSpecial
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // Compilation parameters for a[m, k] * b[k, n] = c[m, n]
-template <typename DsLayout,
+template <typename BsLayout,
+          typename DsLayout,
+          typename BsDataType,
           typename DsDataType,
           typename CDEElementOp,
           ck::tensor_operation::device::GemmSpecialization GemmSpec,
@@ -87,7 +90,9 @@ using device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances = std::tupl
     // clang-format on
     >;
 
-template <typename DsLayout,
+template <typename BsLayout,
+          typename DsLayout,
+          typename BsDataType,
           typename DsDataType,
           typename CDEElementOp,
           ck::tensor_operation::device::GemmSpecialization GemmSpec,

@@ -19,118 +19,134 @@ namespace instance {
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
-                                                      BsLayout,
+                                                      ck::Tuple<B0Layout, B1Layout>,
                                                       ck::Tuple<D0Layout>,
                                                       ELayout,
                                                       AsDataType,
-                                                      BsDataType,
+                                                      ck::Tuple<B0DataType, B1DataType>,
                                                       ck::Tuple<D0DataType>,
                                                       EDataType,
                                                       AElementOp,
                                                       BElementOp,
                                                       AddFastGelu>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<D0Layout>,
-                                                                       ck::Tuple<D0DataType>,
-                                                                       AddFastGelu,
-                                                                       GemmMNKPadding,
-                                                                       Interwave>{});
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<D0Layout>,
-                                                                      ck::Tuple<D0DataType>,
-                                                                      AddFastGelu,
-                                                                      GemmMNKPadding,
-                                                                      Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<D0Layout>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<D0DataType>,
+                                       AddFastGelu,
+                                       GemmMNKPadding,
+                                       Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<D0Layout>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<D0DataType>,
+                                       AddFastGelu,
+                                       GemmMNKPadding,
+                                       Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
-                                                      BsLayout,
+                                                      ck::Tuple<B0Layout, B1Layout>,
                                                       ck::Tuple<D0Layout>,
                                                       ELayout,
                                                       AsDataType,
-                                                      BsDataType,
+                                                      ck::Tuple<B0DataType, B1DataType>,
                                                       ck::Tuple<D0DataType>,
                                                       EDataType,
                                                       AElementOp,
                                                       BElementOp,
                                                       Add>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<D0Layout>,
-                                                                       ck::Tuple<D0DataType>,
-                                                                       Add,
-                                                                       GemmMNKPadding,
-                                                                       Interwave>{});
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<D0Layout>,
-                                                                      ck::Tuple<D0DataType>,
-                                                                      Add,
-                                                                      GemmMNKPadding,
-                                                                      Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<D0Layout>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<D0DataType>,
+                                       Add,
+                                       GemmMNKPadding,
+                                       Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<D0Layout>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<D0DataType>,
+                                       Add,
+                                       GemmMNKPadding,
+                                       Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
-                                                      BsLayout,
+                                                      ck::Tuple<B0Layout, B1Layout>,
                                                       ck::Tuple<>,
                                                       ELayout,
                                                       AsDataType,
-                                                      BsDataType,
+                                                      ck::Tuple<B0DataType, B1DataType>,
                                                       ck::Tuple<>,
                                                       EDataType,
                                                       AElementOp,
                                                       BElementOp,
                                                       PassThrough>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<>,
-                                                                       ck::Tuple<>,
-                                                                       PassThrough,
-                                                                       GemmMNKPadding,
-                                                                       Interwave>{});
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<>,
-                                                                      ck::Tuple<>,
-                                                                      PassThrough,
-                                                                      GemmMNKPadding,
-                                                                      Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<>,
+                                       PassThrough,
+                                       GemmMNKPadding,
+                                       Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<>,
+                                       PassThrough,
+                                       GemmMNKPadding,
+                                       Interwave>{});
 }
 
 void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
-                                                      BsLayout,
+                                                      ck::Tuple<B0Layout, B1Layout>,
                                                       ck::Tuple<>,
                                                       ELayout,
                                                       AsDataType,
-                                                      BsDataType,
+                                                      ck::Tuple<B0DataType, B1DataType>,
                                                       ck::Tuple<>,
                                                       EDataType,
                                                       AElementOp,
                                                       BElementOp,
                                                       FastGelu>>>& instances)
 {
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<ck::Tuple<>,
-                                                                       ck::Tuple<>,
-                                                                       FastGelu,
-                                                                       GemmMNKPadding,
-                                                                       Interwave>{});
-    add_device_operation_instances(
-        instances,
-        device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<ck::Tuple<>,
-                                                                      ck::Tuple<>,
-                                                                      FastGelu,
-                                                                      GemmMNKPadding,
-                                                                      Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<>,
+                                       FastGelu,
+                                       GemmMNKPadding,
+                                       Interwave>{});
+    add_device_operation_instances(instances,
+                                   device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<
+                                       ck::Tuple<B0Layout, B1Layout>,
+                                       ck::Tuple<>,
+                                       ck::Tuple<B0DataType, B1DataType>,
+                                       ck::Tuple<>,
+                                       FastGelu,
+                                       GemmMNKPadding,
+                                       Interwave>{});
 }
 
 } // namespace instance
