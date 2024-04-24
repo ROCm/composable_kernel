@@ -235,11 +235,11 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
     copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
     copy(d0_g_n_k_wos_desc.GetLengths(), d0_g_n_k_wos_lengths);
-    copy(d0_g_n_k_wos_desc.GetStrides(), d0_g_n_k_wos_strides);
+    d0_g_n_k_wos_strides.fill(0); // d0 is a scalar
     copy(d1_g_n_k_wos_desc.GetLengths(), d1_g_n_k_wos_lengths);
-    copy(d1_g_n_k_wos_desc.GetStrides(), d1_g_n_k_wos_strides);
+    d1_g_n_k_wos_strides.fill(0); // d1 is a scalar
     copy(d2_g_n_k_wos_desc.GetLengths(), d2_g_n_k_wos_lengths);
-    copy(d2_g_n_k_wos_desc.GetStrides(), d2_g_n_k_wos_strides);
+    d2_g_n_k_wos_strides.fill(0); // d2 is a scalar
     copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
@@ -284,12 +284,12 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t ds_size = 3; // 3 element-wise scale multipliers
-    std::size_t flop    = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
-    std::size_t num_btype =
-        conv_param.GetInputByte<InDataType>() + conv_param.GetWeightByte<WeiDataType>() +
-        conv_param.GetOutputByte<D0DataType>() + conv_param.GetOutputByte<D1DataType>() +
-        conv_param.GetOutputByte<D2DataType>() + conv_param.GetOutputByte<OutDataType>();
+    std::size_t ds_size   = 3; // 3 element-wise scale multipliers
+    std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
+    std::size_t num_btype = conv_param.GetInputByte<InDataType>() +
+                            conv_param.GetWeightByte<WeiDataType>() + sizeof(D0DataType) +
+                            sizeof(D1DataType) + sizeof(D2DataType) +
+                            conv_param.GetOutputByte<OutDataType>();
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
