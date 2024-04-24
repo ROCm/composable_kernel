@@ -504,11 +504,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // unify bias tensor view to [1, 1, s_q, s_k] layout
     auto bias_host_view_bhss = (i_perm ? bias_host : bias_host.transpose(1, 2));
 
-    ck_tile::HostTensor<ODataType> o_host_ref(
-        get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
-    ck_tile::HostTensor<LSEDataType> lse_host_ref(
-        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
-            : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
+    ck_tile::HostTensor<LSEDataType> lse_host_ref(lse_host.get_lengths());
+    ck_tile::HostTensor<ODataType> o_host_ref(o_host.get_lengths());
 
     auto o_host_ref_view_bhsd = (o_perm ? o_host_ref : o_host_ref.transpose(1, 2));
 
