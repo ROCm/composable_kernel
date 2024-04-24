@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <iomanip>
@@ -38,20 +38,20 @@ using EDataType        = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Col;
+using B0Layout = Row;
 using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 using AElementOp   = PassThrough;
-using BElementOp   = Scales;
-using CDEElementOp = AddFastGelu;
+using BElementOp   = Multiply;
+using CDEElementOp = Add;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -79,8 +79,8 @@ int main(int argc, char* argv[])
     ck::index_t N = 1024;
     ck::index_t K = 512;
 
-    ck::index_t StrideA = K;
-    ck::index_t StrideB = K;
+    ck::index_t StrideA = M;
+    ck::index_t StrideB = N;
     ck::index_t StrideD = N;
     ck::index_t StrideE = N;
 

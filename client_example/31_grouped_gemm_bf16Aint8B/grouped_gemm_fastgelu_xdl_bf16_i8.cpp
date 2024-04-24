@@ -36,7 +36,7 @@ using D0DataType       = BF16;
 using DsDataType       = ck::Tuple<>;
 using EDataType        = BF16;
 
-using A0Layout = Col;
+using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
 using B0Layout = Row;
 using B1Layout = B0Layout;
@@ -45,12 +45,12 @@ using D0Layout = Row;
 using DsLayout = ck::Tuple<>;
 using ELayout  = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AElementOp   = PassThrough;
-using BElementOp   = Scales;
+using BElementOp   = Multiply;
 using CDEElementOp = FastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
