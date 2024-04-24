@@ -510,7 +510,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
-    auto o_host_view_bhsd     = (o_perm ? o_host : o_host.transpose(1, 2));
     auto o_host_ref_view_bhsd = (o_perm ? o_host_ref : o_host_ref.transpose(1, 2));
 
     ck_tile::reference_batched_fmha<SaccDataType, SMPLComputeDataType, PDataType, OaccDataType>(
@@ -523,6 +522,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         nhead_k,
         scale_s,
         mask,
+        (mode == mode_enum::batch
+             ? std::nullopt
+             : std::make_optional(ck_tile::span<const int32_t>(seqstart_q_host))),
+        (mode == mode_enum::batch
+             ? std::nullopt
+             : std::make_optional(ck_tile::span<const int32_t>(seqstart_k_host))),
         p_compute_element_func,
         oacc_element_func);
 

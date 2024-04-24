@@ -28,20 +28,26 @@ template <typename SaccDataType,
           typename MaskingType,
           typename PComputeElementFunction = ck_tile::identity,
           typename OAccElementFunction     = ck_tile::identity>
-CK_TILE_HOST void reference_batched_fmha(const QueryTensor& query_bhsd,
-                                         const KeyTensor& key_bhsd,
-                                         const ValueTensor& value_bhsd,
-                                         std::optional<BiasTensor> bias_bhss,
-                                         OutputTensor& output_bhsd,
-                                         std::optional<LSETensor> lse_bhs,
-                                         index_t nhead_k,
-                                         float scale_s,
-                                         const MaskingType& mask,
-                                         PComputeElementFunction p_compute_element_func = {},
-                                         OAccElementFunction oacc_element_func          = {})
+CK_TILE_HOST void
+reference_batched_fmha(const QueryTensor& query_bhsd,
+                       const KeyTensor& key_bhsd,
+                       const ValueTensor& value_bhsd,
+                       std::optional<BiasTensor> bias_bhss,
+                       OutputTensor& output_bhsd,
+                       std::optional<LSETensor> lse_bhs,
+                       index_t nhead_k,
+                       float scale_s,
+                       const MaskingType& mask,
+                       std::optional<span<const int32_t>> seqstart_q, // only used in group mode
+                       std::optional<span<const int32_t>> seqstart_k, // only used in group mode
+                       PComputeElementFunction p_compute_element_func = {},
+                       OAccElementFunction oacc_element_func          = {})
 {
-    index_t batch = query_bhsd.get_length(0);
-    index_t nhead = query_bhsd.get_length(1);
+    assert(!(seqstart_q.has_value() ^ seqstart_k.has_value()));
+
+    const bool is_batch_mode     = !seqstart_q.has_value();
+    const ck_tile::index_t batch = (is_batch_mode ? query_bhsd.get_length(0) : 1);
+    const ck_tile::index_t nhead = query_bhsd.get_length(1);
 
     using QueryDataType = tensor_value_t<QueryTensor>;
     using KeyDataType   = tensor_value_t<KeyTensor>;
@@ -51,13 +57,17 @@ CK_TILE_HOST void reference_batched_fmha(const QueryTensor& query_bhsd,
     // verify result individually for each batch/group
     for(ck_tile::index_t b = 0; b < batch; ++b)
     {
-        const ck_tile::index_t real_seqlen_q = query_bhsd.get_length(2);
-        const ck_tile::index_t real_seqlen_k = key_bhsd.get_length(2);
+        const ck_tile::index_t real_seqlen_q =
+            (is_batch_mode ? query_bhsd.get_length(2) : (*seqstart_q)[b + 1] - (*seqstart_q)[b]);
+        const ck_tile::index_t real_seqlen_k =
+            (is_batch_mode ? key_bhsd.get_length(2) : (*seqstart_k)[b + 1] - (*seqstart_k)[b]);
 
         // adjust matrix index according to the mode
-        const ck_tile::index_t query_start = 0;
+        const ck_tile::index_t batch_start = (is_batch_mode ? b : 0);
+        const ck_tile::index_t batch_end   = batch_start + 1;
+        const ck_tile::index_t query_start = (is_batch_mode ? 0 : (*seqstart_q)[b]);
         const ck_tile::index_t query_end   = query_start + real_seqlen_q;
-        const ck_tile::index_t key_start   = 0;
+        const ck_tile::index_t key_start   = (is_batch_mode ? 0 : (*seqstart_k)[b]);
         const ck_tile::index_t key_end     = key_start + real_seqlen_k;
         const ck_tile::index_t nr          = nhead / nhead_k;
 
@@ -65,18 +75,18 @@ CK_TILE_HOST void reference_batched_fmha(const QueryTensor& query_bhsd,
         using Slice = ck_tile::HostTensorSlice;
         // tensor layout will be in [h, s, d] layout in verification
         auto query_view_hsd = query_bhsd
-                .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
+                .index({Slice(0, batch_start, batch_end), Slice(2, query_start, query_end)})
                 .squeeze(0);
         auto key_view_hsd = key_bhsd
-                .index({Slice(0, b, b + 1), Slice(2, key_start, key_end)})
+                .index({Slice(0, batch_start, batch_end), Slice(2, key_start, key_end)})
                 .squeeze(0)
                 .repeat({nr, 1, 1});
         auto value_view_hsd = value_bhsd
-                .index({Slice(0, b, b + 1), Slice(3, key_start, key_end)})
+                .index({Slice(0, batch_start, batch_end), Slice(3, key_start, key_end)})
                 .squeeze(0)
                 .repeat({nr, 1, 1});
         auto output_view_hsd = output_bhsd
-                .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
+                .index({Slice(0, batch_start, batch_end), Slice(2, query_start, query_end)})
                 .squeeze(0);
         // clang-format on
 
@@ -159,7 +169,7 @@ CK_TILE_HOST void reference_batched_fmha(const QueryTensor& query_bhsd,
         {
             // clang-format off
             auto lse_view_hs = (*lse_bhs)
-                    .index({Slice(0, b, b + 1), Slice(2, query_start, query_end)})
+                    .index({Slice(0, batch_start, batch_end), Slice(2, query_start, query_end)})
                     .squeeze(0);
             // clang-format on
 
