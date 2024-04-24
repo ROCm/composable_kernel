@@ -29,19 +29,19 @@ template <typename SaccDataType,
           typename PComputeElementFunction = ck_tile::identity,
           typename OAccElementFunction     = ck_tile::identity>
 CK_TILE_HOST void
-reference_batched_fmha(const QueryTensor& query_bhsd,
-                       const KeyTensor& key_bhsd,
-                       const ValueTensor& value_bhsd,
-                       std::optional<BiasTensor> bias_bhss,
-                       OutputTensor& output_bhsd,
-                       std::optional<LSETensor> lse_bhs,
-                       index_t nhead_k,
-                       float scale_s,
-                       const MaskingType& mask,
-                       std::optional<span<const int32_t>> seqstart_q, // only used in group mode
-                       std::optional<span<const int32_t>> seqstart_k, // only used in group mode
-                       PComputeElementFunction p_compute_element_func = {},
-                       OAccElementFunction oacc_element_func          = {})
+reference_mha_fwd(const QueryTensor& query_bhsd,
+                  const KeyTensor& key_bhsd,
+                  const ValueTensor& value_bhsd,
+                  std::optional<BiasTensor> bias_bhss,
+                  OutputTensor& output_bhsd,
+                  std::optional<LSETensor> lse_bhs,
+                  index_t nhead_k,
+                  float scale_s,
+                  const MaskingType& mask,
+                  std::optional<span<const int32_t>> seqstart_q, // only used in group mode
+                  std::optional<span<const int32_t>> seqstart_k, // only used in group mode
+                  PComputeElementFunction p_compute_element_func = {},
+                  OAccElementFunction oacc_element_func          = {})
 {
     assert(!(seqstart_q.has_value() ^ seqstart_k.has_value()));
 

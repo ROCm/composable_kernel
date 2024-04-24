@@ -512,7 +512,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     auto o_host_ref_view_bhsd = (o_perm ? o_host_ref : o_host_ref.transpose(1, 2));
 
-    ck_tile::reference_batched_fmha<SaccDataType, SMPLComputeDataType, PDataType, OaccDataType>(
+    ck_tile::reference_mha_fwd<SaccDataType, SMPLComputeDataType, PDataType, OaccDataType>(
         q_host_view_bhsd,
         k_host_view_bhsd,
         v_host_view_bhsd,
