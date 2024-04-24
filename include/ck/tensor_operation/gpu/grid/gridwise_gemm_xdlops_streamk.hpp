@@ -23,19 +23,19 @@ namespace ck {
 template <typename GridwiseGemm>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
-                                   const typename GridwiseGemm::FloatAB* p_b_grid,
-                                   typename GridwiseGemm::FloatC* p_c_grid,
-                                   void* p_workspace,
-                                   index_t M,
-                                   index_t N,
-                                   index_t K,
-                                   index_t StrideA,
-                                   index_t StrideB,
-                                   index_t StrideC,
-                                   typename GridwiseGemm::Block2CTileMap block_mapping)
+    kernel_gemm_xdlops_streamk(const typename GridwiseGemm::FloatAB* p_a_grid,
+                               const typename GridwiseGemm::FloatAB* p_b_grid,
+                               typename GridwiseGemm::FloatC* p_c_grid,
+                               void* p_workspace,
+                               index_t M,
+                               index_t N,
+                               index_t K,
+                               index_t StrideA,
+                               index_t StrideB,
+                               index_t StrideC,
+                               typename GridwiseGemm::Block2CTileMap block_mapping)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -145,6 +145,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
         index_t StrideA;
         index_t StrideB;
         index_t StrideC;
+        index_t num_cu, occupancy; // stream-k arguments
         Block2CTileMap block_mapping;
 
         Argument(const FloatAB* p_a_grid_,
@@ -156,6 +157,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                  index_t StrideA_,
                  index_t StrideB_,
                  index_t StrideC_,
+                 uint32_t num_cu_,
+                 uint32_t occupancy_,
                  uint32_t num_sk_blocks_)
             : p_a_grid(p_a_grid_),
               p_b_grid(p_b_grid_),
@@ -166,7 +169,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
               StrideA(StrideA_),
               StrideB(StrideB_),
               StrideC(StrideC_),
-              block_mapping(M, N, K, num_sk_blocks_)
+              num_cu(num_cu_),
+              occupancy(occupancy_),
+              block_mapping(M, N, K, num_cu_, occupancy_, num_sk_blocks_)
         {
         }
 
@@ -518,11 +523,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
         // gridwise GEMM pipeline
         const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_v3();
+        uint32_t* p_semaphore =
+            reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(p_workspace) +
+                                        block_mapping.get_workspace_size_for_acc(sizeof(FloatAcc)));
 
-        // offset for last acc buffer of this block
-        uint32_t block_acc_offset =
-            (block_mapping.get_acc_buffer_offset_from_block(block_idx + 1) - 1) * MPerBlock *
-            NPerBlock;
         uint32_t iter_start, iter_end;
         bool is_sk_block, is_dp_block, is_padding_block, is_reduction_block;
 
@@ -555,11 +559,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
             I1, I1, I1, Number<CBlockTransferScalarPerVector_NWaveNPerXDL>{})); //  thread
                                                                                 // buf STORE
                                                                                 // descriptor
-#pragma unroll
+
         // stream-k: for new work for all the persistent blocks.
         for(; block_idx < block_mapping.total_blocks_allocated(); block_idx += gridDim.x)
         {
 
+            // offset for last acc buffer of this block
+            uint32_t block_acc_offset =
+                (block_mapping.get_acc_buffer_offset_from_block(block_idx + 1) - 1) * MPerBlock *
+                NPerBlock;
             is_sk_block = block_idx < block_mapping.sk_num_blocks;
             is_dp_block = block_idx >= block_mapping.dp_start_block_idx &&
                           block_idx < block_mapping.reduction_start_block_idx;
@@ -621,6 +629,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     // start to compute
                     auto reduction_idx = block_idx - block_mapping.reduction_start_block_idx;
                     auto spatial_idx   = block_mapping.tile_to_spatial(reduction_idx, m, n);
+                    workgroup_barrier wg_barrier(p_semaphore);
 
                     uint32_t tile_acc_offset_start =
                         block_mapping.get_acc_buffer_offset_from_tile(reduction_idx);
@@ -666,6 +675,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                            thread_n_cluster_id *
                                                CBlockTransferScalarPerVector_NWaveNPerXDL),
                           CElementwiseOperation{}};
+                    // block synchronization                    
+                    wg_barrier.wait_eq(0, block_mapping.sk_num_blocks);
 
 #if 0
                 if(threadIdx.x == 0) {
@@ -1141,6 +1152,17 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                 }
                 // make sure next loop LDS is ready for use
                 block_sync_lds();
+            }
+            if constexpr(Block2CTileMap::ReductionStrategy == StreamKReductionStrategy::Reduction)
+            {
+                if(is_sk_block)
+                {
+                    // increase the counter for this tile
+
+                    workgroup_barrier wg_barrier(p_semaphore);
+                    wg_barrier.inc(0);
+                    // printf("block_idx=%0d, \n",block_idx);
+                }
             }
         }
     }

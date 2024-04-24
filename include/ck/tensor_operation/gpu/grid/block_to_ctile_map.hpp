@@ -1000,7 +1000,7 @@ struct BlockToCTileMap_GemmStreamK
 
     //--------------------------------------
     // pass to device
-    uint32_t sk_num_blocks;
+    mutable uint32_t sk_num_blocks;
     uint32_t sk_num_big_blocks;
     uint32_t dp_start_block_idx;
     uint32_t reduction_start_block_idx;
@@ -1011,7 +1011,12 @@ struct BlockToCTileMap_GemmStreamK
     MDiv equiv_tiles_little; // for reduction
 
     // prefer construct on host
-    BlockToCTileMap_GemmStreamK(uint32_t m, uint32_t n, uint32_t k, uint32_t sk_blocks = 0)
+    BlockToCTileMap_GemmStreamK(uint32_t m,
+                                uint32_t n,
+                                uint32_t k,
+                                uint32_t num_cu,
+                                uint32_t occupancy,
+                                uint32_t sk_blocks = 0)
     {
         // total output tiles
         uint32_t num_tiles =
@@ -1019,10 +1024,24 @@ struct BlockToCTileMap_GemmStreamK
         k_iters_per_tile = MDiv(math::integer_divide_ceil(k, KPerBlock));
 
         uint32_t dp_tiles, dp_num_blocks, sk_total_iters;
+        const uint32_t one_wave = num_cu * occupancy;
+
+        if((sk_blocks > one_wave) && (num_tiles > one_wave))
+        {
+            printf("WARNING: Do not tune above max possible occupancy for the kernel, "
+                   "defaulting to max occupancy\n ");
+            sk_num_blocks = one_wave;
+        }
+        else if(sk_blocks < one_wave)
+        {
+            printf("Recommended #stream-k blocks (assuming full GPU availability): %0d\n",
+                   one_wave);
+            sk_num_blocks = sk_blocks;
+        }
+        else
+            sk_num_blocks = sk_blocks;
 
         // default to regular DP GEMM if sk blocks == 0
-        sk_num_blocks = sk_blocks;
-
         if(sk_num_blocks == 0 || sk_num_blocks == 0xFFFFFFFF)
         {
             sk_num_blocks         = 0;
@@ -1064,7 +1083,7 @@ struct BlockToCTileMap_GemmStreamK
             k_iters_per_big_block         = k_iters_per_sk_block + 1;
 
             dp_num_blocks      = dp_tiles;
-            dp_start_block_idx = sk_num_blocks;
+            dp_start_block_idx = ((sk_num_blocks + grid_size - 1) / grid_size) * grid_size;
         }
 
         n_tiles = MDiv2(math::integer_divide_ceil(n, NPerBlock));
@@ -1079,15 +1098,15 @@ struct BlockToCTileMap_GemmStreamK
             equiv_tiles_little    = MDiv(upper_little / k_iters_per_tile.get());
         }
 
-#if 0
-        printf("cu:%d, occupancy:%d, gridsize:%d, num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, "
+#if 1
+        printf("num_tiles:%d, dp_tiles:%d, sk_num_big_blocks:%d, "
                "sk_num_blocks:%d, "
                "sk_total_iters:%d, dp_start_block_idx:%d, dp_num_blocks:%d, "
                "k_iters_per_tile:%d, k_iters_per_big_block:%d, reduction_start_block_idx:%u, "
                "sk_tiles:%u, workspace(acc float):%u\n",
-               num_cu,
-               occupancy,
-               get_grid_dims(num_cu, occupancy).x,
+               //    num_cu,
+               //    occupancy,
+               //    get_grid_dims(num_cu, occupancy).x,
                num_tiles,
                dp_tiles,
                sk_num_big_blocks,

@@ -78,8 +78,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         BlockToCTileMap_GemmStreamK<MPerBlock,
                                     NPerBlock,
                                     K0PerBlock * K1,
-                                    // StreamKReductionStrategy::Atomic>,
-                                    StreamKReductionStrategy::Reduction>,
+                                    StreamKReductionStrategy::Atomic>,
+                                    // StreamKReductionStrategy::Reduction>,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CDataType,
@@ -149,10 +149,10 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
             hipDevice_t dev;
             hip_check_error(hipGetDevice(&dev));
             hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
-            num_cu         = dev_prop.multiProcessorCount;
-            dim3 grid_dims = karg.block_mapping.sk_num_blocks;
-            printf("Recommended #stream-k blocks (assuming full GPU availability): %0d\n",
-                   num_cu * occupancy);
+            num_cu = dev_prop.multiProcessorCount;
+            dim3 grid_dims =
+                (karg.block_mapping.sk_num_blocks ? karg.block_mapping.sk_num_blocks
+                                                  : karg.block_mapping.reduction_start_block_idx);            
             float ave_time = 0;
 
             // TODO: remove clear buffer for streamk kernels
@@ -187,11 +187,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                             karg.block_mapping.get_workspace_size_for_acc(
                                                 sizeof(typename GridwiseGemm::FloatAcc));
                 auto preprocess = [&]() {
-                    hipGetErrorString(
-                        hipMemsetAsync(workspace_semaphore,
-                                       0,
-                                       karg.block_mapping.get_workspace_size_for_semaphore(),
-                                       stream_config.stream_id_));
+                    hipGetErrorString(hipMemsetAsync(
+                        workspace_semaphore, 0, sizeof(num_cu), stream_config.stream_id_));
                 };
 
                 ave_time = launch_and_time_kernel_with_preprocess(stream_config,
@@ -282,8 +279,27 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                              CElementwiseOperation,
                              uint32_t NumSKBlocks = 0)
     {
-
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, NumSKBlocks};
+        const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
+        int occupancy, num_cu;
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+        hipDeviceProp_t dev_prop;
+        hipDevice_t dev;
+        hip_check_error(hipGetDevice(&dev));
+        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
+        num_cu = dev_prop.multiProcessorCount;
+        return Argument{p_a,
+                        p_b,
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        StrideA,
+                        StrideB,
+                        StrideC,
+                        static_cast<uint32_t>(num_cu),
+                        static_cast<uint32_t>(occupancy),
+                        NumSKBlocks};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -303,7 +319,15 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                                       CElementwiseOperation,
                                                       index_t NumSKBlocks = 0) override
     {
-
+        const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
+        int occupancy, num_cu;
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+        hipDeviceProp_t dev_prop;
+        hipDevice_t dev;
+        hip_check_error(hipGetDevice(&dev));
+        hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
+        num_cu = dev_prop.multiProcessorCount;
         return std::make_unique<Argument>(reinterpret_cast<const ADataType*>(p_a),
                                           reinterpret_cast<const BDataType*>(p_b),
                                           reinterpret_cast<CDataType*>(p_c),
@@ -313,6 +337,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          static_cast<uint32_t>(num_cu),
+                                          static_cast<uint32_t>(occupancy),
                                           static_cast<uint32_t>(NumSKBlocks));
     }
 
