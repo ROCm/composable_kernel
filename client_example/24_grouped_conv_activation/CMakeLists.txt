@@ -1,3 +1,4 @@
+if(GPU_TARGETS MATCHES "gfx9")
 # Fwd scaleadd scaleadd relu
 add_executable(client_grouped_convnd_fwd_scaleadd_scaleadd_relu_fp32 
                grouped_convnd_fwd_scaleadd_scaleadd_relu/grouped_conv_fwd_scaleadd_scaleadd_relu_fp32.cpp)
@@ -38,6 +39,10 @@ target_link_libraries(client_grouped_convnd_fwd_bilinear_residual_fp16 PRIVATE c
 add_executable(client_grouped_convnd_bwd_data_bilinear_residual_fp16
                grouped_convnd_bwd_data_bilinear/grouped_conv_bwd_data_bilinear_residual_fp16.cpp)
 target_link_libraries(client_grouped_convnd_bwd_data_bilinear_residual_fp16 PRIVATE composable_kernel::device_conv_operations)
+# Bwd weight bilinear
+add_executable(client_grouped_convnd_bwd_weight_bilinear_residual_fp16
+               grouped_convnd_bwd_weight_bilinear/grouped_conv_bwd_weight_bilinear_residual_fp16.cpp)
+target_link_libraries(client_grouped_convnd_bwd_weight_bilinear_residual_fp16 PRIVATE composable_kernel::device_conv_operations)
 # Fwd scale
 add_executable(client_grouped_convnd_fwd_scale_fp16
                grouped_convnd_fwd_scale/grouped_conv_fwd_scale_fp16.cpp)
@@ -46,3 +51,8 @@ target_link_libraries(client_grouped_convnd_fwd_scale_fp16 PRIVATE composable_ke
 add_executable(client_grouped_convnd_bwd_data_scale_fp16
                grouped_convnd_bwd_data_scale/grouped_conv_bwd_data_scale_fp16.cpp)
 target_link_libraries(client_grouped_convnd_bwd_data_scale_fp16 PRIVATE composable_kernel::device_conv_operations)
+# Bwd weight scale
+add_executable(client_grouped_convnd_bwd_weight_scale_fp16
+               grouped_convnd_bwd_weight_scale/grouped_conv_bwd_weight_scale_fp16.cpp)
+target_link_libraries(client_grouped_convnd_bwd_weight_scale_fp16 PRIVATE composable_kernel::device_conv_operations)
+endif()

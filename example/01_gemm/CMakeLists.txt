@@ -22,16 +22,18 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16)
 add_example_executable(example_gemm_xdl_fp16_v2 gemm_xdl_fp16_v2.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v2)
 
+add_example_executable(example_gemm_xdl_fp16_v3 gemm_xdl_fp16_v3.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v3)
+add_example_executable(example_gemm_xdl_fp8_v3 gemm_xdl_fp8_v3.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_v3)
+add_example_executable(example_gemm_xdl_fp16_fp8_v3 gemm_xdl_fp16_fp8_v3.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_v3)
+
 add_example_executable(example_gemm_xdl_wavelet_fp16 gemm_xdl_wavelet_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_wavelet_fp16)
 
 add_example_executable(example_gemm_xdl_skip_b_lds_fp16 gemm_xdl_skip_b_lds_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_skip_b_lds_fp16)
-if(GPU_TARGETS MATCHES "gfx11")
-    add_custom_target(example_gemm_wmma)
-    add_example_executable(example_gemm_wmma_fp16 gemm_wmma_fp16.cpp)
-    add_example_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
-endif()
 
 add_example_executable(example_gemm_xdl_bf16 gemm_xdl_bf16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16)
@@ -47,8 +49,7 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_gemm_xdl example_gemm_xdl_int4)
 endif(USE_BITINT_EXTENSION_INT4)
 
-# FIXME: re-enable this example as test when SWDEV-335738 is fixed
-add_example_executable_no_testing(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
+add_example_executable(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
 add_example_executable(example_gemm_xdl_streamk gemm_xdl_streamk.cpp)
@@ -75,3 +76,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_bf8)
 add_example_executable(example_gemm_xdl_fp16_fp8 gemm_xdl_fp16_fp8.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8)
 
+add_custom_target(example_gemm_wmma)
+add_example_executable(example_gemm_wmma_fp16 gemm_wmma_fp16.cpp)
+add_example_dependencies(example_gemm_wmma example_gemm_wmma_fp16)
