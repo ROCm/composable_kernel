@@ -19,6 +19,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/**
+ * \note This structure is deprecated (left for backwards compatibility). Please use
+ *       DeviceElementwiseImpl from device_elementwise_dynamic_vector_dims_impl.hpp.
+ */
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
