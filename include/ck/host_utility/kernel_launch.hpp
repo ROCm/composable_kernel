@@ -21,7 +21,6 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
         if(ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
            ck::get_device_name() == "gfx942")
         {
@@ -47,11 +46,10 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
             hip_check_error(hipEventElapsedTime(&total_time, start, stop));
             total_time /= stream_config.nrepeat_;
             stream_config.cold_niters_ =
-                (stream_config.time_limit_ms /
-                 total_time); // we need longer runtime to ramp up the clk on MI300s
+                (stream_config.time_limit_ms + total_time - 1) /
+                total_time; // we need longer runtime to ramp up the clk on MI300s
             stream_config.nrepeat_ = stream_config.cold_niters_;
         }
-#endif
 #if DEBUG_LOG
         printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
                __func__,
@@ -125,7 +123,6 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
         if(ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
            ck::get_device_name() == "gfx942")
         {
@@ -151,11 +148,10 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             hip_check_error(hipEventElapsedTime(&total_time, start, stop));
             total_time /= stream_config.nrepeat_;
             stream_config.cold_niters_ =
-                (stream_config.nrepeat_ /
-                 total_time); // we need longer runtime to ramp up the clk on MI300s
+                (stream_config.time_limit_ms + total_time - 1) /
+                total_time; // we need longer runtime to ramp up the clk on MI300s
             stream_config.nrepeat_ = stream_config.cold_niters_;
         }
-#endif
 #if DEBUG_LOG
         printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
                __func__,
