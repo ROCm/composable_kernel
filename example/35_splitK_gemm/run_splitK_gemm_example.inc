@@ -56,14 +56,33 @@ bool run_splitK_gemm(const ProblemSize& problem_size, const ExecutionConfig& con
 
     switch(config.init_method)
     {
-    case 0: break;
-    case 1:
+    case 0: 
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0});
+        break;
+    case 1: 
+        a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        break;    
+    case 2:
+        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
+        break;
+    case 3:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
         break;
-    case 2:
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+    case 4:
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-0.5, 0.5});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        break;
+    case 5:
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-1.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1.0, 1.0});
+        break;
+    case 6:
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-5.0, 5.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-5.0, 5.0});
         break;
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_Sequential<0>{});
@@ -206,7 +225,7 @@ bool run_splitK_gemm_example(int argc, char* argv[])
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg2: initialization (0=int(0),1=int(1),2=int(-2:2),3=int(-5,5),4=FP(-0.5,0.5),5=FP(-1.0,1.0),6=FP(-5.0,5.0))\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4: KBatch\n");
         printf("arg5 to 11: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC\n");
