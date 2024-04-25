@@ -513,7 +513,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // prepare optional parameters for reference function
     std::optional<ck_tile::HostTensorView<const BiasDataType>> opt_bias_host_view_bhss;
-    std::optional<ck_tile::HostTensorView<LSEDataType>> opt_lse_host_view_bhs;
+    std::optional<ck_tile::HostTensorView<LSEDataType>> opt_lse_host_ref_view_bhs;
     std::optional<ck_tile::span<const int32_t>> opt_seqstart_q;
     std::optional<ck_tile::span<const int32_t>> opt_seqstart_k;
 
@@ -523,7 +523,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     if(store_lse)
     {
-        opt_lse_host_view_bhs.emplace(lse_host_ref);
+        opt_lse_host_ref_view_bhs.emplace(lse_host_ref);
     }
     if(mode == mode_enum::group)
     {
@@ -536,7 +536,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         k_host_view_bhsd,
         v_host_view_bhsd,
         opt_bias_host_view_bhss,
-        opt_lse_host_view_bhs,
+        opt_lse_host_ref_view_bhs,
         o_host_ref_view_bhsd,
         nhead_k,
         scale_s,
