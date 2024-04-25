@@ -311,6 +311,26 @@ struct AddAddFastGelu
     }
 };
 
+struct MultiplyAddFastGelu
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, float, ck::bhalf_t, ck::bhalf_t>(
+        ck::bhalf_t& e, const float& c, const ck::bhalf_t& d0, const ck::bhalf_t& d1) const
+    {
+        const float x0_f = c * ck::type_convert<float>(d0) + ck::type_convert<float>(d1);
+
+        float x1_f = 0;
+
+        FastGelu{}.template operator()<float, float>(x1_f, x0_f);
+
+        e = ck::type_convert<ck::bhalf_t>(x1_f);
+    }
+};
+
 // E = Relu(alpha1 * C + alpha2 * D0 + D1)
 struct ScaleAddScaleAddRelu
 {

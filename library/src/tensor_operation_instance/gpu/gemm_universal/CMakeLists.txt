@@ -65,6 +65,9 @@ list(APPEND GEMM_UNIVERSAL_INSTANCES
         device_gemm_xdl_universal_f8_f16_f16/device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_default_instance.cpp
         device_gemm_xdl_universal_f8_f16_f16/device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_kpadding_instance.cpp
         device_gemm_xdl_universal_f8_f16_f16/device_gemm_xdl_universal_f8_f16_f16_mk_nk_mn_mem_v2_mnkpadding_instance.cpp
+
+	device_gemm_xdl_universal_bf16_i8_bf16_multi_d/device_gemm_xdl_universal_multiply_bf16_i8_bf16_mk_kn_mn_mnkpadding_instance.cpp
+	device_gemm_xdl_universal_bf16_i8_bf16_multi_d/device_gemm_xdl_universal_multiply_add_fastgelu_bf16_i8_bf16_mk_kn_mn_mnkpadding_instance.cpp
         )
 
 add_instance_library(device_gemm_universal_instance ${GEMM_UNIVERSAL_INSTANCES})
