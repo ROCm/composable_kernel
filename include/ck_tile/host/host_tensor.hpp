@@ -347,7 +347,7 @@ struct HostTensorSlicer
 
 namespace detail {
 template <typename TensorView>
-struct Repeat
+struct RepeatView
 {
     using const_reference = typename TensorView::const_reference;
     using size_type       = typename TensorView::size_type;
@@ -355,7 +355,7 @@ struct Repeat
     static inline constexpr size_type MaxNumDims = TensorView::MaxNumDims;
 
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
-    Repeat(TensorView view, std::initializer_list<X> repeats) : mView(std::move(view))
+    RepeatView(TensorView view, std::initializer_list<X> repeats) : mView(std::move(view))
     {
         assert(mView.get_num_of_dimension() <= MaxNumDims);
         assert(std::size(repeats) <= mView.get_num_of_dimension());
@@ -637,7 +637,7 @@ struct HostTensorView : private HostTensorDescriptor
     template <typename X, typename = std::enable_if_t<std::is_convertible_v<X, size_type>>>
     auto repeat(std::initializer_list<X> repeats) const
     {
-        return detail::Repeat<HostTensorView>(*this, repeats);
+        return detail::RepeatView<HostTensorView>(*this, repeats);
     }
 
     template <typename F>
