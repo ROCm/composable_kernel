@@ -82,6 +82,205 @@ struct DeviceOperationInstanceFactory<
     }
 };
 
+void add_device_grouped_gemm_xdl_tile_loop_multiply_fastgelu_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          Row_Tuple,
+                                                          Row,
+                                                          BF16,
+                                                          I8,
+                                                          BF16_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyFastGelu>>>& instances);
+
+template <typename ALayout,
+          typename BLayout,
+          typename D0Layout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGroupedGemmTileLoop<ALayout,
+                                                            BLayout,
+                                                            ck::Tuple<D0Layout>,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ck::Tuple<D0DataType>,
+                                                            EDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            MultiplyFastGelu>>
+{
+    using DeviceOp = DeviceGroupedGemmTileLoop<ALayout,
+                                               BLayout,
+                                               ck::Tuple<D0Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               MultiplyFastGelu>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        // fp16_output
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<EDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_grouped_gemm_xdl_tile_loop_multiply_fastgelu_bf16_i8_bf16_mk_kn_mn_instances(
+                    op_ptrs);
+            }
+        }
+        return op_ptrs;
+    }
+};
+
+void add_device_grouped_gemm_xdl_tile_loop_multiply_bias_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          Row_Row_Tuple,
+                                                          Row,
+                                                          BF16,
+                                                          I8,
+                                                          BF16_BF16_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>>& instances);
+
+template <typename ALayout,
+          typename BLayout,
+          typename D0Layout,
+          typename D1Layout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGroupedGemmTileLoop<ALayout,
+                                                            BLayout,
+                                                            ck::Tuple<D0Layout, D1Layout>,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ck::Tuple<D0DataType, D1DataType>,
+                                                            EDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            MultiplyAdd>>
+{
+    using DeviceOp = DeviceGroupedGemmTileLoop<ALayout,
+                                               BLayout,
+                                               ck::Tuple<D0Layout, D1Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType, D1DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               MultiplyAdd>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        // fp16_output
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<EDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_grouped_gemm_xdl_tile_loop_multiply_bias_bf16_i8_bf16_mk_kn_mn_instances(
+                    op_ptrs);
+            }
+        }
+        return op_ptrs;
+    }
+};
+
+void add_device_grouped_gemm_xdl_tile_loop_multiply_bias_fastgelu_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          Row_Row_Tuple,
+                                                          Row,
+                                                          BF16,
+                                                          I8,
+                                                          BF16_BF16_Tuple,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAddFastGelu>>>& instances);
+
+template <typename ALayout,
+          typename BLayout,
+          typename D0Layout,
+          typename D1Layout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGroupedGemmTileLoop<ALayout,
+                                                            BLayout,
+                                                            ck::Tuple<D0Layout, D1Layout>,
+                                                            ELayout,
+                                                            ADataType,
+                                                            BDataType,
+                                                            ck::Tuple<D0DataType, D1DataType>,
+                                                            EDataType,
+                                                            PassThrough,
+                                                            PassThrough,
+                                                            MultiplyAddFastGelu>>
+{
+    using DeviceOp = DeviceGroupedGemmTileLoop<ALayout,
+                                               BLayout,
+                                               ck::Tuple<D0Layout, D1Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType, D1DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               MultiplyAddFastGelu>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+        // fp16_output
+        if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
+                     is_same_v<EDataType, bhalf_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_grouped_gemm_xdl_tile_loop_multiply_bias_fastgelu_bf16_i8_bf16_mk_kn_mn_instances(
+                    op_ptrs);
+            }
+        }
+        return op_ptrs;
+    }
+};
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
