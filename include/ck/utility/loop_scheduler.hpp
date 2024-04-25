@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+#include <ostream>
 
 #pragma once
 
@@ -24,3 +25,14 @@ constexpr LoopScheduler make_default_loop_scheduler()
 }
 
 } // namespace ck
+
+inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
+{
+    switch(s)
+    {
+    case ck::LoopScheduler::Default: os << "Default"; break;
+    case ck::LoopScheduler::Interwave: os << "Interwave"; break;
+    default: os << "";
+    }
+    return os;
+}

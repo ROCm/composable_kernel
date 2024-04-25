@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
+#include <ostream>
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
@@ -57,3 +58,16 @@ constexpr auto GridwiseGemmPipeline_Selector()
 }
 
 } // namespace ck
+
+inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
+{
+    switch(p)
+    {
+    case ck::PipelineVersion::v1: os << "PipelineVersion::v1"; break;
+    case ck::PipelineVersion::v2: os << "PipelineVersion::v2"; break;
+    case ck::PipelineVersion::v4: os << "PipelineVersion::v4"; break;
+    case ck::PipelineVersion::weight_only: os << "PipelineVersion::weight_only"; break;
+    default: os << "";
+    }
+    return os;
+}

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef UTILITY_DEBUG_HPP
 #define UTILITY_DEBUG_HPP
@@ -77,6 +77,13 @@ __device__ void print_shared(T const* p_shared, index_t num_elements)
     }
 
     __syncthreads();
+}
+
+template <index_t... Ids>
+__device__ static bool is_thread_local_1d_id_idx()
+{
+    const auto tid = get_thread_local_1d_id();
+    return ((tid == Ids) || ...);
 }
 
 } // namespace debug
