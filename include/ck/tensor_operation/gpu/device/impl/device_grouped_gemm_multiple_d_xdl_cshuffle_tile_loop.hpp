@@ -78,7 +78,7 @@ __global__ void
     index_t group_offset      = 0;
     index_t grid_size_grp     = 0;
 
-    index_t gemm_tile_id_start = -1;
+    index_t gemm_tile_id_start = 0;
     index_t gemm_tile_id_end   = 0;
 
     using AGridDescMK =
@@ -94,18 +94,18 @@ __global__ void
         remove_cvref_t<decltype(GridwiseGemm::template MakeDsGridDescriptor_M_N<DsLayout, GemmSpec>(
             {}, {}, {}))>;
 
+    index_t M = 0, N = 0, K = 0;
+    index_t StrideA, StrideB, StrideE;
+    std::array<index_t, NumDTensor> StrideDs;
+
+    AGridDescMK a_grid_desc_mk;
+    BGridDescNK b_grid_desc_nk;
+    EGridDescMN e_grid_desc_mn;
+    DsGridDescMN ds_grid_desc_mn;
+    auto b2c_tile_map = OffsettedBlockToCTileMap(LocalBlock2ETileMap(1, 1), 1, 1);
+
     do
     {
-        index_t M = 0, N = 0, K = 0;
-        index_t StrideA, StrideB, StrideE;
-        std::array<index_t, NumDTensor> StrideDs;
-
-        AGridDescMK a_grid_desc_mk;
-        BGridDescNK b_grid_desc_nk;
-        EGridDescMN e_grid_desc_mn;
-        DsGridDescMN ds_grid_desc_mn;
-        auto b2c_tile_map = OffsettedBlockToCTileMap(LocalBlock2ETileMap(1, 1), 1, 1);
-
         // Find corresponding GEMM group for our tile
         while(!(tile_id >= gemm_tile_id_start && tile_id < gemm_tile_id_end) &&
               group_id < group_count)
@@ -161,7 +161,9 @@ __global__ void
         });
 
         bool has_main_kblock_loop =
-            GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_mk.GetLength(Number<0>{}));
+            GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_mk.GetLength(Number<1>{}));
+        // Update tile offset if we have moved within group
+        b2c_tile_map.UpdateTileOffset(tile_offset);
 
         if(has_main_kblock_loop)
         {
@@ -356,6 +358,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             return block_to_ctile_map_.CalculateGridSize(M, N);
         }
 
+        __device__ void UpdateTileOffset(index_t offset) { tile_offset_ = offset; }
         UnderlyingBlockToCTileMap block_to_ctile_map_;
         index_t group_offset_;
         index_t tile_offset_;
@@ -384,8 +387,16 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
               gemm_descs_{gemm_descs},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              cde_element_op_{cde_element_op}
+              cde_element_op_{cde_element_op},
+              tile_count_{0}
         {
+            for(const auto& desc : gemm_descs)
+            {
+                const auto M            = desc.M_;
+                const auto N            = desc.N_;
+                const auto b2c_tile_map = Block2ETileMap(M, N);
+                tile_count_ += b2c_tile_map.CalculateGridSize(M, N);
+            }
         }
 
         index_t group_count_;
@@ -397,6 +408,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
+        index_t tile_count_;
     };
 
     struct KernelConfig
@@ -530,7 +542,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
 
             if(stream_config.log_level_ > 0)
             {
-                std::cout << ", grid_size: " << grid_size << std::endl;
+                std::cout << "grid_size: " << grid_size << " tile_count: " << arg.tile_count_
+                          << std::endl;
             }
 
             return launch_and_time_kernel(stream_config,
