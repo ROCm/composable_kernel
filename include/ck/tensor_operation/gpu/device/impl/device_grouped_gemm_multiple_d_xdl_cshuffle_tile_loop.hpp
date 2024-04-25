@@ -162,6 +162,8 @@ __global__ void
 
         bool has_main_kblock_loop =
             GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_mk.GetLength(Number<1>{}));
+        // Update tile offset if we have moved within group
+        b2c_tile_map.UpdateTileOffset(tile_offset);
 
         if(has_main_kblock_loop)
         {
@@ -356,6 +358,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             return block_to_ctile_map_.CalculateGridSize(M, N);
         }
 
+        __device__ void UpdateTileOffset(index_t offset) { tile_offset_ = offset; }
         UnderlyingBlockToCTileMap block_to_ctile_map_;
         index_t group_offset_;
         index_t tile_offset_;
