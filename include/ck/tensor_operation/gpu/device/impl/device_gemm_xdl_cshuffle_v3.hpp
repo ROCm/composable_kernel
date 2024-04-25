@@ -15,6 +15,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/host_utility/flush_cache.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -151,14 +152,49 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
             const auto Run = [&](const auto& kernel) {
-                if(arg.KBatch > 1)
-                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                     0,
-                                                     arg.M * arg.N * sizeof(CDataType),
-                                                     stream_config.stream_id_));
+                if(stream_config.flush_cache)
+                {
+                    Argument arg_ = arg;
+                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
+                        arg_,
+                        stream_config.rotating_count,
+                        arg_.M * arg_.K * sizeof(ADataType),
+                        arg_.K * arg_.N * sizeof(BDataType));
+                    rotating_mem.Print();
 
-                ave_time = launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                    auto run_flush_cache = [&]() {
+                        // flush icache
+                        ck::utility::flush_icache();
+                        // rotating mem
+                        rotating_mem.Next();
+                        // clear c mem
+                        if(arg_.KBatch > 1)
+                            hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
+                                                             0,
+                                                             arg_.M * arg_.N * sizeof(CDataType),
+                                                             stream_config.stream_id_));
+                    };
+
+                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                        stream_config,
+                        run_flush_cache,
+                        kernel,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        arg_);
+                }
+                else
+                {
+                    if(arg.KBatch > 1)
+                        hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
+                                                         0,
+                                                         arg.M * arg.N * sizeof(CDataType),
+                                                         stream_config.stream_id_));
+
+                    ave_time = launch_and_time_kernel(
+                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                }
             };
 
             constexpr index_t minimum_occupancy =
