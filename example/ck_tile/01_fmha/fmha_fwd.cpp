@@ -505,27 +505,44 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // unify bias tensor view to [1, 1, s_q, s_k] layout
     auto bias_host_view_bhss = (i_perm ? bias_host : bias_host.transpose(1, 2));
 
+    // create tensors to store reference function output
     ck_tile::HostTensor<LSEDataType> lse_host_ref(lse_host.get_lengths());
     ck_tile::HostTensor<ODataType> o_host_ref(o_host.get_lengths());
 
     auto o_host_ref_view_bhsd = (o_perm ? o_host_ref : o_host_ref.transpose(1, 2));
 
+    // prepare optional parameters for reference function
+    std::optional<ck_tile::HostTensorView<const BiasDataType>> opt_bias_host_view_bhss;
+    std::optional<ck_tile::HostTensorView<LSEDataType>> opt_lse_host_view_bhs;
+    std::optional<ck_tile::span<const int32_t>> opt_seqstart_q;
+    std::optional<ck_tile::span<const int32_t>> opt_seqstart_k;
+
+    if(use_bias)
+    {
+        opt_bias_host_view_bhss.emplace(bias_host_view_bhss);
+    }
+    if(store_lse)
+    {
+        opt_lse_host_view_bhs.emplace(lse_host_ref);
+    }
+    if(mode == mode_enum::group)
+    {
+        opt_seqstart_q.emplace(seqstart_q_host);
+        opt_seqstart_k.emplace(seqstart_k_host);
+    }
+
     ck_tile::reference_mha_fwd<SaccDataType, SMPLComputeDataType, PDataType, OaccDataType>(
         q_host_view_bhsd,
         k_host_view_bhsd,
         v_host_view_bhsd,
-        (use_bias ? std::make_optional(bias_host_view_bhss) : std::nullopt),
-        (store_lse ? std::make_optional(lse_host_ref) : std::nullopt),
+        opt_bias_host_view_bhss,
+        opt_lse_host_view_bhs,
         o_host_ref_view_bhsd,
         nhead_k,
         scale_s,
         mask,
-        (mode == mode_enum::batch
-             ? std::nullopt
-             : std::make_optional(ck_tile::span<const int32_t>(seqstart_q_host))),
-        (mode == mode_enum::batch
-             ? std::nullopt
-             : std::make_optional(ck_tile::span<const int32_t>(seqstart_k_host))),
+        opt_seqstart_q,
+        opt_seqstart_k,
         p_compute_element_func,
         oacc_element_func);
 
