@@ -25,8 +25,11 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Multiply    = ck::tensor_operation::element_wise::Multiply;
+using PassThrough         = ck::tensor_operation::element_wise::PassThrough;
+using Multiply            = ck::tensor_operation::element_wise::Multiply;
+using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
+using MultiplyFastGelu    = ck::tensor_operation::element_wise::MultiplyFastGelu;
+using MultiplyAdd         = ck::tensor_operation::element_wise::MultiplyAdd;
 
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -92,6 +95,69 @@ void add_device_grouped_gemm_xdl_tile_loop_multiply_bf16_i8_bf16_mk_kn_mn_instan
             ck::Tuple<Row>,
             ck::Tuple<BF16>,
             Multiply>{});
+}
+
+void add_device_grouped_gemm_xdl_tile_loop_multiply_bias_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          ck::Tuple<Row, Row>,
+                                                          Row,
+                                                          BF16,
+                                                          I8,
+                                                          ck::Tuple<BF16, BF16>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_gemm_xdl_tile_loop_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances<
+            ck::Tuple<Row, Row>,
+            ck::Tuple<BF16, BF16>,
+            MultiplyAdd>{});
+}
+
+void add_device_grouped_gemm_xdl_tile_loop_multiply_bias_fastgelu_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          ck::Tuple<Row, Row>,
+                                                          Row,
+                                                          BF16,
+                                                          I8,
+                                                          ck::Tuple<BF16, BF16>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAddFastGelu>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_gemm_xdl_tile_loop_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances<
+            ck::Tuple<Row, Row>,
+            ck::Tuple<BF16, BF16>,
+            MultiplyAddFastGelu>{});
+}
+
+void add_device_grouped_gemm_xdl_tile_loop_multiply_fastgelu_bf16_i8_bf16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          ck::Tuple<Row>,
+                                                          Row,
+                                                          BF16,
+                                                          I8,
+                                                          ck::Tuple<BF16>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyFastGelu>>>& instances)
+{
+    add_device_operation_instances(
+        instances,
+        device_grouped_gemm_xdl_tile_loop_bf16_i8_bf16_mk_kn_mn_irregular_tile_instances<
+            ck::Tuple<Row>,
+            ck::Tuple<BF16>,
+            MultiplyFastGelu>{});
 }
 
 } // namespace instance
