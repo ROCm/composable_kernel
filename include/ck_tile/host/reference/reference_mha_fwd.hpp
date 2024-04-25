@@ -92,22 +92,21 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
         // clang-format on
 
         // create local tensors to speed-up computation
-        ck_tile::HostTensor<QueryDataType> q_host_ref(query_view_hsd.get_lengths());
-        ck_tile::HostTensor<KeyDataType> k_host_ref(key_view_hsd.get_lengths());
-        ck_tile::HostTensor<ValueDataType> v_host_ref(value_view_hsd.get_lengths());
+        ck_tile::HostTensor<QueryDataType> query_hsd(query_view_hsd.get_lengths());
+        ck_tile::HostTensor<KeyDataType> key_hsd(key_view_hsd.get_lengths());
+        ck_tile::HostTensor<ValueDataType> value_hsd(value_view_hsd.get_lengths());
         // create local tensors for holding intermediate result
-        ck_tile::HostTensor<SMPLComputeDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k});
-        ck_tile::HostTensor<PDataType> p_host_ref({nhead, real_seqlen_q, real_seqlen_k});
-        ck_tile::HostTensor<SMPLComputeDataType> lse_host_ref({nhead, real_seqlen_q});
+        ck_tile::HostTensor<SMPLComputeDataType> s_hss({nhead, real_seqlen_q, real_seqlen_k});
+        ck_tile::HostTensor<PDataType> p_hss({nhead, real_seqlen_q, real_seqlen_k});
 
-        q_host_ref.for_each([&](auto& self, auto i) { self(i) = query_view_hsd(i); });
-        k_host_ref.for_each([&](auto& self, auto i) { self(i) = key_view_hsd(i); });
-        v_host_ref.for_each([&](auto& self, auto i) { self(i) = value_view_hsd(i); });
+        query_hsd.for_each([&](auto& self, auto i) { self(i) = query_view_hsd(i); });
+        key_hsd.for_each([&](auto& self, auto i) { self(i) = key_view_hsd(i); });
+        value_hsd.for_each([&](auto& self, auto i) { self(i) = value_view_hsd(i); });
 
         // reference
-        ck_tile::reference_batched_gemm<SaccDataType>(q_host_ref,
-                                                      k_host_ref,
-                                                      s_host_ref,
+        ck_tile::reference_batched_gemm<SaccDataType>(query_hsd,
+                                                      key_hsd,
+                                                      s_hss,
                                                       ck_tile::identity{},
                                                       ck_tile::identity{},
                                                       ck_tile::scales(scale_s));
@@ -121,24 +120,23 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
             // clang-format on
 
             // create local tensor to speed-up computation
-            ck_tile::HostTensor<BiasDataType> bias_host_ref(bias_view_hss.get_lengths());
-            bias_host_ref.for_each([&](auto& self, auto i) { self(i) = bias_view_hss(i); });
+            ck_tile::HostTensor<BiasDataType> bias_hss(bias_view_hss.get_lengths());
+            bias_hss.for_each([&](auto& self, auto i) { self(i) = bias_view_hss(i); });
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
-            ck_tile::reference_batched_elementwise<SMPLComputeDataType>(
-                s_host_ref, bias_host_ref, s_host_ref);
+            ck_tile::reference_batched_elementwise<SMPLComputeDataType>(s_hss, bias_hss, s_hss);
         }
 
         if(mask.type == mask_enum::no_mask)
         {
-            ck_tile::reference_batched_masking(s_host_ref,
+            ck_tile::reference_batched_masking(s_hss,
                                                FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         }
         else if(mask.type == mask_enum::window_generic)
         {
             ck_tile::reference_batched_masking(
-                s_host_ref,
+                s_hss,
                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                     mask.left, mask.right, real_seqlen_q, real_seqlen_k));
         }
@@ -148,7 +146,7 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
             // else means generic (for current batch)
             if(mask.left < 0)
                 ck_tile::reference_batched_masking(
-                    s_host_ref,
+                    s_hss,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
                         mask.left,
                         mask.right,
@@ -157,7 +155,7 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
                         mask.type == mask_enum::mask_top_left));
             else
                 ck_tile::reference_batched_masking(
-                    s_host_ref,
+                    s_hss,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                         mask.left,
                         mask.right,
@@ -175,16 +173,16 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
             // clang-format on
 
             ck_tile::reference_batched_softmax<SMPLComputeDataType>(
-                s_host_ref, p_host_ref, p_compute_element_func, lse_view_hs);
+                s_hss, p_hss, p_compute_element_func, lse_view_hs);
         }
         else
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType>(
-                s_host_ref, p_host_ref, p_compute_element_func);
+                s_hss, p_hss, p_compute_element_func);
         }
 
-        ck_tile::reference_batched_gemm<OaccDataType>(p_host_ref,
-                                                      v_host_ref,
+        ck_tile::reference_batched_gemm<OaccDataType>(p_hss,
+                                                      value_hsd,
                                                       output_view_hsd,
                                                       ck_tile::identity{},
                                                       ck_tile::identity{},
