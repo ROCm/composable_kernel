@@ -99,7 +99,7 @@ inline void flush_icache()
     hip_check_error(hipGetDeviceProperties(&deviceProps, 0));
     int32_t gpu_block3 = deviceProps.multiProcessorCount * 60;
 
-    int flush_iter = 10;
+    int flush_iter = 1000;
 
     for(int i = 0; i < flush_iter; i++)
     {

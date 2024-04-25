@@ -8,27 +8,23 @@
 namespace ck {
 static __global__ void flush_icache()
 {
-#pragma unroll
-    for(int i = 0; i < 100; i++)
-    {
-        asm __volatile__("s_icache_inv \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t"
-                         "s_nop 0 \n\t" ::
-                             :);
-    }
+    asm __volatile__("s_icache_inv \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t"
+                     "s_nop 0 \n\t" ::
+                         :);
 }
 } // namespace ck
