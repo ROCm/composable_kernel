@@ -161,7 +161,7 @@ __global__ void
         });
 
         bool has_main_kblock_loop =
-            GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_mk.GetLength(Number<0>{}));
+            GridwiseGemm::CalculateHasMainKBlockLoop(a_grid_desc_mk.GetLength(Number<1>{}));
 
         if(has_main_kblock_loop)
         {
