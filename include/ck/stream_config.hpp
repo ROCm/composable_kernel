@@ -13,4 +13,7 @@ struct StreamConfig
     int log_level_         = 0;
     int cold_niters_       = 5;
     int nrepeat_           = 50;
+
+    bool flush_cache   = false;
+    int rotating_count = 1;
 };

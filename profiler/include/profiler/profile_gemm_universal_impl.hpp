@@ -43,7 +43,8 @@ bool profile_gemm_universal_impl(int do_verification,
                                  int StrideC,
                                  int KBatch,
                                  int n_warmup,
-                                 int n_iter)
+                                 int n_iter,
+                                 uint64_t rotating = 0)
 {
     bool pass = true;
 
@@ -66,9 +67,16 @@ bool profile_gemm_universal_impl(int do_verification,
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
+    int total_gemm_needed = a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
+    int rotating_count    = std::max(
+        1,
+        std::min(n_iter,
+                 static_cast<int>(std::ceil(static_cast<double>(rotating) / total_gemm_needed))));
+
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_device_result.mDesc << std::endl;
+    std::cout << "rotating count: " << rotating_count << std::endl;
 
     switch(init_method)
     {
@@ -200,8 +208,14 @@ bool profile_gemm_universal_impl(int do_verification,
 
                 std::string op_name = op_ptr->GetTypeString();
 
-                float ave_time = invoker_ptr->Run(
-                    argument_ptr.get(), StreamConfig{nullptr, time_kernel, 0, n_warmup, n_iter});
+                float ave_time = invoker_ptr->Run(argument_ptr.get(),
+                                                  StreamConfig{nullptr,
+                                                               time_kernel,
+                                                               0,
+                                                               n_warmup,
+                                                               n_iter,
+                                                               rotating_count > 1,
+                                                               rotating_count});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
 
