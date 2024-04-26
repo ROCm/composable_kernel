@@ -27,14 +27,16 @@ using Empty_Tuple = ck::Tuple<>;
 
 using BF16_Tuple = ck::Tuple<BF16>;
 
-using F16_Tuple     = ck::Tuple<F16>;
-using F16_F16_Tuple = ck::Tuple<F16, F16>;
+using F16_Tuple       = ck::Tuple<F16>;
+using F16_F16_Tuple   = ck::Tuple<F16, F16>;
+using BF16_BF16_Tuple = ck::Tuple<BF16, BF16>;
 
 using F64_Tuple     = ck::Tuple<F64>;
 using F32_Tuple     = ck::Tuple<F32>;
 using I32_Tuple     = ck::Tuple<I32>;
 using I32_F32_Tuple = ck::Tuple<I32, F32>;
 using I8_Tuple      = ck::Tuple<I8>;
+using BF16_Tuple    = ck::Tuple<BF16>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
