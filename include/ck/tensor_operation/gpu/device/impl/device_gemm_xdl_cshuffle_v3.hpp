@@ -168,22 +168,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         // rotating mem
                         rotating_mem.Next();
                         // clear c mem
-<<<<<<< HEAD
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             if(arg_.KBatch > 1)
-=======
-                        if(arg.KBatch > 1)
-                        {
-                            if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
-                            {
->>>>>>> 32608ec2c4b2cc728dd16f30e72c8db2b6b3148d
                                 hipGetErrorString(
                                     hipMemsetAsync(arg_.p_c_grid,
                                                    0,
                                                    arg_.M * arg_.N * sizeof(CDataType),
                                                    stream_config.stream_id_));
-<<<<<<< HEAD
                         }
                     };
 
@@ -201,31 +193,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                     if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                     {
                         if(arg.KBatch > 1)
-=======
-                            }
-                        }
-
-                        ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                            stream_config,
-                            run_flush_cache,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            arg_);
-                    } else if(arg.KBatch > 1)
-                    {
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
-                        {
->>>>>>> 32608ec2c4b2cc728dd16f30e72c8db2b6b3148d
                             hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                              0,
                                                              arg.M * arg.N * sizeof(CDataType),
                                                              stream_config.stream_id_));
-<<<<<<< HEAD
-=======
-                        }
->>>>>>> 32608ec2c4b2cc728dd16f30e72c8db2b6b3148d
                     }
 
                     ave_time = launch_and_time_kernel(
