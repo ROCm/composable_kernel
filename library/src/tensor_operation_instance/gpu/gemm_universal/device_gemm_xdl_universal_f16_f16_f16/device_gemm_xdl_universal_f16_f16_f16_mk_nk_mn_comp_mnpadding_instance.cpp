@@ -8,9 +8,6 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using F16 = ck::half_t;
-using F32 = float;
-
 void add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_comp_mnpadding_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
