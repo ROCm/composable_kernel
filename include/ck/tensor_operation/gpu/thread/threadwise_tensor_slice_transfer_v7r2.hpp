@@ -42,7 +42,8 @@ template <typename SrcDatas,
           index_t SrcScalarPerVector,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
-          typename DstResetCoordinateAfterRunFlags> // Sequence<bool ...>
+          typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
+          index_t NumThreadScratch = 1>
 struct ThreadwiseTensorSliceTransfer_v7r2
 {
     static constexpr auto I0 = Number<0>{};
@@ -139,13 +140,18 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
     template <typename SrcBuffers,
+              index_t ThreadScratchId                                   = 0,
               enable_if_t<SrcDescs::Size() == SrcBuffers::Size(), bool> = false>
-    __device__ void RunRead(const SrcDescs& src_descs, const SrcBuffers& src_bufs)
+    __device__ void RunRead(const SrcDescs& src_descs,
+                            const SrcBuffers& src_bufs,
+                            Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         // loop over space-filling curve
         static_for<0, src_num_access, 1>{}([&](auto iAccess) {
             auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
             auto elm_vectors = generate_vectors<DstDatas, SrcScalarPerVector>();
+
+            bool oob_val = true;
 
             // copy data from src_bufs into src_vectors
             static_for<0, nSrc, 1>{}([&](auto i) {
@@ -155,9 +161,10 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(src_descs[i],
                                                                                 src_coords_[i]);
 
+                oob_val = oob_val & is_src_valid;
+
                 src_vectors(i).template AsType<src_vector_t>()(I0) =
-                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(),
-                                                           is_src_valid);
+                    src_bufs[i].template Get<src_vector_t>(src_coords_[i].GetOffset(), true);
             });
 
             constexpr auto get_elem_op_vec_len = []() {
@@ -218,7 +225,8 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                 unpack2(element_op_, dst_data_refs, src_data_refs);
             });
 
-            elm_vectors_tuple_(iAccess) = elm_vectors;
+            elm_vectors_tuple_(thread_scratch_id)(iAccess) = elm_vectors;
+            oob_vectors_tuple_(thread_scratch_id)(iAccess) = oob_val;
 
             // move coordinate
             if constexpr(iAccess.value != src_num_access - 1)
@@ -245,17 +253,38 @@ struct ThreadwiseTensorSliceTransfer_v7r2
         });
     }
 
-    __device__ void TransposeFromElmToDst()
+#if 1
+    template <index_t ThreadScratchId = 0>
+    __device__ void OOBCheck(Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        // loop over space-filling curve
+        static_for<0, src_num_access, 1>{}([&](auto iAccess) {
+            auto elm_vectors = elm_vectors_tuple_[thread_scratch_id][iAccess];
+            auto oob_val     = oob_vectors_tuple_[thread_scratch_id][iAccess];
+
+            static_for<0, nDst, 1>{}([&](auto i) {
+                using elm_vector_t = typename remove_cvref_t<decltype(elm_vectors[i])>::type;
+                elm_vectors(i).template AsType<elm_vector_t>()(I0) =
+                    oob_val ? elm_vectors(i).template AsType<elm_vector_t>()[I0] : elm_vector_t{0};
+            });
+
+            elm_vectors_tuple_(thread_scratch_id)(iAccess) = elm_vectors;
+        });
+    }
+#endif
+
+    template <index_t ThreadScratchId = 0>
+    __device__ void
+    TransposeFromElmToDst(Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
         using DstData = remove_cvref_t<decltype(DstDatas{}[I0])>;
 
-        using SrcThreadScratch =
+        using ElmThreadScratch =
             StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                             DstData,
                                             SrcScalarPerVector,
                                             decltype(GetSrcThreadScratchDescriptor()),
                                             true>;
-
         using DstThreadScratch =
             StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
                                             DstData,
@@ -263,15 +292,17 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                                             decltype(GetDstThreadScratchDescriptor()),
                                             true>;
 
-        SrcThreadScratch elm_thread_scratch_;
+        ElmThreadScratch elm_thread_scratch_;
         DstThreadScratch dst_thread_scratch_;
 
         elm_thread_scratch_.data_ =
-            bit_cast<decltype(elm_thread_scratch_.data_)>(elm_vectors_tuple_);
+            bit_cast<decltype(elm_thread_scratch_.data_)>(elm_vectors_tuple_[thread_scratch_id]);
 
         if constexpr(SrcVectorDim != DstVectorDim &&
                      ((is_same<half_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0) ||
+                      (is_same<f8_t, remove_cvref_t<DstData>>::value &&
+                       SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0) ||
                       (is_same<int8_t, remove_cvref_t<DstData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
@@ -338,20 +369,24 @@ struct ThreadwiseTensorSliceTransfer_v7r2
                 [&](auto idx) { dst_thread_scratch_(idx) = elm_thread_scratch_[idx]; });
         }
 
-        dst_vectors_tuple_ = bit_cast<decltype(dst_vectors_tuple_)>(dst_thread_scratch_.data_);
+        dst_vectors_tuple_(thread_scratch_id) = bit_cast<DstVectorTuple>(dst_thread_scratch_.data_);
     }
 
     // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
     // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
     template <typename DstBuffers,
+              index_t ThreadScratchId                                             = 0,
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
-    __device__ void RunWrite(const DstDescs& dst_descs, DstBuffers dst_bufs)
+    __device__ void RunWrite(const DstDescs& dst_descs,
+                             DstBuffers dst_bufs,
+                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        TransposeFromElmToDst();
+        OOBCheck(thread_scratch_id);
+        TransposeFromElmToDst(thread_scratch_id);
 
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
-            auto dst_vectors = dst_vectors_tuple_[Number<iAccess>{}];
+            auto dst_vectors = dst_vectors_tuple_[thread_scratch_id][iAccess];
 
             // copy data from buf_vectors into dst_bufs
             static_for<0, nDst, 1>{}([&](auto i) {
@@ -578,8 +613,14 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     static constexpr auto src_num_access = SrcSpaceFillingCurve::GetNumOfAccess();
     static constexpr auto dst_num_access = DstSpaceFillingCurve::GetNumOfAccess();
 
-    StaticallyIndexedArray<ElmVectorsType, src_num_access> elm_vectors_tuple_;
-    StaticallyIndexedArray<DstVectorsType, dst_num_access> dst_vectors_tuple_;
+    using ElmVectorTuple = StaticallyIndexedArray<ElmVectorsType, src_num_access>;
+    using DstVectorTuple = StaticallyIndexedArray<DstVectorsType, dst_num_access>;
+
+    StaticallyIndexedArray<ElmVectorTuple, NumThreadScratch> elm_vectors_tuple_;
+    StaticallyIndexedArray<DstVectorTuple, NumThreadScratch> dst_vectors_tuple_;
+
+    using OOBVectorTuple = StaticallyIndexedArray<bool, src_num_access>;
+    StaticallyIndexedArray<OOBVectorTuple, NumThreadScratch> oob_vectors_tuple_;
 
     SrcCoords src_coords_;
     DstCoords dst_coords_;
