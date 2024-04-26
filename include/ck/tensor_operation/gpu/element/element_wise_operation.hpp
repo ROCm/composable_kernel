@@ -221,6 +221,15 @@ struct MultiplyAdd
         e              = y;
     }
     template <>
+    __host__ __device__ void operator()<bhalf_t, float, bhalf_t, bhalf_t>(bhalf_t& e,
+                                                                          const float& c,
+                                                                          const bhalf_t& d0,
+                                                                          const bhalf_t& d1) const
+    {
+        const bhalf_t y = type_convert<bhalf_t>(c) * d0 + d1;
+        e               = y;
+    }
+    template <>
     __host__ __device__ void operator()<float, float, half_t, half_t>(float& e,
                                                                       const float& c,
                                                                       const half_t& d0,
@@ -237,6 +246,26 @@ struct MultiplyAdd
     {
         const float y = c * d0 + d1;
         e             = y;
+    }
+};
+
+struct MultiplyAddFastGelu
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, float, ck::bhalf_t, ck::bhalf_t>(
+        ck::bhalf_t& e, const float& c, const ck::bhalf_t& d0, const ck::bhalf_t& d1) const
+    {
+        const float x0_f = c * ck::type_convert<float>(d0) + ck::type_convert<float>(d1);
+
+        float x1_f = 0;
+
+        FastGelu{}.template operator()<float, float>(x1_f, x0_f);
+
+        e = ck::type_convert<ck::bhalf_t>(x1_f);
     }
 };
 

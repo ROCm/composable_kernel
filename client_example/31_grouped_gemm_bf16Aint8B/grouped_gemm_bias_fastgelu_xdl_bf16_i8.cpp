@@ -38,19 +38,19 @@ using EDataType        = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Col;
+using B0Layout = Row;
 using B1Layout = B0Layout;
 using BsLayout = ck::Tuple<B0Layout, B1Layout>;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
 using AElementOp   = PassThrough;
-using BElementOp   = Scales;
+using BElementOp   = Multiply;
 using CDEElementOp = AddFastGelu;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
