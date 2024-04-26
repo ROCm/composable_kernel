@@ -505,6 +505,16 @@ struct FastGelu
     }
 
     template <>
+    __host__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
+    {
+        float y_f;
+
+        this->operator()<float, float>(y_f, x);
+
+        y = type_convert<bhalf_t>(y_f);
+    }
+
+    template <>
     __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
         float y_f;

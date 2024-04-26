@@ -47,14 +47,14 @@ using D0Layout = Row;
 // using DsLayout = ck::Tuple<Row>;
 using ELayout = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 using Add         = ck::tensor_operation::element_wise::Add;
 using FastGelu    = ck::tensor_operation::element_wise::FastGelu;
 
 using AElementOp = PassThrough;
-using BElementOp = Scales;
+using BElementOp = Multiply;
 // using CDEElementOp = AddFastGelu;
 
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
