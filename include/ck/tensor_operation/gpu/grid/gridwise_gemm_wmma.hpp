@@ -781,6 +781,8 @@ struct GridwiseGemm_Wmma
         // GEMM
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
 
+	static_assert(KPerBlock % KPack == 0, "");
+
         auto blockwise_gemm =
             BlockwiseGemmWMMA<BlockSize,
                               ADataType,
