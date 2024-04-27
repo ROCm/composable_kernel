@@ -97,7 +97,7 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     static constexpr auto AEnableLds_manu = false;
     static constexpr auto BEnableLds_manu = false;
 
-    static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
+    static constexpr auto AEnableLds = false; //AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
 
     static constexpr auto matrix_padder =

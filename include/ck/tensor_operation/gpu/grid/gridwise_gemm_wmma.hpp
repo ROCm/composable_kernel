@@ -170,8 +170,9 @@ struct GridwiseGemm_Wmma
             }
             else
             {
+		constexpr auto A_KRow = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                constexpr auto K0PerWmma     = WmmaK / A_KRow / K1;
                 // KWmma->MRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<KWmmaPerblock>{},
@@ -217,8 +218,10 @@ struct GridwiseGemm_Wmma
             }
             else
             {
+
+		constexpr auto B_KRow = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                constexpr auto K0PerWmma     = WmmaK / B_KRow / K1;
                 // KWmma->NRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<KWmmaPerblock>{},
@@ -292,7 +295,7 @@ struct GridwiseGemm_Wmma
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
                 constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
                 constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
-                constexpr auto A_KRow = I1;
+                constexpr auto A_KRow = I2;
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
                     make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
@@ -307,7 +310,6 @@ struct GridwiseGemm_Wmma
                 // KWmma_MRepeat_MWave_K0PerWmma_KRow_MPerWmma_K1 -> K0_MRepeat_Mwaves_MPerWmma_K1
                 constexpr auto KWmma     = ABlockDesc_{}.GetLength(I0);
                 constexpr auto K0PerWmma = ABlockDesc_{}.GetLength(I3);
-                constexpr auto A_KRow    = ABlockDesc_{}.GetLength(I4);
                 constexpr auto A_K1      = ABlockDesc_{}.GetLength(I6);
 
                 // Err: merge transform cause non-constexpr issue
@@ -332,7 +334,7 @@ struct GridwiseGemm_Wmma
                 return make_naive_tensor_descriptor_packed(make_tuple(Number<KWmma * K0PerWmma>{},
                                                                       Number<MRepeat>{},
                                                                       I1,
-                                                                      Number<A_KRow>{},
+                                                                      I1,
                                                                       I1,
                                                                       Number<A_K1>{}));
             }
@@ -350,7 +352,7 @@ struct GridwiseGemm_Wmma
                 // BK0_N_BK1 -> BK0_NRepeat_Nwaves_NPerWmma_BK1
                 constexpr auto B_K0   = BBlockDesc_{}.GetLength(I0);
                 constexpr auto B_K1   = BBlockDesc_{}.GetLength(I2);
-                constexpr auto B_KRow = I1;
+                constexpr auto B_KRow = I2;
                 return transform_tensor_descriptor(
                     BBlockDesc_{},
                     make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
@@ -365,14 +367,13 @@ struct GridwiseGemm_Wmma
                 // KWmma_MRepeat_MWave_K0PerWmma_KRow_MPerWmma_K1 -> K0_MRepeat_Mwaves_MPerWmma_K1
                 constexpr auto KWmma     = BBlockDesc_{}.GetLength(I0);
                 constexpr auto K0PerWmma = BBlockDesc_{}.GetLength(I3);
-                constexpr auto B_KRow    = BBlockDesc_{}.GetLength(I4);
                 constexpr auto B_K1      = BBlockDesc_{}.GetLength(I6);
 
                 // Workaround, Freeze transform
                 return make_naive_tensor_descriptor_packed(make_tuple(Number<KWmma * K0PerWmma>{},
                                                                       Number<NRepeat>{},
                                                                       I1,
-                                                                      Number<B_KRow>{},
+                                                                      I1,
                                                                       I1,
                                                                       Number<B_K1>{}));
             }
@@ -780,8 +781,6 @@ struct GridwiseGemm_Wmma
 /*******************************************************************************/
         // GEMM
         constexpr auto KPack = math::integer_least_multiple(K1, WmmaK);
-
-	static_assert(KPerBlock % KPack == 0, "");
 
         auto blockwise_gemm =
             BlockwiseGemmWMMA<BlockSize,

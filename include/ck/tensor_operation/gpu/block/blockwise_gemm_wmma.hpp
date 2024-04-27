@@ -70,9 +70,6 @@ struct BlockwiseGemmWMMA
     static constexpr index_t A_KRow = 2;
     static constexpr index_t B_KRow = 2;
 
-    static constexpr index_t A_KRow_ = AEnableLds ? 1 : 2;
-    static constexpr index_t B_KRow_ = BEnableLds ? 1 : 2;
-
     static constexpr index_t A_K1 = ABlockDesc{}.GetLength(I5);
     static constexpr index_t B_K1 = BBlockDesc{}.GetLength(I5);
 
@@ -316,7 +313,7 @@ struct BlockwiseGemmWMMA
                         // read A
                         a_thread_copy_.Run(
                             a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_K1 / A_KRow_>{}, m0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
                             a_block_buf,
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
@@ -327,7 +324,7 @@ struct BlockwiseGemmWMMA
                             b_thread_copy_.Run(
                                 b_block_desc_k0_n0_n1_n2_k1,
                                 make_tuple(
-                                    Number<k * KPack / B_K1 / B_KRow_>{}, n0, I0, I0, I0, I0),
+                                    Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
                                 b_block_buf,
                                 b_thread_desc_,
                                 make_tuple(I0, n0, I0, I0, I0, I0),
@@ -373,7 +370,7 @@ struct BlockwiseGemmWMMA
                         // read B
                         b_thread_copy_.Run(
                             b_block_desc_k0_n0_n1_n2_k1,
-                            make_tuple(Number<k * KPack / B_K1 / B_KRow_>{}, n0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
                             b_block_buf,
                             b_thread_desc_,
                             make_tuple(I0, n0, I0, I0, I0, I0),
@@ -381,7 +378,7 @@ struct BlockwiseGemmWMMA
                         // read A
                         a_thread_copy_.Run(
                             a_block_desc_k0_m0_m1_m2_k1,
-                            make_tuple(Number<k * KPack / A_K1 / A_KRow_>{}, m0, I0, I0, I0, I0),
+                            make_tuple(Number<k * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
                             a_block_buf,
                             a_thread_desc_,
                             make_tuple(I0, m0, I0, I0, I0, I0),
