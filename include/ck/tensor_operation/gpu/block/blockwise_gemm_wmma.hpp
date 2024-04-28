@@ -323,8 +323,7 @@ struct BlockwiseGemmWMMA
                             // read B
                             b_thread_copy_.Run(
                                 b_block_desc_k0_n0_n1_n2_k1,
-                                make_tuple(
-                                    Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                                make_tuple(Number<k * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
                                 b_block_buf,
                                 b_thread_desc_,
                                 make_tuple(I0, n0, I0, I0, I0, I0),
@@ -440,30 +439,76 @@ struct BlockwiseGemmWMMA
     static constexpr auto c_thread_desc_ = make_naive_tensor_descriptor_packed(
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, wmma_gemm.GetRegSizePerWmma()));
 
-    using AThreadCopyType =
-        ThreadwiseTensorSliceTransfer_v4<FloatA,
-                                         FloatA,
-                                         decltype(a_block_desc_k0_m0_m1_m2_k1),
-                                         decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
-                                         Sequence<0, 1, 2, 3, 4, 5>,
-                                         5,
-                                         A_K1,
-                                         A_K1>;
+    template <bool EnableLds>
+    struct AThreadCopySelector;
 
-    using BThreadCopyType =
-        ThreadwiseTensorSliceTransfer_v4<FloatB,
-                                         FloatB,
-                                         decltype(b_block_desc_k0_n0_n1_n2_k1),
-                                         decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
-                                         Sequence<0, 1, 2, 3, 4, 5>,
-                                         5,
-                                         B_K1,
-                                         B_K1>;
+    template <>
+    struct AThreadCopySelector<true>
+    {
+        using type =
+            ThreadwiseTensorSliceTransfer_v4<FloatA,
+                                             FloatA,
+                                             decltype(a_block_desc_k0_m0_m1_m2_k1),
+                                             decltype(a_thread_desc_),
+                                             Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
+                                             Sequence<0, 1, 2, 3, 4, 5>,
+                                             5,
+                                             A_K1,
+                                             A_K1>;
+    };
 
-    AThreadCopyType a_thread_copy_;
-    BThreadCopyType b_thread_copy_;
+    template <>
+    struct AThreadCopySelector<false>
+    {
+        using type = ThreadwiseTensorSliceTransfer_StaticToStatic_IntraRow<
+            FloatA,
+            FloatA,
+            decltype(a_block_desc_k0_m0_m1_m2_k1),
+            decltype(a_thread_desc_),
+            tensor_operation::element_wise::PassThrough,
+            Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
+            Sequence<0, 1, 2, 3, 4, 5>,
+            5,
+            A_K1,
+            TransposeC ? false : true>;
+    };
+
+    template <bool EnableLds>
+    struct BThreadCopySelector;
+
+    template <>
+    struct BThreadCopySelector<true>
+    {
+        using type =
+            ThreadwiseTensorSliceTransfer_v4<FloatB,
+                                             FloatB,
+                                             decltype(b_block_desc_k0_n0_n1_n2_k1),
+                                             decltype(b_thread_desc_),
+                                             Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
+                                             Sequence<0, 1, 2, 3, 4, 5>,
+                                             5,
+                                             B_K1,
+                                             B_K1>;
+    };
+
+    template <>
+    struct BThreadCopySelector<false>
+    {
+        using type = ThreadwiseTensorSliceTransfer_StaticToStatic_IntraRow<
+            FloatB,
+            FloatB,
+            decltype(b_block_desc_k0_n0_n1_n2_k1),
+            decltype(b_thread_desc_),
+            tensor_operation::element_wise::PassThrough,
+            Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
+            Sequence<0, 1, 2, 3, 4, 5>,
+            5,
+            B_K1,
+            TransposeC ? true : false>;
+    };
+
+    typename AThreadCopySelector<AEnableLds>::type a_thread_copy_;
+    typename BThreadCopySelector<BEnableLds>::type b_thread_copy_;
 };
 #else
 template <index_t BlockSize,

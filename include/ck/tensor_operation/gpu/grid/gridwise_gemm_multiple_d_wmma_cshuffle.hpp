@@ -375,7 +375,7 @@ struct GridwiseGemmMultipleD_Wmma
             }
             else
             {
-		constexpr auto A_KRow = I2;
+                constexpr auto A_KRow        = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
                 constexpr auto K0PerWmma     = WmmaK / A_KRow / K1;
                 // KWmma->MRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
@@ -423,7 +423,7 @@ struct GridwiseGemmMultipleD_Wmma
             }
             else
             {
-		constexpr auto B_KRow = I2;
+                constexpr auto B_KRow        = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
                 constexpr auto K0PerWmma     = WmmaK / B_KRow / K1;
                 // KWmma->NRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
@@ -497,8 +497,8 @@ struct GridwiseGemmMultipleD_Wmma
             if constexpr(AEnableLds)
             {
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
-                constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
-                constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
+                constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
+                constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
 #ifdef __gfx12__
                 constexpr auto A_KRow = I2;
 #else
@@ -540,8 +540,8 @@ struct GridwiseGemmMultipleD_Wmma
             if constexpr(BEnableLds)
             {
                 // BK0_N_BK1 -> BK0_NRepeat_Nwaves_NPerWmma_BK1
-                constexpr auto B_K0   = BBlockDesc_{}.GetLength(I0);
-                constexpr auto B_K1   = BBlockDesc_{}.GetLength(I2);
+                constexpr auto B_K0 = BBlockDesc_{}.GetLength(I0);
+                constexpr auto B_K1 = BBlockDesc_{}.GetLength(I2);
 #ifdef __gfx12__
                 constexpr auto B_KRow = I2;
 #else
