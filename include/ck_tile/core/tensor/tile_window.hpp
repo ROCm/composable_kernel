@@ -146,9 +146,10 @@ struct tile_window_with_static_distribution
         // check if window_lengths is matching the shape of tile_distribution
         static_assert(WindowLengths::size() == TileDstr::NDimX);
         static_for<0, TileDstr::NDimX, 1>{}([&](auto dim) {
-            if constexpr(is_number_v<decltype(window_lengths[dim])>)
+            if constexpr(is_number_v<remove_cvref_t<decltype(window_lengths[dim])>>)
             {
-                constexpr index_t window_length = decltype(window_lengths[dim])::value;
+                constexpr index_t window_length =
+                    remove_cvref_t<decltype(window_lengths[dim])>::value;
                 static_assert(window_length == TileDstr::get_lengths()[dim]);
             }
         });
