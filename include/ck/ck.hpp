@@ -236,6 +236,9 @@
 #define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
 #endif // CK_WORKAROUND_DENORM_FIX
 
+// set flag to 1 to build deprecated instances
+#define CK_BUILD_DEPRECATED 1
+
 namespace ck {
 
 enum struct InMemoryDataOperationEnum
