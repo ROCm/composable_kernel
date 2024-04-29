@@ -24,6 +24,8 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instance
                                                                 PassThrough,
                                                                 F8>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
+#pragma message "These instances are getting deprecated"
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_f16_comp_f8_instances<3,
@@ -48,6 +50,9 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_f8_instance
                                                           Empty_Tuple,
                                                           NDHWGK,
                                                           ConvFwd1x1S1P0>{});
+#else
+#pragma message "These instances were deprecated"
+#endif
 }
 
 } // namespace instance
