@@ -11,6 +11,8 @@ namespace ck {
 namespace host {
 namespace conv {
 
+// calculate appropriate Gemm Specification based on input tensor dimensions
+// NOTE: in CK, MNKPadding is always used for forward convolution
 static std::string GetGemmSpec(const std::size_t m,
                                const std::size_t n,
                                const std::size_t k,
@@ -31,14 +33,13 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
+// functions to update prologue or epilofue with user provided function
 void Operation_Conv::update_prologue(const std::string& prologue)
 {
     if(!prologue.empty())
     {
-        this->prologue = prologue;
-        // std::cout << "changing to prologue" << std::endl;
+        this->prologue    = prologue;
         this->cde_elem_op = "CDEElementOp";
-        // std::cout << "New CDE(P): " << this->cde_elem_op << std::endl;
     }
     else
     {
@@ -50,10 +51,8 @@ void Operation_Conv::update_epilogue(const std::string& epilogue)
 {
     if(!epilogue.empty())
     {
-        this->epilogue = epilogue;
-        // std::cout << "changing to epilogue" << std::endl;
+        this->epilogue    = epilogue;
         this->cde_elem_op = "CDEElementOp";
-        // std::cout << "New CDE: " << this->cde_elem_op << std::endl;
     }
     else
     {
@@ -61,6 +60,8 @@ void Operation_Conv::update_epilogue(const std::string& epilogue)
     }
 }
 
+// Hard-code tuning parameters in modularized fashion, string them together into a vector of
+// instances
 template <class F>
 std::vector<Operation_Conv> CreateOperationsImpl(
     F f, Layout ALayout, Layout BLayout, const std::string& prologue, const std::string& epilogue)
@@ -74,7 +75,6 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 //       |      |      |      |    |    |     |     | Wave| Wave|    Stage|
 //       |      |      |      |    |    |     |     |     |     |         |
   {   256,   128,   256,    32,   8,   8,   32,   32,    2,    4,        1}
-  //{   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,        1},
         // clang-format on
     };
 
@@ -85,7 +85,6 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 // Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
 //                |               |               |               |               |               |          |
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1}
-  //{    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
         // clang-format on
     };
 
@@ -96,7 +95,6 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 // Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |
 //                |               |               |              |               |               |          |
   {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1}
-  //{    S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,         1},
         // clang-format on
     };
 
@@ -107,7 +105,6 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 //  PerShuffle|  PerShuffle|
 //            |            |
   {          1,           1}
-  //{          1,           1},
         // clang-format on
     };
 
@@ -118,7 +115,6 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 //         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl
 //                             |                
   {              S<1, 32, 1, 8>,               8}
-  //{              S<1, 32, 1, 8>,               8},
         // clang-format on
     };
 
@@ -132,7 +128,7 @@ std::vector<Operation_Conv> CreateOperationsImpl(
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
     assert(tile_descriptions.size() == c_block_descriptions.size());
 
-    // std::cout << "starting transfer" << std::endl;
+    // Put all values together into a single operation > store into the result vector
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Conv x;
@@ -144,15 +140,13 @@ std::vector<Operation_Conv> CreateOperationsImpl(
         x.c_block_transfer = c_block_descriptions[i];
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
-        // std::cout << "Check: " << x.cde_elem_op << std::endl;
         auto all = f(x);
         result.insert(result.end(), all.begin(), all.end());
     }
-    // std::cout << "finished loading" << std::endl;
     return result;
 }
 
-static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
+// set up instances when not provided with a problem specification, use default operation values
 std::vector<Operation_Conv> Operation_Conv::CreateOperations(const std::string& prologue,
                                                              const std::string& epilogue)
 {
@@ -162,6 +156,8 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const std::string& 
                                 prologue,
                                 epilogue);
 }
+
+// set up instances when given problem specifications
 std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv& prob,
                                                              const std::string& prologue,
                                                              const std::string& epilogue)
@@ -180,13 +176,12 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
             x.cde_elem_op = prob.CDEElementOp;
             x.update_prologue(prologue);
             x.update_epilogue(epilogue);
-            x.gemm_specialization =
-                GetGemmSpec(prob.G, // TODO: check the input going into this is correct
-                            prob.N,
-                            prob.Hi,
-                            x.tile_desc.m_per_block,
-                            x.tile_desc.n_per_block,
-                            x.tile_desc.k_per_block);
+            x.gemm_specialization = GetGemmSpec(prob.G,
+                                                prob.N,
+                                                prob.Hi,
+                                                x.tile_desc.m_per_block,
+                                                x.tile_desc.n_per_block,
+                                                x.tile_desc.k_per_block);
             return {x};
         },
         prob.ALayout,
@@ -311,6 +306,7 @@ extern "C" __global__ void run_${name}(
 }
 )";
 
+// use hardcoded instances to substitute values into instance template
 Solution Operation_Conv::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
@@ -319,7 +315,11 @@ Solution Operation_Conv::ToSolution() const
              std::to_string(this->tile_desc.m_per_block) + "_" +
              std::to_string(this->tile_desc.n_per_block) + "_" +
              std::to_string(this->tile_desc.k_per_block) + "_" +
-             std::to_string(this->tile_desc.ak1)},
+             std::to_string(this->tile_desc.ak1) + "_" + std::to_string(this->tile_desc.bk1) + "_" +
+             std::to_string(this->tile_desc.m_per_XDL) + "_" +
+             std::to_string(this->tile_desc.n_per_XDL) + "_" +
+             std::to_string(this->tile_desc.m_Xdl_per_wave) + "_" +
+             std::to_string(this->tile_desc.n_Xdl_per_wave)},
         {"NumDim", std::to_string(this->NumDim)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},

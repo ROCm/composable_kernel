@@ -17,7 +17,7 @@ namespace conv {
 
 struct Copy_Problem_Conv
 {
-    std::size_t NumDim               = 2;
+    std::size_t NumDim               = 0;
     std::size_t G                    = 0;
     std::size_t N                    = 0;
     std::size_t C                    = 0;
@@ -28,13 +28,10 @@ struct Copy_Problem_Conv
     std::size_t K                    = 0;
     std::size_t Y                    = 0;
     std::size_t X                    = 0;
-    Layout ALayout                   = Layout::GNHWC;
+    Layout ALayout                   = Layout::NHWGC;
     Layout BLayout                   = Layout::GKYXC;
-    Layout ELayout                   = Layout::GNHWK;
+    Layout ELayout                   = Layout::NHWGK;
     std::vector<Layout> DsLayout     = {};
-    bool TransA                      = false;
-    bool TransB                      = false;
-    bool TransE                      = false;
     std::vector<bool> DsTrans        = {};
     DataType ADataType               = DataType::Half;
     DataType BDataType               = DataType::Half;

@@ -581,22 +581,21 @@ struct TransformConv
                    ck::Array<index_t, NDimSpatial + 3> out_strides,
                    TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
     {
-        // decltype(ELayout)::foo = 1;
         if(NDimSpatial == 2)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::GNHWK>(out_lengths,
+                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::NHWGK>(out_lengths,
                                                                                      out_strides);
         }
         else if(NDimSpatial == 3)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<tensor_layout::convolution::GNDHWK>(out_lengths,
+                .template MakeCDescriptor_M_N<tensor_layout::convolution::NDHWGK>(out_lengths,
                                                                                   out_strides);
         }
         else if(NDimSpatial == 1)
         {
-            return conv_fwd_to_gemm.template MakeCDescriptor_M_N<tensor_layout::convolution::GNWK>(
+            return conv_fwd_to_gemm.template MakeCDescriptor_M_N<tensor_layout::convolution::NWGK>(
                 out_lengths, out_strides);
         }
     }

@@ -24,7 +24,6 @@
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/ranges.hpp"
 #include "ck/library/utility/check_err.hpp"
-//#include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -40,9 +39,6 @@
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 #include <fstream>
-
-// using half = _Float16;
-// using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
 {
@@ -61,10 +57,9 @@ template <class T>
 rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
 {
     rtc::buffer<T> result(n);
-    /**std::mt19937 gen(seed);
+    std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
-    std::generate(result.begin(), result.end(), [&] { return dis(gen); });**/
-    std::fill(result.begin(), result.end(), 1);
+    std::generate(result.begin(), result.end(), [&] { return dis(gen); });
     return result;
 }
 
@@ -176,8 +171,7 @@ struct Prologue
 const std::string conv_compile_check = R"__ck__(
 #include <${include}>
 
-// TODO(Amber): remove as Prologue will be merged later on
-    struct Prologue
+struct Prologue
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
 
@@ -212,17 +206,11 @@ using DeviceConv = ck::tensor_operation::device::ModDeviceGroupedConvFwdMultiple
     constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
     constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
 
-// TODO(Amber): fix parameters
 extern "C" __global__ void kernel_group_conv_fwd(
-
-    // TODO(Amber): Extract type from DeviceConv
     const ck::half_t* p_as_grid,
     const ck::half_t* p_bs_grid,
     DeviceConv::GridwiseGemm::DsGridPointer p_ds_grid,
     ck::half_t* __restrict__ p_e_grid,
-
-    // TODO(Amber): replace with valid element_wise operations
-    //
     const ck::tensor_operation::element_wise::PassThrough a_element_op,
     const ck::tensor_operation::element_wise::PassThrough b_element_op,
     const Prologue cde_element_op,
@@ -236,8 +224,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
     const DeviceConv::Block2ETileMap block_2_ctile_map,
 		const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch) {
 
-    using CDEElementOp = Prologue; // TODO(Amber): replace with Prologue
-
+    using CDEElementOp = Prologue;
 
     using GridwiseGemm = DeviceConv::GridwiseGemm;
 
@@ -256,13 +243,11 @@ extern "C" __global__ void kernel_group_conv_fwd(
                     DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                     DeviceConv::Block2ETileMap,
 		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
-
                     // TODO(Amber): double check these bool flags
                     ck::integral_constant<bool, true>{}, // HasMainKBlockLoop
                     false, // isMultiA
                     false> // isMultiB
                   (
-
                   p_as_grid,
                   p_bs_grid,
                   p_ds_grid,
@@ -277,7 +262,6 @@ extern "C" __global__ void kernel_group_conv_fwd(
                   e_grid_desc_mblock_mperblock_nblock_nperblock_,
                   block_2_ctile_map,
                   compute_ptr_offset_of_batch);
-
 }
 
 )__ck__";
@@ -317,11 +301,6 @@ struct Prologue
 )";
 
     std::string epilogue = "";
-
-    static constexpr auto I0 = ck::Number<0>{};
-    static constexpr auto I1 = ck::Number<1>{};
-    static constexpr auto I2 = ck::Number<2>{};
-    static constexpr auto I3 = ck::Number<3>{};
 
     using CDEElementOp = Prologue;
 
@@ -423,41 +402,9 @@ struct Prologue
             tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
     };
 
-    auto in_tmp = get_num_elems(in_lengths);
-    std::cout << std::to_string(in_tmp) << std::endl;
-    std::cout << "Lengths" << std::endl;
-    std::cout << in_lengths << std::endl;
-    std::cout << wei_lengths << std::endl;
-    std::cout << out_lengths << std::endl;
-    std::cout << "Strides" << std::endl;
-    std::cout << in_strides << std::endl;
-    std::cout << wei_strides << std::endl;
-    std::cout << out_strides << std::endl;
-    // decltype(in)::foo = 1;
-
     auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
     auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
     auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));
-
-    // std::ofstream data("data.txt");
-    /** for(int i = 0; i < out_dev.size(); i++)
-               {
-                           auto tmp = out_dev[i];
-                                       data << std::to_string(static_cast<int>(tmp));
-               }**/
-    // data << "wei: " << wei_dev << std::endl;
-    // data << "out: " << out_dev << std::endl;
-    // data.close();
-
-    auto out = generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2);
-    auto in  = generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0);
-    auto wei = generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1);
-    std::cout << "Sizes: " << get_num_elems(in_lengths) << ", " << get_num_elems(wei_lengths)
-              << ", " << get_num_elems(out_lengths) << std::endl;
-    std::cout << "buf sizes" << std::endl;
-    std::cout << out.size() << std::endl;
-    std::cout << in.size() << std::endl;
-    std::cout << wei.size() << std::endl;
 
     // populated arg call
     auto arg = DeviceConv::Argument(in_dev.data(),
@@ -507,13 +454,12 @@ struct Prologue
 
         auto grid_size =
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
-        auto block_size = 256; // TODO(Amber): pick from DeviceConv template params
+        auto block_size = solution.GetTemplateParameter<ck::index_t>("BlockSize");
+        ;
 
-        ofh << "Grid Size: " << grid_size << std::endl;
-        ofh << "Block Size: " << block_size << std::endl;
         ofh.close();
         // print arg kernels - host_side
-        arg.Print();
+        // arg.Print();
 
         k.launch(nullptr, grid_size * block_size, block_size)(
             arg.p_as_grid_,
@@ -531,6 +477,7 @@ struct Prologue
             arg.block_2_etile_map_,
             arg.compute_ptr_offset_of_batch_);
 
+        // Validation: CK Reference Kernel
         /**Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
@@ -557,18 +504,15 @@ struct Prologue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   CDEElementOp{1.0f, 1.0f});
-        std::cout << "Ref args" << std::endl;
-        ref_argument.Print();
+        // std::cout << "Ref args" << std::endl;
+        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
         bool pass = true;
         auto res  = rtc::from_gpu(out_dev);
-        // LogRangeAsType<float>(std::cout << "out  : ", out_host.mData, ", ") << std::endl;
         std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-        ofh2 << "Check: " << pass << std::endl;
-        ofh2 << res.size() << std::endl;
         for(int i = 0; i < res.size(); i++)
         {
             auto tmp = (res.data())[i];

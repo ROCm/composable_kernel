@@ -13,6 +13,7 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
+// calculate appropriate Gemm Specification based on input tensor dimensions
 static std::string GetGemmSpec(const std::size_t m,
                                const std::size_t n,
                                const std::size_t k,
@@ -33,6 +34,7 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
+// function to update prologue/epilogue with user provided operation
 void Operation_Xdl_CShuffle::update_prologue(const std::string& prologue)
 {
     if(!prologue.empty())
@@ -59,6 +61,8 @@ void Operation_Xdl_CShuffle::update_epilogue(const std::string& epilogue)
     }
 }
 
+// Hard-code tuning parameters in modularized fashion, string them together into a vector of
+// instances
 template <class F>
 std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(
     F f, Layout ALayout, Layout BLayout, const std::string& prologue, const std::string& epilogue)
@@ -194,6 +198,7 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
     assert(tile_descriptions.size() == c_block_descriptions.size());
 
+    // Put all values together into a single operation > store into the result vector
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Xdl_CShuffle x;
@@ -211,8 +216,10 @@ std::vector<Operation_Xdl_CShuffle> CreateOperationsImpl(
     return result;
 }
 
+// set layout to row/col based on whether trans is false/true
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
+// set up instances when not provided with a problem specification, use default operation values
 std::vector<Operation_Xdl_CShuffle>
 Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std::string& epilogue)
 {
@@ -222,6 +229,8 @@ Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std:
                                 prologue,
                                 epilogue);
 }
+
+// set up instances when given problem specifications
 std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
     const Problem& prob, const std::string& prologue, const std::string& epilogue)
 {
@@ -250,12 +259,12 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
         epilogue);
 }
 
-// TODO: reincorporate fusion
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate = R"(
 
 ck::tensor_operation::device::DeviceGemmMultipleD_Xdl_CShuffle<${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>
 )";
 
+// use hardcoded instances to substitute values into instance template
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
@@ -264,7 +273,11 @@ Solution Operation_Xdl_CShuffle::ToSolution() const
              std::to_string(this->tile_desc.m_per_block) + "_" +
              std::to_string(this->tile_desc.n_per_block) + "_" +
              std::to_string(this->tile_desc.k_per_block) + "_" +
-             std::to_string(this->tile_desc.ak1)},
+             std::to_string(this->tile_desc.ak1) + "_" + std::to_string(this->tile_desc.bk1) + "_" +
+             std::to_string(this->tile_desc.m_per_XDL) + "_" +
+             std::to_string(this->tile_desc.n_per_XDL) + "_" +
+             std::to_string(this->tile_desc.m_Xdl_per_wave) + "_" +
+             std::to_string(this->tile_desc.n_Xdl_per_wave)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",

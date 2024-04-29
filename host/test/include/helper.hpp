@@ -20,30 +20,13 @@ using layouts = std::variant<ck::tensor_layout::convolution::GNWK,
                              ck::tensor_layout::convolution::NHWGK,
                              ck::tensor_layout::convolution::GNDHWK,
                              ck::tensor_layout::convolution::NDHWGK>;
+// return the layout type: currently this is the only type supported in MIOpen
 auto layout_type(std::string type)
 {
-    std::variant<ck::tensor_layout::convolution::GNWK,
-                 ck::tensor_layout::convolution::GNHWK,
-                 ck::tensor_layout::convolution::NHWGK,
-                 ck::tensor_layout::convolution::GNDHWK,
-                 ck::tensor_layout::convolution::NDHWGK>
-        layouts;
-    if(type == "ck::tensor_layout::convolution::GNHWK")
+    if(type == "ck::tensor_layout::convolution::NHWGK")
     {
-        // layouts = ck::tensor_layout::convolution::GNHWK{};
-        // return std::get<ck::tensor_layout::convolution::GNHWK>(layouts);
-        // return std::make_pair(2,layouts);
-        // return 2;
-        return ck::tensor_layout::convolution::GNHWK{};
+        return ck::tensor_layout::convolution::NHWGK{};
     }
-    /**else if(type == "ck::tensor_layout::convolution::NHWGK")
-    {
-            layouts = ck::tensor_layout::convolution::NHWGK{};
-            //return std::make_pair(3,layouts);
-            //return 3;
-            return std::get<ck::tensor_layout::convolution::NHWGK>(layouts);
-            //return ck::tensor_layout::convolution::NHWGK{};
-    }**/
     throw std::runtime_error("Incorrect layout");
 }
 // return the right gemm spec based on the generated template parameters
@@ -57,7 +40,7 @@ ck::tensor_operation::device::GemmSpecialization gemm_type(std::string type)
     {
         return ck::tensor_operation::device::GemmSpecialization::MNKPadding;
     }
-    throw std::runtime_error("Incorrect gemm spec");
+    throw std::runtime_error("Incorrect gemm spec: " + type);
 }
 
 // return the type of convolution
@@ -80,10 +63,11 @@ ck::tensor_operation::device::ConvolutionForwardSpecialization conv_type(std::st
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
     }
-    throw std::runtime_error("Incorrect conv spec");
+    throw std::runtime_error("Incorrect conv spec: " + type);
 }
 
 // Function to call on MatrixPadder via a wrapper struct
+// NOTE: CK only uses MNKPadding for forward convolution
 template <typename CDesc_MRaw_NRaw>
 auto pad(ck::index_t mpb,
          ck::index_t npb,
@@ -224,6 +208,7 @@ auto transform_conv_3d(ck::index_t num_dim,
     }
     throw std::runtime_error("Incorrect conv spec");
 }
+
 auto transform_conv_1d(ck::index_t num_dim,
                        ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
                        layouts e_layout,
@@ -284,21 +269,6 @@ auto transform_conv_1d(ck::index_t num_dim,
 template <typename CGridDesc_M_N>
 auto block_2_etile(ck::index_t m_per_block, ck::index_t n_per_block, CGridDesc_M_N matrix_padder)
 {
-    // TODO: update and properly scale
-    constexpr ck::Array<ck::index_t, 4> perblock{32, 64, 128, 256};
-    int x = 0;
-    for(int i = 0; i < 5; i++)
-    {
-        if(m_per_block == perblock[i])
-        {
-            x = i;
-        }
-    }
-    /**switch(x){
-            case 0: ck::BlockToCTileMap_M00_N0_M01Adapt<128, 256, CGridDesc_M_N> b2e(matrix_padder);
-                            return b2e.CalculateGridSize(matrix_padder);
-
-    }**/
     if(m_per_block == 32 && n_per_block == 64)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<32, 64, CGridDesc_M_N> b2e(matrix_padder);
@@ -349,20 +319,11 @@ auto block_2_etile(ck::index_t m_per_block, ck::index_t n_per_block, CGridDesc_M
         ck::BlockToCTileMap_M00_N0_M01Adapt<256, 128, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    // TODO: figure out how to pass parameters properly -> not scalable for this method
-    /**if(m_per_block == 128 && n_per_block == 256)
-    {
-        ck::BlockToCTileMap_M00_N0_M01Adapt<128, 256, CGridDesc_M_N> b2e(matrix_padder);
-        return b2e.CalculateGridSize(matrix_padder);
-    }**/
-    // auto tmp = ck::BlockToCTileMap_M00_N0_M01Adapt<perblock[x], n_per_block,
-    // CGridDesc_M_N>(matrix_padder);
-    // b2e	= ck::BlockToCTileMap_M00_N0_M01Adapt(m_per_block, n_per_block);
     throw std::runtime_error("Incorrect template parameters");
 }
 
 // wrapper functions by dims to get grid size - uses above 3 functions
-// TODO: can get around this using templating?
+// TODO: eventually remove the 1d/2d versions as CK will only support 3d convolutions
 auto get_launch_params_1d(ck::index_t m_per_block,
                           ck::index_t n_per_block,
                           ck::index_t k_per_block,
@@ -379,6 +340,7 @@ auto get_launch_params_1d(ck::index_t m_per_block,
     auto b2e           = block_2_etile(m_per_block, n_per_block, matrix_padder);
     return b2e;
 }
+
 auto get_launch_params(ck::index_t m_per_block,
                        ck::index_t n_per_block,
                        ck::index_t k_per_block,
@@ -395,6 +357,7 @@ auto get_launch_params(ck::index_t m_per_block,
     auto b2e           = block_2_etile(m_per_block, n_per_block, matrix_padder);
     return b2e;
 }
+
 auto get_launch_params_3d(ck::index_t m_per_block,
                           ck::index_t n_per_block,
                           ck::index_t k_per_block,

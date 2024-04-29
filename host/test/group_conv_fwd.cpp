@@ -41,9 +41,6 @@
 #include <rtc/hip.hpp>
 #include <fstream>
 
-// using half = _Float16;
-// using half = __fp16;
-
 std::vector<rtc::src_file> get_headers_for_test()
 {
     std::vector<rtc::src_file> result;
@@ -61,10 +58,9 @@ template <class T>
 rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
 {
     rtc::buffer<T> result(n);
-    // std::mt19937 gen(seed);
-    // std::uniform_real_distribution<double> dis(-1.0);
-    // std::generate(result.begin(), result.end(), [&] { return dis(gen); });
-    std::fill(result.begin(), result.end(), 1);
+    std::mt19937 gen(seed);
+    std::uniform_real_distribution<double> dis(-1.0);
+    std::generate(result.begin(), result.end(), [&] { return dis(gen); });
     return result;
 }
 
@@ -213,7 +209,6 @@ struct Epilogue
     float beta_;
 };
 )";
-    // std::string epilogue = "";
     std::string prologue = "";
 
     static constexpr auto I0 = ck::Number<0>{};
@@ -238,7 +233,7 @@ struct Epilogue
             ck::half_t,
             ck::tensor_operation::element_wise::PassThrough,
             ck::tensor_operation::element_wise::PassThrough,
-            CDEElementOp, // FIXME: replace with prologue
+            CDEElementOp,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
             ck::tensor_operation::device::GemmSpecialization::MNKPadding,
             1,
@@ -354,8 +349,6 @@ struct Epilogue
     auto bs_grid_desc_bk0_n_bk1 =
         generate_tuple([&](auto) { return arg.b_grid_desc_bk0_n_bk1_; }, ck::Number<NumBTensor>{});
 
-    std::cout << "entering loop" << std::endl;
-
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         auto src = ck::host::InterpolateString(
@@ -376,19 +369,8 @@ struct Epilogue
         auto k              = rtc::compile_kernel(srcs, options);
         auto grid_size =
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
-        auto block_size = 256;
-        // auto block_size  = solution.GetTemplateParameter<std::size_t>("BlockSize");
-        auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
-        auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
-        auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
-        auto cde_op      = solution.GetTemplateParameter<std::string>("CDEElementwiseOperation");
-        std::cout << cde_op << std::endl;
-        // auto a_layout       =
-        // solution.GetTemplateParameter<ck::tensor_layout::convolution::NHWGC>("ALayout");
+        auto block_size = solution.GetTemplateParameter<std::size_t>("BlockSize");
 
-        // decltype(arg)::foo = 1;
-        // decltype(arg.a_grid_desc_ak0_m_ak1_)::foo = 1;
-        // DeviceConv::AGridDesc_AK0_M_AK1::foo = 1;
         k.launch(nullptr, grid_size * block_size, block_size)(
             arg.p_as_grid_,
             arg.p_bs_grid_,
@@ -403,8 +385,9 @@ struct Epilogue
             arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
             arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
             arg.block_2_etile_map_,
-            arg.compute_ptr_offset_of_batch_); // FIXME: my launch will bw different: will need
-                                               // to pass in grid ptrs for run fcns
+            arg.compute_ptr_offset_of_batch_);
+
+        // Validation: CK Reference Kernel
         /**Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
@@ -431,8 +414,8 @@ struct Epilogue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   CDEElementOp{1.0f, 1.0f});
-        std::cout << "Ref args" << std::endl;
-        ref_argument.Print();
+        // std::cout << "Ref args" << std::endl;
+        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
@@ -440,8 +423,6 @@ struct Epilogue
         auto res  = rtc::from_gpu(out_dev);
         std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-        ofh2 << "Check: " << pass << std::endl;
-        ofh2 << res.size();
         for(int i = 0; i < res.size(); i++)
         {
             auto tmp = (res.data())[i];

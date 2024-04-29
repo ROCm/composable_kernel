@@ -11,11 +11,13 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
+// return the relevant device op file based on the operation
 std::string Problem::GetIncludeHeader() const
 {
     return "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp";
 }
 
+// return vector of instances when provided with a problem instance
 std::vector<Solution> Problem::GetSolutions(const std::string& arch,
                                             const std::string& prologue,
                                             const std::string& epilogue) const

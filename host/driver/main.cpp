@@ -15,6 +15,7 @@ struct Emitters
 {
     std::unordered_map<std::string, std::function<std::vector<std::string>()>> m;
 
+    // retrieve the hard-coded instances provided and template them > store in a map
     template <class T>
     void Register(const std::string& name, const std::string& prologue, const std::string& epilogue)
     {
@@ -34,19 +35,14 @@ struct Emitters
         return ck::host::Transform(m, [](auto&& p) { return p.first; });
     }
 
+    // function to retrieve all instances for a certain problem size
+    // NOTE: this is specifically for convolutions
     template <class T>
     void Select(ck::host::conv::Problem_Conv& prob,
                 const std::string& name,
                 const std::string& prologue,
                 const std::string& epilogue)
     {
-        /**auto M = std::to_string(prob.M);
-        auto N = std::to_string(prob.N);
-        auto K = std::to_string(prob.K);
-        std::cout << "M: " << M << std::endl;
-        std::cout << "N: " << N << std::endl;
-        std::cout << "K: " << K << std::endl;**/
-
         auto G  = std::to_string(prob.G);
         auto N  = std::to_string(prob.N);
         auto C  = std::to_string(prob.C);
@@ -63,18 +59,14 @@ struct Emitters
         std::vector<std::string> match;
         for(auto op : ops)
         {
-            // std::cout << op << std::endl;
             // check that user's prob desc matches the instances
             if(prob.ADataType == op.A.element || prob.BDataType == op.B.element ||
-               prob.EDataType == op.E.element || ck::host::ToLayout(prob.TransA) == op.A.layout ||
-               ck::host::ToLayout(prob.TransB) == op.B.layout ||
-               ck::host::ToLayout(prob.TransE) == op.E.layout || prob.AElementOp == op.a_elem_op ||
-               prob.BElementOp == op.b_elem_op || prob.CDEElementOp == op.cde_elem_op)
+               prob.EDataType == op.E.element || prob.ALayout == op.A.layout ||
+               prob.BLayout == op.B.layout || prob.ELayout == op.E.layout ||
+               prob.AElementOp == op.a_elem_op || prob.BElementOp == op.b_elem_op ||
+               prob.CDEElementOp == op.cde_elem_op)
             {
                 match.push_back(op.ToSolution().ToTemplateString());
-                // std::cout << op.ToSolution().ToTemplateString() << std::endl;
-                // std::cout << op.ToSolution().GetTemplateParameter("GemmSpecialization") <<
-                // std::endl;
             }
         }
     }
@@ -85,6 +77,7 @@ int main(int argc, const char* argv[])
     std::string prog = argv[0];
     std::vector<std::string> args(argv + 1, argv + argc);
 
+    // user provided fusion
     std::string prologue = R"(struct Prologue
 {
     Prologue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
@@ -105,6 +98,7 @@ int main(int argc, const char* argv[])
 )";
     std::string epilogue = "";
 
+    // Load in operations into the Register
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
         "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
@@ -127,19 +121,24 @@ int main(int argc, const char* argv[])
         return 0;
     }
 
+    // can specify problem size to view specific instances for
     ck::host::conv::Problem_Conv prob;
-    prob.G  = 1024;
-    prob.N  = 1024;
-    prob.C  = 1024;
-    prob.K  = 1024;
-    prob.X  = 1024;
-    prob.Y  = 1024;
-    prob.Hi = 1024;
-    prob.Wi = 1024;
-    prob.Ho = 1024;
-    prob.Wo = 1024;
+    prob.G       = 1024;
+    prob.N       = 1024;
+    prob.C       = 1024;
+    prob.K       = 1024;
+    prob.X       = 1024;
+    prob.Y       = 1024;
+    prob.Hi      = 1024;
+    prob.Wi      = 1024;
+    prob.Ho      = 1024;
+    prob.Wo      = 1024;
+    prob.ALayout = ck::host::Layout::GNHWC;
+    prob.BLayout = ck::host::Layout::GKYXC;
+    prob.ELayout = ck::host::Layout::GNHWK;
     e.Select<ck::host::conv::Operation_Conv>(prob, "Device_Conv", prologue, epilogue);
 
+    // print out all the instances for the operation that was chosen at the command line
     for(auto name : args)
         std::cout << e.Emit(name) << std::endl;
 
