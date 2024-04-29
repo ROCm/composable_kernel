@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/fmha/block/block_masking.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_tile_partitioner.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_enum.hpp"

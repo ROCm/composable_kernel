@@ -15,6 +15,7 @@
 #include "ck_tile/host/reference/reference_batched_gemm.hpp"
 #include "ck_tile/host/reference/reference_batched_masking.hpp"
 #include "ck_tile/host/reference/reference_batched_softmax.hpp"
+#include "ck_tile/host/reference/reference_batched_dropout.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"
 #include "ck_tile/host/reference/reference_im2col.hpp"
 #include "ck_tile/host/reference/reference_reduce.hpp"
