@@ -110,7 +110,7 @@ reference_mha_fwd(const QueryTensor& query_bhsd,
         {
             // clang-format off
             auto bias_view_hss = (*bias_bhss)
-                    .index({Slice(2, query_start, query_end), Slice(3, key_start, key_end)})
+                    .index({Slice(2, query_start, query_end)})
                     .squeeze(0);
             // clang-format on
 

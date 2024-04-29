@@ -247,6 +247,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
+    auto max_seqlen_k = std::numeric_limits<int32_t>::min();
     {
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
@@ -256,6 +257,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if(max_seqlen_q < real_seqlen_q)
             {
                 max_seqlen_q = real_seqlen_q;
+            }
+
+            if(max_seqlen_k < real_seqlen_k)
+            {
+                max_seqlen_k = real_seqlen_k;
             }
 
             flop += nhead * (static_cast<std::size_t>(2) * real_seqlen_q * real_seqlen_k * hdim_q +
@@ -295,11 +301,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<VDataType> v_host(
         is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
-    // use bias shape = [1, 1, shape_seqlen_q, shape_seqlen_k]. if use_bias=false, the bias_host
+    // use bias shape = [1, 1, shape_seqlen_q, max_seqlen_k]. if use_bias=false, the bias_host
     // will not be used for verification at all (but will be copied to device anyway).
     ck_tile::HostTensor<BiasDataType> bias_host(
         use_bias
-            ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
+            ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
@@ -411,7 +417,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t row_stride_q    = q_host.get_stride(1 + i_perm);
         const ck_tile::index_t row_stride_k    = k_host.get_stride(1 + i_perm);
         const ck_tile::index_t row_stride_v    = v_host.get_stride(1 + i_perm);
-        const ck_tile::index_t row_stride_bias = shape_seqlen_k;
+        const ck_tile::index_t row_stride_bias = max_seqlen_k;
         const ck_tile::index_t row_stride_o    = o_host.get_stride(1 + o_perm);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q    = q_host.get_stride(1 + !i_perm);

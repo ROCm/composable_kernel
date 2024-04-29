@@ -423,7 +423,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kHasBias)
             {
-                batch_offset_bias = query_start * kargs.row_stride_bias + key_start;
+                batch_offset_bias = query_start * kargs.row_stride_bias;
             }
             else
             {
