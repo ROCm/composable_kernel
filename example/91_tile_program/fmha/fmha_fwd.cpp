@@ -258,10 +258,10 @@ bool run(const ArgParser& arg_parser)
     Tensor<VDataType> v_host(
         is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
-    // use bias shape = [1, 1, shape_seqlen_q, shape_seqlen_k]. if use_bias=false, the bias_host
+    // use bias shape = [1, 1, shape_seqlen_q, max_seqlen_k]. if use_bias=false, the bias_host
     // will not be used for verification at all (but will be copied to device anyway).
     Tensor<BiasDataType> bias_host(
-        use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
+        use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     Tensor<LSEDataType> lse_host(
@@ -354,7 +354,7 @@ bool run(const ArgParser& arg_parser)
             else
                 return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
         }();
-        const ck::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck::index_t stride_bias    = (max_seqlen_k);
         const ck::index_t stride_randval = (max_seqlen_k);
         const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
@@ -366,8 +366,7 @@ bool run(const ArgParser& arg_parser)
             else
                 return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
         }();
-        const ck::index_t nhead_stride_bias =
-            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
+        const ck::index_t nhead_stride_bias    = 0;
         const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck::index_t nhead_stride_lse     = max_seqlen_q;
         const ck::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
@@ -375,7 +374,7 @@ bool run(const ArgParser& arg_parser)
         const ck::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
         const ck::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
         const ck::index_t batch_stride_v       = (nhead_k * hdim_v * shape_seqlen_k);
-        const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck::index_t batch_stride_bias    = 0;
         const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck::index_t batch_stride_lse     = (nhead * max_seqlen_q);
         const ck::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
@@ -517,16 +516,16 @@ bool run(const ArgParser& arg_parser)
 
         if(use_bias)
         {
-            Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
+            Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, max_seqlen_k});
             // clang-format off
             if(i_perm)
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
             else
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
             // clang-format on
 
-            // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
-            // real_seqlen_k]
+            // broadcast from [1, real_seqlen_q, max_seqlen_k] to [nhead, real_seqlen_q,
+            // max_seqlen_k]
             reference_batched_elementwise<SMPLComputeDataType,
                                           BiasDataType,
                                           SMPLComputeDataType,
