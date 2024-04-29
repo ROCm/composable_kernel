@@ -536,7 +536,7 @@ struct FmhaBwdDQDKDVKernel
             batch_offset_dv   = key_start * kargs.stride_dv;
             if constexpr(kHasBias)
             {
-                batch_offset_bias = query_start * kargs.stride_bias + key_start;
+                batch_offset_bias = query_start * kargs.stride_bias;
             }
             else
             {
@@ -544,7 +544,7 @@ struct FmhaBwdDQDKDVKernel
             }
             if constexpr(kHasBiasGrad)
             {
-                batch_offset_dbias = query_start * kargs.stride_dbias + key_start;
+                batch_offset_dbias = query_start * kargs.stride_dbias;
             }
             else
             {
