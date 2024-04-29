@@ -1080,6 +1080,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }
 
+        if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+        {
+#if DEBUG_LOG
+            std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__ << ":"
+                      << __LINE__ << ", in function: " << __func__ << std::endl;
+
+#endif // DEBUG_LOG
+            if(karg.KBatch > 1)
+            {
+                return false;
+            }
+        }
+
         // check gridwise gemm pipeline
         const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
 

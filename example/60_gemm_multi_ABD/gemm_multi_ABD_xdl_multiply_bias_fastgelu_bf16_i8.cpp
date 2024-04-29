@@ -18,9 +18,12 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
 
+#include "ck/utility/blkgemmpipe_scheduler.hpp"
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
+using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using F32  = float;
@@ -32,31 +35,30 @@ using A0DataType       = BF16;
 using AsDataType       = ck::Tuple<A0DataType>;
 using B0DataType       = I8;
 using B1DataType       = BF16;
-using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
+using BsDataType       = ck::Tuple<B0DataType>;
 using AccDataType      = F32;
-using CShuffleDataType = BF16;
+using CShuffleDataType = F32;
 using D0DataType       = BF16;
-using DsDataType       = ck::Tuple<D0DataType>;
+using DsDataType       = ck::Tuple<B1DataType, D0DataType>;
 using EDataType        = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Col;
+using B0Layout = Row;
 using B1Layout = B0Layout;
-using BsLayout = ck::Tuple<B0Layout, B1Layout>;
+using BsLayout = ck::Tuple<B0Layout>;
 using D0Layout = Row;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<B1Layout, D0Layout>;
 using ELayout  = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
+using PassThrough         = ck::tensor_operation::element_wise::PassThrough;
+using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
 
 using AElementOp   = PassThrough;
-using BElementOp   = Scales;
-using CDEElementOp = AddFastGelu;
+using BElementOp   = PassThrough;
+using CDEElementOp = MultiplyAddFastGelu;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl_CShuffle
     // clang-format off
@@ -64,9 +66,9 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl
 ///######|         |         |         |        |       Type|       Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
 ///######|         |         |         |        |           |           |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
 ///######|         |         |         |        |           |           |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-         < AsLayout, BsLayout, DsLayout, ELayout, AsDataType, BsDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   128,    16,   128,    32,   8,   8,   16,   16,    1,    4,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,         1,           1,           1,               S<1, 16, 1, 8>,               1>;
-
+         < AsLayout, BsLayout, DsLayout, ELayout, AsDataType, BsDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    64,   8,   4,  32,   32,    2,    2,     S<8, 32, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,              8,              8,          0,    S<16, 16, 1>,    S<0, 2, 1>,     S<0, 2, 1>,             1,               8,              4,          0,          1,           1,               S<1, 32, 1, 8>,               8,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v4>;
 // clang-format on
+
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
@@ -74,13 +76,13 @@ int main(int argc, char* argv[])
     bool time_kernel     = false;
 
     // GEMM shape
-    ck::index_t M = 64;
-    ck::index_t N = 1024;
-    ck::index_t K = 512;
+    ck::index_t M = 4096;
+    ck::index_t N = 768;
+    ck::index_t K = 6144;
 
     ck::index_t StrideA = K;
-    ck::index_t StrideB = K;
-    ck::index_t StrideD = N;
+    ck::index_t StrideB = N;
+    ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
 
     if(argc == 1)
@@ -177,24 +179,24 @@ int main(int argc, char* argv[])
     auto cde_element_op = CDEElementOp{};
 
     constexpr ck::index_t NumATensor = 1;
-    constexpr ck::index_t NumBTensor = 2;
-    constexpr ck::index_t NumDTensor = 1;
+    constexpr ck::index_t NumBTensor = 1;
+    constexpr ck::index_t NumDTensor = 2;
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
     auto argument =
         device_op.MakeArgument(std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
-                               std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
-                                                                   b1_device_buf.GetDeviceBuffer()},
-                               std::array<const void*, NumDTensor>{d_device_buf.GetDeviceBuffer()},
+                               std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer()},
+                               std::array<const void*, NumDTensor>{b1_device_buf.GetDeviceBuffer(),
+                                                                   d_device_buf.GetDeviceBuffer()},
                                e_device_buf.GetDeviceBuffer(),
                                M,
                                N,
                                K,
                                std::array<ck::index_t, NumATensor>{StrideA},
-                               std::array<ck::index_t, NumBTensor>{StrideB, 0},
-                               std::array<ck::index_t, NumDTensor>{StrideD},
+                               std::array<ck::index_t, NumBTensor>{StrideB},
+                               std::array<ck::index_t, NumDTensor>{0, StrideD},
                                StrideE,
                                a_element_op,
                                b_element_op,
@@ -230,6 +232,7 @@ int main(int argc, char* argv[])
 
         Tensor<B1DataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
 
+#if 0
         for(int n = 0; n < N; ++n)
         {
             for(int k = 0; k < K; ++k)
@@ -237,9 +240,10 @@ int main(int argc, char* argv[])
                 b_element_op(b_k_n(k, n), b0_k_n(k, n), b1_k_n(k, n));
             }
         }
+#endif
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
-                                                                                B1DataType,
+                                                                                B0DataType,
                                                                                 CShuffleDataType,
                                                                                 AccDataType,
                                                                                 PassThrough,
@@ -249,7 +253,7 @@ int main(int argc, char* argv[])
         auto ref_invoker            = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a0_m_k, b_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
+            a0_m_k, b0_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 
@@ -257,7 +261,7 @@ int main(int argc, char* argv[])
         {
             for(int n = 0; n < N; ++n)
             {
-                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), d_m_n(m, n));
+                cde_element_op(e_m_n_host_result(m, n), c_m_n(m, n), b1_k_n(0, n), d_m_n(m, n));
             }
         }
 
