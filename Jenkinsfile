@@ -889,7 +889,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
@@ -909,11 +909,11 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        execute_args = """ rm -rf build && mkdir build && cd build && \
+                        execute_cmd = """ rm -rf build && mkdir build && cd build && \
                                            cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
@@ -922,7 +922,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                    }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:"", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_cmd)
                         cleanWs()
                     }
                 }
@@ -930,7 +930,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("navi21") }
                     environment{
@@ -950,7 +950,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("navi32") }
                     environment{
