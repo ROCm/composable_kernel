@@ -913,8 +913,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx908 || gfx90a") }
                     environment{
-                        execute_cmd = """ rm -rf build && mkdir build && cd build && \
-                                           cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
+                        execute_args = """ cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
                                            -D GPU_TARGETS="gfx90a;gfx1030;gfx1101" \
@@ -922,7 +921,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                    }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_cmd)
+                        buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
