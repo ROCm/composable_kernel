@@ -85,6 +85,9 @@ If you look at the kernel argument inside `fmha_fwd_kernel.hpp`, we support prov
 ### attention bias
 Attention bias is supported with the layout of `1*1*s*s`(similiar to input/output, different layout can be supported by changing the stride value for bias, or even extend to `b*h*s*s`) and bias value in float number.
 
+### alibi
+alibi is supported
+
 ### lse
 For training kernels, "log sum exp" need to store out in forward and used in backward. We support this by setting `-lse=1`
 

@@ -45,7 +45,7 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
-    static constexpr bool kHasBias          = Traits::kHasBias;
+    static constexpr auto BiasEnum          = Traits::BiasEnum;
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;

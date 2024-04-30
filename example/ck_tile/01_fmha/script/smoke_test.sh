@@ -17,7 +17,7 @@ for perm in 0 1 ; do
 for vlayout in "r" "c" ; do
 for hdim in 32 64 128 256 ; do
 for lse in 0 1 ; do
-for bias in 0 1 ; do
+for bias in "n" "e" "a"; do
 
 # $EXE -prec=$prec -mode=$mode -b=1 -h=1 -d=$hdim -s=1024 -bias=$bias -lse=$lse -iperm=$perm -operm=$perm -vlayout=$vlayout -kname=$KNAME $COMMON_ARGS
 $EXE -prec=$prec -mode=$mode -b=2 -h=2 -h_k=1 -d=16, -d_v=$hdim -s=55 -s_k=256 -bias=$bias -lse=$lse -iperm=$perm -operm=$perm -vlayout=$vlayout -kname=$KNAME $COMMON_ARGS

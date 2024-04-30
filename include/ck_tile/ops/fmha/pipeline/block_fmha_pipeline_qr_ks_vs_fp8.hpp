@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
@@ -47,7 +48,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr bool kHasBias     = Problem::kHasBias;
+    static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -83,7 +84,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
             }
             else if constexpr(kK0BlockLength <= 128)
             {
-                if constexpr(kHasBias)
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 1;
                 else
                     return 2;
@@ -106,7 +107,8 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp>
+              typename LSEDramBlockWindowTmp,
+              typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -114,6 +116,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                LSEDramBlockWindowTmp& /*lse_dram_window_tmp*/,           // not supported
                FmhaMask mask,
+               PositionEncoding /*position_encoding*/,
                float scale_s,
                float descale_qk,
                float descale_sv,
@@ -250,13 +253,13 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
                 k_block_tile = load_tile(k_dram_window);
             }
 
-            if constexpr(kHasBias)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
             }
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            if constexpr(kHasBias)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
@@ -301,7 +304,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
             }
 
             // STAGE 2, scale_s, add bias, mask, softmax
-            if constexpr(kHasBias)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
@@ -357,7 +360,8 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
             static const auto get_validated_m = [](SMPLComputeDataType raw_m) {
                 /// NOTICE: bias might be materialized mask including -inf values, need
                 /// consideration
-                if constexpr(kHasBias || FmhaMask::IsMasking)
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                             FmhaMask::IsMasking)
                 {
                     return raw_m == -numeric<SMPLComputeDataType>::infinity()
                                ? type_convert<SMPLComputeDataType>(0.f)
@@ -378,7 +382,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                    if constexpr(kHasBias)
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     {
                         p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
                     }
@@ -402,7 +406,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                 const auto tmp = [&]() {
-                    if constexpr(kHasBias)
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     {
                         return exp2(m_old[i_idx] - get_validated_m(m[i_idx]));
                     }
