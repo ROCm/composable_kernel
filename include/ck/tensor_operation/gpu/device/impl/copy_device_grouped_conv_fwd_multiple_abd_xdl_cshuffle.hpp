@@ -94,8 +94,9 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
     // offset base pointer for each work-group
-    if (blockIdx.x == 0 && threadIdx.x == 0) {
-      printf("entered kernel \n");
+    if(blockIdx.x == 0 && threadIdx.x == 0)
+    {
+        printf("entered kernel \n");
     }
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -115,8 +116,9 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
-    if (blockIdx.x == 0 && threadIdx.x == 0) {
-      printf("Made it to first check \n");
+    if(blockIdx.x == 0 && threadIdx.x == 0)
+    {
+        printf("Made it to first check \n");
     }
     if constexpr(isMultiA || isMultiB)
     {
@@ -518,27 +520,26 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     // Argument
     struct Argument
     {
-        __device__ __host__ Argument(APointers p_as,
-                 BPointers p_bs,
-                 const ck::Array<const void*, NumDTensor>& p_ds,
-                 void* p_e,
-                 const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                 const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                 const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                 const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                 const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>&
-                     ds_g_n_k_wos_lengths,
-                 const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>&
-                     ds_g_n_k_wos_strides,
-                 const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                 const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                 const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
-                 const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
-                 const ck::Array<index_t, NDimSpatial>& input_left_pads,
-                 const ck::Array<index_t, NDimSpatial>& input_right_pads,
-                 const AElementwiseOperation& a_element_op,
-                 const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+        __device__ __host__ Argument(
+            APointers p_as,
+            BPointers p_bs,
+            const ck::Array<const void*, NumDTensor>& p_ds,
+            void* p_e,
+            const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+            const ck::Array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+            const ck::Array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+            const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
+            const ck::Array<ck::Array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
+            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+            const ck::Array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+            const ck::Array<index_t, NDimSpatial>& conv_filter_strides,
+            const ck::Array<index_t, NDimSpatial>& conv_filter_dilations,
+            const ck::Array<index_t, NDimSpatial>& input_left_pads,
+            const ck::Array<index_t, NDimSpatial>& input_right_pads,
+            const AElementwiseOperation& a_element_op,
+            const BElementwiseOperation& b_element_op,
+            const CDEElementwiseOperation& cde_element_op)
             : p_as_grid_{},
               p_bs_grid_{},
               p_ds_grid_{},
@@ -775,7 +776,6 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         ck::Array<index_t, NDimSpatial> input_left_pads_;
         ck::Array<index_t, NDimSpatial> input_right_pads_;
     };
-    
 
     static __device__ __host__ auto MakeArgument(
         APointers p_as,
@@ -818,9 +818,7 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         b_element_op,
                         cde_element_op};
     }
-
 };
-
 
 } // namespace device
 } // namespace tensor_operation
