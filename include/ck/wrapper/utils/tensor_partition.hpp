@@ -9,9 +9,14 @@
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_description/cluster_descriptor.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace {
 
 namespace detail {
@@ -236,6 +241,7 @@ __host__ __device__ constexpr auto CalculateThreadMultiIdx(
 }
 } // namespace detail
 } // namespace
+/// @endcond
 
 /**
  * \brief Create local partition for thread (At now only packed partition

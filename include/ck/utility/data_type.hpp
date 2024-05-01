@@ -133,6 +133,13 @@ struct scalar_type<int8_t>
     static constexpr index_t vector_size = 1;
 };
 
+template <>
+struct scalar_type<uint8_t>
+{
+    using type                           = uint8_t;
+    static constexpr index_t vector_size = 1;
+};
+
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
 struct scalar_type<int4_t>
@@ -153,6 +160,13 @@ template <>
 struct scalar_type<bf8_t>
 {
     using type                           = bf8_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bool>
+{
+    using type                           = bool;
     static constexpr index_t vector_size = 1;
 };
 
@@ -1037,6 +1051,14 @@ using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
 using bf8x16_t = typename vector_type<bf8_t, 16>::type;
 using bf8x32_t = typename vector_type<bf8_t, 32>::type;
 using bf8x64_t = typename vector_type<bf8_t, 64>::type;
+// u8
+// i8
+using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
+using uint8x4_t  = typename vector_type<uint8_t, 4>::type;
+using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
+using uint8x16_t = typename vector_type<uint8_t, 16>::type;
+using uint8x32_t = typename vector_type<uint8_t, 32>::type;
+using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
 template <typename T>
 struct NumericLimits

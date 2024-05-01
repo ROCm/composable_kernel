@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -89,16 +89,6 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
 
     // TODO make A/B datatype different
     using ABDataType = InDataType;
-
-    // 3d
-    static constexpr bool is_NDHWGK_GKZYXC_NDHWGC =
-        is_same_v<InLayout, tensor_layout::convolution::NDHWGC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::NDHWGK>;
-    static constexpr bool is_GNDHWK_GKZYXC_GNDHWC =
-        is_same_v<InLayout, tensor_layout::convolution::GNDHWC> &&
-        is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
-        is_same_v<OutLayout, tensor_layout::convolution::GNDHWK>;
 
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -218,8 +208,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         const index_t GemmM      = K;
         const index_t GemmN      = C * Z * X * Y;
 
-        const auto PadGemmM = (MPerBlock - GemmM % MPerBlock) % MPerBlock;
-        const auto PadGemmN = (NPerBlock - GemmN % NPerBlock) % NPerBlock;
+        const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
+        const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
 
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock) * K0PerBlock;
@@ -393,12 +383,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    using GridwiseGemm = GridwiseGemmMultipleD_k0mk1_k0nk1_mn_wmma_cshuffle<
+    using CShuffleDataType = AccDataType;
+
+    using GridwiseGemm = GridwiseGemmMultipleD_Wmma<
         // DataType Family
         ADataType,
         BDataType,
         AccDataType,
-        CDataType,
+        CShuffleDataType,
         Tuple<>,
         CDataType,
         // InMemory Data Descriptor
@@ -414,7 +406,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         // Tiling Family
         MPerBlock,
         NPerBlock,
-        K0PerBlock,
+        KPerBlock,
         MPerWMMA,
         NPerWMMA,
         K1,
@@ -429,6 +421,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false,
+        true,
         ABlockLdsAddExtraM,
         BBlockTransferThreadClusterLengths_K0_N_K1,
         BBlockTransferThreadClusterArrangeOrder,
@@ -437,6 +430,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
         false,
+        true,
         BBlockLdsAddExtraN,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
@@ -716,7 +710,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
             return false;
         }
 
-        if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC || is_GNDHWK_GKZYXC_GNDHWC))
+        if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
+                       is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))
         {
             return false;
         }
