@@ -1,1 +1,11 @@
-cm9jbS1kb2NzLWNvcmVbYXBpX3JlZmVyZW5jZV09PTEuMS4xCi0tZXh0cmEtaW5kZXgtdXJsIGh0dHBzOi8vdGVzdC5weXBpLm9yZy9zaW1wbGUvClNwaGlueC1TdWJzdGl0dXRpb24tRXh0ZW5zaW9ucwphdXRvZG9jCmhpcC1weXRob24KaGlwLXB5dGhvbi1hcy1jdWRhCm51bXB5CnNwaGlueC1jb2xsYXBzZQpzcGhpbnhjb250cmliLWJpYnRleApzcGhpbnhjb250cmliLW1vZGVybmNtYWtlZG9tYWluCnNwaGlueGNvbnRyaWIuZGF0YXRlbXBsYXRlcwo=
+rocm-docs-core[api_reference]==1.1.1
+--extra-index-url https://test.pypi.org/simple/
+Sphinx-Substitution-Extensions
+autodoc
+hip-python
+hip-python-as-cuda
+numpy
+sphinx-collapse
+sphinxcontrib-bibtex
+sphinxcontrib-moderncmakedomain
+sphinxcontrib.datatemplates
