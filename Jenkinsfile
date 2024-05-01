@@ -842,7 +842,7 @@ pipeline {
         {
             parallel
             {
-                stage("Build CK and run Tests on MI200")
+                stage("Build CK for all gfx9 targets")
                 {
                     when {
                         beforeAgent true
