@@ -814,21 +814,21 @@ pipeline {
         {
             parallel
             {
-                stage("Run Codegen Tests on MI100/MI200")
+                stage("Run Codegen Tests on MI200")
                 {
                     when {
                         beforeAgent true
                         expression { params.RUN_CODEGEN_TESTS.toBoolean() }
                     }
                     options { retry(2) }
-                    agent{ label rocmnode("gfx908 || gfx90a")}
+                    agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
                                            cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_TARGETS="gfx908;gfx90a" \
+                                           -D GPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j check"""
                    }
                     steps{
@@ -842,13 +842,13 @@ pipeline {
         {
             parallel
             {
-                stage("Build CK and run Tests on MI100/MI200/MI300")
+                stage("Build CK for all gfx9 targets")
                 {
                     when {
                         beforeAgent true
                         expression { params.RUN_FULL_QA.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx908 || gfx90a") }
+                    agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
                                          -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
@@ -885,13 +885,13 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on MI100/MI200")
+                stage("Build CK and run Tests on MI200")
                 {
                     when {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx908 || gfx90a") }
+                    agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
@@ -972,27 +972,11 @@ pipeline {
         {
             parallel
             {
-                stage("Run ckProfiler: gfx90*")
-                {
-                    when {
-                        beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && params.RUN_PERFORMANCE_TESTS.toBoolean() }
-                    }
-                    options { retry(2) }
-                    agent{ label rocmnode("gfx908 || gfx90a")}
-                    environment{
-                        setup_args = """ -DGPU_TARGETS="gfx908;gfx90a" -DBUILD_DEV=On """
-                   }
-                    steps{
-                        runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
-                        cleanWs()
-                    }
-                }
                 stage("Run ckProfiler: gfx90a")
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() && params.RUN_PERFORMANCE_TESTS.toBoolean() }
+                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() }
                     }
                     options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
