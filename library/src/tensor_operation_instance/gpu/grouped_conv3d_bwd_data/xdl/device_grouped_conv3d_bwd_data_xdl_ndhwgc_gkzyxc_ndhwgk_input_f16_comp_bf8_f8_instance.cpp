@@ -48,6 +48,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_input_f16_comp_
                                        ConvBwdDataFilter1x1Stride1Pad0>{});
 #else
 #pragma message "These instances were deprecated"
+    std::ignore = instances;
 #endif
 }
 
