@@ -1,2 +1,11 @@
-rocm-docs-core>=0.24.0
-sphinxcontrib-bibtex==2.5.0
+rocm-docs-core[api_reference]==1.1.1
+--extra-index-url https://test.pypi.org/simple/
+Sphinx-Substitution-Extensions
+autodoc
+hip-python
+hip-python-as-cuda
+numpy
+sphinx-collapse
+sphinxcontrib-bibtex
+sphinxcontrib-moderncmakedomain
+sphinxcontrib.datatemplates
