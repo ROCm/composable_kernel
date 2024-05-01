@@ -1,18 +1,1 @@
-# Read the Docs configuration file
-# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
-
-version: 2
-
-sphinx:
-   configuration: docs/conf.py
-
-formats: [htmlzip, pdf, epub]
-
-python:
-   install:
-   - requirements: docs/sphinx/requirements.txt
-
-build:
-   os: ubuntu-22.04
-   tools:
-      python: "3.8"
+IyBSZWFkIHRoZSBEb2NzIGNvbmZpZ3VyYXRpb24gZmlsZQojIFNlZSBodHRwczovL2RvY3MucmVhZHRoZWRvY3MuaW8vZW4vc3RhYmxlL2NvbmZpZy1maWxlL3YyLmh0bWwgZm9yIGRldGFpbHMKCnZlcnNpb246IDIKCmJ1aWxkOgogICBvczogdWJ1bnR1LTIyLjA0CiAgIHRvb2xzOgogICAgICBweXRob246ICIzLjEwIgoKc3BoaW54OgogICBjb25maWd1cmF0aW9uOiBkb2NzL2NvbmYucHkKCnB5dGhvbjoKICAgaW5zdGFsbDoKICAgLSByZXF1aXJlbWVudHM6IGRvY3Mvc3BoaW54L3JlcXVpcmVtZW50cy50eHQKCmZvcm1hdHM6IFtodG1semlwLCBwZGYsIGVwdWJdCg==
