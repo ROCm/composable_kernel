@@ -83,7 +83,7 @@ std::vector<Copy_Operation_Conv> CreateOperationsImpl(
         // clang-format on
     };
 
-    std::vector<operation::BlockTransferDesc> a_block_descriptions_rowmajor = {
+    std::vector<operation::BlockTransferDesc> a_block_descriptions = {
         // clang-format off
 //  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|
@@ -98,7 +98,7 @@ std::vector<Copy_Operation_Conv> CreateOperationsImpl(
         // clang-format on
     };
 
-    std::vector<operation::BlockTransferDesc> b_block_descriptions_rowmajor = {
+    std::vector<operation::BlockTransferDesc> b_block_descriptions = {
         // clang-format off
 //  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
@@ -143,11 +143,6 @@ std::vector<Copy_Operation_Conv> CreateOperationsImpl(
         // clang-format on
     };
 
-    const auto a_block_descriptions =
-        (ALayout == Layout::Row) ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
-    const auto b_block_descriptions =
-        (BLayout == Layout::Row) ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
-
     assert(tile_descriptions.size() == a_block_descriptions.size());
     assert(tile_descriptions.size() == b_block_descriptions.size());
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
@@ -175,9 +170,8 @@ std::vector<Copy_Operation_Conv> CreateOperationsImpl(
 std::vector<Copy_Operation_Conv> Copy_Operation_Conv::CreateOperations(const std::string& prologue,
                                                                        const std::string& epilogue)
 {
-    // TODO: fix this call
     return CreateOperationsImpl([](auto x) -> std::vector<Copy_Operation_Conv> { return {x}; },
-                                Layout::GNHWC,
+                                Layout::NHWGC,
                                 Layout::GKYXC,
                                 prologue,
                                 epilogue);
@@ -193,9 +187,8 @@ std::vector<Copy_Operation_Conv> Copy_Operation_Conv::CreateOperations(
             x.A           = TensorDesc{prob.ADataType, prob.ALayout};
             x.B           = TensorDesc{prob.BDataType, prob.BLayout};
             x.E           = TensorDesc{prob.EDataType, prob.ELayout};
-            x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
-                return TensorDesc{dt,
-                                  ToLayout(trans)}; // FIXME: replace call for DsTrans with DLayout
+            x.Ds          = Transform(prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) {
+                return TensorDesc{dt, lo};
             });
             x.a_elem_op   = prob.AElementOp;
             x.b_elem_op   = prob.BElementOp;

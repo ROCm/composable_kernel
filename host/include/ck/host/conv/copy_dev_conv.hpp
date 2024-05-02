@@ -32,7 +32,6 @@ struct Copy_Problem_Conv
     Layout BLayout                   = Layout::GKYXC;
     Layout ELayout                   = Layout::NHWGK;
     std::vector<Layout> DsLayout     = {};
-    std::vector<bool> DsTrans        = {};
     DataType ADataType               = DataType::Half;
     DataType BDataType               = DataType::Half;
     DataType EDataType               = DataType::Half;

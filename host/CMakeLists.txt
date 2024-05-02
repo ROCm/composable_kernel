@@ -28,8 +28,6 @@ file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp parse/src/*.cpp)
 message(STATUS "SOURCES: ${SOURCES}")
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
-#add_library(nlohmann_json INTERFACE IMPORTED GLOBAL)
-#target_link_libraries(nlohmann_json INTERFACE nlohmann_json::nlohmann_json)
 
 # TODO: Set -fPIC
 set_target_properties(ck_host PROPERTIES LINKER_LANGUAGE CXX)
@@ -49,5 +47,4 @@ rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 if(BUILD_TESTING)
 add_subdirectory(test)
-message(STATUS "adding test")
 endif()

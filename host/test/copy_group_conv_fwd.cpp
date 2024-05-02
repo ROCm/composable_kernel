@@ -2,32 +2,9 @@
 #include "ck/host/conv/copy_dev_conv.hpp"
 #include "ck/host/headers.hpp"
 #include "ck/host/stringutils.hpp"
-#include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
-#include "ck/utility/common_header.hpp"
-#include "ck/utility/math_v2.hpp"
-#include "ck/tensor_operation/gpu/device/impl/copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
-#include "ck/tensor_description/tensor_descriptor.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
-//#include "ck/tensor_operation/operator_transform/copy_transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-//#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_abd_xdl_cshuffle.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
-#include "ck/library/utility/iterator.hpp"
-#include "ck/library/utility/algorithm.hpp"
-#include "ck/library/utility/ranges.hpp"
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/host_tensor.hpp"
+#include "ck/tensor_operation/gpu/device/helper.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/io.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include <algorithm>
 #include <cmath>
@@ -35,13 +12,9 @@
 #include <numeric>
 #include <random>
 #include <test.hpp>
-#include <helper.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 #include <fstream>
-
-// using half = _Float16;
-// using half = __fp16;
 
 std::vector<rtc::src_file> get_headers_for_test()
 {
@@ -154,6 +127,23 @@ auto report(const Solution& solution, bool pass)
     return test::make_predicate(solution.ToTemplateString(), [=] { return pass; });
 }
 
+struct Epilogue
+{
+    Epilogue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+
+    template <typename E, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t>(ck::half_t& e,
+                                                                          const ck::half_t& d) const
+    {
+        e = ck::type_convert<ck::half_t>(alpha_ * e + beta_ * ck::type_convert<float>(d));
+    }
+
+    float alpha_;
+    float beta_;
+};
 const std::string conv_compile_check = R"__ck__(
 #include <${include}>
 
@@ -233,13 +223,9 @@ struct Epilogue
     ck::Array<ck::index_t, 5> d_strides = {};
 
     ck::Array<ck::index_t, 2> conv_filter_strides   = {2, 2};
-    std::vector<ck::index_t> conv_filter_strides_   = {2, 2};
     ck::Array<ck::index_t, 2> conv_filter_dilations = {1, 1};
-    std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
     ck::Array<ck::index_t, 2> input_left_pads       = {1, 1};
-    std::vector<ck::index_t> input_left_pads_       = {1, 1};
     ck::Array<ck::index_t, 2> input_right_pads      = {1, 1};
-    std::vector<ck::index_t> input_right_pads_      = {1, 1};
 
     auto get_num_elems = [](const auto& tensor_lens) {
         return std::reduce(
@@ -315,11 +301,16 @@ struct Epilogue
                                                               input_right_pads);
 
         // Verification: CK Reference Kernel
-        /**Tensor<ck::half_t> in_host(in_lengths, in_strides);
+        Tensor<ck::half_t> in_host(in_lengths, in_strides);
         in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
         wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> out_host(out_lengths, out_strides);
+
+        std::vector<ck::index_t> conv_filter_strides_   = {2, 2};
+        std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
+        std::vector<ck::index_t> input_left_pads_       = {1, 1};
+        std::vector<ck::index_t> input_right_pads_      = {1, 1};
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
             2,
@@ -328,7 +319,7 @@ struct Epilogue
             ck::half_t,
             ck::tensor_operation::element_wise::PassThrough,
             ck::tensor_operation::element_wise::PassThrough,
-            CDEElementOp>();
+            Epilogue>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in_host,
@@ -340,9 +331,9 @@ struct Epilogue
                                                   input_right_pads_,
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
-                                                  CDEElementOp{1.0f, 1.0f});
-        //std::cout << "Ref args" << std::endl;
-        //ref_argument.Print();
+                                                  Epilogue{1.0f, 1.0f});
+        // std::cout << "Ref args" << std::endl;
+        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
@@ -356,7 +347,7 @@ struct Epilogue
             ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
         }
         ofh2.close();
-        assert(pass);**/
+        assert(pass);
         // auto res = rtc::from_gpu(out_dev);
         // CHECK(report(solution, check(res)));
     }

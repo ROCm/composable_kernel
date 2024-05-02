@@ -76,7 +76,6 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
         write_string(full_path.string(), src.content);
         if(src.path.extension().string() == ".cpp")
         {
-            // options.flags += " -S ";
             options.flags += " -c " + src.path.filename().string();
             if(out.empty())
                 out = src.path.stem().string() + ".o";
