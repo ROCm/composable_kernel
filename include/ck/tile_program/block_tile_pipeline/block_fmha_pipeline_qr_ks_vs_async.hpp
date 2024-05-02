@@ -261,8 +261,9 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         const auto num_total_loop = math::integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
-        // check early exit if there is no work to do.
-        if constexpr(FmhaMask::IsMasking || kStoreLSE)
+        // check early exit if there is no work to do. also avoid fullfilling unwanted sentinel
+        // values (-INF).
+        if constexpr(kPadSeqLenK || FmhaMask::IsMasking || kStoreLSE)
         {
             if(num_total_loop <= 0)
             {
