@@ -5,6 +5,7 @@
 
 #include <hip/hip_runtime.h>
 #include <set>
+#include <vector>
 
 #include "ck/ck.hpp"
 #include "ck/stream_config.hpp"
