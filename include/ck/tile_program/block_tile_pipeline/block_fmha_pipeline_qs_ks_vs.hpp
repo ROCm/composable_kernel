@@ -200,8 +200,8 @@ struct BlockFmhaPipelineQSKSVS
 
         const auto num_total_loop = math::integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
-        // check early exit if masked and no work to do.
-        if constexpr(FmhaMask::IsMasking)
+        // check early exit if there is no work to do.
+        if constexpr(FmhaMask::IsMasking || kStoreLSE)
         {
             if(num_total_loop <= 0)
             {
