@@ -470,7 +470,7 @@ struct BlockwiseGemmWMMA
             Sequence<0, 1, 2, 3, 4, 5>,
             5,
             A_K1,
-            TransposeC ? false : true>;
+            false>;
     };
 
     template <bool EnableLds>
@@ -504,7 +504,7 @@ struct BlockwiseGemmWMMA
             Sequence<0, 1, 2, 3, 4, 5>,
             5,
             B_K1,
-            TransposeC ? true : false>;
+            false>;
     };
 
     typename AThreadCopySelector<AEnableLds>::type a_thread_copy_;

@@ -303,7 +303,7 @@ struct GridwiseGemm_Wmma
 
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
                                make_pass_through_transform(Number<A_K1>{})),
@@ -365,7 +365,7 @@ struct GridwiseGemm_Wmma
 #endif
                 return transform_tensor_descriptor(
                     BBlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
                                make_pass_through_transform(Number<B_K1>{})),
