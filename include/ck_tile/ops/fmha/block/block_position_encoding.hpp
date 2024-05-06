@@ -170,9 +170,9 @@ CK_TILE_HOST std::vector<DataType> get_alibi_slopes(ck_tile::index_t nheads)
     else
     {
         ck_tile::index_t closest_power_of_2 = 1 << integer_log2_floor(nheads);
-        auto v0        = get_slopes_power_of_2(closest_power_of_2);
-        auto v1        = get_slopes_power_of_2(closest_power_of_2 * 2);
-        auto v1_sliced = [&](auto vec, ck_tile::index_t rem) {
+        auto v0                             = get_slopes_power_of_2(closest_power_of_2);
+        auto v1                             = get_slopes_power_of_2(closest_power_of_2 * 2);
+        auto v1_sliced                      = [&](auto vec, ck_tile::index_t rem) {
             std::vector<DataType> sliced;
             for(ck_tile::index_t i = 0; i < static_cast<ck_tile::index_t>(vec.size()); i++)
             {
