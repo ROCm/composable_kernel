@@ -307,8 +307,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<SaccDataType> alibi_slope_host(
         bias.type == bias_enum::alibi
-            ? (bias.extra_info == 0 ? std::array<ck_tile::index_t, 2>{1, nhead}
-                                    : std::array<ck_tile::index_t, 2>{batch, nhead})
+            ? (bias.rank_info == 0 ? std::array<ck_tile::index_t, 2>{1, nhead}
+                                   : std::array<ck_tile::index_t, 2>{batch, nhead})
             : std::array<ck_tile::index_t, 2>{1, 1});
 
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
@@ -355,7 +355,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         auto slopes = ck_tile::get_alibi_slopes<SaccDataType>(nhead);
         assert(slopes.size() == nhead);
-        if(bias.extra_info == 0)
+        if(bias.rank_info == 0)
         {
             // alibi in 1*h
             std::copy(slopes.begin(), slopes.end(), alibi_slope_host.begin());
@@ -492,7 +492,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_q,
                              stride_k,
                              stride_v,
-                             bias.type == bias_enum::alibi ? (bias.extra_info == 0 ? 0 : nhead)
+                             bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
                                                            : stride_bias,
                              stride_o,
                              nhead_stride_q,
@@ -638,7 +638,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             ck_tile::HostTensor<SaccDataType> alibi_bias_host_ref(
                 {nhead, real_seqlen_q, real_seqlen_k});
-            auto i_b_slope = bias.extra_info == 0 ? 0 : wb;
+            auto i_b_slope = bias.rank_info == 0 ? 0 : wb;
             for(auto i_h = 0; i_h < nhead; i_h++)
             {
                 SaccDataType current_slope = alibi_slope_host(i_b_slope, i_h);

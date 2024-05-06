@@ -23,20 +23,20 @@ struct bias_info
      * simple dispatch logic
      *
      * if type == elementwise_bias:
-     *      if extra_info == 0:
+     *      if rank_info == 0:
      *           bias is 1*1*s*s
-     *      elif extra_info == 1:
+     *      elif rank_info == 1:
      *           bias is 1*h*s*s
-     *      elif extra_info == 2:
+     *      elif rank_info == 2:
      *           bias is b*h*s*s
      *
      * elif type == alibi:
-     *       if extra_info == 0:
+     *       if rank_info == 0:
      *           alibi in 1*h
-     *       elif extra_info == 1:
+     *       elif rank_info == 1:
      *           alibi in b*h
      */
-    int extra_info;
+    int rank_info;
 
     void serialize(std::ostream& os) const
     {
@@ -45,17 +45,17 @@ struct bias_info
         else if(type == bias_enum::elementwise_bias)
         {
             os << "e";
-            if(extra_info != 0)
+            if(rank_info != 0)
             {
-                os << "[" << extra_info << "]";
+                os << "[" << rank_info << "]";
             }
         }
         else if(type == bias_enum::alibi)
         {
             os << "alibi";
-            if(extra_info != 0)
+            if(rank_info != 0)
             {
-                os << "[" << extra_info << "]";
+                os << "[" << rank_info << "]";
             }
         }
     }
@@ -74,8 +74,8 @@ struct bias_info
             auto found_0 = str.find(':');
             if(found_0 != std::string::npos)
             {
-                std::string e   = str.substr(found_0 + 1);
-                info.extra_info = atoi(e.c_str());
+                std::string e  = str.substr(found_0 + 1);
+                info.rank_info = atoi(e.c_str());
             }
         }
         else if(str.compare(0, 1, "2") == 0 || str.compare(0, 1, "a") == 0 ||
@@ -85,18 +85,16 @@ struct bias_info
             auto found_0 = str.find(':');
             if(found_0 != std::string::npos)
             {
-                std::string e   = str.substr(found_0 + 1);
-                info.extra_info = atoi(e.c_str());
+                std::string e  = str.substr(found_0 + 1);
+                info.rank_info = atoi(e.c_str());
             }
         }
         return info;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const bias_info& x);
+    friend std::ostream& operator<<(std::ostream& os, const bias_info& bi)
+    {
+        bi.serialize(os);
+        return os;
+    }
 };
-
-inline std::ostream& operator<<(std::ostream& os, const bias_info& x)
-{
-    x.serialize(os);
-    return os;
-}
