@@ -15,6 +15,8 @@
 // export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
 CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
+//to do: add various levels of logging with CK_LOG_LEVEL
+
 #define CK_TIME_KERNEL 1
 
 // constant address space for kernel parameter
