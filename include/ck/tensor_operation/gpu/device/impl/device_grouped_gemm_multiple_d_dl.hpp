@@ -553,7 +553,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
-                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
                 {
                     std::cout << "group: " << i << " arg.a_grid_desc_k0_m_k1_{"
                               << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I0)

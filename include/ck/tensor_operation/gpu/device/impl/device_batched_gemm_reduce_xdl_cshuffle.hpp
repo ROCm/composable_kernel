@@ -658,7 +658,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
             {
                 {
                     std::cout << "arg.Batch_ = " << arg.Batch_ << std::endl;

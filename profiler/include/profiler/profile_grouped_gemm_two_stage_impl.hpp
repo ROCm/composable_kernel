@@ -88,7 +88,7 @@ bool profile_grouped_gemm_two_stage_impl(int do_verification,
 
         c_m_n_host_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-        if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
         {
             std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
                       << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i

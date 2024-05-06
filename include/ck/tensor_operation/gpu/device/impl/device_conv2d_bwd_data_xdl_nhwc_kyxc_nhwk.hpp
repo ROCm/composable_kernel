@@ -516,7 +516,7 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
-                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
                 {
                     {
                         std::cout << "arg.a_grid_desc_k0_m_k1_container_{"

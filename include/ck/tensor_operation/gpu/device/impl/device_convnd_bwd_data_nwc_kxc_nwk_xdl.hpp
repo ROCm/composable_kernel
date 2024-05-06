@@ -1220,7 +1220,7 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
-                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
                 {
                     std::cout << "arg.a_grid_desc_k0_m_k1{"
                               << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
