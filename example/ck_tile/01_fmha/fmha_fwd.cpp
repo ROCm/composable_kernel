@@ -41,16 +41,16 @@ auto create_args(int argc, char* argv[])
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
         .insert("h_k",
-                "0",
-                "num of head, for k/v, 0 means equal to h\n"
+                "-1",
+                "num of head, for k/v, -1 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
         .insert("s",
                 "3328",
                 "seqlen_q. if group-mode, means the average value of seqlen_q\n"
                 "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
-        .insert("s_k", "0", "seqlen_k, 0 means equal to s")
+        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
         .insert("d", "128", "head dim for q, k")
-        .insert("d_v", "0", "head dim for v, 0 means equal to d")
+        .insert("d_v", "-1", "head dim for v, -1 means equal to d")
         .insert("scale_s",
                 "0",
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
@@ -157,7 +157,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t batch   = arg_parser.get_int("b");
     ck_tile::index_t nhead   = arg_parser.get_int("h");
     ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
-    if(nhead_k == 0)
+    if(nhead_k < 0)
         nhead_k = nhead;
 
     if(nhead % nhead_k != 0)
@@ -168,11 +168,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t seqlen_q = arg_parser.get_int("s");
     ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k == 0)
+    if(seqlen_k < 0)
         seqlen_k = seqlen_q;
     ck_tile::index_t hdim_q = arg_parser.get_int("d");
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
-    if(hdim_v == 0)
+    if(hdim_v < 0)
         hdim_v = hdim_q;
 
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
