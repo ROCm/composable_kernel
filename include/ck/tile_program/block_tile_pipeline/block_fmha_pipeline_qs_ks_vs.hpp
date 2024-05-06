@@ -202,7 +202,7 @@ struct BlockFmhaPipelineQSKSVS
 
         // check early exit if there is no work to do. also avoid fullfilling unwanted sentinel
         // values (-INF).
-        if constexpr(kPadSeqLenK || FmhaMask::IsMasking || kStoreLSE)
+        if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
         {
             if(num_total_loop <= 0)
             {
