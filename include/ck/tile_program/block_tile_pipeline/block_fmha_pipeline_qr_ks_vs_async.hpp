@@ -281,7 +281,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                 // Note: here occ are all cleard, return it
                 return o_acc;
             }
-            __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
+
+            if constexpr(FmhaMask::IsMasking)
+                __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
         }
 
         auto k_dram_block_window = make_tile_window(k_dram_block_window_tmp.GetBottomTensorView(),
