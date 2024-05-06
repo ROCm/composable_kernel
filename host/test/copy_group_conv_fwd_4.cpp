@@ -261,29 +261,10 @@ struct Epilogue
         options.kernel_name = "run_" + name;
         auto k              = rtc::compile_kernel(srcs, options);
 
-        auto num_dim     = prob.NumDim;
-        auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
-        auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
-        auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
-        auto block_size  = solution.GetTemplateParameter<ck::index_t>("BlockSize");
-        auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
-        auto ConvType    = solution.GetTemplateParameter<std::string>("ConvSpecialization");
-        auto out_layout  = solution.GetTemplateParameter<std::string>("LayoutE");
-        ck::tensor_operation::device::GemmSpecialization GemmSpec = gemm_type(GemmType);
-        ck::tensor_operation::device::ConvolutionForwardSpecialization ConvSpec =
-            conv_type(ConvType);
-        auto ELayout = layout_type(out_layout);
+        auto block_size = solution.GetTemplateParameter<ck::index_t>("BlockSize");
 
         // Grid size calculation
-        auto tmp = get_launch_params(m_per_block,
-                                     n_per_block,
-                                     k_per_block,
-                                     num_dim,
-                                     ConvSpec,
-                                     GemmSpec,
-                                     ELayout,
-                                     out_lengths,
-                                     out_strides);
+        auto tmp = get_launch_params(solution, out_lengths, out_strides);
 
         auto grid_size = tmp * in_lengths[1];
 

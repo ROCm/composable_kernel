@@ -332,20 +332,25 @@ auto get_launch_params_1d(ck::index_t m_per_block,
     return b2e;
 }
 
-auto get_launch_params(ck::index_t m_per_block,
-                       ck::index_t n_per_block,
-                       ck::index_t k_per_block,
-                       ck::index_t num_dim,
-                       ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
-                       ck::tensor_operation::device::GemmSpecialization gemm,
-                       layouts e_layout,
+auto get_launch_params(ck::host::Solution solution,
                        ck::Array<ck::index_t, 5> out_lengths,
                        ck::Array<ck::index_t, 5> out_strides)
 {
+    auto num_dim     = solution.GetTemplateParameter<ck::index_t>("NumDim");
+    auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
+    auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
+    auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
+    auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
+    auto ConvType    = solution.GetTemplateParameter<std::string>("ConvSpecialization");
+    auto out_layout  = solution.GetTemplateParameter<std::string>("LayoutE");
+    ck::tensor_operation::device::GemmSpecialization GemmSpec               = gemm_type(GemmType);
+    ck::tensor_operation::device::ConvolutionForwardSpecialization ConvSpec = conv_type(ConvType);
+    auto ELayout = layout_type(out_layout);
     auto conv_to_gemm_transformer =
-        transform_conv(num_dim, spec, e_layout, out_lengths, out_strides);
-    auto matrix_padder = pad(m_per_block, n_per_block, k_per_block, gemm, conv_to_gemm_transformer);
-    auto b2e           = block_2_etile(m_per_block, n_per_block, matrix_padder);
+        transform_conv(num_dim, ConvSpec, ELayout, out_lengths, out_strides);
+    auto matrix_padder =
+        pad(m_per_block, n_per_block, k_per_block, GemmSpec, conv_to_gemm_transformer);
+    auto b2e = block_2_etile(m_per_block, n_per_block, matrix_padder);
     return b2e;
 }
 
