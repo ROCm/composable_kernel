@@ -244,11 +244,11 @@ class FmhaFwdApiTrait:
     def skcheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
         if self.pipeline_tag == 'qr_async':
-            if self.skpad == 't' : return f'a.seqlen_k % {self.bn0} != 0 or a.seqlen_k == 0'
-            else :                 return f'a.seqlen_k % {self.bn0} == 0 and a.seqlen_k != 0'
+            if self.skpad == 't' : return f'a.seqlen_k % {self.bn0} != 0 || a.seqlen_k == 0'
+            else :                 return f'a.seqlen_k % {self.bn0} == 0 && a.seqlen_k != 0'
         elif self.pipeline_tag in ['qr', 'qr_fp8']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.seqlen_k % {self.bn0} == 0 and a.seqlen_k != 0'
+            else :                return f'a.seqlen_k % {self.bn0} == 0 && a.seqlen_k != 0'
         else: assert False
 
     @property
@@ -685,7 +685,7 @@ class FmhaBwdDQDKDVApiTrait:
         elif self.spad == 't' and spad1 == 't':
             return f'a.seqlen_q % {self.bm0} != 0'
         elif self.spad == 'f' and spad1 == 't':
-            return f'a.seqlen_q % {self.bm0} == 0 and a.seqlen_q % 256 != 0' # BlockSize
+            return f'a.seqlen_q % {self.bm0} == 0 && a.seqlen_q % 256 != 0' # BlockSize
         else: # self.skpad == 'f' and skpad1 == 'f'
             return f'a.seqlen_q % 256 == 0' # BlockSize
 
