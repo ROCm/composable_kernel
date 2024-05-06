@@ -529,11 +529,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
-#if DEBUG_LOG
-            std::cout << "The group count is not equal to sum of skipped groups "
-                         "and kernel args size!"
-                      << std::endl;
-#endif // DEBUG_LOG
+            if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+            {
+                std::cout << "The group count is not equal to sum of skipped groups "
+                             "and kernel args size!"
+                          << std::endl;
+            }
             return false;
         }
 
@@ -544,11 +545,12 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);
             if(not group_arg_valid)
             {
-#if DEBUG_LOG
-                std::cout << "[" << __func__ << "] group id: " << i
-                          << " has invalid GridwiseGemm settings!" << std::endl;
-                a.Print();
-#endif // DEBUG_LOG
+                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "[" << __func__ << "] group id: " << i
+                              << " has invalid GridwiseGemm settings!" << std::endl;
+                    a.Print();
+                }
             }
             supported = supported && group_arg_valid;
         }

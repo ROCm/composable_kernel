@@ -82,11 +82,12 @@ bool profile_grouped_gemm_tile_loop_impl(int do_verification,
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
         c_m_n_host_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-#if DEBUG_LOG
-        std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
-                  << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
-                  << "]:" << c_m_n_device_results[i].mDesc << std::endl;
-#endif // DEBUG_LOG
+        if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
+                      << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
+                      << "]:" << c_m_n_device_results[i].mDesc << std::endl;
+        }
         switch(init_method)
         {
         case 0: break;

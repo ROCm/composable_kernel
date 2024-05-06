@@ -20,18 +20,19 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-#if DEBUG_LOG
-        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
-               __func__,
-               grid_dim.x,
-               grid_dim.y,
-               grid_dim.z,
-               block_dim.x,
-               block_dim.y,
-               block_dim.z);
+        if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+                   __func__,
+                   grid_dim.x,
+                   grid_dim.y,
+                   grid_dim.z,
+                   block_dim.x,
+                   block_dim.y,
+                   block_dim.z);
 
-        printf("Warm up %d times\n", stream_config.cold_niters_);
-#endif
+            printf("Warm up %d times\n", stream_config.cold_niters_);
+        }
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
@@ -40,9 +41,10 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         }
 
         const int nrepeat = stream_config.nrepeat_;
-#if DEBUG_LOG
-        printf("Start running %d times...\n", nrepeat);
-#endif
+        if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            printf("Start running %d times...\n", nrepeat);
+        }
         hipEvent_t start, stop;
 
         hip_check_error(hipEventCreate(&start));
@@ -93,18 +95,19 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-#if DEBUG_LOG
-        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
-               __func__,
-               grid_dim.x,
-               grid_dim.y,
-               grid_dim.z,
-               block_dim.x,
-               block_dim.y,
-               block_dim.z);
+        if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+                   __func__,
+                   grid_dim.x,
+                   grid_dim.y,
+                   grid_dim.z,
+                   block_dim.x,
+                   block_dim.y,
+                   block_dim.z);
 
-        printf("Warm up %d times\n", stream_config.cold_niters_);
-#endif
+            printf("Warm up %d times\n", stream_config.cold_niters_);
+        }
         // warm up
         preprocess();
         for(int i = 0; i < stream_config.cold_niters_; ++i)
@@ -114,9 +117,10 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         }
 
         const int nrepeat = stream_config.nrepeat_;
-#if DEBUG_LOG
-        printf("Start running %d times...\n", nrepeat);
-#endif
+        if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            printf("Start running %d times...\n", nrepeat);
+        }
         hipEvent_t start, stop;
 
         hip_check_error(hipEventCreate(&start));

@@ -620,11 +620,13 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                  GridwiseGemm::template CheckTensorTransfersValidity<ALayout, BLayout, ELayout>(
                      M, N, K)))
             {
-#if DEBUG_LOG
-                std::cout << "The provided GEMM problem size (M,N,K) [" << M << "," << N << "," << K
-                          << "] are not supported by current template parameters!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-#endif
+                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "The provided GEMM problem size (M,N,K) [" << M << "," << N << ","
+                              << K << "] are not supported by current template parameters!"
+                              << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__;
+                }
                 supported = false;
             }
         }

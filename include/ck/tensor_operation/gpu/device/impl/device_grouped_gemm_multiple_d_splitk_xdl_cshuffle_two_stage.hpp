@@ -467,18 +467,19 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 gemm_kernel_args_[i].block_start_       = block_start;
                 gemm_kernel_args_[i].block_end_         = block_end;
 
-#if DEBUG_LOG
-                index_t tiles = (block_end - block_start) / K_BATCH;
-                std::cout << "block_start: " << block_start << "\n"
-                          << "block_end: " << block_end << "\n"
-                          << "tiles: " << tiles << std::endl
-                          << std::endl;
+                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    index_t tiles = (block_end - block_start) / K_BATCH;
+                    std::cout << "block_start: " << block_start << "\n"
+                              << "block_end: " << block_end << "\n"
+                              << "tiles: " << tiles << std::endl
+                              << std::endl;
 
-                std::cout << "KPadded: " << karg.KPadded << std::endl
-                          << "K0Padded: " << karg.K0Padded << std::endl
-                          << "KBatch: " << karg.k_batch << std::endl
-                          << "grid_size_: " << karg.KPadded << std::endl;
-#endif
+                    std::cout << "KPadded: " << karg.KPadded << std::endl
+                              << "K0Padded: " << karg.K0Padded << std::endl
+                              << "KBatch: " << karg.k_batch << std::endl
+                              << "grid_size_: " << karg.KPadded << std::endl;
+                }
             }
         }
 
@@ -493,12 +494,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 arg.karg_.p_c_grid = p_workspace + offset;
                 index_t tiles      = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
                 offset += tiles * MPerBlock * NPerBlock;
-#if DEBUG_LOG
-                std::cout << "block_start: " << arg.block_start_ << "\n"
-                          << "block_end: " << arg.block_end_ << "\n"
-                          << "tiles: " << tiles << "\n"
-                          << "offset: " << offset << std::endl;
-#endif
+                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "block_start: " << arg.block_start_ << "\n"
+                              << "block_end: " << arg.block_end_ << "\n"
+                              << "tiles: " << tiles << "\n"
+                              << "offset: " << offset << std::endl;
+                }
             }
         }
 
@@ -816,11 +818,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
-#if DEBUG_LOG
-            std::cout << "The group count is not equal to sum of skipped groups "
-                         "and kernel args size!"
-                      << std::endl;
-#endif // DEBUG_LOG
+            if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+            {
+                std::cout << "The group count is not equal to sum of skipped groups "
+                             "and kernel args size!"
+                          << std::endl;
+            }
             return false;
         }
 
@@ -832,11 +835,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             bool group_arg_valid = GridwiseGemm::CheckValidity(gemm_arg);
             if(not group_arg_valid)
             {
-#if DEBUG_LOG
-                std::cout << "[" << __func__ << "] group id: " << i
-                          << " has invalid GridwiseGemm settings!" << std::endl;
-                gemm_arg.Print();
-#endif // DEBUG_LOG
+                if(cK::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "[" << __func__ << "] group id: " << i
+                              << " has invalid GridwiseGemm settings!" << std::endl;
+                    gemm_arg.Print();
+                }
             }
             supported = supported && group_arg_valid;
         }
