@@ -514,7 +514,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-#if DEBUG_LOG
+            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
             {
                 std::cout << "arg.a_grid_desc_ak0_m_ak1_{"
                           << arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) << ", "
@@ -529,7 +529,6 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
                 std::cout << "arg.c_grid_desc_m_n_{ " << arg.c_grid_desc_m_n_.GetLength(I0) << ", "
                           << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
             }
-#endif
 
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                             arg.b_grid_desc_bk0_n_bk1_,
