@@ -41,16 +41,16 @@ auto create_args(int argc, char* argv[])
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
         .insert("h_k",
-                "0",
-                "num of head, for k/v, 0 means equal to h\n"
+                "-1",
+                "num of head, for k/v, -1 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
         .insert("s",
                 "3328",
                 "seqlen_q. if group-mode, means the average value of seqlen_q\n"
                 "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
-        .insert("s_k", "0", "seqlen_k, 0 means equal to s")
+        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
         .insert("d", "128", "head dim for q, k")
-        .insert("d_v", "0", "head dim for v, 0 means equal to d")
+        .insert("d_v", "-1", "head dim for v, -1 means equal to d")
         .insert("scale_s",
                 "0",
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
@@ -71,7 +71,11 @@ auto create_args(int argc, char* argv[])
                 "permute input\n"
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "1", "permute output")
-        .insert("bias", "0", "add bias or not")
+        .insert("bias",
+                "n",
+                "n or 0, no bias\n"
+                "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
+                "a(libi) or 2, alibi with 1*h. a:1, b*h")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("mask",
                 "0",
@@ -147,7 +151,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t batch   = arg_parser.get_int("b");
     ck_tile::index_t nhead   = arg_parser.get_int("h");
     ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
-    if(nhead_k == 0)
+    if(nhead_k < 0)
         nhead_k = nhead;
 
     if(nhead % nhead_k != 0)
@@ -158,11 +162,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t seqlen_q = arg_parser.get_int("s");
     ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k == 0)
+    if(seqlen_k < 0)
         seqlen_k = seqlen_q;
     ck_tile::index_t hdim_q = arg_parser.get_int("d");
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
-    if(hdim_v == 0)
+    if(hdim_v < 0)
         hdim_v = hdim_q;
 
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
@@ -200,10 +204,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // scale_p = [max(fp8_t)/range_o] * [range_p/max(fp8_t)] * [range_v/max(fp8_t)]
         scale_o = range_p * range_v / range_o / dtype_max;
     }
+   
+    std::string vlayout = arg_parser.get_str("vlayout");
+    bool lse            = arg_parser.get_bool("lse");
 
-    std::string vlayout  = arg_parser.get_str("vlayout");
-    bool use_bias        = arg_parser.get_bool("bias");
-    bool lse             = arg_parser.get_bool("lse");
+    bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
+    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
+
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
@@ -218,8 +225,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         s_randval = true;
     }
-
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
     int init_method              = arg_parser.get_int("init");
     std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
@@ -310,12 +315,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<VDataType> v_host(
         is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
-    // use bias shape = [1, 1, shape_seqlen_q, shape_seqlen_k]. if use_bias=false, the bias_host
-    // will not be used for verification at all (but will be copied to device anyway).
+
     ck_tile::HostTensor<BiasDataType> bias_host(
-        use_bias
+        bias.type == bias_enum::elementwise_bias
             ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
+
+    ck_tile::HostTensor<SaccDataType> alibi_slope_host(
+        bias.type == bias_enum::alibi
+            ? (bias.rank_info == 0 ? std::array<ck_tile::index_t, 2>{1, nhead}
+                                   : std::array<ck_tile::index_t, 2>{batch, nhead})
+            : std::array<ck_tile::index_t, 2>{1, 1});
+
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
         lse ? std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q}
@@ -360,6 +371,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // Assume bias is in [-1.f, 1.f] in original fp32
         ck_tile::FillUniformDistribution<BiasDataType>{-qscale_bias, qscale_bias, seed}(bias_host);
     }
+    if(bias.type == bias_enum::alibi)
+    {
+        auto slopes = ck_tile::get_alibi_slopes<SaccDataType>(nhead);
+        assert(slopes.size() == nhead);
+        if(bias.rank_info == 0)
+        {
+            // alibi in 1*h
+            std::copy(slopes.begin(), slopes.end(), alibi_slope_host.begin());
+        }
+        else
+        {
+            // alibi in b*h
+            for(auto i_b = 0; i_b < batch; i_b++)
+            {
+                std::copy(slopes.begin(), slopes.end(), alibi_slope_host.begin() + i_b * nhead);
+            }
+        }
+    }
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
@@ -370,6 +399,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -377,6 +407,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
     auto layout_str = [&](bool permute){
@@ -392,9 +423,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
-              << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s
-              << ", bias:" << use_bias << ", p_drop:" << p_drop << ", lse:" << lse
-              << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout << std::flush;
+              << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
+              << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout
+              << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
@@ -402,7 +433,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        mode == mode_enum::group,
                                        is_v_rowmajor,
                                        mask.type,
-                                       use_bias,
+                                       bias.type,
                                        lse,
                                        p_drop > 0.0f,
                                        squant};
@@ -465,7 +496,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
-                             bias_buf.GetDeviceBuffer(),
+                             bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
+                                                           : bias_buf.GetDeviceBuffer(),
                              randval_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
@@ -486,7 +518,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_q,
                              stride_k,
                              stride_v,
-                             stride_bias,
+                             bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
+                                                           : stride_bias,
                              stride_randval,
                              stride_o,
                              nhead_stride_q,
@@ -600,8 +633,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::scales(scale_s));
 
-        if(use_bias)
+        if(bias.type == bias_enum::elementwise_bias)
         {
+            // elementwise bias
             ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
             // clang-format off
             if(i_perm)
@@ -617,6 +651,51 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                    SMPLComputeDataType,
                                                    SMPLComputeDataType>(
                 s_host_ref, bias_host_ref, s_host_ref);
+        }
+        else if(bias.type == bias_enum::alibi)
+        {
+            // alibi construct elementwise bias to verify
+            auto alibi_host = [&]() {
+                if(mask.type != mask_enum::no_mask)
+                {
+                    return ck_tile::make_alibi_from_lr_mask<SaccDataType, true>(
+                        0,
+                        mask.left,
+                        mask.right,
+                        real_seqlen_q,
+                        real_seqlen_k,
+                        static_cast<ck_tile::GenericAttentionMaskEnum>(mask.type));
+                }
+                else
+                {
+                    return ck_tile::Alibi<SaccDataType, true>{
+                        0, real_seqlen_q, real_seqlen_k, ck_tile::AlibiMode::VERTICAL};
+                }
+            }();
+
+            ck_tile::HostTensor<SaccDataType> alibi_bias_host_ref(
+                {nhead, real_seqlen_q, real_seqlen_k});
+            auto i_b_slope = bias.rank_info == 0 ? 0 : wb;
+            for(auto i_h = 0; i_h < nhead; i_h++)
+            {
+                SaccDataType current_slope = alibi_slope_host(i_b_slope, i_h);
+                alibi_host.slope           = current_slope;
+                for(auto i_r = 0; i_r < real_seqlen_q; i_r++)
+                {
+                    for(auto i_c = 0; i_c < real_seqlen_k; i_c++)
+                    {
+                        SaccDataType pixel = 0;
+                        alibi_host.update(pixel, i_r, i_c);
+                        alibi_bias_host_ref(i_h, i_r, i_c) = pixel;
+                    }
+                }
+            }
+            // [nhead, real_seqlen_q, real_seqlen_k]
+            ck_tile::reference_batched_elementwise<SMPLComputeDataType,
+                                                   SaccDataType,
+                                                   SMPLComputeDataType,
+                                                   SMPLComputeDataType>(
+                s_host_ref, alibi_bias_host_ref, s_host_ref);
         }
 
         if(mask.type == mask_enum::no_mask)

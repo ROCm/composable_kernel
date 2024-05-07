@@ -13,4 +13,23 @@ enum class BlockFmhaPipelineEnum
     QSKSVS,
 };
 
+template <BlockFmhaPipelineEnum>
+struct BlockFmhaPipelineEnumToStr;
+
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS>
+{
+    static constexpr const char* name = "qr";
+};
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_ASYNC>
+{
+    static constexpr const char* name = "qr_async";
+};
+template <>
+struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QSKSVS>
+{
+    static constexpr const char* name = "qs";
+};
+
 } // namespace ck_tile
