@@ -17,7 +17,7 @@ add_custom_command(
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
 # not using add_example_executable() to add this target, since we don't want this to have
 # to be included in "make all/install/check"
-message("adding tile_example ${EXAMPLE_NAME}")
+message("adding example ${EXAMPLE_FMHA_FWD}")
 add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL fmha_fwd.cpp)
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_FMHA_FWD} PRIVATE ${FMHA_FWD_GEN_BLOBS})
