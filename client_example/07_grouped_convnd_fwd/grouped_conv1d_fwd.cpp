@@ -17,18 +17,24 @@ using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
 using OutDataType = ck::half_t;
 
-using InLayout    = ck::tensor_layout::convolution::GNWC;
-using WeiLayout   = ck::tensor_layout::convolution::GKXC;
-using OutLayout   = ck::tensor_layout::convolution::GNWK;
+using InLayout    = ck::tensor_layout::convolution::GNDHWC;
+using WeiLayout   = ck::tensor_layout::convolution::GKZYXC;
+using OutLayout   = ck::tensor_layout::convolution::GNDHWK;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr ck::index_t NumDimSpatial = 1;
+static constexpr ck::index_t NumDimSpatial = 3;
 static constexpr ck::index_t G             = 32;
 static constexpr ck::index_t N             = 256;
 static constexpr ck::index_t K             = 192;
 static constexpr ck::index_t C             = 192;
+static constexpr ck::index_t Z             = 1; // Z == 1 for 1d
+static constexpr ck::index_t Y             = 1; // Y == 1 for 1d
 static constexpr ck::index_t X             = 3;
+static constexpr ck::index_t Di            = 1; // Di =  1 for 1d
+static constexpr ck::index_t Hi            = 1; // Hi =  1 for 1d
 static constexpr ck::index_t Wi            = 28;
+static constexpr ck::index_t Do            = 1; // Do =  1 for 1d
+static constexpr ck::index_t Ho            = 1; // Ho =  1 for 1d
 static constexpr ck::index_t Wo            = 28;
 
 struct SimpleDeviceMem
@@ -49,14 +55,14 @@ struct SimpleDeviceMem
 
 int main()
 {
-    std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, Wi, C};
-    std::array<ck::index_t, NumDimSpatial + 3> in_strides{0, 0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial + 3> in_lengths{G, N, Di, Hi, Wi, C};
+    std::array<ck::index_t, NumDimSpatial + 3> in_strides{0, 0, 0, 0, 0, 1};
 
-    std::array<ck::index_t, NumDimSpatial + 3> wei_lengths{G, K, X, C};
-    std::array<ck::index_t, NumDimSpatial + 3> wei_strides{0, 0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial + 3> wei_lengths{G, K, Z, Y, X, C};
+    std::array<ck::index_t, NumDimSpatial + 3> wei_strides{0, 0, 0, 0, 0, 1};
 
-    std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, Wo, K};
-    std::array<ck::index_t, NumDimSpatial + 3> out_strides{0, 0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial + 3> out_lengths{G, N, Do, Ho, Wo, K};
+    std::array<ck::index_t, NumDimSpatial + 3> out_strides{0, 0, 0, 0, 0, 1};
 
     std::partial_sum(rbegin(in_lengths),
                      std::prev(rend(in_lengths)),
@@ -91,10 +97,10 @@ int main()
                 std::next(rbegin(out_strides)),
                 std::next(rbegin(out_strides), NumDimSpatial + 1));
 
-    std::array<ck::index_t, NumDimSpatial> filter_strides{1};
-    std::array<ck::index_t, NumDimSpatial> filter_dilations{1};
-    std::array<ck::index_t, NumDimSpatial> input_left_pads{1};
-    std::array<ck::index_t, NumDimSpatial> input_right_pads{1};
+    std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> input_left_pads{0, 0, 1};
+    std::array<ck::index_t, NumDimSpatial> input_right_pads{0, 0, 1};
 
     SimpleDeviceMem in(sizeof(InDataType) * G * N * Wi * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * X * C);

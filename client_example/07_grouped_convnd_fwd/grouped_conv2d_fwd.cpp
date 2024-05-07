@@ -17,20 +17,23 @@ using InDataType  = ck::half_t;
 using WeiDataType = ck::half_t;
 using OutDataType = ck::half_t;
 
-using InLayout    = ck::tensor_layout::convolution::NHWGC;
-using WeiLayout   = ck::tensor_layout::convolution::GKYXC;
-using OutLayout   = ck::tensor_layout::convolution::NHWGK;
+using InLayout    = ck::tensor_layout::convolution::NDHWGC;
+using WeiLayout   = ck::tensor_layout::convolution::GKZYXC;
+using OutLayout   = ck::tensor_layout::convolution::NDHWGK;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
-static constexpr ck::index_t NumDimSpatial = 2;
+static constexpr ck::index_t NumDimSpatial = 3;
 static constexpr ck::index_t G             = 32;
 static constexpr ck::index_t N             = 256; // batch size
 static constexpr ck::index_t K             = 64;  // output channel
 static constexpr ck::index_t C             = 32;  // input channel (per group)
+static constexpr ck::index_t Z             = 1;   // filter D == 1 for 2d
 static constexpr ck::index_t Y             = 3;   // filter H
 static constexpr ck::index_t X             = 3;   // filter W
+static constexpr ck::index_t Di            = 1;   // input D =  1 for 2d
 static constexpr ck::index_t Hi            = 28;  // input H
 static constexpr ck::index_t Wi            = 28;  // input W
+static constexpr ck::index_t Do            = 1;   // output D =  1 for 2d
 static constexpr ck::index_t Ho            = 28;  // output H
 static constexpr ck::index_t Wo            = 28;  // output W
 
@@ -55,17 +58,19 @@ int main()
     // We have NHWGC/GKYXC/NHWGK (x, weight, y) in memory space
     // However, CK's API only accept length and stride with order of GNCHW/GKCYX/GNCHW
     // Hence, we need to adjust the order of stride
-    std::array<ck::index_t, 5> in_lengths{G, N, C, Hi, Wi};
-    std::array<ck::index_t, 5> in_strides{C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
-    std::array<ck::index_t, 5> wei_lengths{G, K, C, Y, X};
-    std::array<ck::index_t, 5> wei_strides{K * Y * X * C, Y * X * C, 1, X * C, C};
-    std::array<ck::index_t, 5> out_lengths{G, N, K, Ho, Wo};
-    std::array<ck::index_t, 5> out_strides{C, Ho * Wo * G * C, 1, Wo * G * C, G * C};
+    std::array<ck::index_t, 6> in_lengths{G, N, C, Di, Hi, Wi};
+    std::array<ck::index_t, 6> in_strides{
+        C, Hi * Wi * G * C, 1, Hi * Wi * G * C, Wi * G * C, G * C};
+    std::array<ck::index_t, 6> wei_lengths{G, K, C, Z, Y, X};
+    std::array<ck::index_t, 6> wei_strides{K * Y * X * C, Y * X * C, 1, Y * X * C, X * C, C};
+    std::array<ck::index_t, 6> out_lengths{G, N, K, Do, Ho, Wo};
+    std::array<ck::index_t, 6> out_strides{
+        C, Ho * Wo * G * C, 1, Ho * Wo * G * C, Wo * G * C, G * C};
 
-    std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1};
-    std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1};
-    std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1};
-    std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1};
+    std::array<ck::index_t, NumDimSpatial> filter_strides{1, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> filter_dilations{1, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> input_left_pads{0, 1, 1};
+    std::array<ck::index_t, NumDimSpatial> input_right_pads{0, 1, 1};
 
     SimpleDeviceMem in(sizeof(InDataType) * N * Hi * Wi * G * C);
     SimpleDeviceMem wei(sizeof(WeiDataType) * G * K * Y * X * C);

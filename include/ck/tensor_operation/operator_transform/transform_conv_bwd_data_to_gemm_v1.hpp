@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1130,6 +1130,77 @@ struct TransformConvBwdDataToGemm_v1
 
             return in_gemmm_gemmn_grid_desc;
         }
+    }
+
+    template <index_t NumDTensor,
+              typename ALayout,
+              typename BLayout,
+              typename DsLayout,
+              typename ELayout>
+    static auto GetDummyABDsEGridDescriptor()
+    {
+        const std::array<index_t, NDimSpatial + 3> dummy_tensor_lengths = {1};
+        const std::array<index_t, NDimSpatial + 3> dummy_tensor_strides = {1};
+        const std::array<index_t, NDimSpatial> dummy_spatial_lengths    = {1};
+
+        const auto a_grid_desc_ak0_m_ak1 =
+            MakeADescriptor_AK0_M_AK1<ALayout>(dummy_tensor_lengths,
+                                               dummy_tensor_strides,
+                                               dummy_tensor_lengths,
+                                               dummy_tensor_strides,
+                                               dummy_tensor_lengths,
+                                               dummy_tensor_strides,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths);
+
+        const auto b_grid_desc_bk0_n_bk1 =
+            MakeBDescriptor_BK0_N_BK1<BLayout>(dummy_tensor_lengths,
+                                               dummy_tensor_strides,
+                                               dummy_tensor_lengths,
+                                               dummy_tensor_strides,
+                                               dummy_tensor_lengths,
+                                               dummy_tensor_strides,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths,
+                                               dummy_spatial_lengths);
+
+        const auto ds_grid_desc_m_n = generate_tuple(
+            [&](auto i) {
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                return MakeCDescriptor_M_N<DLayout>(dummy_tensor_lengths,
+                                                    dummy_tensor_strides,
+                                                    dummy_tensor_lengths,
+                                                    dummy_tensor_strides,
+                                                    dummy_tensor_lengths,
+                                                    dummy_tensor_strides,
+                                                    dummy_spatial_lengths,
+                                                    dummy_spatial_lengths,
+                                                    dummy_spatial_lengths,
+                                                    dummy_spatial_lengths,
+                                                    dummy_spatial_lengths);
+            },
+            Number<NumDTensor>{});
+
+        const auto e_grid_desc_m_n = MakeCDescriptor_M_N<ELayout>(dummy_tensor_lengths,
+                                                                  dummy_tensor_strides,
+                                                                  dummy_tensor_lengths,
+                                                                  dummy_tensor_strides,
+                                                                  dummy_tensor_lengths,
+                                                                  dummy_tensor_strides,
+                                                                  dummy_spatial_lengths,
+                                                                  dummy_spatial_lengths,
+                                                                  dummy_spatial_lengths,
+                                                                  dummy_spatial_lengths,
+                                                                  dummy_spatial_lengths);
+
+        return make_tuple(
+            a_grid_desc_ak0_m_ak1, b_grid_desc_bk0_n_bk1, ds_grid_desc_m_n, e_grid_desc_m_n);
     }
 };
 

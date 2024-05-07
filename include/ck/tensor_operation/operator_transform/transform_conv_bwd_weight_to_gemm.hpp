@@ -707,7 +707,79 @@ struct TransformConvBwdWeightToGemm
                               in_gemmkbatch_gemmk0_gemmn_gemmk1_pad_grid_desc,
                               wei_gemmm_gemmn_pad_grid_desc);
         }
-    } // function end
+    }
+
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
+    static auto GetABCGridDesc()
+    {
+        const ck::index_t dim   = 1;
+        const ck::index_t batch = 1;
+        const std::array<ck::index_t, NDimSpatial> lengths{1};
+        const std::array<ck::index_t, NDimSpatial + 3> strides{1, 1, 1, 1};
+        const std::array<ck::index_t, NDimSpatial> params{1};
+        return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<1>(dim,
+                                                                  dim,
+                                                                  dim,
+                                                                  lengths,
+                                                                  lengths,
+                                                                  lengths,
+                                                                  strides,
+                                                                  strides,
+                                                                  strides,
+                                                                  params,
+                                                                  params,
+                                                                  params,
+                                                                  params,
+                                                                  batch);
+    }
+
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
+    static auto GetABCGridDesc()
+    {
+        const ck::index_t dim   = 1;
+        const ck::index_t batch = 1;
+        const std::array<ck::index_t, NDimSpatial> lengths{1, 1};
+        const std::array<ck::index_t, NDimSpatial + 3> strides{1, 1, 1, 1, 1};
+        const std::array<ck::index_t, NDimSpatial> params{1, 1};
+        return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<2>(dim,
+                                                                  dim,
+                                                                  dim,
+                                                                  lengths,
+                                                                  lengths,
+                                                                  lengths,
+                                                                  strides,
+                                                                  strides,
+                                                                  strides,
+                                                                  params,
+                                                                  params,
+                                                                  params,
+                                                                  params,
+                                                                  batch);
+    }
+
+    template <ck::index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
+    static auto GetABCGridDesc()
+    {
+        const ck::index_t dim   = 1;
+        const ck::index_t batch = 1;
+        const std::array<ck::index_t, NDimSpatial> lengths{1, 1, 1};
+        const std::array<ck::index_t, NDimSpatial + 3> strides{1, 1, 1, 1, 1, 1};
+        const std::array<ck::index_t, NDimSpatial> params{1, 1, 1};
+        return MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<3>(dim,
+                                                                  dim,
+                                                                  dim,
+                                                                  lengths,
+                                                                  lengths,
+                                                                  lengths,
+                                                                  strides,
+                                                                  strides,
+                                                                  strides,
+                                                                  params,
+                                                                  params,
+                                                                  params,
+                                                                  params,
+                                                                  batch);
+    }
 };
 
 } // namespace tensor_operation

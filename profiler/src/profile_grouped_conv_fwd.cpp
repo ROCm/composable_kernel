@@ -91,29 +91,14 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     using BF8  = ck::bf8_t;
 
     //
-    using GNWC   = ck::tensor_layout::convolution::GNWC;
-    using GNHWC  = ck::tensor_layout::convolution::GNHWC;
     using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
-
-    using GKXC   = ck::tensor_layout::convolution::GKXC;
-    using GKYXC  = ck::tensor_layout::convolution::GKYXC;
-    using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
-
-    using GNWK   = ck::tensor_layout::convolution::GNWK;
-    using GNHWK  = ck::tensor_layout::convolution::GNHWK;
-    using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
-
-    //
-    using NWGC   = ck::tensor_layout::convolution::NWGC;
-    using NHWGC  = ck::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
 
-    using NWGK   = ck::tensor_layout::convolution::NWGK;
-    using NHWGK  = ck::tensor_layout::convolution::NHWGK;
+    using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
+
+    using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
     using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
-    constexpr auto I1 = ck::Number<1>{};
-    constexpr auto I2 = ck::Number<2>{};
     constexpr auto I3 = ck::Number<3>{};
 
     auto profile = [&](auto num_dim_spatial_tmp,
@@ -153,45 +138,7 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     };
 
     // GNHWC_GKYXC_GNHWK
-    if(num_dim_spatial == 1 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
-    {
-        if(data_type == ConvDataType::F32_F32_F32)
-        {
-            return profile(I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
-        }
-        else if(data_type == ConvDataType::F16_F16_F16)
-        {
-            return profile(I1, GNWC{}, GKXC{}, GNWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
-        }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
-        {
-            return profile(I1, GNWC{}, GKXC{}, GNWK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
-        }
-        else if(data_type == ConvDataType::INT8_INT8_INT8)
-        {
-            return profile(I1, GNWC{}, GKXC{}, GNWK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
-        }
-    }
-    else if(num_dim_spatial == 2 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
-    {
-        if(data_type == ConvDataType::F32_F32_F32)
-        {
-            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
-        }
-        else if(data_type == ConvDataType::F16_F16_F16)
-        {
-            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
-        }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
-        {
-            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
-        }
-        else if(data_type == ConvDataType::INT8_INT8_INT8)
-        {
-            return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
-        }
-    }
-    else if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
         {
@@ -213,44 +160,6 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         }
     }
     // NHWGC_GKYXC_NHWGK
-    else if(num_dim_spatial == 1 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
-    {
-        if(data_type == ConvDataType::F32_F32_F32)
-        {
-            return profile(I1, NWGC{}, GKXC{}, NWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
-        }
-        else if(data_type == ConvDataType::F16_F16_F16)
-        {
-            return profile(I1, NWGC{}, GKXC{}, NWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
-        }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
-        {
-            return profile(I1, NWGC{}, GKXC{}, NWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
-        }
-        else if(data_type == ConvDataType::INT8_INT8_INT8)
-        {
-            return profile(I1, NWGC{}, GKXC{}, NWGK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
-        }
-    }
-    else if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
-    {
-        if(data_type == ConvDataType::F32_F32_F32)
-        {
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
-        }
-        else if(data_type == ConvDataType::F16_F16_F16)
-        {
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
-        }
-        else if(data_type == ConvDataType::BF16_BF16_BF16)
-        {
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
-        }
-        else if(data_type == ConvDataType::INT8_INT8_INT8)
-        {
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
-        }
-    }
     else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
