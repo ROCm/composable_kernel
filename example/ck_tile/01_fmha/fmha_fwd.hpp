@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "mask.hpp"
+#include "bias.hpp"
 #include <type_traits>
 
 template <typename DataType>
@@ -86,7 +87,7 @@ struct fmha_fwd_args
     const void* q_ptr;
     const void* k_ptr;
     const void* v_ptr;
-    const void* bias_ptr;
+    const void* bias_ptr; // bias or alibi_slope pointer
     void* lse_ptr;
     void* o_ptr;
     const void* seqstart_q_ptr;
@@ -106,7 +107,7 @@ struct fmha_fwd_args
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
-    ck_tile::index_t stride_bias;
+    ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
     ck_tile::index_t stride_o;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
@@ -219,7 +220,7 @@ template <ck_tile::index_t HDim_,
           bool kIsVLayoutRowMajor_,
           ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
           typename FmhaMask_,
-          bool kHasBias_,
+          ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
           bool kDoFp8StaticQuant_,
           bool kPadS_,
@@ -240,7 +241,7 @@ struct fmha_fwd_traits_
     static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
     static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
-    static constexpr bool kHasBias                   = kHasBias_;
+    static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
     static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
@@ -261,7 +262,7 @@ struct fmha_fwd_traits
     bool is_group_mode;
     bool is_v_rowmajor;
     mask_enum mask_type;
-    bool has_bias;
+    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
     bool do_fp8_static_quant;
     // TODO: padding check is inside this api
