@@ -29,28 +29,27 @@ using A0DataType       = BF16;
 using AsDataType       = ck::Tuple<A0DataType>;
 using B0DataType       = I8;
 using B1DataType       = BF16;
-using BsDataType       = ck::Tuple<B0DataType, B1DataType>;
+using BsDataType       = ck::Tuple<B0DataType>;
 using AccDataType      = F32;
 using CShuffleDataType = BF16;
-using DsDataType       = ck::Tuple<>;
+using DsDataType       = ck::Tuple<B1DataType>;
 using EDataType        = BF16;
 
 using A0Layout = Row;
 using AsLayout = ck::Tuple<A0Layout>;
-using B0Layout = Col;
+using B0Layout = Row;
 using B1Layout = B0Layout;
-using BsLayout = ck::Tuple<B0Layout, B1Layout>;
+using BsLayout = ck::Tuple<B0Layout>;
 using D0Layout = Row;
-using DsLayout = ck::Tuple<>;
+using DsLayout = ck::Tuple<B1Layout>;
 using ELayout  = Row;
 
-using Scales      = ck::tensor_operation::element_wise::Scales;
+using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add         = ck::tensor_operation::element_wise::Add;
 
 using AElementOp   = PassThrough;
-using BElementOp   = Scales;
-using CDEElementOp = PassThrough;
+using BElementOp   = PassThrough;
+using CDEElementOp = Multiply;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
@@ -74,12 +73,12 @@ struct SimpleDeviceMem
 int main(int argc, char* argv[])
 {
     // GEMM shape
-    ck::index_t M = 64;
-    ck::index_t N = 1024;
-    ck::index_t K = 512;
+    ck::index_t M = 4096;
+    ck::index_t N = 768;
+    ck::index_t K = 6144;
 
     ck::index_t StrideA = K;
-    ck::index_t StrideB = N;
+    ck::index_t StrideB = K;
     ck::index_t StrideE = N;
 
     if(argc == 1)
@@ -128,8 +127,8 @@ int main(int argc, char* argv[])
     auto cde_element_op = CDEElementOp{};
 
     constexpr ck::index_t NumATensor = 1;
-    constexpr ck::index_t NumBTensor = 2;
-    constexpr ck::index_t NumDTensor = 0;
+    constexpr ck::index_t NumBTensor = 1;
+    constexpr ck::index_t NumDTensor = 1;
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmMultipleABD<AsLayout,
                                                                          BsLayout,
@@ -164,16 +163,15 @@ int main(int argc, char* argv[])
 
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
-            std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
-                                                b1_device_buf.GetDeviceBuffer()},
-            std::array<const void*, NumDTensor>{},
+            std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer()},
+            std::array<const void*, NumDTensor>{b1_device_buf.GetDeviceBuffer()},
             e_device_buf.GetDeviceBuffer(),
             M,
             N,
             K,
             std::array<ck::index_t, NumATensor>{StrideA},
-            std::array<ck::index_t, NumBTensor>{StrideB, 0},
-            std::array<ck::index_t, NumDTensor>{},
+            std::array<ck::index_t, NumBTensor>{StrideB},
+            std::array<ck::index_t, NumDTensor>{0},
             StrideE,
             a_element_op,
             b_element_op,
@@ -217,41 +215,6 @@ int main(int argc, char* argv[])
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
-    // run the best intance
-    if(found)
-    {
-        auto& op_ptr = op_ptrs[best_op_id];
-
-        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
-                  << std::endl;
-
-        auto argument_ptr = op_ptr->MakeArgumentPointer(
-            std::array<const void*, NumATensor>{a0_device_buf.GetDeviceBuffer()},
-            std::array<const void*, NumBTensor>{b0_device_buf.GetDeviceBuffer(),
-                                                b1_device_buf.GetDeviceBuffer()},
-            std::array<const void*, NumDTensor>{},
-            e_device_buf.GetDeviceBuffer(),
-            M,
-            N,
-            K,
-            std::array<ck::index_t, NumATensor>{StrideA},
-            std::array<ck::index_t, NumBTensor>{StrideB, 0},
-            std::array<ck::index_t, NumDTensor>{},
-            StrideE,
-            a_element_op,
-            b_element_op,
-            cde_element_op);
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
-        }
-
-        std::cout << "Done" << std::endl;
-    }
 
     return 0;
 }
