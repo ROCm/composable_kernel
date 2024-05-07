@@ -719,9 +719,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if DEBUG_LOG
-        arg.Print();
-#endif
+        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            arg.Print();
+        }
 
         if(!ck::is_xdl_supported())
         {

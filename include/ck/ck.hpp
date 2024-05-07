@@ -4,11 +4,18 @@
 #pragma once
 
 #include "ck/config.h"
+#include "ck/utility/env.hpp"
 
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
+
+// environment variable to enable logging:
+// export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
+CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
+
+// to do: add various levels of logging with CK_LOG_LEVEL
 
 #define CK_TIME_KERNEL 1
 
@@ -224,9 +231,6 @@
 
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
-
-// flag to enable (1) or disable (0) the debugging output in some kernels
-#define DEBUG_LOG 0
 
 // denorm test fix, required to work around dissue
 #ifndef CK_WORKAROUND_DENORM_FIX
