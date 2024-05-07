@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -149,11 +149,9 @@ struct mask_info
         return tmp;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const mask_info& mi);
+    friend std::ostream& operator<<(std::ostream& os, const mask_info& mi)
+    {
+        mi.serialize(os);
+        return os;
+    }
 };
-
-inline std::ostream& operator<<(std::ostream& os, const mask_info& mi)
-{
-    mi.serialize(os);
-    return os;
-}
