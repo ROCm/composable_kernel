@@ -1,5 +1,5 @@
-#include "ck/host/conv/conv_op.hpp"
-#include "ck/host/conv/dev_conv.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/copy_conv_fwd_op.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/copy_conv_fwd_problem.hpp"
 #include "ck/host/headers.hpp"
 #include "ck/host/stringutils.hpp"
 #include "ck/host/utils.hpp"
@@ -271,7 +271,7 @@ extern "C" __global__ void kernel_group_conv_fwd(
 
 TEST_CASE(test_problem_kernel)
 {
-    ck::host::conv::Problem_Conv prob;
+    ck::host::conv::Copy_Problem_Conv_Fwd prob;
     prob.G  = 1;
     prob.N  = 128;
     prob.C  = 192;

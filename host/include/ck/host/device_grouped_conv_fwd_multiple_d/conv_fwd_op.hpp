@@ -8,19 +8,18 @@
 #include <string>
 #include "ck/host/types.hpp"
 #include "ck/host/operation/gemm.hpp"
-#include "ck/host/conv/dev_conv.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_problem.hpp"
 
 namespace ck {
 namespace host {
 namespace conv {
 
-struct Operation_Conv
+struct Operation_Conv_Fwd_Xdl_Cshuffle
 {
-    static std::vector<Operation_Conv> CreateOperations(const std::string& prologue,
-                                                        const std::string& epilogue);
-    static std::vector<Operation_Conv> CreateOperations(const Problem_Conv& prob,
-                                                        const std::string& prologue,
-                                                        const std::string& epilogue);
+    static std::vector<Operation_Conv_Fwd_Xdl_Cshuffle>
+    CreateOperations(const std::string& prologue, const std::string& epilogue);
+    static std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperations(
+        const Problem_Conv_Fwd& prob, const std::string& prologue, const std::string& epilogue);
     std::size_t NumDim;
     TensorDesc A{};
     TensorDesc B{};

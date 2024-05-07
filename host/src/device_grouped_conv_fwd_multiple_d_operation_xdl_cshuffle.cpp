@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck/host/conv/conv_op.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_op.hpp"
 #include <iostream>
 #include "ck/host/stringutils.hpp"
 #include "ck/host/utils.hpp"
@@ -33,8 +33,8 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
-// functions to update prologue or epilofue with user provided function
-void Operation_Conv::update_prologue(const std::string& prologue)
+// function to update prologue/epilogue with user provided operation
+void Operation_Conv_Fwd_Xdl_Cshuffle::update_prologue(const std::string& prologue)
 {
     if(!prologue.empty())
     {
@@ -47,7 +47,7 @@ void Operation_Conv::update_prologue(const std::string& prologue)
     }
 }
 
-void Operation_Conv::update_epilogue(const std::string& epilogue)
+void Operation_Conv_Fwd_Xdl_Cshuffle::update_epilogue(const std::string& epilogue)
 {
     if(!epilogue.empty())
     {
@@ -63,10 +63,10 @@ void Operation_Conv::update_epilogue(const std::string& epilogue)
 // Hard-code tuning parameters in modularized fashion, string them together into a vector of
 // instances
 template <class F>
-std::vector<Operation_Conv> CreateOperationsImpl(
+std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
     F f, Layout ALayout, Layout BLayout, const std::string& prologue, const std::string& epilogue)
 {
-    std::vector<Operation_Conv> result;
+    std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> result;
 
     std::vector<operation::TileDesc> tile_descriptions = {
         // clang-format off
@@ -74,27 +74,42 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 //   Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per| Prefetch|
 //       |      |      |      |    |    |     |     | Wave| Wave|    Stage|
 //       |      |      |      |    |    |     |     |     |     |         |
-  {   256,   128,   256,    32,   8,   8,   32,   32,    2,    4,        1}
+  {   64,   64,   32,    32,   8,   8,   32,   32,    2,    1,        1},
+  {   256,   128,   256,    32,   8,   8,   32,   32,    4,    2,        1},
+  {   256,   128,   128,    32,   8,   8,   32,   32,    2,    2,        1},
+  {   64,   64,   64,    32,   8,   8,   32,   32,    2,    2,        1},
+  {   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,        1},
+  {   128,   128,   128,    32,   8,   8,   32,   32,    4,    2,        1}
         // clang-format on
     };
 
-    std::vector<operation::BlockTransferDesc> a_block_descriptions_rowmajor = {
+    std::vector<operation::BlockTransferDesc> a_block_descriptions = {
         // clang-format off
 //  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|
 // Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          |
 //                |               |               |               |               |               |          |
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1}
+  {    S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1},
+  {    S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1}
         // clang-format on
     };
 
-    std::vector<operation::BlockTransferDesc> b_block_descriptions_rowmajor = {
+    std::vector<operation::BlockTransferDesc> b_block_descriptions = {
         // clang-format off
 //  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
 // Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |
 //                |               |               |              |               |               |          |
-  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1}
+  {    S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1},
+  {    S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              8,         1},
+  {    S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1},
+  {    S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1}
         // clang-format on
     };
 
@@ -104,6 +119,11 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 // MXdlPerWave| NXdlPerWave|
 //  PerShuffle|  PerShuffle|
 //            |            |
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
+  {          1,           1},
   {          1,           1}
         // clang-format on
     };
@@ -114,14 +134,14 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 //         _MBlock_MWaveMPerXdl| ScalarPerVector
 //         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl
 //                             |                
-  {              S<1, 32, 1, 8>,               8}
+  {              S<1, 16, 1, 4>,               1},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 16, 1, 4>,               1},
+  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 16, 1, 8>,               8}
         // clang-format on
     };
-
-    const auto a_block_descriptions =
-        (ALayout == Layout::Row) ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
-    const auto b_block_descriptions =
-        (BLayout == Layout::Row) ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
 
     assert(tile_descriptions.size() == a_block_descriptions.size());
     assert(tile_descriptions.size() == b_block_descriptions.size());
@@ -131,7 +151,7 @@ std::vector<Operation_Conv> CreateOperationsImpl(
     // Put all values together into a single operation > store into the result vector
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
-        Operation_Conv x;
+        Operation_Conv_Fwd_Xdl_Cshuffle x;
         x.NumDim           = 2;
         x.tile_desc        = tile_descriptions[i];
         x.a_block_transfer = a_block_descriptions[i];
@@ -147,41 +167,37 @@ std::vector<Operation_Conv> CreateOperationsImpl(
 }
 
 // set up instances when not provided with a problem specification, use default operation values
-std::vector<Operation_Conv> Operation_Conv::CreateOperations(const std::string& prologue,
-                                                             const std::string& epilogue)
+std::vector<Operation_Conv_Fwd_Xdl_Cshuffle>
+Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(const std::string& prologue,
+                                                  const std::string& epilogue)
 {
-    return CreateOperationsImpl([](auto x) -> std::vector<Operation_Conv> { return {x}; },
-                                Layout::GNHWC,
-                                Layout::GKYXC,
-                                prologue,
-                                epilogue);
+    return CreateOperationsImpl(
+        [](auto x) -> std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> { return {x}; },
+        Layout::NHWGC,
+        Layout::GKYXC,
+        prologue,
+        epilogue);
 }
 
 // set up instances when given problem specifications
-std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv& prob,
-                                                             const std::string& prologue,
-                                                             const std::string& epilogue)
+std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(
+    const Problem_Conv_Fwd& prob, const std::string& prologue, const std::string& epilogue)
 {
     return CreateOperationsImpl(
-        [&](Operation_Conv x) -> std::array<Operation_Conv, 1> {
+        [&](Operation_Conv_Fwd_Xdl_Cshuffle x) -> std::array<Operation_Conv_Fwd_Xdl_Cshuffle, 1> {
             x.NumDim      = prob.NumDim;
             x.A           = TensorDesc{prob.ADataType, prob.ALayout};
             x.B           = TensorDesc{prob.BDataType, prob.BLayout};
             x.E           = TensorDesc{prob.EDataType, prob.ELayout};
-            x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
-                return TensorDesc{dt, ToLayout(trans)};
+            x.Ds          = Transform(prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) {
+                return TensorDesc{dt, lo};
             });
             x.a_elem_op   = prob.AElementOp;
             x.b_elem_op   = prob.BElementOp;
             x.cde_elem_op = prob.CDEElementOp;
             x.update_prologue(prologue);
             x.update_epilogue(epilogue);
-            x.gemm_specialization = GetGemmSpec(prob.G,
-                                                prob.N,
-                                                prob.Hi,
-                                                x.tile_desc.m_per_block,
-                                                x.tile_desc.n_per_block,
-                                                x.tile_desc.k_per_block);
+            x.gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::MNKPadding";
             return {x};
         },
         prob.ALayout,
@@ -190,41 +206,63 @@ std::vector<Operation_Conv> Operation_Conv::CreateOperations(const Problem_Conv&
         epilogue);
 }
 
-static const char* const Device_ConvTemplate =
+// TODO: clean up template
+static const char* const CopyDevice_ConvTemplate =
     R"(
 ${Prologue}
 ${Epilogue}
 
 using CDEElementOp = Epilogue;
-using DeviceConv = ck::tensor_operation::device::ModDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
+using DeviceConv = ck::tensor_operation::device::CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<${NumDim}, ${LayoutA}, ${LayoutB}, ${LayoutDs}, ${LayoutE}, ${ADataType}, ${BDataType}, ${AccDataType}, ${CShuffleDataType}, ${DsDataType}, ${EDataType}, ${AElementwiseOperation}, ${BElementwiseOperation}, ${CDEElementwiseOperation}, ${ConvSpecialization}, ${GemmSpecialization}, ${NumGemmkPrefetchStage}, ${BlockSize}, ${MPerBlock}, ${NPerBlock}, ${KPerBlock}, ${AK1}, ${BK1}, ${MPerXDL}, ${NPerXDL}, ${MXdlPerWave}, ${NXdlPerWave}, ${ABlockTransferThreadClusterLengths_AK0_M_AK1}, ${ABlockTransferThreadClusterArrangeOrder}, ${ABlockTransferSrcAccessOrder}, ${ABlockTransferSrcVectorDim}, ${ABlockTransferSrcScalarPerVector}, ${ABlockTransferDstScalarPerVector_AK1}, ${ABlockLdsExtraM}, ${BBlockTransferThreadClusterLengths_BK0_N_BK1}, ${BBlockTransferThreadClusterArrangeOrder}, ${BBlockTransferSrcAccessOrder}, ${BBlockTransferSrcVectorDim}, ${BBlockTransferSrcScalarPerVector}, ${BBlockTransferDstScalarPerVector_BK1}, ${BBlockLdsExtraN}, ${CShuffleMXdlPerWavePerShuffle}, ${CShuffleNXdlPerWavePerShuffle}, ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, ${CDEBlockTransferScalarPerVector_NPerBlock}>;
 
-constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
-constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ck::half_t>();
+constexpr ck::index_t NumATensor = ck::tensor_operation::device::GetNumABTensors<false, ${ADataType}>();
+constexpr ck::index_t NumBTensor = ck::tensor_operation::device::GetNumABTensors<false, ${BDataType}>();
 
 extern "C" __global__ void run_${name}(
-    const ${ADataType}* p_as_grid,
-    const ${BDataType}* p_bs_grid,
-    DeviceConv::GridwiseGemm::DsGridPointer p_ds_grid,
-    ${EDataType}* __restrict__ p_e_grid,
+    const ${ADataType}* in_dev,
+    const ${BDataType}* wei_dev,
+    ${EDataType}* __restrict__ out_dev,
+    ck::Array<ck::index_t, 5> in_lengths,
+    ck::Array<ck::index_t, 5> in_strides,
+    ck::Array<ck::index_t, 5> wei_lengths,
+    ck::Array<ck::index_t, 5> wei_strides,
+    ck::Array<ck::index_t, 5> out_lengths,
+    ck::Array<ck::index_t, 5> out_strides,
+    ck::Array<ck::index_t, ${NumDim}> conv_filter_strides,
+    ck::Array<ck::index_t, ${NumDim}> conv_filter_dilations,
+    ck::Array<ck::index_t, ${NumDim}> input_left_pads,
+    ck::Array<ck::index_t, ${NumDim}> input_right_pads,
     const ${AElementwiseOperation} a_element_op,
     const ${BElementwiseOperation} b_element_op,
-    const ${CDEElementwiseOperation} cde_element_op,
-   const ck::index_t batch_count,
-    const DeviceConv::AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
-    const DeviceConv::BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
-    const DeviceConv::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-        ds_grid_desc_mblock_mperblock_nblock_nperblock,
-    const DeviceConv::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-        e_grid_desc_mblock_mperblock_nblock_nperblock_,
-    const DeviceConv::Block2ETileMap block_2_ctile_map,
-                const ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0> compute_ptr_offset_of_batch)
-{
+    const ${CDEElementwiseOperation} cde_element_op
+){
     
+
+    auto arg = DeviceConv::Argument(in_dev,
+                                    wei_dev,
+                                    ck::Array<const void*, 0>{},
+                                    out_dev,
+                                    in_lengths,
+                                    in_strides,
+                                    wei_lengths,
+                                    wei_strides,
+                                    ck::Array<ck::Array<ck::index_t, 5>, 0>{},
+                                    ck::Array<ck::Array<ck::index_t, 5>, 0>{},
+                                    out_lengths,
+                                    out_strides,
+                                    conv_filter_strides,
+                                    conv_filter_dilations,
+                                    input_left_pads,
+                                    input_right_pads,
+                                    ${AElementwiseOperation}{},
+                                    ${BElementwiseOperation}{},
+                                    ${CDEElementwiseOperation}{1.0f, 1.0f});
 
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
     // GridwiseGemm
-    using GridwiseGemm = ck::GridwiseGemmMultipleD_xdl_cshuffle<
+    using GridwiseGemm = DeviceConv::GridwiseGemm;
+/**ck::GridwiseGemmMultipleD_xdl_cshuffle<
         ${ADataType},
         ${BDataType},
         ${ComputeDataType},//double-check this assignment for correctness
@@ -267,10 +305,10 @@ extern "C" __global__ void run_${name}(
         ${CShuffleNXdlPerWavePerShuffle},
         ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock},
         ${CDEBlockTransferScalarPerVector_NPerBlock},
-        LoopSched>;
+        LoopSched>;**/
+    static constexpr auto I0 = ck::Number<0>{};
 
-
-    ck::tensor_operation::device::mod_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    ck::tensor_operation::device::copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ${ADataType}*,
                     const ${BDataType}*,
@@ -287,27 +325,29 @@ extern "C" __global__ void run_${name}(
 		    ck::tensor_operation::device::ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, 0>,
                     ck::integral_constant<bool, true>{},
                     false,
-                    false>(
-				    p_as_grid,
-				    p_bs_grid,
-				    p_ds_grid,
-				    p_e_grid,
-				    a_element_op,
-				    b_element_op,
-				    cde_element_op,
-				    batch_count,
-				    a_grid_desc_k0_m_k1,
-				    b_grid_desc_k0_n_k1,
-				    ds_grid_desc_mblock_mperblock_nblock_nperblock,
-				    e_grid_desc_mblock_mperblock_nblock_nperblock_,
-				    block_2_ctile_map,
-				    compute_ptr_offset_of_batch);
+                    false>
+		    (
+		     arg.p_as_grid_.At(I0),
+ 		     arg.p_bs_grid_.At(I0),
+		     arg.p_ds_grid_,
+		     arg.p_e_grid_,
+		     arg.a_element_op_,
+		     arg.b_element_op_,
+		     arg.cde_element_op_,
+		     arg.a_g_n_c_wis_lengths_[0], // Group count
+                     arg.a_grid_desc_ak0_m_ak1_,
+		     arg.b_grid_desc_bk0_n_bk1_,
+		     arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+		     arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+		     arg.block_2_etile_map_,
+		     arg.compute_ptr_offset_of_batch_
+		    );
 				    
 }
 )";
 
 // use hardcoded instances to substitute values into instance template
-Solution Operation_Conv::ToSolution() const
+Solution Operation_Conv_Fwd_Xdl_Cshuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
         {"name",
@@ -384,7 +424,7 @@ Solution Operation_Conv::ToSolution() const
          std::to_string(this->c_block_transfer.scalar_per_vector_n_wave_n_per_Xdl)},
     };
 
-    return Solution{InterpolateString(Device_ConvTemplate, values), std::move(values)};
+    return Solution{InterpolateString(CopyDevice_ConvTemplate, values), std::move(values)};
 }
 
 } // namespace conv

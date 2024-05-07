@@ -5,7 +5,7 @@
 #include <vector>
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
-#include "ck/host/conv/conv_op.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/copy_conv_fwd_op.hpp"
 #include "ck/host/stringutils.hpp"
 #include "ck/host/types.hpp"
 #include <iomanip>
@@ -38,7 +38,7 @@ struct Emitters
     // function to retrieve all instances for a certain problem size
     // NOTE: this is specifically for convolutions
     template <class T>
-    void Select(ck::host::conv::Problem_Conv& prob,
+    void Select(ck::host::conv::Copy_Problem_Conv_Fwd& prob,
                 const std::string& name,
                 const std::string& prologue,
                 const std::string& epilogue)
@@ -102,7 +102,8 @@ int main(int argc, const char* argv[])
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
         "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
-    e.Register<ck::host::conv::Operation_Conv>("DeviceConv", prologue, epilogue);
+    e.Register<ck::host::conv::Copy_Operation_Conv_Fwd_Xdl_Cshuffle>(
+        "DeviceConv", prologue, epilogue);
 
     if(args.empty() or std::any_of(args.begin(), args.end(), [](auto arg) {
            return arg == "-h" or arg == "--help";
@@ -122,7 +123,7 @@ int main(int argc, const char* argv[])
     }
 
     // can specify problem size to view specific instances for
-    ck::host::conv::Problem_Conv prob;
+    ck::host::conv::Copy_Problem_Conv_Fwd prob;
     prob.G       = 1024;
     prob.N       = 1024;
     prob.C       = 1024;
@@ -136,7 +137,8 @@ int main(int argc, const char* argv[])
     prob.ALayout = ck::host::Layout::GNHWC;
     prob.BLayout = ck::host::Layout::GKYXC;
     prob.ELayout = ck::host::Layout::GNHWK;
-    e.Select<ck::host::conv::Operation_Conv>(prob, "Device_Conv", prologue, epilogue);
+    e.Select<ck::host::conv::Copy_Operation_Conv_Fwd_Xdl_Cshuffle>(
+        prob, "Device_Conv", prologue, epilogue);
 
     // print out all the instances for the operation that was chosen at the command line
     for(auto name : args)

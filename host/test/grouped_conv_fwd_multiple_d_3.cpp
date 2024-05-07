@@ -1,5 +1,5 @@
-#include "ck/host/conv/copy_conv_op.hpp"
-#include "ck/host/conv/copy_dev_conv.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_op.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_problem.hpp"
 #include "ck/host/headers.hpp"
 #include "ck/host/stringutils.hpp"
 #include "ck/host/utils.hpp"
@@ -153,7 +153,7 @@ ${template};
 
 TEST_CASE(test_problem_kernel)
 {
-    ck::host::conv::Copy_Problem_Conv prob;
+    ck::host::conv::Problem_Conv_Fwd prob;
     prob.NumDim = 2;
     prob.G      = 1;
     prob.N      = 128;
@@ -222,11 +222,11 @@ struct Epilogue
                                           static_cast<int>(prob.C)};
     ck::Array<ck::index_t, 5> d_strides = {};
 
-    // no left/right padding, default stride/dilation
+    // default padding/stride/dilation
     ck::Array<ck::index_t, 2> conv_filter_strides   = {1, 1};
     ck::Array<ck::index_t, 2> conv_filter_dilations = {1, 1};
-    ck::Array<ck::index_t, 2> input_left_pads       = {0, 0};
-    ck::Array<ck::index_t, 2> input_right_pads      = {0, 0};
+    ck::Array<ck::index_t, 2> input_left_pads       = {1, 1};
+    ck::Array<ck::index_t, 2> input_right_pads      = {1, 1};
 
     auto get_num_elems = [](const auto& tensor_lens) {
         return std::reduce(
@@ -291,8 +291,8 @@ struct Epilogue
 
         std::vector<ck::index_t> conv_filter_strides_   = {1, 1};
         std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
-        std::vector<ck::index_t> input_left_pads_       = {0, 0};
-        std::vector<ck::index_t> input_right_pads_      = {0, 0};
+        std::vector<ck::index_t> input_left_pads_       = {1, 1};
+        std::vector<ck::index_t> input_right_pads_      = {1, 1};
 
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
             2,

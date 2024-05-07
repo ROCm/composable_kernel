@@ -15,9 +15,9 @@ namespace ck {
 namespace host {
 namespace conv {
 
-struct Copy_Problem_Conv
+struct Copy_Problem_Conv_Fwd
 {
-    std::size_t NumDim               = 0;
+    std::size_t NumDim               = 2;
     std::size_t G                    = 0;
     std::size_t N                    = 0;
     std::size_t C                    = 0;
@@ -32,6 +32,7 @@ struct Copy_Problem_Conv
     Layout BLayout                   = Layout::GKYXC;
     Layout ELayout                   = Layout::NHWGK;
     std::vector<Layout> DsLayout     = {};
+    std::vector<bool> DsTrans        = {};
     DataType ADataType               = DataType::Half;
     DataType BDataType               = DataType::Half;
     DataType EDataType               = DataType::Half;
