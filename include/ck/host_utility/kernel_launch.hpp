@@ -22,7 +22,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     {
         if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
         {
-            printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
                    __func__,
                    grid_dim.x,
                    grid_dim.y,
@@ -97,7 +97,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     {
         if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
         {
-            printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
+            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
                    __func__,
                    grid_dim.x,
                    grid_dim.y,
