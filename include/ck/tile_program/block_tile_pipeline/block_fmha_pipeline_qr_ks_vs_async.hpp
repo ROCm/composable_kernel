@@ -199,8 +199,9 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         const auto num_total_loop = math::integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
-        // check early exit if masked and no work to do.
-        if constexpr(FmhaMask::IsMasking)
+        // check early exit if there is no work to do. also avoid fullfilling unwanted sentinel
+        // values (-INF).
+        if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
         {
             if(num_total_loop <= 0)
             {
@@ -217,6 +218,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                 // Note: q loaded but no fence, ignore it.
                 return o_acc;
             }
+
+            if constexpr(FmhaMask::IsMasking)
+                __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
         }
 
         auto k_dram_block_window = make_tile_window(k_dram_block_window_tmp.GetBottomTensorView(),

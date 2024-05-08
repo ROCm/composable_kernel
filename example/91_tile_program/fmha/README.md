@@ -33,7 +33,7 @@ args:
         -h_k    num of head, for k/v, 0 means equal to h (default:0)
                  if not equal to h, then this is GQA/MQA case
           -s    seqlen_q (default:3328)
-        -s_k    seqlen_k, 0 means equal to s (default:0)
+        -s_k    seqlen_k, negative value means equal to s (default:-1)
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, 0 means equal to d (default:0)
       -scale    scale factor. 0 means equal to 1/sqrt(seqlen) (default:0)

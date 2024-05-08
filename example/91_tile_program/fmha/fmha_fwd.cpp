@@ -45,8 +45,11 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "num of head, for k/v, 0 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
-        .insert("s", "3328", "seqlen_q")
-        .insert("s_k", "0", "seqlen_k, 0 means equal to s")
+        .insert("s",
+                "3328",
+                "seqlen_q. if group-mode, means the average value of seqlen_q\n"
+                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
+        .insert("s_k", "-1", "seqlen_k, negative value means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(seqlen)")
@@ -124,7 +127,7 @@ bool run(const ArgParser& arg_parser)
 
     ck::index_t seqlen_q = arg_parser.get_int("s");
     ck::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k == 0)
+    if(seqlen_k < 0)
         seqlen_k = seqlen_q;
     ck::index_t hdim_q = arg_parser.get_int("d");
     ck::index_t hdim_v = arg_parser.get_int("d_v");
