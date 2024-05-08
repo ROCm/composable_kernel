@@ -142,9 +142,6 @@ template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename CShuffleDataType,
-          typename D0DataType,
-          typename D1DataType,
-          typename D2DataType,
           typename OutDataType,
           typename InElementOp,
           typename WeiElementOp,
@@ -156,28 +153,19 @@ bool run_grouped_conv_fwd(bool do_verification,
                           const ck::utils::conv::ConvParam& conv_param,
                           const HostTensorDescriptor& in_g_n_c_wis_desc,
                           const HostTensorDescriptor& wei_g_k_c_xs_desc,
-                          const HostTensorDescriptor& d0_g_n_k_wos_desc,
-                          const HostTensorDescriptor& d1_g_n_k_wos_desc,
-                          const HostTensorDescriptor& d2_g_n_k_wos_desc,
                           const HostTensorDescriptor& out_g_n_k_wos_desc,
                           const InElementOp& in_element_op,
                           const WeiElementOp& wei_element_op,
-                          const OutElementOp& out_element_op)
+                          OutElementOp& out_element_op)
 {
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
     Tensor<CShuffleDataType> c(out_g_n_k_wos_desc);
-    Tensor<D0DataType> d0(d0_g_n_k_wos_desc);
-    Tensor<D1DataType> d1(d1_g_n_k_wos_desc);
-    Tensor<D2DataType> d2(d2_g_n_k_wos_desc);
     Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
     Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
-    std::cout << "d0: " << d0.mDesc << std::endl;
-    std::cout << "d1: " << d1.mDesc << std::endl;
-    std::cout << "d2: " << d2.mDesc << std::endl;
     std::cout << "out: " << out_host.mDesc << std::endl;
 
     switch(init_method)
@@ -186,41 +174,29 @@ bool run_grouped_conv_fwd(bool do_verification,
     case 1:
         in.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
-        d0.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-5, 5});
-        d1.GenerateTensorValue(GeneratorTensor_2<D1DataType>{-5, 5});
-        d2.GenerateTensorValue(GeneratorTensor_2<D2DataType>{-5, 5});
         break;
     default:
         in.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
         wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
-        d0.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-1., 1.});
-        d1.GenerateTensorValue(GeneratorTensor_3<D1DataType>{-1., 1.});
-        d2.GenerateTensorValue(GeneratorTensor_3<D2DataType>{-1., 1.});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1.mDesc.GetElementSpaceSize());
-    DeviceMem d2_device_buf(sizeof(D2DataType) * d2.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
-    d0_device_buf.ToDevice(d0.mData.data());
-    d1_device_buf.ToDevice(d1.mData.data());
-    d2_device_buf.ToDevice(d2.mData.data());
+
+    // set scales
+    float scale_in  = float(std::rand()) / float(RAND_MAX);
+    float scale_wei = float(std::rand()) / float(RAND_MAX);
+    float scale_out = float(std::rand()) / float(RAND_MAX);
+    out_element_op.SetScales(scale_in, scale_wei, scale_out);
 
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
     std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> d0_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> d0_g_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> d1_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> d1_g_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> d2_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> d2_g_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
@@ -234,12 +210,6 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(in_g_n_c_wis_desc.GetStrides(), a_g_n_c_wis_strides);
     copy(wei_g_k_c_xs_desc.GetLengths(), b_g_k_c_xs_lengths);
     copy(wei_g_k_c_xs_desc.GetStrides(), b_g_k_c_xs_strides);
-    copy(d0_g_n_k_wos_desc.GetLengths(), d0_g_n_k_wos_lengths);
-    d0_g_n_k_wos_strides.fill(0); // d0 is a scalar
-    copy(d1_g_n_k_wos_desc.GetLengths(), d1_g_n_k_wos_lengths);
-    d1_g_n_k_wos_strides.fill(0); // d1 is a scalar
-    copy(d2_g_n_k_wos_desc.GetLengths(), d2_g_n_k_wos_lengths);
-    d2_g_n_k_wos_strides.fill(0); // d2 is a scalar
     copy(out_g_n_k_wos_desc.GetLengths(), e_g_n_k_wos_lengths);
     copy(out_g_n_k_wos_desc.GetStrides(), e_g_n_k_wos_strides);
     copy(conv_param.conv_filter_strides_, conv_filter_strides);
@@ -248,32 +218,27 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // do Conv
-    auto conv    = DeviceConvNDFwdInstance{};
-    auto invoker = conv.MakeInvoker();
-    auto argument =
-        conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
-                          wei_device_buf.GetDeviceBuffer(),
-                          std::array<const void*, 3>{d0_device_buf.GetDeviceBuffer(),
-                                                     d1_device_buf.GetDeviceBuffer(),
-                                                     d2_device_buf.GetDeviceBuffer()},
-                          out_device_buf.GetDeviceBuffer(),
-                          a_g_n_c_wis_lengths,
-                          a_g_n_c_wis_strides,
-                          b_g_k_c_xs_lengths,
-                          b_g_k_c_xs_strides,
-                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 3>{
-                              d0_g_n_k_wos_lengths, d1_g_n_k_wos_lengths, d2_g_n_k_wos_lengths},
-                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 3>{
-                              d0_g_n_k_wos_strides, d1_g_n_k_wos_strides, d2_g_n_k_wos_strides},
-                          e_g_n_k_wos_lengths,
-                          e_g_n_k_wos_strides,
-                          conv_filter_strides,
-                          conv_filter_dilations,
-                          input_left_pads,
-                          input_right_pads,
-                          in_element_op,
-                          wei_element_op,
-                          out_element_op);
+    auto conv     = DeviceConvNDFwdInstance{};
+    auto invoker  = conv.MakeInvoker();
+    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                                      wei_device_buf.GetDeviceBuffer(),
+                                      std::array<const void*, 0>{},
+                                      out_device_buf.GetDeviceBuffer(),
+                                      a_g_n_c_wis_lengths,
+                                      a_g_n_c_wis_strides,
+                                      b_g_k_c_xs_lengths,
+                                      b_g_k_c_xs_strides,
+                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                                      e_g_n_k_wos_lengths,
+                                      e_g_n_k_wos_strides,
+                                      conv_filter_strides,
+                                      conv_filter_dilations,
+                                      input_left_pads,
+                                      input_right_pads,
+                                      in_element_op,
+                                      wei_element_op,
+                                      out_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
@@ -287,9 +252,8 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::size_t ds_size   = 3; // 3 element-wise scale multipliers
     std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
     std::size_t num_btype = conv_param.GetInputByte<InDataType>() +
-                            conv_param.GetWeightByte<WeiDataType>() + sizeof(D0DataType) +
-                            sizeof(D1DataType) + sizeof(D2DataType) +
-                            conv_param.GetOutputByte<OutDataType>();
+                            conv_param.GetWeightByte<WeiDataType>() + sizeof(float) +
+                            sizeof(float) + sizeof(float) + conv_param.GetOutputByte<OutDataType>();
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
@@ -320,9 +284,7 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        out_host.ForEach([&](auto&, auto idx) {
-            out_element_op(out_host(idx), c(idx), d0(idx), d1(idx), d2(idx));
-        });
+        out_host.ForEach([&](auto&, auto idx) { out_element_op(out_host(idx), c(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
 

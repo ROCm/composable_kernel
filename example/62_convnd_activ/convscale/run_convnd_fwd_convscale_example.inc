@@ -36,7 +36,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{};
+    auto out_element_op       = OutElementOp{};
 
     const auto run = [&](auto ndim_spatial,
                          auto in_layout,
@@ -83,30 +83,21 @@ bool run_convnd_fwd_example(int argc, char* argv[])
             InDataType,
             WeiDataType,
             CShuffleDataType,
-            D0DataType,
-            D1DataType,
-            D2DataType,
             OutDataType,
             InElementOp,
             WeiElementOp,
             OutElementOp,
-            DeviceGroupedConvNDFwdInstance<ndim_spatial_value,
-                                           InLayout,
-                                           WeiLayout,
-                                           ck::Tuple<D0Layout, D1Layout, D2Layout>,
-                                           OutLayout>>(do_verification,
-                                                       init_method,
-                                                       time_kernel,
-                                                       conv_param,
-                                                       in_g_n_c_wis_desc,
-                                                       wei_g_k_c_xs_desc,
-                                                       d0_g_n_k_wos_desc,
-                                                       d1_g_n_k_wos_desc,
-                                                       d2_g_n_k_wos_desc,
-                                                       out_g_n_k_wos_desc,
-                                                       in_element_op,
-                                                       wei_element_op,
-                                                       out_element_op);
+            DeviceGroupedConvNDFwdInstance<ndim_spatial_value, InLayout, WeiLayout, OutLayout>>(
+            do_verification,
+            init_method,
+            time_kernel,
+            conv_param,
+            in_g_n_c_wis_desc,
+            wei_g_k_c_xs_desc,
+            out_g_n_k_wos_desc,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
     };
 
     namespace ctc = ck::tensor_layout::convolution;
