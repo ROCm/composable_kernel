@@ -188,6 +188,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                         out_element_op,
                                         split_k);
 
+        const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+        DeviceMem workspace_dev(workspace_sz);
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             // using atomic add, so need to reset input
