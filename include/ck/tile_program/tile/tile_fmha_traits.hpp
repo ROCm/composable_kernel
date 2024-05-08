@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,7 +13,9 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDimQ_ /* paddding for hdim_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
           bool kHasBias_,
+          bool kHasBiasGrad_,
           bool kStoreLSE_,
+          bool kHasDropout_,
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaTraits
 {
@@ -22,7 +24,19 @@ struct TileFmhaTraits
     static constexpr bool kPadHeadDimQ   = kPadHeadDimQ_;
     static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
     static constexpr bool kHasBias       = kHasBias_;
+    static constexpr bool kHasBiasGrad   = kHasBiasGrad_;
     static constexpr bool kStoreLSE      = kStoreLSE_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+    static constexpr bool kHasDropout    = kHasDropout_;
+};
+
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          index_t kBlockPerCu_ = 2 /* hint to occupancy */>
+struct TileFmhaBwdOGradDotOTraits
+{
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 

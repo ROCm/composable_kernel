@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,19 +27,20 @@ namespace block {
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQSKSVSDefaultPolicy>
 struct BlockFmhaPipelineQSKSVS
 {
-    using Problem             = remove_cvref_t<Problem_>;
-    using Policy              = remove_cvref_t<Policy_>;
-    using QDataType           = remove_cvref_t<typename Problem::QDataType>;
-    using KDataType           = remove_cvref_t<typename Problem::KDataType>;
-    using VDataType           = remove_cvref_t<typename Problem::VDataType>;
-    using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
-    using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
-    using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
-    using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
-    using PDataType           = remove_cvref_t<typename Problem::PDataType>;
-    using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
-    using ODataType           = remove_cvref_t<typename Problem::ODataType>;
-    using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
+    using Problem               = remove_cvref_t<Problem_>;
+    using Policy                = remove_cvref_t<Policy_>;
+    using QDataType             = remove_cvref_t<typename Problem::QDataType>;
+    using KDataType             = remove_cvref_t<typename Problem::KDataType>;
+    using VDataType             = remove_cvref_t<typename Problem::VDataType>;
+    using SaccDataType          = remove_cvref_t<typename Problem::SaccDataType>;
+    using SMPLComputeDataType   = remove_cvref_t<typename Problem::SMPLComputeDataType>;
+    using BiasDataType          = remove_cvref_t<typename Problem::BiasDataType>;
+    using RandValOutputDataType = remove_cvref_t<typename Problem::RandValOutputDataType>;
+    using LSEDataType           = remove_cvref_t<typename Problem::LSEDataType>;
+    using PDataType             = remove_cvref_t<typename Problem::PDataType>;
+    using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
+    using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -199,8 +200,9 @@ struct BlockFmhaPipelineQSKSVS
 
         const auto num_total_loop = math::integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
-        // check early exit if masked and no work to do.
-        if constexpr(FmhaMask::IsMasking)
+        // check early exit if there is no work to do. also avoid fullfilling unwanted sentinel
+        // values (-INF).
+        if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
         {
             if(num_total_loop <= 0)
             {

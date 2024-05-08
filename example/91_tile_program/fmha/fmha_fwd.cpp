@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <array>
 #include <cstring>
@@ -32,6 +32,7 @@
 #include "reference/reference_batched_gemm.hpp"
 #include "reference/reference_batched_masking.hpp"
 #include "reference/reference_batched_softmax.hpp"
+#include "reference/reference_batched_dropout.hpp"
 #include "utils.hpp"
 
 auto create_args(int argc, char* argv[])
@@ -49,7 +50,7 @@ auto create_args(int argc, char* argv[])
                 "3328",
                 "seqlen_q. if group-mode, means the average value of seqlen_q\n"
                 "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
-        .insert("s_k", "0", "seqlen_k, 0 means equal to s")
+        .insert("s_k", "-1", "seqlen_k, negative value means equal to s")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "0", "head dim for v, 0 means equal to d")
         .insert("scale", "0", "scale factor. 0 means equal to 1/sqrt(hdim)")
@@ -83,6 +84,9 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
+        .insert("p_drop", "0", "0~1 probability of dropout")
+        .insert("drop_seed", "1", "seed for random number generator")
+        .insert("drop_offset", "0", "offset for random number generator")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -100,20 +104,11 @@ auto get_elimit(int /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck::bhalf_t>(int init_method)
+auto get_elimit<ck::bhalf_t>(int /*init_method*/)
 {
-    if(init_method == 0)
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck::make_tuple(rtol, atol);
-    }
-    else
-    {
-        double rtol = 3e-3;
-        double atol = 3e-3;
-        return ck::make_tuple(rtol, atol);
-    }
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    return ck::make_tuple(rtol, atol);
 }
 
 template <typename DataType>
@@ -136,7 +131,7 @@ bool run(const ArgParser& arg_parser)
 
     ck::index_t seqlen_q = arg_parser.get_int("s");
     ck::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k == 0)
+    if(seqlen_k < 0)
         seqlen_k = seqlen_q;
     ck::index_t hdim_q = arg_parser.get_int("d");
     ck::index_t hdim_v = arg_parser.get_int("d_v");
@@ -154,9 +149,23 @@ bool run(const ArgParser& arg_parser)
     float descale_k = arg_parser.get_float("descale_k");
     float descale_v = arg_parser.get_float("descale_v");
 
-    std::string vlayout = arg_parser.get_str("vlayout");
-    bool use_bias       = arg_parser.get_bool("bias");
-    bool lse            = arg_parser.get_bool("lse");
+    std::string vlayout  = arg_parser.get_str("vlayout");
+    bool use_bias        = arg_parser.get_bool("bias");
+    bool lse             = arg_parser.get_bool("lse");
+    float p_drop         = arg_parser.get_float("p_drop");
+    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
+    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    if(p_drop < 0.0f || p_drop > 1.0f)
+    {
+        std::cerr << "The value of p_drop should be 0~1" << std::endl;
+        return false;
+    }
+
+    bool s_randval = false;
+    if(p_drop > 0.0f && do_validation)
+    {
+        s_randval = true;
+    }
 
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
@@ -179,21 +188,23 @@ bool run(const ArgParser& arg_parser)
 
     using TypeConfig = FmhaFwdTypeConfig<DataType>;
 
-    using QDataType           = typename TypeConfig::QDataType;
-    using KDataType           = typename TypeConfig::KDataType;
-    using VDataType           = typename TypeConfig::VDataType;
-    using BiasDataType        = typename TypeConfig::BiasDataType;
-    using LSEDataType         = typename TypeConfig::LSEDataType;
-    using SaccDataType        = typename TypeConfig::SaccDataType;
-    using SMPLComputeDataType = typename TypeConfig::SMPLComputeDataType;
-    using PDataType           = typename TypeConfig::PDataType;
-    using OaccDataType        = typename TypeConfig::OaccDataType;
-    using ODataType           = typename TypeConfig::ODataType;
+    using QDataType             = typename TypeConfig::QDataType;
+    using KDataType             = typename TypeConfig::KDataType;
+    using VDataType             = typename TypeConfig::VDataType;
+    using BiasDataType          = typename TypeConfig::BiasDataType;
+    using RandValOutputDataType = typename TypeConfig::RandValOutputDataType;
+    using LSEDataType           = typename TypeConfig::LSEDataType;
+    using SaccDataType          = typename TypeConfig::SaccDataType;
+    using SMPLComputeDataType   = typename TypeConfig::SMPLComputeDataType;
+    using PDataType             = typename TypeConfig::PDataType;
+    using OaccDataType          = typename TypeConfig::OaccDataType;
+    using ODataType             = typename TypeConfig::ODataType;
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
+    auto max_seqlen_k = std::numeric_limits<int32_t>::min();
     {
         for(ck::index_t wb = 0; wb < batch; ++wb)
         {
@@ -203,6 +214,11 @@ bool run(const ArgParser& arg_parser)
             if(max_seqlen_q < real_seqlen_q)
             {
                 max_seqlen_q = real_seqlen_q;
+            }
+
+            if(max_seqlen_k < real_seqlen_k)
+            {
+                max_seqlen_k = real_seqlen_k;
             }
 
             using namespace ck::literals;
@@ -242,17 +258,21 @@ bool run(const ArgParser& arg_parser)
     Tensor<VDataType> v_host(
         is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
-    // use bias shape = [1, 1, shape_seqlen_q, shape_seqlen_k]. if use_bias=false, the bias_host
+    // use bias shape = [1, 1, shape_seqlen_q, max_seqlen_k]. if use_bias=false, the bias_host
     // will not be used for verification at all (but will be copied to device anyway).
     Tensor<BiasDataType> bias_host(
-        use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
+        use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     Tensor<LSEDataType> lse_host(
-        lse ? std::array<ck::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
+        lse ? std::array<ck::index_t, 3>{batch, nhead, max_seqlen_q}
             : std::array<ck::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
+
+    Tensor<RandValOutputDataType> randval_host(
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
+                   : std::array<ck::index_t, 4>{1, 1, 1, 1});
 
     if(init_method == 0)
     {
@@ -284,6 +304,7 @@ bool run(const ArgParser& arg_parser)
     DeviceMem o_buf(o_host.GetElementSpaceSizeInBytes());
     DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    DeviceMem randval_buf(randval_host.GetElementSpaceSizeInBytes());
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -307,7 +328,8 @@ bool run(const ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
-              << ", lse:" << lse << ", mask:" << mask << ", v:" << vlayout << std::flush;
+              << ", lse:" << lse << ", p_drop:" << p_drop << ", mask:" << mask << ", v:" << vlayout
+              << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
@@ -316,7 +338,8 @@ bool run(const ArgParser& arg_parser)
                                        is_v_rowmajor,
                                        mask.type,
                                        use_bias,
-                                       lse};
+                                       lse,
+                                       p_drop > 0.0f};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
@@ -331,8 +354,9 @@ bool run(const ArgParser& arg_parser)
             else
                 return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
         }();
-        const ck::index_t stride_bias = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
-        const ck::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck::index_t stride_bias    = (max_seqlen_k);
+        const ck::index_t stride_randval = (max_seqlen_k);
+        const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
@@ -342,22 +366,24 @@ bool run(const ArgParser& arg_parser)
             else
                 return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
         }();
-        const ck::index_t nhead_stride_bias =
-            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
-        const ck::index_t nhead_stride_lse = (shape_seqlen_q * 1);
-        const ck::index_t nhead_stride_o   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck::index_t nhead_stride_bias    = 0;
+        const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
+        const ck::index_t nhead_stride_lse     = max_seqlen_q;
+        const ck::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
-        const ck::index_t batch_stride_q    = (nhead * shape_seqlen_q * hdim_q);
-        const ck::index_t batch_stride_k    = (nhead_k * shape_seqlen_k * hdim_q);
-        const ck::index_t batch_stride_v    = (nhead_k * hdim_v * shape_seqlen_k);
-        const ck::index_t batch_stride_bias = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
-        const ck::index_t batch_stride_lse  = (nhead * shape_seqlen_q * 1);
-        const ck::index_t batch_stride_o    = (nhead * shape_seqlen_q * hdim_v);
+        const ck::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
+        const ck::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
+        const ck::index_t batch_stride_v       = (nhead_k * hdim_v * shape_seqlen_k);
+        const ck::index_t batch_stride_bias    = 0;
+        const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
+        const ck::index_t batch_stride_lse     = (nhead * max_seqlen_q);
+        const ck::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
                              bias_buf.GetDeviceBuffer(),
+                             randval_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
@@ -376,24 +402,30 @@ bool run(const ArgParser& arg_parser)
                              stride_k,
                              stride_v,
                              stride_bias,
+                             stride_randval,
                              stride_o,
                              nhead_stride_q,
                              nhead_stride_k,
                              nhead_stride_v,
                              nhead_stride_bias,
+                             nhead_stride_randval,
                              nhead_stride_lse,
                              nhead_stride_o,
                              batch_stride_q,
                              batch_stride_k,
                              batch_stride_v,
                              batch_stride_bias,
+                             batch_stride_randval,
                              batch_stride_lse,
                              batch_stride_o,
                              mask.left,
                              mask.right,
                              static_cast<ck::index_t>(mask.type),
                              descale_q * descale_k,
-                             descale_v};
+                             descale_v,
+                             p_drop,
+                             s_randval,
+                             {drop_seed, drop_offset}};
     }();
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
@@ -420,9 +452,13 @@ bool run(const ArgParser& arg_parser)
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
+    randval_buf.FromDevice(randval_host.data());
+    float p_undrop = 1.0 - p_drop;
+    uint8_t p_undrop_in_uint8_t =
+        uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+    float rp_undrop = 1.0 / p_undrop;
 
     bool pass = true;
-
     for(ck::index_t wb = 0; wb < batch; ++wb)
     {
         const ck::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
@@ -480,16 +516,16 @@ bool run(const ArgParser& arg_parser)
 
         if(use_bias)
         {
-            Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
+            Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, max_seqlen_k});
             // clang-format off
             if(i_perm)
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
             else
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
             // clang-format on
 
-            // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
-            // real_seqlen_k]
+            // broadcast from [1, real_seqlen_q, max_seqlen_k] to [nhead, real_seqlen_q,
+            // max_seqlen_k]
             reference_batched_elementwise<SMPLComputeDataType,
                                           BiasDataType,
                                           SMPLComputeDataType,
@@ -541,6 +577,15 @@ bool run(const ArgParser& arg_parser)
                 s_host_ref, p_host_ref);
         }
 
+        if(p_drop > 0)
+        {
+            Tensor<RandValOutputDataType> randval_host_ref({nhead, real_seqlen_q, real_seqlen_k});
+            randval_host_ref.ForEach([&](auto& self, auto idx) {
+                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
+            });
+            reference_batched_dropout(p_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
+        }
+
         reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
             p_host_ref, v_host_ref, o_host_ref);
 
@@ -569,9 +614,8 @@ bool run(const ArgParser& arg_parser)
         if(lse)
         {
             Tensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-            lse_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = lse_host(b, idx[0], idx[1] + query_offset);
-            });
+            lse_host_result.ForEach(
+                [&](auto& self, auto idx) { self(idx) = lse_host(wb, idx[0], idx[1]); });
 
             bool lse_pass = ck::utils::check_err(lse_host_result,
                                                  lse_host_ref,

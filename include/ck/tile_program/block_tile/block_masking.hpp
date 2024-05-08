@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -146,6 +146,36 @@ struct GenericAttentionMask
         }
     }
 
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
+    // TODO: y_end still could be negative, so end-start could be negative(need check)
+    template <index_t YTile, index_t XTile>
+    __host__ __device__ constexpr auto
+    GetTileRangeAlongY(index_t i_x, Number<YTile>, Number<XTile>) const
+    {
+        if constexpr(!IsMasking)
+        {
+            return ck::make_tuple(0, y_total);
+        }
+        else
+        {
+            // get the tile start/end range assum we loop over along Y tile by tile
+            index_t y_start = [&]() {
+                index_t tmp = math::max(-x + i_x + 1, 0);
+                return (tmp / YTile) * YTile; // round to tile aligned
+            }();
+
+            // TODO: end could be negative, we ignore clamp here, and let caller to check
+            //      ... in which case end-start is negative
+            index_t y_end = [&]() {
+                index_t tmp = math::min(i_x + XTile - 1 + y, y_total);
+                return ((tmp + YTile - 1) / YTile) * YTile;
+            }();
+
+            return ck::make_tuple(y_start, y_end);
+        }
+    }
+
     // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
     __host__ __device__ constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
     {
@@ -172,7 +202,7 @@ struct GenericAttentionMask
 
     // if current tile is at the edge, means need per-pixel mask check.
     // otherwise no need to check per-pixel
-    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX()
+    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
     // can be used as a fast-path to decide if do per-pixel check or not
     template <index_t TileHeight, index_t TileWidth>
     __host__ __device__ constexpr auto
@@ -274,6 +304,36 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
+    // TODO: y_end still could be negative, so end-start could be negative(need check)
+    template <index_t YTile, index_t XTile>
+    __host__ __device__ constexpr auto
+    GetTileRangeAlongY(index_t i_x, Number<YTile>, Number<XTile>) const
+    {
+        if constexpr(!IsMasking)
+        {
+            return ck::make_tuple(0, y_total);
+        }
+        else
+        {
+            // get the tile start/end range assum we loop over along Y tile by tile
+            index_t y_start = [&]() {
+                index_t tmp = math::max(-x + i_x + 1, 0);
+                return (tmp / YTile) * YTile; // round to tile aligned
+            }();
+
+            // TODO: end could be negative, we ignore clamp here, and let caller to check
+            //      ... in which case end-start is negative
+            index_t y_end = [&]() {
+                index_t tmp = math::min(i_x + XTile - 1 + y, y_total);
+                return ((tmp + YTile - 1) / YTile) * YTile;
+            }();
+
+            return ck::make_tuple(y_start, y_end);
+        }
+    }
+
     // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
     __host__ __device__ constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
     {
@@ -294,7 +354,7 @@ struct SimplifiedGenericAttentionMask
 
     // if current tile is at the edge, means need per-pixel mask check.
     // otherwise no need to check per-pixel
-    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX()
+    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
     // can be used as a fast-path to decide if do per-pixel check or not
     template <index_t TileHeight, index_t TileWidth>
     __host__ __device__ constexpr auto

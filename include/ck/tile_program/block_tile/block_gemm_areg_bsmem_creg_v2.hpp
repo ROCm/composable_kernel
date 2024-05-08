@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -13,7 +13,7 @@
 #include "ck/tile_program/tile/tile_elementwise.hpp"
 #include "ck/tile_program/tile/tile_gemm_shape.hpp"
 #include "ck/tile_program/warp_tile/warp_gemm.hpp"
-#include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_problem.hpp"
+#include "ck/tile_program/block_tile/block_gemm_problem.hpp"
 #include "ck/tile_program/block_tile/block_gemm_areg_bsmem_creg_v2_default_policy.hpp"
 
 namespace ck {
