@@ -16,7 +16,7 @@ Following arguments (depending on number of spatial dims):
 ./bin/example_grouped_conv_fwd_bias_relu_add_xdl_fp16 1 1 1
 ```
 
-Result (MI100)
+Result:
 ```
 in: dim 5, lengths {1, 128, 192, 71, 71}, strides {192, 967872, 1, 13632, 192}
 wei: dim 5, lengths {1, 256, 192, 3, 3}, strides {442368, 1728, 1, 576, 192}

@@ -8,7 +8,7 @@
 ./bin/example_contraction_bilinear_xdl_fp32 1 1 1
 ```
 
-Result (MI100 @ dynammic freq, 46TFlops peak FP32)
+Result:
 ```
 a_ms_ks: dim 4, lengths {30, 128, 32, 64}, strides {524288, 4096, 128, 1}
 b_ks_ns: dim 4, lengths {32, 64, 32, 64}, strides {128, 1, 524288, 4096}

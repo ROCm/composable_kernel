@@ -9,7 +9,7 @@
 #arg11 to 12: alpha, beta
 ./bin/example_gemm_bilinear_xdl_fp16 1 1 1 3840 4096 4096 4096 4096 4096 4096 0.5 0.5
 ```
-Result (MI100 @ 1502Mhz, 184.6TFlops peak FP16)
+Result:
 ```
 a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
 b_k_n: dim 2, lengths {4096, 4096}, strides {1, 4096}

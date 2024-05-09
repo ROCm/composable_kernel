@@ -13,7 +13,7 @@
 ./bin/ckProfiler      gemm         1       1       1     1    0       5  3840 4096 4096     4096    4096    4096
 ```
 
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
+Result:
 ```bash
 a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
 b_k_n: dim 2, lengths {4096, 4096}, strides {1, 4096}
@@ -37,7 +37,7 @@ Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
  ################          op datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
  ./bin/ckProfiler  conv2d_fwd        1          1            1           1       1     1    0       5  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1
 ```
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
+Result:
 
 ```bash
 in_n_c_hi_wi: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
@@ -71,7 +71,7 @@ Best Perf: 1.42509 ms, 102.988 TFlops, 234.086 GB/s
 ./bin/ckProfiler contraction_bilinear         0                 0        2      1       0     0    0     1    1.0   1.0 128 128 128 128 128 128
 ```
 
-Result (MI100)
+Result:
 ```bash
 a_m_k: dim 4, lengths {128, 128, 128, 128}, strides {2097152, 16384, 128, 1}
 b_k_n: dim 4, lengths {128, 128, 128, 128}, strides {128, 1, 2097152, 16384}
@@ -99,7 +99,7 @@ Best Perf: 211.405 ms, 41.6077 TFlops, 15.2372 GB/s
 ./bin/ckProfiler batched_gemm_multi_d         0       1       0     0    0     1 4096 4096 4096    4096    4096    4096     16777216     16777216     16777216         16
 ```
 
-Result (Radeon RX 6800 XT)
+Result:
 ```bash
 arg.a_grid_desc_k0_m0_m1_k1_{2048, 4096, 2}
 arg.b_grid_desc_k0_n0_n1_k1_{2048, 4096, 2}
@@ -134,7 +134,7 @@ Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
 
 ```
 
-Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+Result:
 
 ```bash
 out: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
@@ -179,7 +179,7 @@ GB/s: 127.947
 
 ```
 
-Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
+Result:
 
 ```bash
 input: dim 5, lengths {32, 512, 1024, 28, 28}, strides {411041792, 802816, 1, 28672, 1024}
@@ -224,7 +224,7 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 
 ```
 
-Result (MI210, FP32, NHWC)
+Result:
 
 ```bash
 input: dim 5, lengths {1, 256, 512, 28, 28}, strides {102760448, 401408, 1, 14336, 512}
@@ -255,7 +255,7 @@ Note: Column to image kernel adds to the output memory, this will cause output b
 ./bin/ckProfiler permute_scale        0       1     1    0     1    64   64   64       4096         64          1           1          64        4096
 ```
 
-Result (MI100, FP32)
+Result:
 
 ```bash
 A: dim 3, lengths {64, 64, 64}, strides {4096, 64, 1}

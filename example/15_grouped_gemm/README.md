@@ -8,7 +8,7 @@
 ./bin/example_grouped_gemm_xdl_fp16 0 1 5
 ```
 
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
+Result:
 ```
 gemm[0] a_m_k: dim 2, lengths {256, 64}, strides {64, 1} b_k_n: dim 2, lengths {64, 128}, strides {1, 64} c_m_n: dim 2, lengths {256, 128}, strides {128, 1}
 gemm[1] a_m_k: dim 2, lengths {512, 128}, strides {128, 1} b_k_n: dim 2, lengths {128, 256}, strides {1, 128} c_m_n: dim 2, lengths {512, 256}, strides {256, 1}

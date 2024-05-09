@@ -8,7 +8,7 @@
 ./bin/example_gemm_xdl 0 1 5
 ```
 
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
+Result:
 ```
 a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
 b_k_n: dim 2, lengths {4096, 4096}, strides {1, 4096}

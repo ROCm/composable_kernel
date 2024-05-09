@@ -17,7 +17,7 @@
 ./bin/example_convnd_fwd_xdl 0 1 100
 ```
 
-Result (MI100 @ 1087Mhz, 33.4TFlops peak FP32)
+Result:
 ```
 input: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
 weights: dim 4, lengths {256, 192, 3, 3}, strides {1728, 1, 576, 192}
