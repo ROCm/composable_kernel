@@ -512,30 +512,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2ETileMap& block_2_etile_map)
     {
-        /**if(blockIdx.x == 0 && threadIdx.x == 0)
-        {
-            printf("Device debug \n");
-            printf("A ptr: %d \n", static_cast<int>((p_a_grid[I4])));
-            printf("B ptr: %d \n", static_cast<int>((p_b_grid[I0])));
-            printf("Ds ptr: %d \n", p_ds_grid.Size());
-            printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
-            printf("A_op: %s \n", a_element_op.type_name());
-            printf("B_op: %s \n", b_element_op.type_name());
-            printf("A[M, K0]: %d, %d, %d \n",
-                   a_grid_desc_ak0_m_ak1.GetLength(I0),
-                   a_grid_desc_ak0_m_ak1.GetLength(I1),
-                   static_cast<int>(a_grid_desc_ak0_m_ak1.GetLength(I2)));
-            printf("B[N, K0]: %d, %d, %d \n",
-                   b_grid_desc_bk0_n_bk1.GetLength(I0),
-                   b_grid_desc_bk0_n_bk1.GetLength(I1),
-                   static_cast<int>(b_grid_desc_bk0_n_bk1.GetLength(I2)));
-            printf("E[MBlock]: %d, %d, %d, %d \n",
-                   e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                   static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I1)),
-                   static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2)),
-                   static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I3)));
-        }**/
-        // decltype(cde_element_op)::foo = 1;
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -565,10 +541,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         {
             return;
         }
-        // if(blockIdx.x == 0 && threadIdx.x == 0)
-        //{
-        //  block_2_etile_map.Print();
-        //}
 
         // HACK: this force m/n_block_data_idx_on_grid into SGPR
         const index_t m_block_data_idx_on_grid =
@@ -881,7 +853,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                  make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)),
                  cde_element_op};
-            // decltype(cde_element_op)::foo = 1;
 
             // space filling curve for threadwise C in VGPR before shuffle
             constexpr auto sfc_c_vgpr =
@@ -909,19 +880,9 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
             static_assert(num_access == sfc_cde_block.GetNumOfAccess(), "wrong!");
 
-            /**if(blockIdx.x == 0 && threadIdx.x == 0)
-            {
-                printf("Checkpt 4 \n");
-                printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
-            }**/
             static_for<0, num_access, 1>{}([&](auto access_id) {
                 // make sure it's safe to write to LDS
                 block_sync_lds();
-                /**if(blockIdx.x == 0 && threadIdx.x == 0)
-                {
-                    printf("Checkpt 3 \n");
-                    printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
-                }**/
 
                 // each thread write its data from VGPR to LDS
                 c_thread_copy_vgpr_to_lds.Run(c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2,
@@ -932,12 +893,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
                 // make sure it's safe to read from LDS
                 block_sync_lds();
-
-                /**if(blockIdx.x == 0 && threadIdx.x == 0)
-                {
-                    printf("Checkpt 1 \n");
-                    printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
-                }**/
                 // each block copy its data from LDS to global
                 cde_block_copy_lds_and_global.Run(
                     c_ds_desc_refs,
@@ -945,11 +900,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
                     tie(e_grid_buf));
 
-                /**if(blockIdx.x == 0 && threadIdx.x == 0)
-                {
-                    printf("Checkpt 2 \n");
-                    printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
-                }**/
                 if constexpr(access_id < num_access - 1)
                 {
                     constexpr auto cde_lds_and_global_step =
@@ -969,30 +919,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                 }
             });
         }
-        /**if(blockIdx.x == 0 && threadIdx.x == 0)
-        {
-            printf("Device debug 2 \n");
-            printf("A ptr: %d \n", static_cast<int>((p_a_grid[I4])));
-            printf("B ptr: %d \n", static_cast<int>((p_b_grid[I0])));
-            printf("Ds ptr: %d \n", p_ds_grid.Size());
-            printf("E ptr: %d \n", static_cast<int>((p_e_grid[I0])));
-            printf("A_op: %s \n", a_element_op.type_name());
-            printf("B_op: %s \n", b_element_op.type_name());
-            // printf("C_op: %s \n", static_cast<char>(cde_element_op));
-            printf("A[M, K0]: %d, %d, %d \n",
-                   a_grid_desc_ak0_m_ak1.GetLength(I0),
-                   a_grid_desc_ak0_m_ak1.GetLength(I1),
-                   static_cast<int>(a_grid_desc_ak0_m_ak1.GetLength(I2)));
-            printf("B[N, K0]: %d, %d, %d \n",
-                   b_grid_desc_bk0_n_bk1.GetLength(I0),
-                   b_grid_desc_bk0_n_bk1.GetLength(I1),
-                   static_cast<int>(b_grid_desc_bk0_n_bk1.GetLength(I2)));
-            printf("E[MBlock]: %d, %d, %d, %d \n",
-                   e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                   static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I1)),
-                   static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2)),
-                   static_cast<int>(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I3)));
-        }**/
     }
 
     template <bool HasMainKBlockLoop,

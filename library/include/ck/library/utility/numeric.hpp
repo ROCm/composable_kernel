@@ -15,7 +15,7 @@ __host__ __device__ auto accumulate_n(ForwardIterator first, Size count, T init,
 }
 
 template <typename T, typename ForwardIterator, typename Size>
-__host__ __device__ auto copy_accumulate_n(ForwardIterator first, Size count, T init)
+__host__ __device__ auto mult_accumulate_n(ForwardIterator first, Size count, T init)
 {
     for(ForwardIterator x = first; x != first + count; x++)
     {

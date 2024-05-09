@@ -245,11 +245,6 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
         return true; // always valid provided that user gets grid size from CalculateGridSize()
     }
 
-    __host__ __device__ void Print() const
-    {
-        printf("Etile, M= %d, N= %d, M01 = %d\n", M_, N_, M01_);
-    }
-
     private:
     index_t M_;
     index_t N_;

@@ -314,8 +314,6 @@ struct Epilogue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   Epilogue{1.0f, 1.0f});
-        // std::cout << "Ref args" << std::endl;
-        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 

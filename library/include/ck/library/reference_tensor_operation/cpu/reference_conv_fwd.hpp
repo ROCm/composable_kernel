@@ -111,13 +111,6 @@ struct ReferenceConvFwd : public device::BaseOperator
         InElementwiseOperation in_element_op_;
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
-
-        void Print() const
-        {
-            std::cout << "A_op: " << typeid(decltype(in_element_op_)).name() << std::endl;
-            std::cout << "B_op: " << typeid(decltype(wei_element_op_)).name() << std::endl;
-            std::cout << "CDE_op: " << typeid(decltype(out_element_op_)).name() << std::endl;
-        }
     };
 
     struct Invoker : public device::BaseInvoker

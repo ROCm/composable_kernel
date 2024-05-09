@@ -433,7 +433,7 @@ struct TransformConvFwdToGemm
         // const index_t YX_c = ck::accumulate_n<index_t>(
         // b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1, std::multiplies<>());
         const index_t YX =
-            ck::copy_accumulate_n<index_t>(b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1);
+            ck::mult_accumulate_n<index_t>(b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1);
 
         // printf("YX_copy: %d \n", YX);
         // printf("YX: %d \n", YX_c);
@@ -461,7 +461,7 @@ struct TransformConvFwdToGemm
         const index_t C = b_g_k_c_xs_lengths[2];
 
         const index_t YX =
-            ck::copy_accumulate_n<index_t>(b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1);
+            ck::mult_accumulate_n<index_t>(b_g_k_c_xs_lengths.begin() + 3, NDimSpatial, 1);
 
         const index_t KStride = b_g_k_c_xs_strides[1];
         const index_t XStride = b_g_k_c_xs_strides[2 + NDimSpatial];
@@ -492,7 +492,7 @@ struct TransformConvFwdToGemm
         const index_t K = c_g_n_k_wos_lengths[2];
 
         const index_t NHoWo =
-            N * ck::copy_accumulate_n<index_t>(c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1);
+            N * ck::mult_accumulate_n<index_t>(c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1);
 
         const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor_packed(make_tuple(NHoWo, K));
 
@@ -519,7 +519,7 @@ struct TransformConvFwdToGemm
         const index_t WoStride = c_g_n_k_wos_strides[NDimSpatial + 2];
 
         const index_t NHoWo =
-            N * ck::copy_accumulate_n<index_t>(c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1);
+            N * ck::mult_accumulate_n<index_t>(c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1);
 
         const auto out_gemmm_gemmn_desc =
             make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(WoStride, KStride));
@@ -540,7 +540,7 @@ struct TransformConvFwdToGemm
         const index_t KStride = c_g_n_k_wos_strides[2];
 
         const index_t NHoWo =
-            N * ck::copy_accumulate_n<index_t>(c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1);
+            N * ck::mult_accumulate_n<index_t>(c_g_n_k_wos_lengths.begin() + 3, NDimSpatial, 1);
 
         const auto out_gemmm_gemmn_desc =
             make_naive_tensor_descriptor(make_tuple(NHoWo, K), make_tuple(I0, KStride));

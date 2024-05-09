@@ -36,7 +36,6 @@ rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
     std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
     std::generate(result.begin(), result.end(), [&] { return dis(gen); });
-    // std::fill(result.begin(), result.end(), 1);
     return result;
 }
 
@@ -314,9 +313,6 @@ struct Epilogue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   Epilogue{1.0f, 1.0f});
-        // std::cout << "Ref args" << std::endl;
-        // ref_argument.Print();
-
         ref_invoker.Run(ref_argument);
 
         bool pass = true;

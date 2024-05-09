@@ -28,7 +28,7 @@ struct TransformConvFwdToGemm
                                            is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
                                            is_same_v<ALayout, tensor_layout::convolution::GNWC>),
                                       bool>::type = false>
-    __host__ __device__ static auto
+    static auto
     MakeADescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
@@ -141,7 +141,7 @@ struct TransformConvFwdToGemm
                                        is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
                                        is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
                   bool>::type = false>
-    __host__ __device__ static auto
+    static auto
     MakeADescriptor_M_K(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
                         const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
@@ -421,7 +421,7 @@ struct TransformConvFwdToGemm
                                           is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
                                           is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
                                       bool>::type = false>
-    __host__ __device__ static auto
+    static auto
     MakeBDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
                         const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */)
     {
@@ -446,9 +446,8 @@ struct TransformConvFwdToGemm
                                     is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
                                     is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
                                 bool>::type = false>
-    __host__ __device__ static auto
-    MakeBDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    static auto MakeBDescriptor_N_K(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
     {
         const index_t K = b_g_k_c_xs_lengths[1];
         const index_t C = b_g_k_c_xs_lengths[2];
@@ -477,7 +476,7 @@ struct TransformConvFwdToGemm
                                           is_same_v<CLayout, tensor_layout::convolution::GNHWK> ||
                                           is_same_v<CLayout, tensor_layout::convolution::GNDHWK>,
                                       bool>::type = false>
-    __host__ __device__ static auto
+    static auto
     MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
                         const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides */)
     {
@@ -502,9 +501,8 @@ struct TransformConvFwdToGemm
                                     is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
                                     is_same_v<CLayout, tensor_layout::convolution::NDHWGK>,
                                 bool>::type = false>
-    __host__ __device__ static auto
-    MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+    static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
     {
         const index_t N = c_g_n_k_wos_lengths[1];
         const index_t K = c_g_n_k_wos_lengths[2];
@@ -526,9 +524,8 @@ struct TransformConvFwdToGemm
     template <typename CLayout,
               typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::G_K>,
                                       bool>::type = false>
-    __host__ __device__ static auto
-    MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+    static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
+                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
     {
         const index_t N       = c_g_n_k_wos_lengths[1];
         const index_t K       = c_g_n_k_wos_lengths[2];

@@ -94,10 +94,6 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
     // offset base pointer for each work-group
-    if(blockIdx.x == 0 && threadIdx.x == 0)
-    {
-        printf("entered kernel \n");
-    }
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
@@ -116,10 +112,6 @@ __device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
-    if(blockIdx.x == 0 && threadIdx.x == 0)
-    {
-        printf("Made it to first check \n");
-    }
     if constexpr(isMultiA || isMultiB)
     {
         AsPointer p_as_grid_grp;
@@ -401,7 +393,6 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
 
-        // printf("Device: A desc called \n");
         return in_gemmm_gemmk_desc;
     }
 
@@ -416,8 +407,6 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
-
-        // printf("Device: B desc called \n");
 
         return wei_gemmn_gemmk_desc;
     }
@@ -434,7 +423,6 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
 
-        // printf("Device: E desc called \n");
         return out_gemmm_gemmn_desc;
     }
 
@@ -695,38 +683,6 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                             ds_grid_desc_m_n_);
                 }
             }
-        }
-        template <typename T>
-        std::string type()
-        {
-            return typeid(T).name();
-        }
-
-        void Print() const
-        {
-            std::cout << "A ptr: " << std::to_string(static_cast<int>(*(p_as_grid_[I0])))
-                      << std::endl;
-            std::cout << "B ptr: " << std::to_string(static_cast<int>(*(p_bs_grid_[I0])))
-                      << std::endl;
-            std::cout << "Ds ptr: " << p_ds_grid_.Size() << std::endl;
-            std::cout << "E ptr: " << std::to_string(static_cast<int>(*(p_e_grid_))) << std::endl;
-            std::cout << "A[M, K]: " << a_grid_desc_m_k_ << std::endl;
-            std::cout << "A[M, K0]: " << a_grid_desc_ak0_m_ak1_ << std::endl;
-            std::cout << "B[N, K]: " << b_grid_desc_n_k_ << std::endl;
-            std::cout << "B[N, K0]: " << b_grid_desc_bk0_n_bk1_ << std::endl;
-            static_for<0, NumDTensor, 1>{}(
-                [&](auto i) { std::cout << "Ds[M, N]: " << ds_grid_desc_m_n_[i] << std::endl; });
-            static_for<0, NumDTensor, 1>{}([&](auto i) {
-                std::cout << "Ds[MBlock]: " << ds_grid_desc_mblock_mperblock_nblock_nperblock_[i]
-                          << std::endl;
-            });
-            std::cout << "E[M, N]: " << e_grid_desc_m_n_ << std::endl;
-            std::cout << "E[MBlock]: " << e_grid_desc_mblock_mperblock_nblock_nperblock_
-                      << std::endl;
-            std::cout << "Batcn num: " << std::to_string(num_group_) << std::endl;
-            std::cout << "A_op: " << typeid(decltype(a_element_op_)).name() << std::endl;
-            std::cout << "B_op: " << typeid(decltype(b_element_op_)).name() << std::endl;
-            std::cout << "CDE_op: " << typeid(decltype(cde_element_op_)).name() << std::endl;
         }
 
         //  private:
