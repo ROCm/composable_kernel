@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,10 +18,10 @@ struct FmhaFwdTilePartitioner
     static constexpr ck_tile::index_t kN1 = BlockFmhaShape::kN1;
     static constexpr ck_tile::index_t kK1 = BlockFmhaShape::kK1;
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size_,
-                                            ck_tile::index_t nhead_,
-                                            ck_tile::index_t seqlen_q_,
-                                            ck_tile::index_t hdim_v_)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
+                                                ck_tile::index_t nhead_,
+                                                ck_tile::index_t seqlen_q_,
+                                                ck_tile::index_t hdim_v_)
     {
         // TODO: this may need tuning
         return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kM0) *

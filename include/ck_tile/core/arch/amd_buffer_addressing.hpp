@@ -765,21 +765,21 @@ llvm_amdgcn_raw_buffer_store_i32(int32_t vdata,
                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i32");
 
 // buffer store ui16
-__device__ void
+CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_ui16(uint16_t vdata,
                                   int32x4_t rsrc,
                                   index_t voffset,
                                   index_t soffset,
                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i16");
 
-__device__ void
+CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_ui16x2(uint16x2_t vdata,
                                     int32x4_t rsrc,
                                     index_t voffset,
                                     index_t soffset,
                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i16");
 
-__device__ void
+CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_ui16x4(uint16x4_t vdata,
                                     int32x4_t rsrc,
                                     index_t voffset,
@@ -1658,7 +1658,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
     {
         if constexpr(N == 2)
         {
-            llvm_amdgcn_raw_buffer_atomic_add_fp16x2(bit_cast<fp16_t>(src_thread_data),
+            llvm_amdgcn_raw_buffer_atomic_add_fp16x2(bit_cast<fp16x2_t>(src_thread_data),
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,

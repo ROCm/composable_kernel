@@ -703,7 +703,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         if constexpr(AsyncCopyK)
         {
@@ -716,7 +716,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    __host__ __device__ static constexpr ck_tile::index_t GetSmemSizeDropout()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
     {
         if constexpr(Problem::kHasDropout)
         {

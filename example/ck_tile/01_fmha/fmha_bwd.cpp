@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "fmha_bwd.hpp"
+#include "ck_tile/host.hpp"
+#include "mask.hpp"
+#include "utils.hpp"
+
 #include <array>
 #include <cstring>
 #include <functional>
@@ -9,35 +14,28 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <vector>
 
-#include "ck/ck.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/tensor/tensor_view.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_description/cluster_descriptor.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/utility/common_header.hpp"
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+{
+    using size_type = typename std::vector<T>::size_type;
 
-#include "ck/library/utility/check_err.hpp"
-#include "ck/library/utility/device_memory.hpp"
-#include "ck/library/utility/fill.hpp"
-#include "ck/library/utility/host_tensor.hpp"
-#include "ck/library/utility/host_tensor_generator.hpp"
-#include "ck/library/utility/literals.hpp"
-
-#include "common/arg_parser.hpp"
-#include "fmha_bwd.hpp"
-#include "mask.hpp"
-#include "reference/reference_batched_elementwise.hpp"
-#include "reference/reference_batched_gemm.hpp"
-#include "reference/reference_batched_masking.hpp"
-#include "reference/reference_batched_softmax.hpp"
-#include "reference/reference_batched_dropout.hpp"
-#include "utils.hpp"
+    os << "[";
+    for(size_type idx = 0; idx < v.size(); ++idx)
+    {
+        if(0 < idx)
+        {
+            os << ", ";
+        }
+        os << v[idx];
+    }
+    return os << "]";
+}
 
 auto create_args(int argc, char* argv[])
 {
-    ArgParser arg_parser;
+    ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "weather do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
@@ -69,11 +67,11 @@ auto create_args(int argc, char* argv[])
                 "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
                 "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
                 "'xt:window_size', xformer style masking from top-left, window_size negative is "
-                "causal, possitive is swa\n"
+                "causal, positive is swa\n"
                 "'xb:window_size', xformer style masking from bottom-r, window_size negative is "
-                "causal, possitive is swa\n"
+                "causal, positive is swa\n"
                 "'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for "
-                "now)\n")
+                "now)")
         .insert("kname", "0", "if set to 1 will print kernel name")
         .insert("init", "1", "init method. 0:random int, 1:random float, 2:trig float")
         .insert("seed",
@@ -96,18 +94,18 @@ auto get_elimit(int /*init_method*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
-    return ck::make_tuple(rtol, atol);
+    return ck_tile::make_tuple(rtol, atol);
 }
 
 template <typename DataType>
-bool run(const ArgParser& arg_parser)
+bool run(const ck_tile::ArgParser& arg_parser)
 {
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    auto mode             = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck::index_t batch     = arg_parser.get_int("b");
-    ck::index_t nhead     = arg_parser.get_int("h");
-    ck::index_t nhead_k   = arg_parser.get_int("h_k");
+    std::string data_type    = arg_parser.get_str("prec");
+    int do_validation        = arg_parser.get_int("v");
+    auto mode                = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    ck_tile::index_t batch   = arg_parser.get_int("b");
+    ck_tile::index_t nhead   = arg_parser.get_int("h");
+    ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
     if(nhead_k == 0)
         nhead_k = nhead;
 
@@ -117,12 +115,12 @@ bool run(const ArgParser& arg_parser)
         return false;
     }
 
-    ck::index_t seqlen_q = arg_parser.get_int("s");
-    ck::index_t seqlen_k = arg_parser.get_int("s_k");
+    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
+    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
     if(seqlen_k == 0)
         seqlen_k = seqlen_q;
-    ck::index_t hdim_q = arg_parser.get_int("d");
-    ck::index_t hdim_v = arg_parser.get_int("d_v");
+    ck_tile::index_t hdim_q = arg_parser.get_int("d");
+    ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v == 0)
         hdim_v = hdim_q;
     if(hdim_q % 2 != 0 || hdim_v % 2 != 0)
@@ -136,7 +134,7 @@ bool run(const ArgParser& arg_parser)
 
     float scale = arg_parser.get_float("scale");
     if(scale == .0f)
-        scale = 1.0 / ck::math::sqrt(static_cast<float>(hdim_q));
+        scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
 
     bool use_bias        = arg_parser.get_bool("bias");
     bool use_dbias       = arg_parser.get_bool("dbias");
@@ -178,7 +176,7 @@ bool run(const ArgParser& arg_parser)
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
 
-    StreamConfig stream_config{
+    ck_tile::stream_config stream_config{
         nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
 
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
@@ -209,7 +207,7 @@ bool run(const ArgParser& arg_parser)
     auto max_seqlen_k =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
     {
-        for(ck::index_t wb = 0; wb < batch; ++wb)
+        for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
             const int32_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
             const int32_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
@@ -224,11 +222,10 @@ bool run(const ArgParser& arg_parser)
                 max_seqlen_k = real_seqlen_k;
             }
 
-            using namespace ck::literals;
-
-            flop += nhead *
-                    (3_uz * 2_uz * real_seqlen_q * real_seqlen_k * hdim_q + // Q@K/dS^T@Q^T/dS@K^T
-                     2_uz * 2_uz * real_seqlen_q * real_seqlen_k * hdim_v); // dO@V/P^T@dO^T
+            flop += nhead * (static_cast<std::size_t>(3) * static_cast<std::size_t>(2) *
+                                 real_seqlen_q * real_seqlen_k * hdim_q + // Q@K/dS^T@Q^T/dS@K^T
+                             static_cast<std::size_t>(2) * static_cast<std::size_t>(2) *
+                                 real_seqlen_q * real_seqlen_k * hdim_v); // dO@V/P^T@dO^T
 
             num_byte += nhead * (sizeof(QDataType) * real_seqlen_q * hdim_q +
                                  sizeof(KDataType) * real_seqlen_k * hdim_q +
@@ -243,85 +240,97 @@ bool run(const ArgParser& arg_parser)
     }
 
     auto get_lengths = [&](bool permute,
-                           ck::index_t b /*batch*/,
-                           ck::index_t h /*nhead*/,
-                           ck::index_t s /*seqlen*/,
-                           ck::index_t d /*hdim*/) {
+                           ck_tile::index_t b /*batch*/,
+                           ck_tile::index_t h /*nhead*/,
+                           ck_tile::index_t s /*seqlen*/,
+                           ck_tile::index_t d /*hdim*/) {
         if(permute)
-            return std::array<ck::index_t, 4>{b, h, s, d};
+            return std::array<ck_tile::index_t, 4>{b, h, s, d};
         else
-            return std::array<ck::index_t, 4>{b, s, h, d};
+            return std::array<ck_tile::index_t, 4>{b, s, h, d};
     };
 
     // host memory for storing all the tensor elements
-    const ck::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
-    const ck::index_t shape_seqlen_q =
+    const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
+    const ck_tile::index_t shape_seqlen_q =
         (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
-    const ck::index_t shape_seqlen_k =
+    const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
 
-    Tensor<QDataType> q_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
-    Tensor<KDataType> k_host(get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-    Tensor<VDataType> v_host(get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v));
-    // use bias shape = [1, 1, shape_seqlen_q, shape_seqlen_k]. if use_bias=false, the bias_host
+    ck_tile::HostTensor<QDataType> q_host(
+        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
+    ck_tile::HostTensor<KDataType> k_host(
+        get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+    ck_tile::HostTensor<VDataType> v_host(
+        get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v));
+    // use bias shape = [1, 1, shape_seqlen_q, max_seqlen_k]. if use_bias=false, the bias_host
     // will not be used for verification at all (but will be copied to device anyway).
-    Tensor<BiasDataType> bias_host(
-        use_bias ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
-                 : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
-    Tensor<ODataType> o_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
-    Tensor<LSEDataType> lse_host(std::array<ck::index_t, 3>{batch, nhead, max_seqlen_q});
-    Tensor<DDataType> d_host(std::array<ck::index_t, 3>{batch, nhead, max_seqlen_q});
-    Tensor<RandValOutputDataType> randval_host(
+    ck_tile::HostTensor<BiasDataType> bias_host(
+        use_bias
+            ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
+    ck_tile::HostTensor<ODataType> o_host(
+        get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
+    ck_tile::HostTensor<LSEDataType> lse_host(
+        std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q});
+    ck_tile::HostTensor<DDataType> d_host(
+        std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q});
+    ck_tile::HostTensor<RandValOutputDataType> randval_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
-                   : std::array<ck::index_t, 4>{1, 1, 1, 1});
-    Tensor<QGradDataType> dq_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
-    Tensor<KGradDataType> dk_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_q));
-    Tensor<VGradDataType> dv_host(get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_v));
-    Tensor<OGradDataType> do_host(get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
-    Tensor<BiasGradDataType> dbias_host(
-        use_dbias ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, shape_seqlen_k)
-                  : std::array<ck::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
+                   : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+    ck_tile::HostTensor<QGradDataType> dq_host(
+        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
+    ck_tile::HostTensor<KGradDataType> dk_host(
+        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_q));
+    ck_tile::HostTensor<VGradDataType> dv_host(
+        get_lengths(i_perm, shape_batch, nhead, shape_seqlen_k, hdim_v));
+    ck_tile::HostTensor<OGradDataType> do_host(
+        get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
+    ck_tile::HostTensor<BiasGradDataType> dbias_host(
+        use_dbias
+            ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
 
     if(init_method == 0)
     {
-        ck::utils::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
-        ck::utils::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
-        ck::utils::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
-        ck::utils::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
-        ck::utils::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<OGradDataType>{-2.f, 2.f, seed}(do_host);
     }
     else if(init_method == 1)
     {
-        ck::utils::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck::utils::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck::utils::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck::utils::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
-        ck::utils::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
+        ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck_tile::FillUniformDistribution<OGradDataType>{0.f, 1.f, seed}(do_host);
     }
     else if(init_method == 2)
     {
-        ck::utils::FillTrigValue<QDataType>{}(q_host);
-        ck::utils::FillTrigValue<KDataType>{}(k_host);
-        ck::utils::FillTrigValue<VDataType>{}(v_host);
-        ck::utils::FillTrigValue<BiasDataType>{}(bias_host);
-        ck::utils::FillTrigValue<OGradDataType>{}(do_host);
+        ck_tile::FillTrigValue<QDataType>{}(q_host);
+        ck_tile::FillTrigValue<KDataType>{}(k_host);
+        ck_tile::FillTrigValue<VDataType>{}(v_host);
+        ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
+        ck_tile::FillTrigValue<OGradDataType>{}(do_host);
     }
 
-    DeviceMem q_buf(q_host.GetElementSpaceSizeInBytes());
-    DeviceMem k_buf(k_host.GetElementSpaceSizeInBytes());
-    DeviceMem v_buf(v_host.GetElementSpaceSizeInBytes());
-    DeviceMem bias_buf(bias_host.GetElementSpaceSizeInBytes());
-    DeviceMem o_buf(o_host.GetElementSpaceSizeInBytes());
-    DeviceMem lse_buf(lse_host.GetElementSpaceSizeInBytes());
-    DeviceMem d_buf(d_host.GetElementSpaceSizeInBytes());
-    DeviceMem randval_buf(randval_host.GetElementSpaceSizeInBytes());
-    DeviceMem dq_buf(dq_host.GetElementSpaceSizeInBytes());
-    DeviceMem dk_buf(dk_host.GetElementSpaceSizeInBytes());
-    DeviceMem dv_buf(dv_host.GetElementSpaceSizeInBytes());
-    DeviceMem do_buf(do_host.GetElementSpaceSizeInBytes());
-    DeviceMem dbias_buf(dbias_host.GetElementSpaceSizeInBytes());
-    DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
-    DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem lse_buf(lse_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem d_buf(d_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem dq_buf(dq_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem dk_buf(dk_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem dv_buf(dv_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem do_buf(do_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -363,40 +372,39 @@ bool run(const ArgParser& arg_parser)
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
         ///       'nhead_stride_bias' are 0.
         // setup stride_* arguments
-        const ck::index_t stride_q       = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck::index_t stride_k       = (i_perm ? hdim_q : nhead_k * hdim_q);
-        const ck::index_t stride_v       = (i_perm ? hdim_v : nhead_k * hdim_v);
-        const ck::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
-        const ck::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
-        const ck::index_t stride_randval = (max_seqlen_k);
-        const ck::index_t stride_do      = (o_perm ? hdim_v : nhead * hdim_v);
-        const ck::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
-        const ck::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
-        const ck::index_t stride_dbias   = (i_perm ? shape_seqlen_k : nhead * shape_seqlen_k);
+        const ck_tile::index_t stride_q       = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck_tile::index_t stride_k       = (i_perm ? hdim_q : nhead_k * hdim_q);
+        const ck_tile::index_t stride_v       = (i_perm ? hdim_v : nhead_k * hdim_v);
+        const ck_tile::index_t stride_bias    = (max_seqlen_k);
+        const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_randval = (max_seqlen_k);
+        const ck_tile::index_t stride_do      = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
+        const ck_tile::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_dbias   = (i_perm ? max_seqlen_k : nhead * max_seqlen_k);
         // setup nhead_stride_* arguments
-        const ck::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-        const ck::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
-        const ck::index_t nhead_stride_v = (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_bias =
-            (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
-        const ck::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck::index_t nhead_stride_lsed    = max_seqlen_q;
-        const ck::index_t nhead_stride_dbias =
-            (i_perm ? shape_seqlen_q * shape_seqlen_k : shape_seqlen_k);
+        const ck_tile::index_t nhead_stride_q       = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
+        const ck_tile::index_t nhead_stride_k       = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
+        const ck_tile::index_t nhead_stride_v       = (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_bias    = 0;
+        const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_lsed    = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_dbias =
+            (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
         // setup batch_stride_* arguments
-        const ck::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
-        const ck::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
-        const ck::index_t batch_stride_v       = (nhead_k * shape_seqlen_k * hdim_v);
-        const ck::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
-        const ck::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
-        const ck::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
-        const ck::index_t batch_stride_lsed    = (nhead * max_seqlen_q);
-        const ck::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
-        const ck::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
-        const ck::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
+        const ck_tile::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
+        const ck_tile::index_t batch_stride_v       = (nhead_k * shape_seqlen_k * hdim_v);
+        const ck_tile::index_t batch_stride_bias    = 0;
+        const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_lsed    = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
+        const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
+        const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
 
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
@@ -456,7 +464,7 @@ bool run(const ArgParser& arg_parser)
                              batch_stride_dbias,
                              mask.left,
                              mask.right,
-                             static_cast<ck::index_t>(mask.type),
+                             static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
                              p_undrop,
                              s_randval,
@@ -486,42 +494,43 @@ bool run(const ArgParser& arg_parser)
 
     bool pass = true;
 
-    std::vector<Tensor<QDataType>> q_host_refs;
-    std::vector<Tensor<KDataType>> k_host_refs;
-    std::vector<Tensor<VDataType>> v_host_refs;
-    std::vector<Tensor<ODataType>> o_host_refs;
-    std::vector<Tensor<RandValOutputDataType>> randval_host_refs;
-    std::vector<Tensor<AccDataType>> p_hp_host_refs;
-    std::vector<Tensor<GemmDataType>> p_lp_host_refs;
+    std::vector<ck_tile::HostTensor<QDataType>> q_host_refs;
+    std::vector<ck_tile::HostTensor<KDataType>> k_host_refs;
+    std::vector<ck_tile::HostTensor<VDataType>> v_host_refs;
+    std::vector<ck_tile::HostTensor<ODataType>> o_host_refs;
+    std::vector<ck_tile::HostTensor<RandValOutputDataType>> randval_host_refs;
+    std::vector<ck_tile::HostTensor<AccDataType>> p_hp_host_refs;
+    std::vector<ck_tile::HostTensor<GemmDataType>> p_lp_host_refs;
 
     randval_buf.FromDevice(randval_host.data());
 
-    for(ck::index_t wb = 0; wb < batch; ++wb)
+    for(ck_tile::index_t wb = 0; wb < batch; ++wb)
     {
-        const ck::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-        const ck::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+        const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
+        const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
         // adjust matrix index according to the mode
-        const ck::index_t b            = (mode == mode_enum::batch ? wb : 0);
-        const ck::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
-        const ck::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
+        const ck_tile::index_t b            = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
+        const ck_tile::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
 
-        Tensor<QDataType> q_host_ref({nhead, real_seqlen_q, hdim_q}); // q_g_m_k
-        Tensor<KDataType> k_host_ref({nhead, real_seqlen_k, hdim_q}); // k_g_n_k
-        Tensor<VDataType> v_host_ref({nhead, hdim_v, real_seqlen_k}); // v_g_o_n
-        Tensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v}); // o_g_m_o
-        Tensor<LSEDataType> lse_host_ref({nhead, real_seqlen_q});     // lse_g_m
-        Tensor<RandValOutputDataType> randval_host_ref(
-            {nhead, real_seqlen_q, real_seqlen_k});                            // randval_g_m_n
-        Tensor<AccDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k}); // s_g_m_n
-        Tensor<AccDataType> p_hp_host_ref(
+        ck_tile::HostTensor<QDataType> q_host_ref({nhead, real_seqlen_q, hdim_q}); // q_g_m_k
+        ck_tile::HostTensor<KDataType> k_host_ref({nhead, real_seqlen_k, hdim_q}); // k_g_n_k
+        ck_tile::HostTensor<VDataType> v_host_ref({nhead, hdim_v, real_seqlen_k}); // v_g_o_n
+        ck_tile::HostTensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v}); // o_g_m_o
+        ck_tile::HostTensor<LSEDataType> lse_host_ref({nhead, real_seqlen_q});     // lse_g_m
+        ck_tile::HostTensor<RandValOutputDataType> randval_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k}); // randval_g_m_n
+        ck_tile::HostTensor<AccDataType> s_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k}); // s_g_m_n
+        ck_tile::HostTensor<AccDataType> p_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // p_hp_g_m_n high precision
-        Tensor<AccDataType> p_dropped_hp_host_ref(
+        ck_tile::HostTensor<AccDataType> p_dropped_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // p_dropped_hp_g_m_n high precision
-        Tensor<GemmDataType> p_lp_host_ref(
+        ck_tile::HostTensor<GemmDataType> p_lp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // p_lp_g_m_n low precision
 
-        ck::index_t nr = nhead / nhead_k;
+        ck_tile::index_t nr = nhead / nhead_k;
 
         // clang-format off
         // permute
@@ -539,62 +548,68 @@ bool run(const ArgParser& arg_parser)
 
         // reference
         // S = scale * Q * K^T
-        reference_batched_gemm<QDataType, KDataType, AccDataType, AccDataType>(
-            q_host_ref, k_host_ref, s_host_ref, ck::identity{}, ck::identity{}, [&](AccDataType x) {
-                return scale * x;
-            }); // s_g_m_n = scale * q_g_m_k@k_g_n_k
+        ck_tile::reference_batched_gemm<QDataType, KDataType, AccDataType, AccDataType>(
+            q_host_ref,
+            k_host_ref,
+            s_host_ref,
+            ck_tile::identity{},
+            ck_tile::identity{},
+            ck_tile::scales(scale)); // s_g_m_n = scale * q_g_m_k@k_g_n_k
 
         if(use_bias)
         {
             // clang-format off
-            Tensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
+            ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});
             if(i_perm)
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, 0, i[1] + query_offset, i[2]); });
             else
-                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2] + key_offset); });
+                bias_host_ref.ForEach([&](auto& self, auto i) { self(i) = bias_host(0, i[1] + query_offset, 0, i[2]); });
             // clang-format on
 
             // broadcast from [1, real_seqlen_q, real_seqlen_k] to [nhead, real_seqlen_q,
             // real_seqlen_k]
-            reference_batched_elementwise<AccDataType, BiasDataType, AccDataType, AccDataType>(
-                s_host_ref, bias_host_ref, s_host_ref);
+            ck_tile::
+                reference_batched_elementwise<AccDataType, BiasDataType, AccDataType, AccDataType>(
+                    s_host_ref, bias_host_ref, s_host_ref);
         }
 
         if(mask.type == mask_enum::no_mask)
         {
-            reference_batched_masking<AccDataType>(s_host_ref,
-                                                   FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
+            ck_tile::reference_batched_masking<AccDataType>(
+                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
         }
         else if(mask.type == mask_enum::window_generic)
         {
-            reference_batched_masking<AccDataType>(
-                s_host_ref, FmhaMasks::GenericMask{mask.y, mask.x, real_seqlen_q, real_seqlen_k});
+            ck_tile::reference_batched_masking<AccDataType>(
+                s_host_ref,
+                ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                    mask.left, mask.right, real_seqlen_q, real_seqlen_k));
         }
         else
         {
             // if left window size is negative, means causal
             // else means generic (for current batch)
             if(mask.left < 0)
-                reference_batched_masking<AccDataType>(
+                ck_tile::reference_batched_masking<AccDataType>(
                     s_host_ref,
-                    ck::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
                         mask.left,
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
             else
-                reference_batched_masking<AccDataType>(
+                ck_tile::reference_batched_masking<AccDataType>(
                     s_host_ref,
-                    ck::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
                         mask.left,
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
         }
-        reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
-            s_host_ref, p_hp_host_ref, lse_host_ref);
+        ck_tile::reference_batched_softmax<AccDataType, LSEDataType, AccDataType>(
+            s_host_ref, p_hp_host_ref, ck_tile::identity{}, lse_host_ref);
 
         if(p_drop > 0)
         {
@@ -603,21 +618,21 @@ bool run(const ArgParser& arg_parser)
             randval_host_ref.ForEach([&](auto& self, auto idx) {
                 self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
             });
-            reference_batched_dropout(
+            ck_tile::reference_batched_dropout(
                 p_dropped_hp_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
             p_dropped_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
             });
         }
         else
         {
             p_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                p_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+                p_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
             });
         }
 
         // O = P * V
-        reference_batched_gemm<GemmDataType, VDataType, AccDataType, ODataType>(
+        ck_tile::reference_batched_gemm<GemmDataType, VDataType, AccDataType, ODataType>(
             p_lp_host_ref, v_host_ref, o_host_ref); // o_g_m_o = p_lp_g_m_n@v_g_o_n
 
         // clang-format off
@@ -652,28 +667,28 @@ bool run(const ArgParser& arg_parser)
     dv_buf.FromDevice(dv_host.data());
     dbias_buf.FromDevice(dbias_host.data());
 
-    for(ck::index_t wb = 0; wb < batch; ++wb)
+    for(ck_tile::index_t wb = 0; wb < batch; ++wb)
     {
-        const ck::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-        const ck::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+        const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
+        const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
         // adjust matrix index according to the mode
-        const ck::index_t b            = (mode == mode_enum::batch ? wb : 0);
-        const ck::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
-        const ck::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
+        const ck_tile::index_t b            = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
+        const ck_tile::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
 
-        Tensor<OGradDataType> do_host_ref({nhead, real_seqlen_q, hdim_v}); // do_g_m_o
-        Tensor<AccDataType> ds_hp_host_ref(
+        ck_tile::HostTensor<OGradDataType> do_host_ref({nhead, real_seqlen_q, hdim_v}); // do_g_m_o
+        ck_tile::HostTensor<AccDataType> ds_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n high precision
-        Tensor<GemmDataType> ds_lp_host_ref(
+        ck_tile::HostTensor<GemmDataType> ds_lp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // ds_g_m_n low precision
-        Tensor<AccDataType> dp_hp_host_ref(
+        ck_tile::HostTensor<AccDataType> dp_hp_host_ref(
             {nhead, real_seqlen_q, real_seqlen_k}); // dp_g_m_n high precision
-        Tensor<BiasGradDataType> dbias_host_ref(
-            {nhead, real_seqlen_q, real_seqlen_k});                        // dbias_g_m_n
-        Tensor<QGradDataType> dq_host_ref({nhead, real_seqlen_q, hdim_q}); // dq_g_m_k
-        Tensor<KGradDataType> dk_host_ref({nhead, real_seqlen_k, hdim_q}); // dk_g_n_k
-        Tensor<VGradDataType> dv_host_ref({nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
+        ck_tile::HostTensor<BiasGradDataType> dbias_host_ref(
+            {nhead, real_seqlen_q, real_seqlen_k}); // dbias_g_m_n
+        ck_tile::HostTensor<QGradDataType> dq_host_ref({nhead, real_seqlen_q, hdim_q}); // dq_g_m_k
+        ck_tile::HostTensor<KGradDataType> dk_host_ref({nhead, real_seqlen_k, hdim_q}); // dk_g_n_k
+        ck_tile::HostTensor<VGradDataType> dv_host_ref({nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
 
         // clang-format off
         if(o_perm) do_host_ref.ForEach([&](auto& self, auto i) { self(i) = do_host(b, i[0], i[1] + query_offset, i[2]); });
@@ -683,12 +698,12 @@ bool run(const ArgParser& arg_parser)
         // dP = dO@V x Z w/  dropout
         // dP = dO@V     w/o dropout
         auto v_t_host_ref = v_host_refs[wb].Transpose({0, 2, 1}); // v_g_o_n -> v_g_n_o
-        reference_batched_gemm<OGradDataType, VDataType, AccDataType, AccDataType>(
+        ck_tile::reference_batched_gemm<OGradDataType, VDataType, AccDataType, AccDataType>(
             do_host_ref, v_t_host_ref, dp_hp_host_ref); // dp_g_m_n = do_g_m_o@v_g_n_o
 
         if(p_drop > 0)
         {
-            reference_batched_dropout(
+            ck_tile::reference_batched_dropout(
                 dp_hp_host_ref, randval_host_refs[wb], p_undrop_in_uint8_t, rp_undrop);
         }
 
@@ -699,56 +714,59 @@ bool run(const ArgParser& arg_parser)
             {
                 auto idx_gmo = idx_gmn;
                 idx_gmo[2]   = o;
-                do_dot_o += ck::type_convert<AccDataType>(do_host_ref(idx_gmo)) *
-                            ck::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
+                do_dot_o += ck_tile::type_convert<AccDataType>(do_host_ref(idx_gmo)) *
+                            ck_tile::type_convert<AccDataType>(o_host_refs[wb](idx_gmo));
             }
-            self(idx_gmn) = ck::type_convert<AccDataType>(p_hp_host_refs[wb](idx_gmn) *
-                                                          (dp_hp_host_ref(idx_gmn) - do_dot_o));
+            self(idx_gmn) = ck_tile::type_convert<AccDataType>(
+                p_hp_host_refs[wb](idx_gmn) * (dp_hp_host_ref(idx_gmn) - do_dot_o));
         });
 
         if(use_dbias)
         {
             ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-                dbias_host_ref(idx) = ck::type_convert<BiasGradDataType>(self(idx));
+                dbias_host_ref(idx) = ck_tile::type_convert<BiasGradDataType>(self(idx));
             });
         }
 
         ds_hp_host_ref.ForEach([&](auto& self, auto idx) {
-            ds_lp_host_ref(idx) = ck::type_convert<GemmDataType>(self(idx));
+            ds_lp_host_ref(idx) = ck_tile::type_convert<GemmDataType>(self(idx));
         });
 
         // dV = P_drop^T@dO^T
         // dV = P^T@dO^T w/o dropout
         auto p_t_lp_host_ref = p_lp_host_refs[wb].Transpose({0, 2, 1}); // p_lp_g_m_n -> p_lp_g_n_m
         auto do_t_host_ref   = do_host_ref.Transpose({0, 2, 1});        // do_g_m_o -> do_g_o_m
-        reference_batched_gemm<GemmDataType, OGradDataType, AccDataType, VGradDataType>(
+        ck_tile::reference_batched_gemm<GemmDataType, OGradDataType, AccDataType, VGradDataType>(
             p_t_lp_host_ref, do_t_host_ref, dv_host_ref); // dv_g_n_o = p_lp_g_n_m@do_g_o_m
 
         // dQ = scale * dS@K^T
         auto k_t_host_ref = k_host_refs[wb].Transpose({0, 2, 1}); // k_g_n_k -> k_g_k_n
-        reference_batched_gemm<GemmDataType, KDataType, AccDataType, QGradDataType>(
+        ck_tile::reference_batched_gemm<GemmDataType, KDataType, AccDataType, QGradDataType>(
             ds_lp_host_ref,
             k_t_host_ref,
             dq_host_ref,
-            ck::identity{},
-            ck::identity{},
-            [&scale](const AccDataType& x) { return scale * x; }); // dq_g_m_k = ds_g_m_n@k_g_k_n
+            ck_tile::identity{},
+            ck_tile::identity{},
+            ck_tile::scales(scale)); // dq_g_m_k = ds_g_m_n@k_g_k_n
 
         // dK = scale * dS^T@Q^T
         auto ds_t_lp_host_ref = ds_lp_host_ref.Transpose({0, 2, 1});  // ds_g_m_n -> ds_g_n_m
         auto q_t_host_ref     = q_host_refs[wb].Transpose({0, 2, 1}); // q_g_m_k -> q_g_k_m
-        reference_batched_gemm<GemmDataType, QDataType, AccDataType, KGradDataType>(
+        ck_tile::reference_batched_gemm<GemmDataType, QDataType, AccDataType, KGradDataType>(
             ds_t_lp_host_ref,
             q_t_host_ref,
             dk_host_ref,
-            ck::identity{},
-            ck::identity{},
-            [&scale](const AccDataType& x) { return scale * x; }); // dk_g_n_k = ds_g_n_m@q_g_k_m
+            ck_tile::identity{},
+            ck_tile::identity{},
+            ck_tile::scales(scale)); // dk_g_n_k = ds_g_n_m@q_g_k_m
 
-        Tensor<QGradDataType> dq_host_result({nhead, real_seqlen_q, hdim_q}); // dq_g_m_k
-        Tensor<KGradDataType> dk_host_result({nhead, real_seqlen_k, hdim_q}); // dk_g_n_k
-        Tensor<VGradDataType> dv_host_result({nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
-        Tensor<BiasGradDataType> dbias_host_result(
+        ck_tile::HostTensor<QGradDataType> dq_host_result(
+            {nhead, real_seqlen_q, hdim_q}); // dq_g_m_k
+        ck_tile::HostTensor<KGradDataType> dk_host_result(
+            {nhead, real_seqlen_k, hdim_q}); // dk_g_n_k
+        ck_tile::HostTensor<VGradDataType> dv_host_result(
+            {nhead, real_seqlen_k, hdim_v}); // dv_g_n_o
+        ck_tile::HostTensor<BiasGradDataType> dbias_host_result(
             {nhead, real_seqlen_q, real_seqlen_k}); // dbias_g_m_n
 
         // clang-format off
@@ -764,36 +782,36 @@ bool run(const ArgParser& arg_parser)
 
         if(use_dbias)
         {
-            if(i_perm) dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[0], idx[1] + query_offset, idx[2] + key_offset); });
-            else       dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[1] + query_offset, idx[0], idx[2] + key_offset); });
+            if(i_perm) dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[0], idx[1] + query_offset, idx[2]); });
+            else       dbias_host_result.ForEach([&](auto& self, auto idx) {self(idx) = dbias_host(b, idx[1] + query_offset, idx[0], idx[2]); });
         }
         // clang-format on
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
-        bool dq_cur_pass  = ck::utils::check_err(dq_host_result,
-                                                dq_host_ref,
-                                                std::string("Error: QGrad Incorrect results!"),
-                                                rtol,
-                                                atol);
-        bool dk_cur_pass  = ck::utils::check_err(dk_host_result,
-                                                dk_host_ref,
-                                                std::string("Error: KGrad Incorrect results!"),
-                                                rtol,
-                                                atol);
-        bool dv_cur_pass  = ck::utils::check_err(dv_host_result,
-                                                dv_host_ref,
-                                                std::string("Error: VGrad Incorrect results!"),
-                                                rtol,
-                                                atol);
+        bool dq_cur_pass  = ck_tile::check_err(dq_host_result,
+                                              dq_host_ref,
+                                              std::string("Error: QGrad Incorrect results!"),
+                                              rtol,
+                                              atol);
+        bool dk_cur_pass  = ck_tile::check_err(dk_host_result,
+                                              dk_host_ref,
+                                              std::string("Error: KGrad Incorrect results!"),
+                                              rtol,
+                                              atol);
+        bool dv_cur_pass  = ck_tile::check_err(dv_host_result,
+                                              dv_host_ref,
+                                              std::string("Error: VGrad Incorrect results!"),
+                                              rtol,
+                                              atol);
 
         bool dbias_cur_pass = true;
         if(use_dbias)
         {
-            dbias_cur_pass = ck::utils::check_err(dbias_host_result,
-                                                  dbias_host_ref,
-                                                  std::string("Error: BiasGrad Incorrect results!"),
-                                                  rtol,
-                                                  atol);
+            dbias_cur_pass = ck_tile::check_err(dbias_host_result,
+                                                dbias_host_ref,
+                                                std::string("Error: BiasGrad Incorrect results!"),
+                                                rtol,
+                                                atol);
         }
         pass &= (dq_cur_pass & dk_cur_pass & dv_cur_pass & dbias_cur_pass);
         if(!(dq_cur_pass & dk_cur_pass & dv_cur_pass & dbias_cur_pass))
@@ -822,11 +840,11 @@ int main(int argc, char* argv[])
     const std::string data_type = arg_parser.get_str("prec");
     if(data_type == "fp16")
     {
-        return run<ck::half_t>(arg_parser) ? 0 : -2;
+        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
     else if(data_type == "bf16")
     {
-        return run<ck::bhalf_t>(arg_parser) ? 0 : -2;
+        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
     }
 
     return -3;
