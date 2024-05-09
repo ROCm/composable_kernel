@@ -92,8 +92,11 @@ auto create_args(int argc, char* argv[])
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert(
-            "init", "1", "init method. 0:random int, 1:random float, 2:trig float, 3:quantization")
+        .insert("init",
+                "uf",
+                "init method. ui, uniform random int, ni, normalized random int\n"
+                "uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, "
+                "quantization")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -107,7 +110,7 @@ auto create_args(int argc, char* argv[])
 
 // different threshold for different dtype
 template <typename DataType>
-auto get_elimit(int /*init_method*/)
+auto get_elimit(std::string /*init_method*/)
 {
     double rtol = 1e-3;
     double atol = 1e-3;
@@ -115,9 +118,9 @@ auto get_elimit(int /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::bf16_t>(int init_method)
+auto get_elimit<ck_tile::bf16_t>(std::string init_method)
 {
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "ni")
     {
         double rtol = 1e-2;
         double atol = 1e-2;
@@ -132,9 +135,9 @@ auto get_elimit<ck_tile::bf16_t>(int init_method)
 }
 
 template <>
-auto get_elimit<ck_tile::fp8_t>(int init_method)
+auto get_elimit<ck_tile::fp8_t>(std::string init_method)
 {
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "ni")
     {
         unsigned max_rounding_point_distance = 0;
         double atol                          = 2e-3;
@@ -217,7 +220,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
     mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
 
-    int init_method              = arg_parser.get_int("init");
+    std::string init_method      = arg_parser.get_str("init");
     std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
     if(*seed == 0)
     {
@@ -319,28 +322,43 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<ODataType> o_host(
         get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
 
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
         ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
         ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
         ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
     }
-    else if(init_method == 1)
+    else if(init_method == "ni")
+    {
+        ck_tile::FillNormalDistributionIntegerValue<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{0.f, 1.f, seed}(k_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{0.f, 1.f, seed}(v_host);
+        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{0.f, 1.f, seed}(bias_host);
+    }
+    else if(init_method == "uf" || init_method == "1")
     {
         ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
         ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
-    else if(init_method == 2)
+    else if(init_method == "nf")
+    {
+        ck_tile::FillNormalDistribution<QDataType>{0.f, 1.f, seed}(q_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 1.f, seed}(k_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 1.f, seed}(v_host);
+        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+    }
+    else if(init_method == "tf" || init_method == "2")
     {
         ck_tile::FillTrigValue<QDataType>{}(q_host);
         ck_tile::FillTrigValue<KDataType>{}(k_host);
         ck_tile::FillTrigValue<VDataType>{}(v_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
     }
-    else if(init_method == 3) // suitable for fp8 quantization
+    else if(init_method == "ufq" || init_method == "uf:q" ||
+            init_method == "3") // suitable for fp8 quantization
     {
         ck_tile::FillUniformDistribution<QDataType>{-dtype_max, dtype_max, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(k_host);
