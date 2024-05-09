@@ -133,12 +133,17 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
     static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
 
-    static constexpr auto AEnableLds_auto = NWaves == 1 ? false : true;
-    static constexpr auto BEnableLds_auto = MWaves == 1 ? false : true;
+    static constexpr auto MaxVectorLoadA = K1 * sizeof(ADataType) == 16 ? true : false;
+    static constexpr auto MaxVectorLoadB = K1 * sizeof(BDataType) == 16 ? true : false;
+
+    static constexpr auto AEnableLds_auto =
+        (NWaves == 1 && (MaxVectorLoadA || MRepeat == 1)) ? false : true;
+    static constexpr auto BEnableLds_auto =
+        (MWaves == 1 && (MaxVectorLoadB || NRepeat == 1)) ? false : true;
 
     // If true, LDS is used unconditionally
-    static constexpr auto AEnableLds_manu = true;
-    static constexpr auto BEnableLds_manu = true;
+    static constexpr auto AEnableLds_manu = false;
+    static constexpr auto BEnableLds_manu = false;
 
     static constexpr auto AEnableLds = AEnableLds_auto || AEnableLds_manu || (NumPrefetch > 1);
     static constexpr auto BEnableLds = BEnableLds_auto || BEnableLds_manu || (NumPrefetch > 1);
@@ -869,11 +874,15 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         }
         else
         {
-            if(!(arg.a_kz_stride_ == 1 &&
-                 arg.a_grid_desc_.GetLength(I2) % ABlockTransferSrcScalarPerVector == 0))
+            if(!(arg.a_kz_stride_ == 1))
             {
-                printf("DeviceOp: Vector Access A-k check failure\n");
-                return false;
+                index_t LastK =
+                    AEnableLds ? arg.a_grid_desc_.GetLength(I2) : arg.a_grid_desc_.GetLength(I6);
+                if(LastK % ABlockTransferSrcScalarPerVector == 0)
+                {
+                    printf("DeviceOp: Vector Access A-k check failure\n");
+                    return false;
+                }
             }
         }
 

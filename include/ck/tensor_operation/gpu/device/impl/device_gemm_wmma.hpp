@@ -84,14 +84,21 @@ struct DeviceGemmWmma_CShuffle : public DeviceGemm<ALayout,
     // K1 = Max Vector Access Pixels
     static constexpr auto K1Number = Number<K1>{};
 
-    static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
-    static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
+    static constexpr auto MWaves         = MPerBlock / (MRepeat * MPerWmma);
+    static constexpr auto NWaves         = NPerBlock / (NRepeat * NPerWmma);
+    static constexpr auto WmmaK          = K1 == 16 ? 32 : 16;
+    static constexpr auto MaxVectorLoadA = K1 * sizeof(ADataType) == 16 ? true : false;
+    static constexpr auto MaxVectorLoadB = K1 * sizeof(BDataType) == 16 ? true : false;
 
-    static constexpr auto AEnableLds_auto =
-        (NWaves == 1 && is_same<tensor_layout::gemm::RowMajor, ALayout>::value) ? false : true;
+    static constexpr auto AEnableLds_auto = (NWaves == 1 && (MaxVectorLoadA || MRepeat == 1) &&
+                                             is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
+                                                ? false
+                                                : true;
     static constexpr auto BEnableLds_auto =
-        (MWaves == 1 && is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value) ? false : true;
+        (MWaves == 1 && (MaxVectorLoadB || NRepeat == 1) &&
+         is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+            ? false
+            : true;
 
     // If true, LDS is used unconditionally
     static constexpr auto AEnableLds_manu = false;

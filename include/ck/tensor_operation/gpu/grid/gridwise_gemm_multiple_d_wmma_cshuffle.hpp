@@ -375,8 +375,9 @@ struct GridwiseGemmMultipleD_Wmma
             }
             else
             {
+                constexpr auto A_KRow        = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                constexpr auto K0PerWmma     = WmmaK / A_KRow / K1;
                 // KWmma->MRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<KWmmaPerblock>{},
@@ -422,8 +423,9 @@ struct GridwiseGemmMultipleD_Wmma
             }
             else
             {
+                constexpr auto B_KRow        = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                constexpr auto K0PerWmma     = WmmaK / B_KRow / K1;
                 // KWmma->NRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<KWmmaPerblock>{},
@@ -495,12 +497,16 @@ struct GridwiseGemmMultipleD_Wmma
             if constexpr(AEnableLds)
             {
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
-                constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
-                constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
+                constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
+                constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto A_KRow = I2;
+#else
                 constexpr auto A_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
                                make_pass_through_transform(Number<A_K1>{})),
@@ -534,12 +540,16 @@ struct GridwiseGemmMultipleD_Wmma
             if constexpr(BEnableLds)
             {
                 // BK0_N_BK1 -> BK0_NRepeat_Nwaves_NPerWmma_BK1
-                constexpr auto B_K0   = BBlockDesc_{}.GetLength(I0);
-                constexpr auto B_K1   = BBlockDesc_{}.GetLength(I2);
+                constexpr auto B_K0 = BBlockDesc_{}.GetLength(I0);
+                constexpr auto B_K1 = BBlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto B_KRow = I2;
+#else
                 constexpr auto B_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     BBlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
                                make_pass_through_transform(Number<B_K1>{})),

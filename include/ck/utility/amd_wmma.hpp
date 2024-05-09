@@ -260,7 +260,7 @@ struct intrin_wmma_i32_16x16x16_iu8_w64<16, 16, neg_a, neg_b, clamp>
 // gfx12
 /********************************WAVE32 MODE***********************************************/
 
-#if defined(__gfx1200__)
+#if defined(__gfx1200__) || defined(__gfx1201__)
 #define __gfx12__
 #endif
 

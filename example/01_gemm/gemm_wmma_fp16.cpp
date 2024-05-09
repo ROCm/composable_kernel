@@ -19,48 +19,51 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle<ALayout,
-                                                                                 BLayout,
-                                                                                 CLayout,
-                                                                                 ADataType,
-                                                                                 BDataType,
-                                                                                 CDataType,
-                                                                                 AccDataType,
-                                                                                 CShuffleDataType,
-                                                                                 AElementOp,
-                                                                                 BElementOp,
-                                                                                 CElementOp,
-                                                                                 GemmDefault,
-                                                                                 1,
-                                                                                 32,
-                                                                                 16,
-                                                                                 32,
-                                                                                 64,
-                                                                                 8,
-                                                                                 16,
-                                                                                 16,
-                                                                                 1,
-                                                                                 2,
-                                                                                 S<2, 16, 1>,
-                                                                                 S<1, 0, 2>,
-                                                                                 S<1, 0, 2>,
-                                                                                 2,
-                                                                                 8,
-                                                                                 8,
-                                                                                 true,
-                                                                                 S<2, 16, 1>,
-                                                                                 S<1, 0, 2>,
-                                                                                 S<1, 0, 2>,
-                                                                                 2,
-                                                                                 8,
-                                                                                 8,
-                                                                                 true,
-                                                                                 1,
-                                                                                 1,
-                                                                                 S<1, 16, 1, 2>,
-                                                                                 8>;
+// clang-format off
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmWmma_CShuffle
+         < ALayout,
+           BLayout,
+           CLayout,
+           ADataType,
+           BDataType,
+           CDataType,
+           AccDataType,
+           CShuffleDataType,
+           AElementOp,
+           BElementOp,
+           CElementOp,
+           GemmDefault,
+           1,           // Prefetch stage
+           128,         // BlockSize
+           64,          // MPerBlock
+           128,         // NPerBlock
+           64,          // KPerBlock
+           2,           // K1
+           16,          // MPerWmma
+           16,          // NPerWmma
+           2,           // M-Repeat // M-PerWmma / M-Repeat = M-Wave
+           4,           // N-Repeat // N-PerWmma / N-Repeat = N-Wave
+           S<4, 32, 1>,
+           S<1, 0, 2>,
+           S<1, 0, 2>,
+           2,
+           2,
+           2,
+           true,
+           S<4, 32, 1>,
+           S<1, 0, 2>,
+           S<1, 0, 2>,
+           2,
+           2,
+           2,
+           true,
+           1,           // C shuffle (M Repeat) Per store
+           1,           // C shuffle (N Repeat) Per store
+           S<1, 32, 1,  4>,
+           8>;
+// clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
