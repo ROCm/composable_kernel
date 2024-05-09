@@ -345,10 +345,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else if(init_method == "nf")
     {
-        ck_tile::FillNormalDistribution<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillNormalDistribution<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillNormalDistribution<VDataType>{0.f, 1.f, seed}(v_host);
-        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, seed}(q_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, seed}(k_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, seed}(v_host);
+        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 3.f, seed}(bias_host);
     }
     else if(init_method == "tf" || init_method == "2")
     {
