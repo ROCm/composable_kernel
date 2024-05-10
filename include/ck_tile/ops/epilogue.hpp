@@ -4,5 +4,4 @@
 #pragma once
 
 #include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
-#include "ck_tile/ops/epilogue/custom_2d_epilogue.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"

@@ -614,15 +614,21 @@ using fmha_bwd_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBwdPipelineProblem<
 using fmha_bwd_pipeline_{F_idx} = {F_pipeline}<
     fmha_bwd_pipeline_problem_{F_idx}>;
 
-using fmha_bwd_epilogue_{F_idx} =
-    ck_tile::FmhaBwdEpilogue<ck_tile::FmhaBwdEpilogueProblem<typename FmhaBwdTypeConfig<{F_dtype}>::AccDataType,
-                                           typename FmhaBwdTypeConfig<{F_dtype}>::KGradDataType,
-                                           typename FmhaBwdTypeConfig<{F_dtype}>::VGradDataType>>;
+using fmha_bwd_dk_epilogue_{F_idx} =
+    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaBwdTypeConfig<{F_dtype}>::AccDataType,
+                               typename FmhaBwdTypeConfig<{F_dtype}>::KGradDataType,
+                               false, false>>;
+
+using fmha_bwd_dv_epilogue_{F_idx} =
+    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaBwdTypeConfig<{F_dtype}>::AccDataType,
+                               typename FmhaBwdTypeConfig<{F_dtype}>::VGradDataType,
+                               false, false>>;
 
 using fmha_bwd_dq_dk_dv_kernel_{F_idx} = 
     ck_tile::FmhaBwdDQDKDVKernel<ck_tile::FmhaBwdTilePartitioner<fmha_bwd_shape_{F_idx}>,
                         fmha_bwd_pipeline_{F_idx},
-                        fmha_bwd_epilogue_{F_idx}>;
+                        fmha_bwd_dk_epilogue_{F_idx},
+                        fmha_bwd_dv_epilogue_{F_idx}>;
 
 using dq_dk_dv_trait_{F_idx} = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_dbias}, {F_dropout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
@@ -903,7 +909,7 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(direction : str, dtype : str)
                 '32'  : [FmhaBwdDQDKDVTileSize(128, 128, 32, 32, 32, 32, 32,  32,  32, 1, 4, 1, 4, 1, 1, 4, 1, 1, 32, 32, 16, 1),
                          "qs_ks_vr_dos"],
                 '64'  : [FmhaBwdDQDKDVTileSize( 64, 128, 32, 32, 32, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
-                         "ks_kts_vr"],
+                         "qs_ks_vr_dos"],
                 '128' : [FmhaBwdDQDKDVTileSize( 64, 128, 32, 32, 32, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
                          "ks_vr"]
             }

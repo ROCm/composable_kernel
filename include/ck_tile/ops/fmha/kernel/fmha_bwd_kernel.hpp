@@ -22,12 +22,16 @@
 
 namespace ck_tile {
 
-template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
+template <typename TilePartitioner_,
+          typename FmhaPipeline_,
+          typename KGradEpiloguePipeline_,
+          typename VGradEpiloguePipeline_>
 struct FmhaBwdDQDKDVKernel
 {
     using TilePartitioner                         = ck_tile::remove_cvref_t<TilePartitioner_>;
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
+    using KGradEpiloguePipeline                   = ck_tile::remove_cvref_t<KGradEpiloguePipeline_>;
+    using VGradEpiloguePipeline                   = ck_tile::remove_cvref_t<VGradEpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
 
@@ -494,7 +498,9 @@ struct FmhaBwdDQDKDVKernel
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return ck_tile::max(FmhaPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+        return ck_tile::max(FmhaPipeline::GetSmemSize(),
+                            KGradEpiloguePipeline::GetSmemSize(),
+                            VGradEpiloguePipeline::GetSmemSize());
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -1102,7 +1108,8 @@ struct FmhaBwdDQDKDVKernel
             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
             {i_n0, 0});
 
-        EpiloguePipeline{}(dk_dram_window, dv_dram_window, dk_acc_tile, dv_acc_tile);
+        KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile);
+        VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile);
     }
 };
 
