@@ -375,7 +375,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                  std::vector<const void*>& /* p_Bs */,
                  std::vector<std::array<const void*, NumDTensor>>& /* p_Ds */,
                  std::vector<void*>& /* p_Es */,
-                 std::vector<GemmDesc>& gemm_descs,
+                 const std::vector<GemmDesc>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op,
@@ -620,11 +620,13 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                  GridwiseGemm::template CheckTensorTransfersValidity<ALayout, BLayout, ELayout>(
                      M, N, K)))
             {
-#if DEBUG_LOG
-                std::cout << "The provided GEMM problem size (M,N,K) [" << M << "," << N << "," << K
-                          << "] are not supported by current template parameters!"
-                          << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-#endif
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "The provided GEMM problem size (M,N,K) [" << M << "," << N << ","
+                              << K << "] are not supported by current template parameters!"
+                              << " In " << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__;
+                }
                 supported = false;
             }
         }
@@ -641,7 +643,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                              std::vector<const void*>& p_Bs,
                              std::vector<std::array<const void*, NumDTensor>>& p_Ds,
                              std::vector<void*>& p_Es,
-                             std::vector<GemmDesc> gemm_descs,
+                             std::vector<GemmDesc>& gemm_descs,
                              AElementwiseOperation a_elementwise_op,
                              BElementwiseOperation b_elementwise_op,
                              CDEElementwiseOperation cde_elementwise_op)
