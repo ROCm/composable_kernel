@@ -515,30 +515,25 @@ def Build_CK(Map conf=[:]){
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 24, unit: 'HOURS')
                 {
-                    //check whether running on Navi or MI300 node
-                    def navi_node = 0
-                    def mi300_node = 0
+                    //check whether to run performance tests on this node
+                    def do_perf_tests = 0
                     sh 'rocminfo | tee rocminfo.log'
-                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') ){
-                        navi_node = 1
-                        echo "This is a Navi node"
-                    }
-                    if ( runShell('grep -n "gfx942" rocminfo.log') ){
-                        mi300_node = 1
-                        echo "This is MI300 node"
+                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
+                        do_perf_tests = 1
+                        echo "Stash profiler and run performance tests"
                     }
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
                         sh 'make -j check'
-                        if (params.RUN_PERFORMANCE_TESTS && navi_node == 0 && mi300_node == 0 ){
+                        if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
-                            //do not stash profiler on Navi or MI300 nodes
+                            //do not stash profiler on nodes where we don't need to run performance tests
                             sh 'tar -zcvf ckProfiler.tar.gz bin/ckProfiler'
                             stash name: "ckProfiler.tar.gz"
                         }
-                        if (params.RUN_FULL_QA && mi300_node == 0 ){
-                            // build deb packages for all MI100/200/300 targets and prepare to export
+                        if (params.RUN_FULL_QA && do_perf_tests == 0 ){
+                            // build deb packages for all gfx9 targets and prepare to export
                             sh 'make -j package'
                             archiveArtifacts artifacts: 'composablekernel-ckprofiler_*.deb'
                             archiveArtifacts artifacts: 'composablekernel-tests_*.deb'
@@ -546,7 +541,7 @@ def Build_CK(Map conf=[:]){
                             stash name: "ckprofiler_0.2.0_amd64.deb"
                         }
                     }
-                    if (params.hipTensor_test && navi_node == 0 ){
+                    if (params.hipTensor_test && do_perf_tests == 0 ){
                         //build and test hipTensor
                         sh """#!/bin/bash
                             rm -rf "${params.hipTensor_branch}".zip
@@ -814,7 +809,7 @@ pipeline {
         {
             parallel
             {
-                stage("Run Codegen Tests on MI200")
+                stage("Run Codegen Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
@@ -865,7 +860,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on MI300")
+                stage("Build CK and run Tests on gfx942")
                 {
                     when {
                         beforeAgent true
@@ -885,7 +880,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on MI200")
+                stage("Build CK and run Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
@@ -925,13 +920,13 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on Navi21")
+                stage("Build CK and run Tests on gfx1030")
                 {
                     when {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
-                    agent{ label rocmnode("navi21") }
+                    agent{ label rocmnode("gfx1030") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1030" -DDL_KERNELS=ON -DCMAKE_CXX_FLAGS=" -O3 " """ 
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
@@ -945,13 +940,13 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on Navi32")
+                stage("Build CK and run Tests on gfx1101")
                 {
                     when {
                         beforeAgent true
                         expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
-                    agent{ label rocmnode("navi32") }
+                    agent{ label rocmnode("gfx1101") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1101" -DDL_KERNELS=ON -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
