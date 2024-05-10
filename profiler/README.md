@@ -13,15 +13,6 @@
 ./bin/ckProfiler      gemm         1       1       1     1    0       5  3840 4096 4096     4096    4096    4096
 ```
 
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
-```bash
-a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
-b_k_n: dim 2, lengths {4096, 4096}, strides {1, 4096}
-c_m_n: dim 2, lengths {3840, 4096}, strides {4096, 1}
-....
-Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
-```
-
 ## Profile 2D forward convolution kernels
 ```bash
 #arg1: tensor operation (conv=Convolution)
@@ -36,15 +27,6 @@ Best Perf: 1.1933 ms, 107.977 TFlops, 79.0848 GB/s
 #arg10 to 24: N, K, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, RightPx
  ################          op datatype  in_layout   wei_layout  out_layout  verify  init  log  repeat  N__ K___ C___ Y X Hi__ Wi__ Strides Dilations LeftPads RightPads
  ./bin/ckProfiler  conv2d_fwd        1          1            1           1       1     1    0       5  128  256  192 3 3   71   71     2 2       1 1      1 1       1 1
-```
-Result (MI100 @ 1087Mhz, 133.5TFlops peak FP16)
-
-```bash
-in_n_c_hi_wi: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
-wei_k_c_y_x: dim 4, lengths {256, 192, 3, 3}, strides {1728, 1, 576, 192}
-out_n_k_ho_wo: dim 4, lengths {128, 256, 36, 36}, strides {331776, 1, 9216, 256}
-....
-Best Perf: 1.42509 ms, 102.988 TFlops, 234.086 GB/s
 ```
 
 ## Profile contraction kernels
@@ -71,16 +53,6 @@ Best Perf: 1.42509 ms, 102.988 TFlops, 234.086 GB/s
 ./bin/ckProfiler contraction_bilinear         0                 0        2      1       0     0    0     1    1.0   1.0 128 128 128 128 128 128
 ```
 
-Result (MI100)
-```bash
-a_m_k: dim 4, lengths {128, 128, 128, 128}, strides {2097152, 16384, 128, 1}
-b_k_n: dim 4, lengths {128, 128, 128, 128}, strides {128, 1, 2097152, 16384}
-d_m_n: dim 4, lengths {128, 128, 128, 128}, strides {2097152, 16384, 128, 1}
-e_m_n: dim 4, lengths {128, 128, 128, 128}, strides {2097152, 16384, 128, 1}
-....
-Best Perf: 211.405 ms, 41.6077 TFlops, 15.2372 GB/s
-```
-
 ## Profile batched gemm multiple D kernels
 ```bash
 #arg1: tensor operation (batched_gemm_multi_d=Batched GEMM multi D);
@@ -99,14 +71,6 @@ Best Perf: 211.405 ms, 41.6077 TFlops, 15.2372 GB/s
 ./bin/ckProfiler batched_gemm_multi_d         0       1       0     0    0     1 4096 4096 4096    4096    4096    4096     16777216     16777216     16777216         16
 ```
 
-Result (Radeon RX 6800 XT)
-```bash
-arg.a_grid_desc_k0_m0_m1_k1_{2048, 4096, 2}
-arg.b_grid_desc_k0_n0_n1_k1_{2048, 4096, 2}
-arg.e_grid_desc_m_n_{ 4096, 4096}
-....
-Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
-```
 ## Profile grouped convolution backward data kernels
 ```bash
 # arg1: tensor operation (grouped_conv_bwd_data: Grouped Convolution Backward Data)
@@ -132,20 +96,6 @@ Best Perf: 58.0306 ms, 37.8942 TFlops, 27.7545 GB/s
  ################                   op   datatype  layout  verify  init  log  time  Ndims  G  N   K   C  Y  X  Hi  Wi  Sy  Sx  Dy  Dx  LeftPy  LeftPx  RightPy  RightPx
 ./bin/ckProfiler grouped_conv_bwd_data          1       0       1     1    0     1      2 32  4 192 192  3  3  28  28   1   1   1   1       1       1        1        1
 
-```
-
-Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
-
-```bash
-out: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
-wei: dim 5, lengths {32, 192, 192, 3, 3}, strides {331776, 1728, 1, 576, 192}
-in: dim 5, lengths {32, 4, 192, 28, 28}, strides {602112, 150528, 1, 5376, 192}
-....
-Best configuration parameters:
-name: DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<256, 128, 256, 32, 8, 2, Default, 32, 32, 2, 4, 8, 4, 1, 1>
-avg_time: 0.768321
-tflops: 86.6679
-GB/s: 127.947
 ```
 
 ## Profile grouped convolution backward weight kernels
@@ -179,19 +129,6 @@ GB/s: 127.947
 
 ```
 
-Result (MI100, FP16, GNHWC_GKYXC_GNHWK)
-
-```bash
-input: dim 5, lengths {32, 512, 1024, 28, 28}, strides {411041792, 802816, 1, 28672, 1024}
-weight: dim 5, lengths {32, 512, 1024, 3, 3}, strides {4718592, 9216, 1, 3072, 1024}
-output: dim 5, lengths {32, 512, 512, 26, 26}, strides {177209344, 346112, 1, 13312, 512}
-....
-Best configuration parameters:
-name: DeviceGroupedConvBwdWeight_Xdl_CShuffle<256, 256, 128, 4, Default, 8, 4, 2, 8, 4, 8, 2, 1, 1, 8>
-avg_time: 68.5216
-tflops: 95.337
-GB/s: 69.2301
-```
 Note: This kernel use atomic add, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
 ## Profile image to column/column to image kernels
@@ -224,17 +161,6 @@ Note: This kernel use atomic add, this will cause output buffer to be accumulate
 
 ```
 
-Result (MI210, FP32, NHWC)
-
-```bash
-input: dim 5, lengths {1, 256, 512, 28, 28}, strides {102760448, 401408, 1, 14336, 512}
-output: dim 2, lengths {173056, 4608}, strides {4608, 1}
-....
-Best configuration parameters:
-name: DeviceImageToColumn<128, 32, 64, 4>
-avg_time: 3.12326
-GB/s: 2042.59
-```
 Note: Column to image kernel adds to the output memory, this will cause output buffer to be accumulated multiple times, causing verification failure. To work around it, do not use CK's own timer and do verification at the same time.
 
 ## Profile Permute scale kernels
@@ -253,13 +179,4 @@ Note: Column to image kernel adds to the output memory, this will cause output b
 
 ################            op datatype  verify  init  log  time  dim0 dim1 dim2 in_stride0 in_stride1 in_stride2 out_stride0 out_stride1 out_stride2
 ./bin/ckProfiler permute_scale        0       1     1    0     1    64   64   64       4096         64          1           1          64        4096
-```
-
-Result (MI100, FP32)
-
-```bash
-A: dim 3, lengths {64, 64, 64}, strides {4096, 64, 1}
-B: dim 3, lengths {64, 64, 64}, strides {1, 64, 4096}
-....
-Best perf = 0.0146878 ms, 142.782 GB/s, DeviceElementwiseNormalizationImpl<3, 2>
 ```

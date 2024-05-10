@@ -673,7 +673,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         }
 
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_navi2_supported() || ck::is_navi3_supported())
+           ck::is_gfx103_supported() || ck::is_gfx11_supported())
         {
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {

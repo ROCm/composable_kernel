@@ -260,7 +260,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt : BlockToCTileMap_M00_N0_M01Adapt<MPerBlo
 };
 
 // Grouped Rows of column-vectors WGP mapping
-// Optimized for MI300-like multipe-die chip
+// Optimized for gfx94x-like multipe-die chip
 
 template <index_t GroupNum, index_t MPerBlock, index_t NPerBlock>
 struct BlockToCTileMap_Grouped_M00_N0_M01Adapt

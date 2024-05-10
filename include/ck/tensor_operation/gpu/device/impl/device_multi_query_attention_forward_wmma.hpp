@@ -594,7 +594,7 @@ struct DeviceMultiQueryAttentionForward_Wmma
 
     static bool IsSupportedArgument(const RawArg& arg)
     {
-        if(ck::is_navi3_supported())
+        if(ck::is_gfx11_supported())
         {
             if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
             {
@@ -950,7 +950,7 @@ struct DeviceMultiQueryAttentionForward_Wmma
 #if 0
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(ck::is_navi3_supported())
+        if(ck::is_gfx11_supported())
         {
             if constexpr(!(is_same_v<Acc0DataType, float> || is_same_v<Acc0DataType, int32_t>))
             {
