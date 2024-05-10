@@ -16,15 +16,3 @@ Following arguments (depending on number of spatial dims):
 ./bin/example_grouped_conv_fwd_bias_relu_add_xdl_fp16 1 1 1
 ```
 
-Result:
-```
-in: dim 5, lengths {1, 128, 192, 71, 71}, strides {192, 967872, 1, 13632, 192}
-wei: dim 5, lengths {1, 256, 192, 3, 3}, strides {442368, 1728, 1, 576, 192}
-bias: dim 5, lengths {1, 128, 256, 36, 36}, strides {256, 0, 1, 0, 0}
-residual: dim 5, lengths {1, 128, 256, 36, 36}, strides {256, 0, 1, 0, 0}
-out: dim 5, lengths {1, 128, 256, 36, 36}, strides {256, 331776, 1, 9216, 256}
-launch_and_time_kernel: grid_dim {1296, 1, 1}, block_dim {256, 1, 1}
-Warm up 1 time
-Start running 10 times...
-Perf: 1.55981 ms, 94.0927 TFlops, 213.868 GB/s, DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 128, 256, 16, Default>
-```

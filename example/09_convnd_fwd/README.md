@@ -16,17 +16,3 @@
 # <right padding>, (ie RightPy, RightPx for 2D)
 ./bin/example_convnd_fwd_xdl 0 1 100
 ```
-
-Result:
-```
-input: dim 4, lengths {128, 192, 71, 71}, strides {967872, 1, 13632, 192}
-weights: dim 4, lengths {256, 192, 3, 3}, strides {1728, 1, 576, 192}
-output: dim 4, lengths {128, 256, 36, 36}, strides {331776, 1, 9216, 256}
-arg.a_grid_desc_k0_m_k1_{432, 165888, 4}
-arg.b_grid_desc_k0_n_k1_{432, 256, 4}
-arg.c_grid_desc_m_n_{ 165888, 256}
-launch_and_time_kernel: grid_dim {1296, 1, 1}, block_dim {256, 1, 1}
-Warm up
-Start running 100 times...
-Perf: 4.43736 ms, 33.0753 TFlops, 150.357 GB/s
-```
