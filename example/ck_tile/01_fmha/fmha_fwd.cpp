@@ -60,12 +60,14 @@ auto create_args(int argc, char* argv[])
         .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
         .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
         .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
-        .insert(
-            "squant",
-            "0",
-            "if using static quantization fusion or not. 0: original flow(not prefered)\n"
-            "1: apply scale_p and scale_o with respect to P and O. calculate scale_s, scale_p,\n"
-            "scale_o according to range_q, range_k, range_v, range_p, range_o")
+        .insert("squant",
+                "auto",
+                "if using static quantization fusion or not. auto: fp8 will default use squant, "
+                "other will not\n"
+                "0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to "
+                "P and O.\n"
+                "calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, "
+                "range_p, range_o")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -121,6 +123,12 @@ template <>
 auto get_elimit<ck_tile::bf16_t>(std::string init_method)
 {
     if(init_method == "ui" || init_method == "ni")
+    {
+        double rtol = 1e-2;
+        double atol = 1e-2;
+        return ck_tile::make_tuple(rtol, atol);
+    }
+    else if(init_method == "nf")
     {
         double rtol = 1e-2;
         double atol = 1e-2;
@@ -185,15 +193,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    bool squant = arg_parser.get_bool("squant");
-    if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
-    {
-        if(squant)
+    std::string squant_str = arg_parser.get_str("squant");
+    bool squant            = [&]() {
+        if(squant_str == "auto")
         {
-            std::cerr << "static quantization only support fp8 for now" << std::endl;
-            return false;
+            if(data_type == "fp8")
+                return true;
+            else
+                return false;
         }
-    }
+        else
+            return atoi(squant_str.c_str()) != 0 ? true : false;
+    }();
 
     float range_q = arg_parser.get_float("range_q");
     float range_k = arg_parser.get_float("range_k");
@@ -324,17 +335,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(init_method == "ui" || init_method == "0")
     {
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
-        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
     }
     else if(init_method == "ni")
     {
-        ck_tile::FillNormalDistributionIntegerValue<QDataType>{0.f, 1.f, seed}(q_host);
-        ck_tile::FillNormalDistributionIntegerValue<KDataType>{0.f, 1.f, seed}(k_host);
-        ck_tile::FillNormalDistributionIntegerValue<VDataType>{0.f, 1.f, seed}(v_host);
-        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{0.f, 1.f, seed}(bias_host);
+        ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
+        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
     }
     else if(init_method == "uf" || init_method == "1")
     {
