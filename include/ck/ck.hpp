@@ -236,7 +236,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #ifndef CK_WORKAROUND_DENORM_FIX
 #define CK_WORKAROUND_DENORM_FIX 0
 #else
-// enable only on MI200
+// enable only for gfx90a
 #define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
 #endif // CK_WORKAROUND_DENORM_FIX
 
