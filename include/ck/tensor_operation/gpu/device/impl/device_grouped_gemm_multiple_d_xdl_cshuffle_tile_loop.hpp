@@ -375,7 +375,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                  std::vector<const void*>& /* p_Bs */,
                  std::vector<std::array<const void*, NumDTensor>>& /* p_Ds */,
                  std::vector<void*>& /* p_Es */,
-                 std::vector<GemmDesc>& gemm_descs,
+                 const std::vector<GemmDesc>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CDEElementwiseOperation cde_element_op,
@@ -643,7 +643,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                              std::vector<const void*>& p_Bs,
                              std::vector<std::array<const void*, NumDTensor>>& p_Ds,
                              std::vector<void*>& p_Es,
-                             std::vector<GemmDesc> gemm_descs,
+                             std::vector<GemmDesc>& gemm_descs,
                              AElementwiseOperation a_elementwise_op,
                              BElementwiseOperation b_elementwise_op,
                              CDEElementwiseOperation cde_elementwise_op)
