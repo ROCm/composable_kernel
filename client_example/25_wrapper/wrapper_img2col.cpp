@@ -181,4 +181,3 @@ int main(int argc, char* argv[])
                              {1, 1, 1} /*filter_dilations*/);
     return 0;
 }
-// MI100 Perf:   0.255178 ms, 1698.9 GB/s,
