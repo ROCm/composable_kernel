@@ -44,9 +44,9 @@ args:
     -range_v    per-tensor quantization range of v. used if squant=1. (default:16)
     -range_p    per-tensor quantization range of p [e^(s-m)]. used if squant=1. (default:1)
     -range_o    per-tensor quantization range of o (p*v). used if squant=1. (default:16)
-     -squant    if using static quantization fusion or not. 0: original flow(not prefered) (default:0)
-                 1: apply scale_p and scale_o with respect to P and O. calculate scale_s, scale_p,
-                 scale_o according to range_q, range_k, range_v, range_p, range_o
+     -squant    if using static quantization fusion or not. auto: fp8 will default use squant, other will not (default:auto)
+                 0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to P and O.
+                 calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, range_p, range_o
       -iperm    permute input (default:1)
                  if true, will be b*h*s*d, else b*s*h*d
       -operm    permute output (default:1)
@@ -64,8 +64,11 @@ args:
     -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
         -lse    0 not store lse, 1 store lse (default:0)
       -kname    if set to 1 will print kernel name (default:0)
-       -init    init method. 0:random int, 1:random float, 2:trig float, 3:quantization (default:1)
+       -init    init method. ui, uniform random int, ni, normalized random int (default:uf)
+                 uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, quantization
        -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
+     -warmup    number of iterations before benchmark the kernel (default:5)
+     -repeat    number of iterations to benchmark the kernel (default:20)
 ```
 Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 
