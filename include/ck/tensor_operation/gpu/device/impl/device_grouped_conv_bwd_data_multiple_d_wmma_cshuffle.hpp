@@ -629,7 +629,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
     static bool IsSupportedArgument(const Argument& arg)
     {
         // check device
-        if(ck::is_navi3_supported() || ck::is_navi4_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

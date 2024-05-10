@@ -553,7 +553,7 @@ struct DeviceGemmMultipleD_Dl : public DeviceGemmMultipleD<ALayout,
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_navi2_supported() || ck::is_navi3_supported() || ck::is_navi4_supported())
+           ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             return GridwiseGemm::CheckValidity(
                 arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.e_grid_desc_m_n_);

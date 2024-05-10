@@ -554,24 +554,29 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
-#if DEBUG_LOG
-                std::cout << "group: " << i << " arg.a_grid_desc_k0_m_k1_{"
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I1) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I2) << "}"
-                          << std::endl;
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "group: " << i << " arg.a_grid_desc_k0_m_k1_{"
+                              << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I0)
+                              << ", "
+                              << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I1)
+                              << ", "
+                              << arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_.GetLength(I2)
+                              << "}" << std::endl;
 
-                std::cout << ", arg.b_grid_desc_k0_n_k1_{"
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_.GetLength(I1) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_.GetLength(I2) << "}"
-                          << std::endl;
+                    std::cout << ", arg.b_grid_desc_k0_n_k1_{"
+                              << arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_.GetLength(I0)
+                              << ", "
+                              << arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_.GetLength(I1)
+                              << ", "
+                              << arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_.GetLength(I2)
+                              << "}" << std::endl;
 
-                std::cout << ", arg.e_grid_desc_m_n_{ "
-                          << arg.gemm_desc_kernel_arg_[i].e_grid_desc_m_n_.GetLength(I0) << ", "
-                          << arg.gemm_desc_kernel_arg_[i].e_grid_desc_m_n_.GetLength(I1) << "}"
-                          << std::endl;
-#endif
+                    std::cout << ", arg.e_grid_desc_m_n_{ "
+                              << arg.gemm_desc_kernel_arg_[i].e_grid_desc_m_n_.GetLength(I0) << ", "
+                              << arg.gemm_desc_kernel_arg_[i].e_grid_desc_m_n_.GetLength(I1) << "}"
+                              << std::endl;
+                }
 
                 if(!GridwiseGemm::CheckValidity(arg.gemm_desc_kernel_arg_[i].a_grid_desc_k0_m_k1_,
                                                 arg.gemm_desc_kernel_arg_[i].b_grid_desc_k0_n_k1_,
@@ -669,7 +674,7 @@ struct DeviceGroupedGemmMultipleD_Dl : public DeviceGroupedGemm<ALayout,
         }
 
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_navi2_supported() || ck::is_navi3_supported() || ck::is_navi4_supported())
+           ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
             {
