@@ -91,7 +91,7 @@ struct fmha_fwd_args
     const void* q_ptr;
     const void* k_ptr;
     const void* v_ptr;
-    const void* bias_ptr;  // bias or alibi_slope pointer
+    const void* bias_ptr; // bias or alibi_slope pointer
     void* rand_val_ptr;
     void* lse_ptr;
     void* o_ptr;

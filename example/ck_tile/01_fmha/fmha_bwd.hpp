@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "mask.hpp"
+#include "bias.hpp"
 #include <type_traits>
 
 template <typename DataType>
@@ -291,7 +292,7 @@ template <ck_tile::index_t HDim_,
           bool kIsGroupMode_,
           ck_tile::BlockFmhaBwdPipelineEnum FmhaBwdPipelineEnum_,
           typename FmhaMask_,
-          bool kHasBias_,
+          ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
           bool kHasDropout_,
           bool kPadS_,
@@ -305,7 +306,7 @@ struct fmha_bwd_dq_dk_dv_traits_
     static constexpr bool kIsGroupMode        = kIsGroupMode_;
     static constexpr auto FmhaBwdPipelineEnum = FmhaBwdPipelineEnum_;
     using FmhaMask                            = ck_tile::remove_cvref_t<FmhaMask_>;
-    static constexpr bool kHasBias            = kHasBias_;
+    static constexpr auto BiasEnum            = BiasEnum_;
     static constexpr bool kHasBiasGrad        = kHasBiasGrad_;
     static constexpr bool kHasDropout         = kHasDropout_;
     static constexpr bool kPadS               = kPadS_;
@@ -338,7 +339,7 @@ struct fmha_bwd_traits
     std::string data_type;
     bool is_group_mode;
     mask_enum mask_type;
-    bool has_bias;
+    bias_enum bias_type;
     bool has_dbias;
     bool has_dropout;
     // TODO: padding check is inside this api

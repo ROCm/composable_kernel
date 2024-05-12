@@ -57,7 +57,11 @@ auto create_args(int argc, char* argv[])
                 "permute input\n"
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "1", "permute output")
-        .insert("bias", "0", "add bias or not")
+        .insert("bias",
+                "n",
+                "n or 0, no bias\n"
+                "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
+                "a(libi) or 2, alibi with 1*h. a:1, b*h")
         .insert("dbias", "0", "output bias gradient or not")
         .insert("prec", "fp16", "data type. fp16 or bf16")
         .insert("mask",
@@ -136,12 +140,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(scale == .0f)
         scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
 
-    bool use_bias        = arg_parser.get_bool("bias");
+    bias_info bias       = bias_info::decode(arg_parser.get_str("bias"));
     bool use_dbias       = arg_parser.get_bool("dbias");
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
-    if(use_dbias && !use_bias)
+    if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
         std::cerr << "dbias only exists when there is a bias" << std::endl;
         return false;
@@ -266,7 +270,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // use bias shape = [1, 1, shape_seqlen_q, max_seqlen_k]. if use_bias=false, the bias_host
     // will not be used for verification at all (but will be copied to device anyway).
     ck_tile::HostTensor<BiasDataType> bias_host(
-        use_bias
+        bias.type == bias_enum::elementwise_bias
             ? get_lengths(i_perm, 1, 1, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<ODataType> o_host(
@@ -354,7 +358,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
-              << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << use_bias
+              << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale << ", bias:" << bias
               << ", dbias:" << use_dbias << ", p_drop:" << p_drop << ", mask:" << mask
               << std::flush;
 
@@ -363,7 +367,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        data_type,
                                        mode == mode_enum::group,
                                        mask.type,
-                                       use_bias,
+                                       bias.type,
                                        use_dbias,
                                        p_drop > 0.0f};
     auto fmha_args   = [&]() {
@@ -556,7 +560,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::identity{},
             ck_tile::scales(scale)); // s_g_m_n = scale * q_g_m_k@k_g_n_k
 
-        if(use_bias)
+        if(bias.type == bias_enum::elementwise_bias)
         {
             // clang-format off
             ck_tile::HostTensor<BiasDataType> bias_host_ref({1, real_seqlen_q, real_seqlen_k});

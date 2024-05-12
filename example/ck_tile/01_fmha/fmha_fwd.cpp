@@ -204,7 +204,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // scale_p = [max(fp8_t)/range_o] * [range_p/max(fp8_t)] * [range_v/max(fp8_t)]
         scale_o = range_p * range_v / range_o / dtype_max;
     }
-   
+
     std::string vlayout = arg_parser.get_str("vlayout");
     bool lse            = arg_parser.get_bool("lse");
 
@@ -424,8 +424,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
               << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
-              << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout
-              << std::flush;
+              << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
+              << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,

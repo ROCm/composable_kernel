@@ -644,7 +644,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeBias()
     {
         constexpr index_t smem_size_bias = [&]() {
-            if constexpr(Problem::kHasBias)
+            if constexpr(Problem::BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 return sizeof(typename Problem::BiasDataType) *
                        MakeBiasTLdsBlockDescriptor<Problem>().get_element_space_size();
             else

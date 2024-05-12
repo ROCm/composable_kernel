@@ -58,7 +58,7 @@ struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr bool kHasBias     = Problem::kHasBias;
+    static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad = Problem::kHasBiasGrad;
     static constexpr bool kHasDropout  = Problem::kHasDropout;
 
@@ -372,13 +372,13 @@ struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
             clear_tile(st_acc);                     // Initialize S^T
             store_tile(q_lds_window, q_block_tile); // LDS write
 
-            if constexpr(kHasBias)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
             }
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
-            if constexpr(kHasBias)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
@@ -413,7 +413,7 @@ struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
             }
 
             // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
-            if constexpr(kHasBias)
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 block_sync_lds();
                 auto bias_shuffle_tmp = make_static_distributed_tensor<BiasDataType>(
@@ -461,7 +461,8 @@ struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
             const auto lse = load_tile(lse_dram_window);
 
             static const auto get_validated_lse = [](LSEDataType raw_lse) {
-                if constexpr(kHasBias || FmhaMask::IsMasking)
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                             FmhaMask::IsMasking)
                 {
                     return raw_lse == -numeric<LSEDataType>::infinity()
                                ? type_convert<LSEDataType>(0.f)
@@ -483,7 +484,7 @@ struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
                 sweep_tile_span(pt_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                    if constexpr(kHasBias)
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     {
                         pt(i_j_idx) = exp2(st_acc[i_j_idx] - row_lse);
                     }

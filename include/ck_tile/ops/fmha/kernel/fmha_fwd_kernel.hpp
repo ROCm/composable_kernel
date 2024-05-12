@@ -34,8 +34,8 @@ struct FmhaFwdKernel
     using BiasDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::BiasDataType>;
     using RandValOutputDataType =
         ck_tile::remove_cvref_t<typename FmhaPipeline::RandValOutputDataType>;
-    using LSEDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
-    using ODataType   = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
+    using LSEDataType  = ck_tile::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
+    using ODataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
     using SaccDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::SaccDataType>;
 
     using VLayout = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;

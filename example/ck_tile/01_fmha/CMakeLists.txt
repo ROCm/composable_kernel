@@ -67,3 +67,9 @@ list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
 
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 target_compile_options(${EXAMPLE_FMHA_BWD} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})
+
+# TODO: we have to turn off this global prop, otherwise the progress bar generated
+# by cmake will print too many files, execvp: /bin/sh: Argument list too long
+# however, this property may affect global
+# TODO: consider codegen a makefile by us
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)
