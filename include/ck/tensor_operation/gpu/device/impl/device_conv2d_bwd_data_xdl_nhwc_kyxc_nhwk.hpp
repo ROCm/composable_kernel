@@ -516,26 +516,27 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
             {
-#if DEBUG_LOG
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
                 {
-                    std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
-                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
-                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
-                              << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2) << "}"
-                              << std::endl;
+                    {
+                        std::cout << "arg.a_grid_desc_k0_m_k1_container_{"
+                                  << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I0) << ", "
+                                  << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I1) << ", "
+                                  << arg.a_grid_desc_k0_m_k1_container_[i].GetLength(I2) << "}"
+                                  << std::endl;
 
-                    std::cout << "arg.b_grid_desc_k0_n_k1_container_{"
-                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I0) << ", "
-                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I1) << ", "
-                              << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
-                              << std::endl;
+                        std::cout << "arg.b_grid_desc_k0_n_k1_container_{"
+                                  << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I0) << ", "
+                                  << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I1) << ", "
+                                  << arg.b_grid_desc_k0_n_k1_container_[i].GetLength(I2) << "}"
+                                  << std::endl;
 
-                    std::cout << "arg.c_grid_desc_m_n_container_{ "
-                              << arg.c_grid_desc_m_n_container_[i].GetLength(I0) << ", "
-                              << arg.c_grid_desc_m_n_container_[i].GetLength(I1) << "}"
-                              << std::endl;
+                        std::cout << "arg.c_grid_desc_m_n_container_{ "
+                                  << arg.c_grid_desc_m_n_container_[i].GetLength(I0) << ", "
+                                  << arg.c_grid_desc_m_n_container_[i].GetLength(I1) << "}"
+                                  << std::endl;
+                    }
                 }
-#endif
 
                 if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
                                                 arg.b_grid_desc_k0_n_k1_container_[i],

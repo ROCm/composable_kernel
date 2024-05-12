@@ -73,9 +73,11 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
     std::vector<Tensor<BDataType>> b_k_n;
     std::vector<Tensor<CDataType>> c_m_n_host_results;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
+    int sum_of_m = 0;
 
     for(std::size_t i = 0; i < group_count; i++)
     {
+        sum_of_m += Ms[i];
         a_m_k.push_back(
             Tensor<ADataType>(f_host_tensor_descriptor(Ms[i], Ks[i], StrideAs[i], ALayout{})));
         b_k_n.push_back(
@@ -86,11 +88,12 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
 
         c_m_n_host_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-#if DEBUG_LOG
-        std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n[" << i
-                  << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
-                  << "]:" << c_m_n_device_results[i].mDesc << std::endl;
-#endif // DEBUG_LOG
+        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
+                      << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
+                      << "]:" << c_m_n_device_results[i].mDesc << std::endl;
+        }
         std::size_t num_thread = 1;
         switch(init_method)
         {
@@ -146,7 +149,7 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
         a_device_buf[i]->ToDevice(a_m_k[i].mData.data());
         b_device_buf[i]->ToDevice(b_k_n[i].mData.data());
 
-        gemm_descs.push_back({Ms[i], Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i], {}});
+        gemm_descs.push_back({sum_of_m, Ns[i], Ks[i], StrideAs[i], StrideBs[i], StrideCs[i], {}});
 
         p_a.push_back(a_device_buf[i]->GetDeviceBuffer());
         p_b.push_back(b_device_buf[i]->GetDeviceBuffer());

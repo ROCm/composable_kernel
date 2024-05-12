@@ -60,12 +60,14 @@ auto create_args(int argc, char* argv[])
         .insert("range_v", "16", "per-tensor quantization range of v. used if squant=1.")
         .insert("range_p", "1", "per-tensor quantization range of p [e^(s-m)]. used if squant=1.")
         .insert("range_o", "16", "per-tensor quantization range of o (p*v). used if squant=1.")
-        .insert(
-            "squant",
-            "0",
-            "if using static quantization fusion or not. 0: original flow(not prefered)\n"
-            "1: apply scale_p and scale_o with respect to P and O. calculate scale_s, scale_p,\n"
-            "scale_o according to range_q, range_k, range_v, range_p, range_o")
+        .insert("squant",
+                "auto",
+                "if using static quantization fusion or not. auto: fp8 will default use squant, "
+                "other will not\n"
+                "0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to "
+                "P and O.\n"
+                "calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, "
+                "range_p, range_o")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -92,8 +94,11 @@ auto create_args(int argc, char* argv[])
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
-        .insert(
-            "init", "1", "init method. 0:random int, 1:random float, 2:trig float, 3:quantization")
+        .insert("init",
+                "uf",
+                "init method. ui, uniform random int, ni, normalized random int\n"
+                "uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, "
+                "quantization")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -110,7 +115,7 @@ auto create_args(int argc, char* argv[])
 
 // different threshold for different dtype
 template <typename DataType>
-auto get_elimit(int /*init_method*/)
+auto get_elimit(std::string /*init_method*/)
 {
     double rtol = 1e-3;
     double atol = 1e-3;
@@ -118,17 +123,32 @@ auto get_elimit(int /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::bf16_t>(int /*init_method*/)
+auto get_elimit<ck_tile::bf16_t>(std::string init_method)
 {
-    double rtol = 1e-2;
-    double atol = 1e-2;
-    return ck_tile::make_tuple(rtol, atol);
+    if(init_method == "ui" || init_method == "ni")
+    {
+        double rtol = 1e-2;
+        double atol = 1e-2;
+        return ck_tile::make_tuple(rtol, atol);
+    }
+    else if(init_method == "nf")
+    {
+        double rtol = 1e-2;
+        double atol = 1e-2;
+        return ck_tile::make_tuple(rtol, atol);
+    }
+    else
+    {
+        double rtol = 3e-3;
+        double atol = 3e-3;
+        return ck_tile::make_tuple(rtol, atol);
+    }
 }
 
 template <>
-auto get_elimit<ck_tile::fp8_t>(int init_method)
+auto get_elimit<ck_tile::fp8_t>(std::string init_method)
 {
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "ni")
     {
         unsigned max_rounding_point_distance = 0;
         double atol                          = 2e-3;
@@ -176,15 +196,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(scale_s == .0f)
         scale_s = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q)); // TODO: q ? v ?
 
-    bool squant = arg_parser.get_bool("squant");
-    if constexpr(!std::is_same_v<DataType, ck_tile::fp8_t>)
-    {
-        if(squant)
+    std::string squant_str = arg_parser.get_str("squant");
+    bool squant            = [&]() {
+        if(squant_str == "auto")
         {
-            std::cerr << "static quantization only support fp8 for now" << std::endl;
-            return false;
+            if(data_type == "fp8")
+                return true;
+            else
+                return false;
         }
-    }
+        else
+            return atoi(squant_str.c_str()) != 0 ? true : false;
+    }();
 
     float range_q = arg_parser.get_float("range_q");
     float range_k = arg_parser.get_float("range_k");
@@ -226,7 +249,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         s_randval = true;
     }
 
-    int init_method              = arg_parser.get_int("init");
+    std::string init_method      = arg_parser.get_str("init");
     std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
     if(*seed == 0)
     {
@@ -339,28 +362,43 @@ bool run(const ck_tile::ArgParser& arg_parser)
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
-    if(init_method == 0)
+    if(init_method == "ui" || init_method == "0")
     {
-        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
-        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-2.f, 2.f, seed}(k_host);
-        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-2.f, 2.f, seed}(v_host);
-        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-2.f, 2.f, seed}(bias_host);
+        ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
+        ck_tile::FillUniformDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
+        ck_tile::FillUniformDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
+        ck_tile::FillUniformDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
     }
-    else if(init_method == 1)
+    else if(init_method == "ni")
+    {
+        ck_tile::FillNormalDistributionIntegerValue<QDataType>{-3.f, 3.f, seed}(q_host);
+        ck_tile::FillNormalDistributionIntegerValue<KDataType>{-3.f, 3.f, seed}(k_host);
+        ck_tile::FillNormalDistributionIntegerValue<VDataType>{-3.f, 3.f, seed}(v_host);
+        ck_tile::FillNormalDistributionIntegerValue<BiasDataType>{-3.f, 3.f, seed}(bias_host);
+    }
+    else if(init_method == "uf" || init_method == "1")
     {
         ck_tile::FillUniformDistribution<QDataType>{0.f, 1.f, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
         ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
     }
-    else if(init_method == 2)
+    else if(init_method == "nf")
+    {
+        ck_tile::FillNormalDistribution<QDataType>{0.f, 3.f, seed}(q_host);
+        ck_tile::FillNormalDistribution<KDataType>{0.f, 3.f, seed}(k_host);
+        ck_tile::FillNormalDistribution<VDataType>{0.f, 3.f, seed}(v_host);
+        ck_tile::FillNormalDistribution<BiasDataType>{0.f, 3.f, seed}(bias_host);
+    }
+    else if(init_method == "tf" || init_method == "2")
     {
         ck_tile::FillTrigValue<QDataType>{}(q_host);
         ck_tile::FillTrigValue<KDataType>{}(k_host);
         ck_tile::FillTrigValue<VDataType>{}(v_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
     }
-    else if(init_method == 3) // suitable for fp8 quantization
+    else if(init_method == "ufq" || init_method == "uf:q" ||
+            init_method == "3") // suitable for fp8 quantization
     {
         ck_tile::FillUniformDistribution<QDataType>{-dtype_max, dtype_max, seed}(q_host);
         ck_tile::FillUniformDistribution<KDataType>{-dtype_max, dtype_max, seed}(k_host);
