@@ -23,9 +23,7 @@ std::vector<rtc::src_file> get_headers_for_test()
     auto hs = ck::host::GetHeaders();
     std::transform(
         hs.begin(), hs.end(), std::back_inserter(result), [&](const auto& p) -> rtc::src_file {
-            auto s = p.second;
-            std::string content{s.first, s.second};
-            return {p.first, content};
+            return {p.first, p.second};
         });
     return result;
 }

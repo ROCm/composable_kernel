@@ -11,7 +11,7 @@
 namespace ck {
 namespace host {
 
-std::unordered_map<std::string, std::pair<const char*, const char*>> GetHeaders();
+std::unordered_map<std::string_view, std::string_view> GetHeaders();
 
 } // namespace host
 } // namespace ck
