@@ -50,12 +50,14 @@ void write_buffer(const std::string& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }
-void write_string(const std::string& filename, const std::string_view& buffer)
+void write_string(const std::string& filename, const std::string& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }
 
 std::string compiler() { return "/opt/rocm/llvm/bin/clang++ -x hip --cuda-device-only"; }
+// TODO: undo after extracting the codeobj
+// std::string compiler() { return "/opt/rocm/llvm/bin/clang++ -x hip"; }
 
 kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options)
 {
@@ -84,11 +86,18 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
     td.execute(compiler() + options.flags);
 
     auto out_path = td.path / out;
+    std::cout << "Path: " << out_path << std::endl;
     if(not std::filesystem::exists(out_path))
         throw std::runtime_error("Output file missing: " + out);
 
     auto obj = read_buffer(out_path.string());
 
+    std::ofstream ofh("obj.o", std::ios::binary);
+    for(auto i : obj)
+        ofh << i;
+    ofh.close();
+    // int s = std::system(("/usr/bin/cp " + out_path.string() + " codeobj.bin").c_str());
+    // assert(s == 0);
     return kernel{obj.data(), options.kernel_name};
 }
 

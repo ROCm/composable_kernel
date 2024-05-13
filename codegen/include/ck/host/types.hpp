@@ -42,14 +42,25 @@ enum class DataType
 };
 
 std::string ToString(DataType dt);
+auto ToType(DataType dt);
 
 enum class Layout
 {
     Row,
-    Column
+    Column,
+    GNCHW,
+    GNKHW,
+    GKCYX,
+    GKYXC,
+    GNHWK,
+    GNHWC,
+    NHWGC,
+    NHWGK
 };
 
 std::string ToString(Layout dl);
+auto ToLayout(Layout dl);
+Layout ToLayout(bool Trans);
 
 enum class GemmType
 {
@@ -57,6 +68,7 @@ enum class GemmType
 };
 
 std::string ToString(GemmType gt);
+auto ToGemm(GemmType gt);
 
 struct TensorDesc
 {

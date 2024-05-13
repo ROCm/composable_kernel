@@ -16,11 +16,14 @@ std::string Problem::GetIncludeHeader() const
     return "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp";
 }
 
-std::vector<Solution> Problem::GetSolutions(const std::string& arch) const
+std::vector<Solution> Problem::GetSolutions(const std::string& arch,
+                                            const std::string& prologue,
+                                            const std::string& epilogue) const
 {
     if(get_xdlop_archs().count(arch) == 0)
         return {};
-    auto ops = ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle::CreateOperations(*this);
+    auto ops = ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle::CreateOperations(
+        *this, prologue, epilogue);
     std::vector<Solution> result;
     std::transform(ops.begin(), ops.end(), std::back_inserter(result), [&](const auto& op) {
         return op.ToSolution();

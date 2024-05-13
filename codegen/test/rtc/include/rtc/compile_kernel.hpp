@@ -10,7 +10,7 @@ namespace rtc {
 struct src_file
 {
     std::filesystem::path path;
-    std::string_view content;
+    std::string content;
 };
 
 struct compile_options

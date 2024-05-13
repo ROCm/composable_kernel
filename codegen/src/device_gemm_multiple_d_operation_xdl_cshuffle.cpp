@@ -30,9 +30,36 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
+// function to update prologue/epilogue with user provided operation
+void Operation_Xdl_CShuffle::update_prologue(const std::string& prologue)
+{
+    if(!prologue.empty())
+    {
+        this->prologue    = prologue;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->prologue = "";
+    }
+}
+
+void Operation_Xdl_CShuffle::update_epilogue(const std::string& epilogue)
+{
+    if(!epilogue.empty())
+    {
+        this->epilogue    = epilogue;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->epilogue = "";
+    }
+}
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
+    const Problem& prob, const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Operation_Xdl_CShuffle> result;
 
@@ -188,12 +215,15 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
                                             x.tile_desc.m_per_block,
                                             x.tile_desc.n_per_block,
                                             x.tile_desc.k_per_block);
+        x.update_prologue(prologue);
+        x.update_epilogue(epilogue);
         result.push_back(x);
     }
     return result;
 }
 
-std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateOperations()
+std::vector<std::vector<Operation_Xdl_CShuffle>>
+Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Problem> problems;
     for(bool TransA : {true, false})
@@ -204,7 +234,8 @@ std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateO
             prob.TransB = TransB;
             problems.push_back(prob);
         }
-    return Transform(problems, [](const Problem& p) { return CreateOperations(p); });
+    return Transform(problems,
+                     [&](const Problem& p) { return CreateOperations(p, prologue, epilogue); });
 }
 
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
@@ -227,6 +258,16 @@ static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
+        {"name",
+         std::to_string(this->tile_desc.block_size) + "_" +
+             std::to_string(this->tile_desc.m_per_block) + "_" +
+             std::to_string(this->tile_desc.n_per_block) + "_" +
+             std::to_string(this->tile_desc.k_per_block) + "_" +
+             std::to_string(this->tile_desc.ak1) + "_" + std::to_string(this->tile_desc.bk1) + "_" +
+             std::to_string(this->tile_desc.m_per_XDL) + "_" +
+             std::to_string(this->tile_desc.n_per_XDL) + "_" +
+             std::to_string(this->tile_desc.m_Xdl_per_wave) + "_" +
+             std::to_string(this->tile_desc.n_Xdl_per_wave)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",

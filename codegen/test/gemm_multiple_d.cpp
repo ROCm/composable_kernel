@@ -10,6 +10,7 @@
 #include <test.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
+#include <fstream>
 
 using half = _Float16;
 // using half = __fp16;
@@ -20,7 +21,9 @@ std::vector<rtc::src_file> get_headers_for_test()
     auto hs = ck::host::GetHeaders();
     std::transform(
         hs.begin(), hs.end(), std::back_inserter(result), [&](const auto& p) -> rtc::src_file {
-            return {p.first, p.second};
+            auto s = p.second;
+            std::string content{s.first, s.second};
+            return {p.first, content};
         });
     return result;
 }
@@ -159,14 +162,22 @@ TEST_CASE(test_problem_kernel)
     auto b = to_gpu(generate_buffer<half>(1024 * 1024, 1));
     auto c = to_gpu(generate_buffer<half>(1024 * 1024, 2));
 
-    for(auto solution : prob.GetSolutions("gfx90a"))
+    std::string epilogue = "";
+    std::string prologue = "";
+
+    for(auto solution : prob.GetSolutions("gfx90a", prologue, epilogue))
     {
-        auto src  = ck::host::InterpolateString(gemm_compile_check,
+        auto src = ck::host::InterpolateString(gemm_compile_check,
                                                {{"include", prob.GetIncludeHeader()},
                                                 {"template", solution.ToTemplateString()},
                                                 {"m", std::to_string(prob.M)},
                                                 {"n", std::to_string(prob.N)},
                                                 {"k", std::to_string(prob.K)}});
+        std::ofstream ofh("kernel.txt");
+        ofh << "##########################################################\n";
+        ofh << src;
+        ofh << "##########################################################\n";
+        ofh.close();
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
@@ -178,6 +189,7 @@ TEST_CASE(test_problem_kernel)
         auto grid_size      = ck::host::integer_divide_ceil(prob.M, m_per_block) *
                          ck::host::integer_divide_ceil(prob.N, n_per_block);
         k.launch(nullptr, grid_size * block_size, block_size)(a.data(), b.data(), c.data());
+
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }

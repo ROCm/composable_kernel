@@ -29,12 +29,22 @@ std::string ToString(DataType dt)
     throw std::runtime_error("Incorrect data type");
 }
 
+Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
+
 std::string ToString(Layout dl)
 {
     switch(dl)
     {
     case Layout::Row: return "ck::tensor_layout::gemm::RowMajor";
     case Layout::Column: return "ck::tensor_layout::gemm::ColumnMajor";
+    case Layout::GNCHW: return "ck::tensor_layout::convolution::GNCHW";
+    case Layout::GNKHW: return "ck::tensor_layout::convolution::GNKHW";
+    case Layout::GKCYX: return "ck::tensor_layout::convolution::GKCYX";
+    case Layout::GKYXC: return "ck::tensor_layout::convolution::GKYXC";
+    case Layout::GNHWK: return "ck::tensor_layout::convolution::GNHWK";
+    case Layout::GNHWC: return "ck::tensor_layout::convolution::GNHWC";
+    case Layout::NHWGC: return "ck::tensor_layout::convolution::NHWGC";
+    case Layout::NHWGK: return "ck::tensor_layout::convolution::NHWGK";
     }
     throw std::runtime_error("Incorrect layout");
 }
