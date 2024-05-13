@@ -84,7 +84,7 @@ __global__ void
             EDataType* __restrict__ p_e_grid,
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
+            CDEElementwiseOperation cde_element_op,
             const index_t batch_count,
             const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
@@ -212,13 +212,13 @@ using is_tuple = decltype(std::declval<T&>().IsTuple());
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
-          typename DsLayout,
+          typename DsLayout_,
           typename ELayout,
           typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CShuffleDataType,
-          typename DsDataType,
+          typename DsDataType_,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
@@ -266,11 +266,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
                                              BLayout,
-                                             DsLayout,
+                                             DsLayout_,
                                              ELayout,
                                              ADataType,
                                              BDataType,
-                                             DsDataType,
+                                             DsDataType_,
                                              EDataType,
                                              AElementwiseOperation,
                                              BElementwiseOperation,
@@ -282,6 +282,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
+
+    using DsLayout =
+        std::conditional_t<is_same_v<ck::remove_cvref_t<decltype(DsLayout_{}[ck::Number<0>{}])>,
+                                     ck::tensor_layout::convolution::Scalar>,
+                           ck::Tuple<>,
+                           DsLayout_>;
+    using DsDataType =
+        std::conditional_t<is_same_v<ck::remove_cvref_t<decltype(DsLayout_{}[ck::Number<0>{}])>,
+                                     ck::tensor_layout::convolution::Scalar>,
+                           ck::Tuple<>,
+                           DsDataType_>;
 
     static constexpr index_t NumATensor = GetNumABTensors<isMultiA, ADataType>();
     static constexpr index_t NumBTensor = GetNumABTensors<isMultiB, BDataType>();
@@ -462,7 +473,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                  const std::array<index_t, NDimSpatial>& input_right_pads,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+                 CDEElementwiseOperation& cde_element_op)
             : p_as_grid_{},
               p_bs_grid_{},
               p_ds_grid_{},
@@ -697,6 +708,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             auto launch_kernel = [&](auto has_main_k_block_loop) {
                 constexpr bool has_main_loop = has_main_k_block_loop.value;
+
+                if constexpr(is_same_v<ck::remove_cvref_t<decltype(DsLayout{}[ck::Number<0>{}])>,
+                                       ck::tensor_layout::convolution::Scalar>)
+                {
+                    arg.cde_element_op_.SetScales(
+                        arg.p_ds_grid_[0], arg.p_ds_grid_[1], arg.p_ds_grid_[2]);
+                }
 
                 if constexpr(isMultiA || isMultiB)
                 {
@@ -1028,7 +1046,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op)
+        CDEElementwiseOperation& cde_element_op)
     {
         return Argument{p_as,
                         p_bs,
@@ -1072,7 +1090,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) override
+        CDEElementwiseOperation& cde_element_op) override
     {
         return std::make_unique<Argument>(p_a,
                                           p_b,

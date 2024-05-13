@@ -124,7 +124,7 @@ struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const AElementwiseOperation& a_element_op,
         const BElementwiseOperation& b_element_op,
-        const CDEElementwiseOperation& cde_element_op) = 0;
+        CDEElementwiseOperation& cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
