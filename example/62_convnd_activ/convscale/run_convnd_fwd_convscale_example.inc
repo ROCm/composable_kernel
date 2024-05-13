@@ -47,12 +47,13 @@ bool run_convnd_fwd_example(int argc, char* argv[])
                          auto out_layout) {
         constexpr ck::index_t ndim_spatial_value = ndim_spatial.value;
 
-        using InLayout  = decltype(in_layout);
-        using WeiLayout = decltype(wei_layout);
-        using D0Layout  = decltype(d0_layout);
-        using D1Layout  = decltype(d1_layout);
-        using D2Layout  = decltype(d2_layout);
-        using OutLayout = decltype(out_layout);
+        using InLayout     = decltype(in_layout);
+        using WeiLayout    = decltype(wei_layout);
+        using D0Layout     = decltype(d0_layout);
+        using D1Layout     = decltype(d1_layout);
+        using D2Layout     = decltype(d2_layout);
+        using ScalesLayout = ck::Tuple<D0Layout, D1Layout, D2Layout>;
+        using OutLayout    = decltype(out_layout);
 
         const auto in_g_n_c_wis_desc =
             ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(
@@ -62,42 +63,42 @@ bool run_convnd_fwd_example(int argc, char* argv[])
             ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
                 conv_param);
 
-        const auto d0_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<D0Layout>(
-                conv_param);
+        const auto d0_desc = HostTensorDescriptor({1}, {0});
 
-        const auto d1_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<D1Layout>(
-                conv_param);
+        const auto d1_desc = HostTensorDescriptor({1}, {0});
 
-        const auto d2_g_n_k_wos_desc =
-            ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<D2Layout>(
-                conv_param);
+        const auto d2_desc = HostTensorDescriptor({1}, {0});
 
         const auto out_g_n_k_wos_desc =
             ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(
                 conv_param);
 
-        return run_grouped_conv_fwd<
-            ndim_spatial_value,
-            InDataType,
-            WeiDataType,
-            CShuffleDataType,
-            OutDataType,
-            InElementOp,
-            WeiElementOp,
-            OutElementOp,
-            DeviceGroupedConvNDFwdInstance<ndim_spatial_value, InLayout, WeiLayout, OutLayout>>(
-            do_verification,
-            init_method,
-            time_kernel,
-            conv_param,
-            in_g_n_c_wis_desc,
-            wei_g_k_c_xs_desc,
-            out_g_n_k_wos_desc,
-            in_element_op,
-            wei_element_op,
-            out_element_op);
+        return run_grouped_conv_fwd<ndim_spatial_value,
+                                    InDataType,
+                                    WeiDataType,
+                                    CShuffleDataType,
+                                    ScalesDataType,
+                                    OutDataType,
+                                    InElementOp,
+                                    WeiElementOp,
+                                    OutElementOp,
+                                    DeviceGroupedConvNDFwdInstance<ndim_spatial_value,
+                                                                   InLayout,
+                                                                   WeiLayout,
+                                                                   ScalesLayout,
+                                                                   OutLayout>>(do_verification,
+                                                                               init_method,
+                                                                               time_kernel,
+                                                                               conv_param,
+                                                                               in_g_n_c_wis_desc,
+                                                                               wei_g_k_c_xs_desc,
+                                                                               d0_desc,
+                                                                               d1_desc,
+                                                                               d2_desc,
+                                                                               out_g_n_k_wos_desc,
+                                                                               in_element_op,
+                                                                               wei_element_op,
+                                                                               out_element_op);
     };
 
     namespace ctc = ck::tensor_layout::convolution;
@@ -107,9 +108,9 @@ bool run_convnd_fwd_example(int argc, char* argv[])
         return run(ck::Number<1>{},
                    ctc::GNWC{},
                    ctc::GKXC{},
-                   ctc::GNWK{},
-                   ctc::GNWK{},
-                   ctc::GNWK{},
+                   ctc::Scalar{},
+                   ctc::Scalar{},
+                   ctc::Scalar{},
                    ctc::GNWK{});
     }
     else if(conv_param.num_dim_spatial_ == 2)
@@ -117,9 +118,9 @@ bool run_convnd_fwd_example(int argc, char* argv[])
         return run(ck::Number<2>{},
                    ctc::GNHWC{},
                    ctc::GKYXC{},
-                   ctc::GNHWK{},
-                   ctc::GNHWK{},
-                   ctc::GNHWK{},
+                   ctc::Scalar{},
+                   ctc::Scalar{},
+                   ctc::Scalar{},
                    ctc::GNHWK{});
     }
     else if(conv_param.num_dim_spatial_ == 3)
@@ -127,9 +128,9 @@ bool run_convnd_fwd_example(int argc, char* argv[])
         return run(ck::Number<3>{},
                    ctc::GNDHWC{},
                    ctc::GKZYXC{},
-                   ctc::GNDHWK{},
-                   ctc::GNDHWK{},
-                   ctc::GNDHWK{},
+                   ctc::Scalar{},
+                   ctc::Scalar{},
+                   ctc::Scalar{},
                    ctc::GNDHWK{});
     }
 
