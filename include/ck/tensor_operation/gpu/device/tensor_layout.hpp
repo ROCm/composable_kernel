@@ -396,6 +396,11 @@ struct G_NDHW : public BaseTensorLayout
     static constexpr const char* name = "G_NDHW";
 };
 
+struct Scalar : public BaseTensorLayout
+{
+    static constexpr const char* name = "Scalar";
+};
+
 } // namespace convolution
 
 template <
