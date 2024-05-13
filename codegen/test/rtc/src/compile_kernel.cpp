@@ -50,7 +50,7 @@ void write_buffer(const std::string& filename, const std::vector<char>& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }
-void write_string(const std::string& filename, const std::string& buffer)
+void write_string(const std::string& filename, const std::string_view& buffer)
 {
     write_buffer(filename, buffer.data(), buffer.size());
 }
@@ -86,7 +86,6 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
     td.execute(compiler() + options.flags);
 
     auto out_path = td.path / out;
-    std::cout << "Path: " << out_path << std::endl;
     if(not std::filesystem::exists(out_path))
         throw std::runtime_error("Output file missing: " + out);
 
