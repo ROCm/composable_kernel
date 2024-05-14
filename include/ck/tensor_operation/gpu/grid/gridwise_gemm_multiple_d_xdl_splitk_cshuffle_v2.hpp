@@ -1019,7 +1019,13 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
             MakeWorkspaceGridDesc_GridSize_MPerBlock_I1_NPerBlock(get_grid_size());
         auto p_workspace_grid = reinterpret_cast<AccDataType*>(p_workspace);
         auto w_grid_buf =
+#if(defined(__gfx908__) || defined(__gfx90a__))
             make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::GLC>(
+#elif defined(__gfx94__)
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT0>(
+#else // for host
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::DefaultCoherence>(
+#endif
                 p_workspace_grid, workspace_grid_desc_m0_m1_n0_n1.GetElementSpaceSize());
 
         // shuffle: blockwise copy C from LDS to workspace
@@ -1187,7 +1193,13 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         auto p_workspace_grid = reinterpret_cast<CShuffleDataType*>(p_workspace);
         auto w_grid_buf =
+#if(defined(__gfx908__) || defined(__gfx90a__))
             make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::GLC>(
+#elif defined(__gfx94__)
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::SYSTEM_NT0>(
+#else // for host
+            make_dynamic_buffer<AddressSpaceEnum::Global, AmdBufferCoherenceEnum::DefaultCoherence>(
+#endif
                 p_workspace_grid, workspace_grid_desc_m0m1_n0n1n2.GetElementSpaceSize());
 
         auto acc_load = ThreadwiseTensorSliceTransfer_v2<
