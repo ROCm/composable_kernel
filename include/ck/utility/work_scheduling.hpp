@@ -105,15 +105,11 @@ class StridedReductionTileLoop
 
         if(neighbour_count > 0)
         {
-            index_t flag_sum = 0;
-            do
+            // Check if this workgroup's flag is also set (i = 0)
+            for(index_t i = 0; i <= neighbour_count; ++i)
             {
-                flag_sum = 0;
-                for(index_t i = 1; i <= neighbour_count; ++i)
-                {
-                    flag_sum += finished_block_flags_.ld(GetWorkgroupFlagIdx() + i);
-                }
-            } while(flag_sum != neighbour_count);
+                finished_block_flags_.wait_eq(GetWorkgroupFlagIdx() + i, 1);
+            }
         }
 
         return neighbour_count;
