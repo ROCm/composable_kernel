@@ -9,26 +9,13 @@ struct workgroup_barrier
 
     __device__ uint32_t ld(uint32_t offset) const
     {
-#if 0
-        float d = llvm_amdgcn_raw_buffer_load_fp32(
-                        amdgcn_make_buffer_resource(base_ptr),
-                        0,
-                        offset,
-                        AMDGCN_BUFFER_GLC);
-        union cvt {
-            float f32;
-            uint32_t u32;
-        };
-        cvt x;
-        x.f32 = d;
-        return x.u32;
-#endif
         return __atomic_load_n(base_ptr + offset, __ATOMIC_RELAXED);
     }
 
     __device__ void st(uint32_t offset, uint32_t value)
     {
         __atomic_store_n(base_ptr + offset, value, __ATOMIC_RELEASE);
+        // __atomic_store_n(base_ptr + offset, value, __ATOMIC_SEQ_CST);
     }
 
     __device__ void wait_eq(uint32_t offset, uint32_t value)
@@ -37,7 +24,7 @@ struct workgroup_barrier
         {
             while(ld(offset) != value) {}
         }
-        __syncthreads();
+        __builtin_amdgcn_s_barrier();
     }
 
     __device__ void wait_lt(uint32_t offset, uint32_t value)
@@ -46,7 +33,7 @@ struct workgroup_barrier
         {
             while(ld(offset) < value) {}
         }
-        __syncthreads();
+        __builtin_amdgcn_s_barrier();
     }
 
     __device__ void wait_set(uint32_t offset, uint32_t compare, uint32_t value)
@@ -55,7 +42,7 @@ struct workgroup_barrier
         {
             while(atomicCAS(base_ptr + offset, compare, value) != compare) {}
         }
-        __syncthreads();
+        __builtin_amdgcn_s_barrier();
     }
 
     // enter critical zoon, assume buffer is zero when launch kernel
@@ -66,20 +53,20 @@ struct workgroup_barrier
 
     __device__ void inc(uint32_t offset)
     {
+        __builtin_amdgcn_s_barrier();
         if(threadIdx.x == 0)
         {
             atomicAdd(base_ptr + offset, 1);
         }
-        __syncthreads();
     }
 
     __device__ void reset(uint32_t offset)
     {
+        __builtin_amdgcn_s_barrier();
         if(threadIdx.x == 0)
         {
             st(offset, 0);
         }
-        __syncthreads();
     }
 
     uint32_t* base_ptr;
