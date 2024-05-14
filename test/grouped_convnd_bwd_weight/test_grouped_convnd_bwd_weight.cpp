@@ -55,14 +55,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        if(ck::is_navi3_supported())
+        if(ck::is_gfx11_supported())
         {
-            // on navi3x only support for 3d is implemented
+            // on gfx11 only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)
             {
                 return true;
             }
-            // on navi3x only support for i8 and fp16 is implemented
+            // on gfx11 only support for i8 and fp16 is implemented
             if constexpr(!((std::is_same_v<InDataType, int8_t> &&
                             std::is_same_v<WeiDataType, int8_t> &&
                             std::is_same_v<OutDataType, int8_t>) ||
@@ -80,7 +80,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         }
         else
         {
-            // support for i8 is only implemented on navi3x
+            // support for i8 is only implemented on gfx11
             if constexpr(std::is_same_v<InDataType, int8_t> &&
                          std::is_same_v<WeiDataType, int8_t> && std::is_same_v<OutDataType, int8_t>)
             {

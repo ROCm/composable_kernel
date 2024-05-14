@@ -666,7 +666,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
         // check device
         if(!(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-             ck::is_navi2_supported() || ck::is_navi3_supported()))
+             ck::is_gfx103_supported() || ck::is_gfx11_supported()))
         {
             return false;
         }
