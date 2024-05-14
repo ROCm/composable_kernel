@@ -154,3 +154,8 @@
 #ifndef CK_TILE_USE_SUBDWORD_TILE_CAST
 #define CK_TILE_USE_SUBDWORD_TILE_CAST 0
 #endif
+
+// TODO: better solve this inside compiler
+#ifndef CK_TILE_FMHA_FWD_FAST_EXP2
+#define CK_TILE_FMHA_FWD_FAST_EXP2 0
+#endif
