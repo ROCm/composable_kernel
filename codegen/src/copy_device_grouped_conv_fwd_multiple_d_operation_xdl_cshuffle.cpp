@@ -62,9 +62,10 @@ void Copy_Operation_Conv_Fwd_Xdl_Cshuffle::update_epilogue(const std::string& ep
 
 // Hard-code tuning parameters in modularized fashion, string them together into a vector of
 // instances
-template <class F>
-std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
-    F f, Layout ALayout, Layout BLayout, const std::string& prologue, const std::string& epilogue)
+std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle>
+Copy_Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(const Copy_Problem_Conv_Fwd& prob,
+                                                       const std::string& prologue,
+                                                       const std::string& epilogue)
 {
     std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> result;
 
@@ -78,7 +79,7 @@ std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
         // clang-format on
     };
 
-    std::vector<operation::BlockTransferDesc> a_block_descriptions_rowmajor = {
+    std::vector<operation::BlockTransferDesc> a_block_descriptions = {
         // clang-format off
 //  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|
@@ -88,7 +89,7 @@ std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
         // clang-format on
     };
 
-    std::vector<operation::BlockTransferDesc> b_block_descriptions_rowmajor = {
+    std::vector<operation::BlockTransferDesc> b_block_descriptions = {
         // clang-format off
 //  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|
 //   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN|
@@ -118,11 +119,6 @@ std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
         // clang-format on
     };
 
-    const auto a_block_descriptions =
-        (ALayout == Layout::Row) ? a_block_descriptions_rowmajor : b_block_descriptions_rowmajor;
-    const auto b_block_descriptions =
-        (BLayout == Layout::Row) ? b_block_descriptions_rowmajor : a_block_descriptions_rowmajor;
-
     assert(tile_descriptions.size() == a_block_descriptions.size());
     assert(tile_descriptions.size() == b_block_descriptions.size());
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
@@ -132,67 +128,37 @@ std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Copy_Operation_Conv_Fwd_Xdl_Cshuffle x;
-        x.NumDim           = 2;
-        x.tile_desc        = tile_descriptions[i];
-        x.a_block_transfer = a_block_descriptions[i];
-        x.b_block_transfer = b_block_descriptions[i];
-        x.cshuffle         = cshuffle_descriptions[i];
-        x.c_block_transfer = c_block_descriptions[i];
+        x.NumDim              = prob.NumDim;
+        x.tile_desc           = tile_descriptions[i];
+        x.a_block_transfer    = a_block_descriptions[i];
+        x.b_block_transfer    = b_block_descriptions[i];
+        x.cshuffle            = cshuffle_descriptions[i];
+        x.c_block_transfer    = c_block_descriptions[i];
+        x.A                   = TensorDesc{prob.ADataType, prob.ALayout};
+        x.B                   = TensorDesc{prob.BDataType, prob.BLayout};
+        x.E                   = TensorDesc{prob.EDataType, prob.ELayout};
+        x.Ds                  = Transform(prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) {
+            return TensorDesc{dt, lo};
+        });
+        x.a_elem_op           = prob.AElementOp;
+        x.b_elem_op           = prob.BElementOp;
+        x.cde_elem_op         = prob.CDEElementOp;
+        x.gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::MNKPadding";
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
-        auto all = f(x);
-        result.insert(result.end(), all.begin(), all.end());
+        result.push_back(x);
     }
     return result;
 }
 
 // set up instances when not provided with a problem specification, use default operation values
-/**std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle>
+std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle>
 Copy_Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(const std::string& prologue,
                                                        const std::string& epilogue)
 {
-    return CreateOperationsImpl(
-        [](auto x) -> std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle> { return {x}; },
-        Layout::GNHWC,
-        Layout::GKYXC,
-        prologue,
-        epilogue);
-}**/
-
-// set up instances when given problem specifications
-std::vector<Copy_Operation_Conv_Fwd_Xdl_Cshuffle>
-Copy_Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(const Copy_Problem_Conv_Fwd& prob,
-                                                       const std::string& prologue,
-                                                       const std::string& epilogue)
-{
-    return CreateOperationsImpl(
-        [&](Copy_Operation_Conv_Fwd_Xdl_Cshuffle x)
-            -> std::array<Copy_Operation_Conv_Fwd_Xdl_Cshuffle, 1> {
-            x.NumDim      = prob.NumDim;
-            x.A           = TensorDesc{prob.ADataType, prob.ALayout};
-            x.B           = TensorDesc{prob.BDataType, prob.BLayout};
-            x.E           = TensorDesc{prob.EDataType, prob.ELayout};
-            x.Ds          = Transform(prob.DsTrans, prob.DsDataType, [](auto trans, auto dt) {
-                return TensorDesc{dt, ToLayout(trans)};
-            });
-            x.a_elem_op   = prob.AElementOp;
-            x.b_elem_op   = prob.BElementOp;
-            x.cde_elem_op = prob.CDEElementOp;
-            x.update_prologue(prologue);
-            x.update_epilogue(epilogue);
-            x.gemm_specialization = GetGemmSpec(prob.G,
-                                                prob.N,
-                                                prob.Hi,
-                                                x.tile_desc.m_per_block,
-                                                x.tile_desc.n_per_block,
-                                                x.tile_desc.k_per_block);
-            return {x};
-        },
-        prob.ALayout,
-        prob.BLayout,
-        prologue,
-        epilogue);
-    // return CreateOperationsImpl(prob, prologue, epilogue);
+    Copy_Problem_Conv_Fwd prob;
+    prob.NumDim = 2; // Hardcode for now
+    return CreateOperations(prob, prologue, epilogue);
 }
 
 static const char* const Device_ConvTemplate =

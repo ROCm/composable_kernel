@@ -34,7 +34,8 @@ struct Operation_Conv_Fwd_Xdl_Cshuffle
     std::string epilogue    = "";
     std::string conv_specialization =
         "ck::tensor_operation::device::ConvolutionForwardSpecialization::Default";
-    std::string gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::Default";
+    std::string gemm_specialization =
+        "ck::tensor_operation::device::GemmSpecialization::MNKPadding";
     operation::TileDesc tile_desc{};
     operation::BlockTransferDesc a_block_transfer{};
     operation::BlockTransferDesc b_block_transfer{};

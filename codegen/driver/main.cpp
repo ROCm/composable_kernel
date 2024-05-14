@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
+#include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_op.hpp"
 #include "ck/host/stringutils.hpp"
 
 using ck::host::Transform;
@@ -14,10 +15,10 @@ struct Emitters
     std::unordered_map<std::string, std::function<std::vector<std::string>()>> m;
 
     template <class T>
-    void Register(const std::string& name)
+    void Register(const std::string& name, const std::string& prologue, const std::string& epilogue)
     {
-        m[name] = [] {
-            auto configs = T::CreateOperations();
+        m[name] = [&] {
+            auto configs = T::CreateOperations(prologue, epilogue);
 
             return Transform(configs, [](const auto& ops) { return ToTuple(ops); });
         };
@@ -43,9 +44,38 @@ int main(int argc, const char* argv[])
 {
     std::string prog = argv[0];
     std::vector<std::string> args(argv + 1, argv + argc);
+
+    ck::host::device_gemm_multiple_d::Problem prob;
+    prob.M = 1024;
+    prob.N = 1024;
+    prob.K = 1024;
+
+    // std::string epilogue = "";
+    std::string prologue = "";
+    std::string epilogue = R"(
+struct Epilogue
+{
+    __host__ __device__ Epilogue(float alpha, float beta) : alpha_(alpha), beta_(beta){};
+
+    template <typename E, typename D>
+    __host__ __device__ constexpr void operator()(E& e, const D& d) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, ck::half_t>(ck::half_t& e,
+                                                                          const ck::half_t& d) const
+    {
+        e = ck::type_convert<ck::half_t>(alpha_ * e + beta_ * ck::type_convert<float>(d));
+    }
+
+    float alpha_;
+    float beta_;
+};)";
+
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
-        "DeviceGemmMultipleD_Xdl_CShuffle");
+        "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
+    // e.Register<ck::host::conv::Operation_Conv_Fwd_Xdl_Cshuffle>(
+    //		            "DeviceConvFwdMultipleD_Xdl_CShuffle", prologue, epilogue);
 
     if(args.empty() or std::any_of(args.begin(), args.end(), [](auto arg) {
            return arg == "-h" or arg == "--help";

@@ -62,9 +62,8 @@ void Operation_Conv_Fwd_Xdl_Cshuffle::update_epilogue(const std::string& epilogu
 
 // Hard-code tuning parameters in modularized fashion, string them together into a vector of
 // instances
-template <class F>
-std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
-    F f, Layout ALayout, Layout BLayout, const std::string& prologue, const std::string& epilogue)
+std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(
+    const Problem_Conv_Fwd& prob, const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> result;
 
@@ -152,16 +151,24 @@ std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperationsImpl(
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Conv_Fwd_Xdl_Cshuffle x;
-        x.NumDim           = 2;
+        x.NumDim           = prob.NumDim;
         x.tile_desc        = tile_descriptions[i];
         x.a_block_transfer = a_block_descriptions[i];
         x.b_block_transfer = b_block_descriptions[i];
         x.cshuffle         = cshuffle_descriptions[i];
         x.c_block_transfer = c_block_descriptions[i];
+        x.A                = TensorDesc{prob.ADataType, prob.ALayout};
+        x.B                = TensorDesc{prob.BDataType, prob.BLayout};
+        x.E                = TensorDesc{prob.EDataType, prob.ELayout};
+        x.Ds               = Transform(prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) {
+            return TensorDesc{dt, lo};
+        });
+        x.a_elem_op        = prob.AElementOp;
+        x.b_elem_op        = prob.BElementOp;
+        x.cde_elem_op      = prob.CDEElementOp;
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
-        auto all = f(x);
-        result.insert(result.end(), all.begin(), all.end());
+        result.push_back(x);
     }
     return result;
 }
@@ -171,39 +178,8 @@ std::vector<Operation_Conv_Fwd_Xdl_Cshuffle>
 Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(const std::string& prologue,
                                                   const std::string& epilogue)
 {
-    return CreateOperationsImpl(
-        [](auto x) -> std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> { return {x}; },
-        Layout::NHWGC,
-        Layout::GKYXC,
-        prologue,
-        epilogue);
-}
-
-// set up instances when given problem specifications
-std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(
-    const Problem_Conv_Fwd& prob, const std::string& prologue, const std::string& epilogue)
-{
-    return CreateOperationsImpl(
-        [&](Operation_Conv_Fwd_Xdl_Cshuffle x) -> std::array<Operation_Conv_Fwd_Xdl_Cshuffle, 1> {
-            x.NumDim      = prob.NumDim;
-            x.A           = TensorDesc{prob.ADataType, prob.ALayout};
-            x.B           = TensorDesc{prob.BDataType, prob.BLayout};
-            x.E           = TensorDesc{prob.EDataType, prob.ELayout};
-            x.Ds          = Transform(prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) {
-                return TensorDesc{dt, lo};
-            });
-            x.a_elem_op   = prob.AElementOp;
-            x.b_elem_op   = prob.BElementOp;
-            x.cde_elem_op = prob.CDEElementOp;
-            x.update_prologue(prologue);
-            x.update_epilogue(epilogue);
-            x.gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::MNKPadding";
-            return {x};
-        },
-        prob.ALayout,
-        prob.BLayout,
-        prologue,
-        epilogue);
+    Problem_Conv_Fwd prob;
+    return CreateOperations(prob, prologue, epilogue);
 }
 
 // TODO: clean up template
