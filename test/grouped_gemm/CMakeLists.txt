@@ -6,6 +6,12 @@ if(result EQUAL 0)
     add_dependencies(test_grouped_gemm test_grouped_gemm_splitk)
 endif()
 
+add_gtest_executable(test_grouped_gemm_two_stage_splitk test_grouped_gemm_two_stage_multiple_d_splitk_xdl.cpp)
+if(result EQUAL 0)
+    target_link_libraries(test_grouped_gemm_two_stage_splitk PRIVATE utility device_grouped_gemm_instance)
+    add_dependencies(test_grouped_gemm test_grouped_gemm_two_stage_splitk)
+endif()
+
 add_gtest_executable(test_grouped_gemm_interface test_grouped_gemm_interface_xdl.cpp)
 if(result EQUAL 0)
     target_link_libraries(test_grouped_gemm_interface PRIVATE utility device_grouped_gemm_instance)
