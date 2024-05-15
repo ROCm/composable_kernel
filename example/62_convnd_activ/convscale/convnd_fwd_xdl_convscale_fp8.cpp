@@ -11,10 +11,7 @@ using InDataType       = ck::f8_t;
 using WeiDataType      = ck::f8_t;
 using AccDataType      = float;
 using CShuffleDataType = float;
-using D0DataType       = float;
-using D1DataType       = float;
-using D2DataType       = float;
-using ScalesDataType   = ck::Tuple<D0DataType, D1DataType, D2DataType>;
+using DsDataType       = ck::Tuple<>;
 using OutDataType      = ck::f8_t;
 using AComputeDataType = ck::f8_t;
 using BComputeDataType = ck::f8_t;
@@ -34,20 +31,20 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
-          typename ScalesLayout,
+          typename DsLayout,
           typename OutLayout>
 using DeviceGroupedConvNDFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
         WeiLayout,
-        ScalesLayout,
+        DsLayout,
         OutLayout,
         InDataType,
         WeiDataType,
         AccDataType,
         CShuffleDataType,
-        ScalesDataType,
+        DsDataType,
         OutDataType,
         InElementOp,
         WeiElementOp,
