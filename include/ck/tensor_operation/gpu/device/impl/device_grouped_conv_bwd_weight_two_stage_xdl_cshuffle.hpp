@@ -12,7 +12,7 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
@@ -106,16 +106,14 @@ __global__ void
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
-template <index_t NDimSpatial,
+template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          typename DsLayout,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType,
           typename AccDataType,
-          typename DsDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
           typename OutElementwiseOperation,
@@ -149,29 +147,25 @@ template <index_t NDimSpatial,
           index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
           typename ComputeTypeA = InDataType,
           typename ComputeTypeB = ComputeTypeA>
-struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
-    : public DeviceGroupedConvBwdWeightMultipleD<NDimSpatial,
-                                                 InLayout,
-                                                 WeiLayout,
-                                                 OutLayout,
-                                                 DsLayout,
-                                                 InDataType,
-                                                 WeiDataType,
-                                                 OutDataType,
-                                                 DsDataType,
-                                                 InElementwiseOperation,
-                                                 WeiElementwiseOperation,
-                                                 OutElementwiseOperation,
-                                                 ComputeTypeA,
-                                                 ComputeTypeB>
+struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
+    : public DeviceGroupedConvBwdWeight<NDimSpatial,
+                                        InLayout,
+                                        WeiLayout,
+                                        OutLayout,
+                                        InDataType,
+                                        WeiDataType,
+                                        OutDataType,
+                                        InElementwiseOperation,
+                                        WeiElementwiseOperation,
+                                        OutElementwiseOperation,
+                                        ComputeTypeA,
+                                        ComputeTypeB>
 {
-    using DeviceOp = DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle;
+    using DeviceOp = DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle;
 
     using ADataType = OutDataType;
     using BDataType = InDataType;
     using EDataType = WeiDataType;
-
-    static constexpr index_t NumDTensor = DsLayout::Size();
 
     using AElementwiseOperation   = OutElementwiseOperation;
     using BElementwiseOperation   = InElementwiseOperation;
@@ -196,12 +190,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                                      K1Number,
                                      K0PerBlock,
                                      ConvBackwardWeightSpecialization>{};
-
-    static constexpr index_t MaxScalarPerVectorFP32 = 4;
-    static constexpr index_t WorkspaceInOutScalarPerVector =
-        is_same_v<AccDataType, float>
-            ? math::min(CBlockTransferScalarPerVector_NWaveNPerXdl, MaxScalarPerVectorFP32)
-            : CBlockTransferScalarPerVector_NWaveNPerXdl;
 
     // Bytes per 32 lds bank: 32 * 4 bytes
     static constexpr auto BankLength = 128;
@@ -343,7 +331,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         BBlockLdsN1Padding,
         CShuffleMXdlPerWavePerShuffle,
         CShuffleNXdlPerWavePerShuffle,
-        WorkspaceInOutScalarPerVector,
+        CBlockTransferScalarPerVector_NWaveNPerXdl,
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         true,
         true,
@@ -352,161 +340,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         ComputeTypeA,
         ComputeTypeB>;
 
-    static constexpr auto MakeElementwiseInputSequence()
-    {
-        return generate_sequence_v2(
-            [&](auto) constexpr { return Number<WorkspaceInOutScalarPerVector>{}; },
-            Number<NumDTensor + 1>{});
-    }
-
-    static constexpr auto GetDsGridPointerTuple()
-    {
-        return generate_tuple(
-            [&](auto i) {
-                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-                return static_cast<const DDataType*>(nullptr);
-            },
-            Number<NumDTensor>{});
-    }
-
-    template <index_t NDim, typename ck::enable_if<NDim == 1, bool>::type = false>
-    static auto MakeDsGridDescriptor_M_N(
-        const std::array<std::array<index_t, NDim + 3>, NumDTensor>& ds_g_k_c_xs_lengths,
-        const std::array<std::array<index_t, NDim + 3>, NumDTensor>& ds_g_k_c_xs_strides)
-    {
-        return generate_tuple(
-            [&](auto i) {
-                const index_t K       = ds_g_k_c_xs_lengths[i][I1];
-                const index_t C       = ds_g_k_c_xs_lengths[i][I2];
-                const index_t X       = ds_g_k_c_xs_lengths[i][I3];
-                const index_t CStride = ds_g_k_c_xs_strides[I2];
-                const index_t KStride = ds_g_k_c_xs_strides[I1];
-
-                const auto wei_grid_desc = make_naive_tensor_descriptor(
-                    make_tuple(K, X * C), make_tuple(KStride, CStride));
-
-                if constexpr(ConvBackwardWeightSpecialization ==
-                             device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
-                {
-                    return wei_grid_desc;
-                }
-                else
-                {
-                    const index_t GemmM = K;
-                    const index_t GemmN = C * X;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
-
-                    return transform_tensor_descriptor(
-                        wei_grid_desc,
-                        make_tuple(make_right_pad_transform(GemmM, PadGemmM),
-                                   make_right_pad_transform(GemmN, PadGemmN)),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-            },
-            Number<NumDTensor>{});
-    }
-
-    template <index_t NDim, typename ck::enable_if<NDim == 2, bool>::type = false>
-    static auto MakeDsGridDescriptor_M_N(
-        const std::array<std::array<index_t, NDim + 3>, NumDTensor>& ds_g_k_c_xs_lengths,
-        const std::array<std::array<index_t, NDim + 3>, NumDTensor>& ds_g_k_c_xs_strides)
-    {
-        return generate_tuple(
-            [&](auto i) {
-                const index_t K = ds_g_k_c_xs_lengths[i][I1];
-                const index_t C = ds_g_k_c_xs_lengths[i][I2];
-                const index_t Y = ds_g_k_c_xs_lengths[i][I3];
-                const index_t X = ds_g_k_c_xs_lengths[i][I4];
-
-                const auto wei_grid_desc =
-                    conv_to_gemm_transformer.template make_wei_grid_desc<NDim>(
-                        K, Y, X, C, ds_g_k_c_xs_strides[i]);
-
-                if constexpr(ConvBackwardWeightSpecialization ==
-                             device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
-                {
-                    return wei_grid_desc;
-                }
-                else
-                {
-                    const index_t GemmM = K;
-                    const index_t GemmN = C * X * Y;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
-
-                    return transform_tensor_descriptor(
-                        wei_grid_desc,
-                        make_tuple(make_right_pad_transform(GemmM, PadGemmM),
-                                   make_right_pad_transform(GemmN, PadGemmN)),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-            },
-            Number<NumDTensor>{});
-    }
-
-    template <index_t NDim, typename ck::enable_if<NDim == 3, bool>::type = false>
-    static auto MakeDsGridDescriptor_M_N(
-        const std::array<std::array<index_t, NDim + 3>, NumDTensor>& ds_g_k_c_xs_lengths,
-        const std::array<std::array<index_t, NDim + 3>, NumDTensor>& ds_g_k_c_xs_strides)
-    {
-        return generate_tuple(
-            [&](auto i) {
-                const index_t K = ds_g_k_c_xs_lengths[i][I1];
-                const index_t C = ds_g_k_c_xs_lengths[i][I2];
-                const index_t Z = ds_g_k_c_xs_lengths[i][I3];
-                const index_t Y = ds_g_k_c_xs_lengths[i][I4];
-                const index_t X = ds_g_k_c_xs_lengths[i][I5];
-
-                const auto wei_grid_desc =
-                    conv_to_gemm_transformer.template make_wei_grid_desc<NDim>(
-                        K, Z, Y, X, C, ds_g_k_c_xs_strides[i]);
-
-                if constexpr(ConvBackwardWeightSpecialization ==
-                             device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
-                {
-                    return wei_grid_desc;
-                }
-                else
-                {
-                    const index_t GemmM = K;
-                    const index_t GemmN = C * X * Y * Z;
-                    const auto PadGemmM = MPerBlock - GemmM % MPerBlock;
-                    const auto PadGemmN = NPerBlock - GemmN % NPerBlock;
-
-                    return transform_tensor_descriptor(
-                        wei_grid_desc,
-                        make_tuple(make_right_pad_transform(GemmM, PadGemmM),
-                                   make_right_pad_transform(GemmN, PadGemmN)),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-            },
-            Number<NumDTensor>{});
-    }
-
-    template <typename ComputePtrOffsetOfBatch>
-    static void
-    InitElementwiseBatchStrides(const ComputePtrOffsetOfBatch& compute_ptr_offset_of_batch_,
-                                std::array<index_t, NumDTensor + I1>& input_batch_strides,
-                                std::array<index_t, I1>& output_batch_strides)
-    {
-        input_batch_strides[I0]  = compute_ptr_offset_of_batch_.BatchStrideC_;
-        output_batch_strides[I0] = compute_ptr_offset_of_batch_.BatchStrideC_;
-
-        // input_batch_strides = {C, Ds...}
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            input_batch_strides[i + 1] = compute_ptr_offset_of_batch_.BatchStrideDs_[i];
-        });
-    }
-
-    using DsGridDesc_M_N     = decltype(MakeDsGridDescriptor_M_N<NDimSpatial>({}, {}));
-    using CDGridDesc_M_N     = decltype(concat_tuple(Tuple<CGridDesc_M_N>{}, DsGridDesc_M_N{}));
-    using DsGridPointerTuple = decltype(GetDsGridPointerTuple());
-    using CDDataTypes   = decltype(concat_tuple(Tuple<const AccDataType*>{}, DsGridPointerTuple{}));
-    using EGridDesc_M_N = CGridDesc_M_N;
     static constexpr index_t ClusterLengthMPerBlock =
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(1);
     static constexpr index_t ClusterLengthNPerBlock =
@@ -514,9 +347,9 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
     using GridwiseElementwise =
-        GridwiseElementwise<CDGridDesc_M_N,
-                            Tuple<EGridDesc_M_N>,
-                            CDDataTypes,
+        GridwiseElementwise<Tuple<CGridDesc_M_N>,
+                            Tuple<CGridDesc_M_N>,
+                            Tuple<const AccDataType*>,
                             Tuple<EDataType*>,
                             Block2TileMapElementwise,
                             CDEElementwiseOperation,
@@ -526,7 +359,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                             MPerBlock / ClusterLengthMPerBlock,
                             NPerBlock / ClusterLengthNPerBlock,
                             Sequence<0, 1>,
-                            decltype(MakeElementwiseInputSequence()),
+                            Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
                             Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
                             I1,
                             I1>;
@@ -540,32 +373,27 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
     struct Argument : public BaseArgument
     {
-        Argument(
-            const InDataType* p_in_grid,
-            WeiDataType* p_wei_grid,
-            const OutDataType* p_out_grid,
-            const std::array<const void*, NumDTensor>& p_ds,
-            const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_lengths, // input
-            const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_strides,
-            const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths, // weight
-            const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_strides,
-            const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output
-            const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
-            const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_k_c_xs_lengths,
-            const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_k_c_xs_strides,
-            const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-            const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-            const std::array<ck::index_t, NDimSpatial>& input_left_pads,
-            const std::array<ck::index_t, NDimSpatial>& input_right_pads,
-            const ck::index_t M01,
-            const ck::index_t N01,
-            InElementwiseOperation in_element_op,
-            WeiElementwiseOperation wei_element_op,
-            OutElementwiseOperation out_element_op,
-            ck::index_t split_k)
+        Argument(const InDataType* p_in_grid,
+                 WeiDataType* p_wei_grid,
+                 const OutDataType* p_out_grid,
+                 const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_lengths, // input
+                 const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_strides,
+                 const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths, // weight
+                 const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_strides,
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
+                 const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                 const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                 const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                 const std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                 const ck::index_t M01,
+                 const ck::index_t N01,
+                 InElementwiseOperation in_element_op,
+                 WeiElementwiseOperation wei_element_op,
+                 OutElementwiseOperation out_element_op,
+                 ck::index_t split_k)
             : p_a_grid_{p_out_grid},
               p_b_grid_{p_in_grid},
-              p_ds_grid_{},
               p_e_grid_{p_wei_grid},
               a_grid_desc_kbatch_k0_m_k1_{},
               b_grid_desc_kbatch_k0_n_k1_{},
@@ -619,23 +447,9 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                         input_right_pads,
                         k_batch_);
 
-            static_for<0, NumDTensor, 1>{}([&](auto i) {
-                using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-
-                static_assert(is_same_v<DLayout, WeiLayout>, "Not supported D data layout");
-
-                // D pointer
-                p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
-                compute_ptr_offset_of_batch_.BatchStrideDs_(i) = ds_g_k_c_xs_strides[i][0];
-            });
-
             a_grid_desc_kbatch_k0_m_k1_ = descs[I0];
             b_grid_desc_kbatch_k0_n_k1_ = descs[I1];
             ce_grid_desc_m_n_           = descs[I2];
-
-            ds_grid_descs_tuple_ =
-                MakeDsGridDescriptor_M_N<NDimSpatial>(ds_g_k_c_xs_lengths, ds_g_k_c_xs_strides);
 
             block_2_ctile_map_ =
                 GridwiseGemm::MakeCBlockClusterAdaptor(ce_grid_desc_m_n_, M01, N01, k_batch_);
@@ -670,20 +484,18 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        DsGridPointerTuple p_ds_grid_;
         EDataType* p_e_grid_;
 
         AGridDesc_K0_M_K1 a_grid_desc_kbatch_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_kbatch_k0_n_k1_;
         CGridDesc_M_N ce_grid_desc_m_n_;
         CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        DsGridDesc_M_N ds_grid_descs_tuple_;
 
         Block2CTileMap block_2_ctile_map_;
         Block2TileMapElementwise elementwise_block_2_ctile_map_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, I0> compute_ptr_offset_of_batch_;
 
         index_t M01_;
         index_t N01_;
@@ -767,7 +579,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                     remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
                     remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                     remove_reference_t<DeviceOp::Block2CTileMap>,
-                    ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
+                    ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
                     has_main_loop>;
 
                 return launch_and_time_kernel_with_preprocess(
@@ -797,36 +609,33 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                     arg.elementwise_block_2_ctile_map_.CalculateGridSize(arg.ce_grid_desc_m_n_) *
                     arg.Conv_G_;
 
-                std::array<index_t, NumDTensor + I1> input_batch_strides;
-                std::array<index_t, I1> output_batch_strides;
-                InitElementwiseBatchStrides(
-                    arg.compute_ptr_offset_of_batch_, input_batch_strides, output_batch_strides);
+                std::array<index_t, I1> in_out_batch_strides = {
+                    arg.compute_ptr_offset_of_batch_.BatchStrideC_};
 
                 const auto kernel = kernel_batched_elementwise<GridwiseElementwise,
-                                                               CDGridDesc_M_N,
-                                                               ck::Tuple<EGridDesc_M_N>,
-                                                               CDDataTypes,
+                                                               ck::Tuple<CGridDesc_M_N>,
+                                                               ck::Tuple<CGridDesc_M_N>,
+                                                               ck::Tuple<const AccDataType*>,
                                                                ck::Tuple<EDataType*>,
                                                                Block2TileMapElementwise,
                                                                CDEElementwiseOperation,
-                                                               NumDTensor + I1,
+                                                               I1,
                                                                I1>;
 
-                return launch_and_time_kernel(
-                    stream_config,
-                    kernel,
-                    dim3(grid_size),
-                    dim3(BlockSize),
-                    0,
-                    concat_tuple(make_tuple(arg.ce_grid_desc_m_n_), arg.ds_grid_descs_tuple_),
-                    make_tuple(arg.ce_grid_desc_m_n_),
-                    concat_tuple(make_tuple(p_c_grid), arg.p_ds_grid_),
-                    arg.p_e_grid_,
-                    arg.elementwise_block_2_ctile_map_,
-                    arg.cde_element_op_,
-                    arg.Conv_G_,
-                    input_batch_strides,
-                    output_batch_strides);
+                return launch_and_time_kernel(stream_config,
+                                              kernel,
+                                              dim3(grid_size),
+                                              dim3(BlockSize),
+                                              0,
+                                              make_tuple(arg.ce_grid_desc_m_n_),
+                                              make_tuple(arg.ce_grid_desc_m_n_),
+                                              make_tuple(p_c_grid),
+                                              make_tuple(arg.p_e_grid_),
+                                              arg.elementwise_block_2_ctile_map_,
+                                              arg.cde_element_op_,
+                                              arg.Conv_G_,
+                                              in_out_batch_strides,
+                                              in_out_batch_strides);
             };
 
             float avg_time = 0;
@@ -858,6 +667,16 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // Check this here, it allows to use other instances from factory even
+        // if workspace is not allocated
+        if(!arg.p_workspace_)
+        {
+            std::cerr << "Warning: Workspace for "
+                         "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument is not "
+                         "allocated, use SetWorkSpacePointer."
+                      << std::endl;
+            return false;
+        }
         if(!ck::is_xdl_supported())
         {
             return false;
@@ -913,8 +732,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         }
 
         // vector store C matrix into global memory
-        if(!(arg.Conv_C_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0 &&
-             arg.Conv_C_ % WorkspaceInOutScalarPerVector == 0))
+        if(!(arg.Conv_C_ % CBlockTransferScalarPerVector_NWaveNPerXdl == 0))
         {
             return false;
         }
@@ -931,40 +749,34 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
 
-    static auto MakeArgument(
-        const InDataType* p_in_grid,
-        WeiDataType* p_wei_grid,
-        const OutDataType* p_out_grid,
-        const std::array<const void*, NumDTensor>& p_ds,
-        const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_lengths, // input
-        const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths, // weight
-        const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_strides,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_k_c_xs_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_k_c_xs_strides,
-        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<ck::index_t, NDimSpatial>& input_left_pads,
-        const std::array<ck::index_t, NDimSpatial>& input_right_pads,
-        InElementwiseOperation in_element_op,
-        WeiElementwiseOperation wei_element_op,
-        OutElementwiseOperation out_element_op,
-        const ck::index_t split_k)
+    static auto
+    MakeArgument(const InDataType* p_in_grid,
+                 WeiDataType* p_wei_grid,
+                 const OutDataType* p_out_grid,
+                 const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_lengths, // input
+                 const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_strides,
+                 const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths, // weight
+                 const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_strides,
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output
+                 const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
+                 const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                 const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                 const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                 const std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                 InElementwiseOperation in_element_op,
+                 WeiElementwiseOperation wei_element_op,
+                 OutElementwiseOperation out_element_op,
+                 const ck::index_t split_k)
     {
         return Argument{p_in_grid,
                         p_wei_grid,
                         p_out_grid,
-                        p_ds,
                         b_g_n_c_wis_lengths, // input
                         b_g_n_c_wis_strides,
                         e_g_k_c_xs_lengths, // weight
                         e_g_k_c_xs_strides,
                         a_g_n_k_wos_lengths, // output
                         a_g_n_k_wos_strides,
-                        ds_g_k_c_xs_lengths,
-                        ds_g_k_c_xs_strides,
                         conv_filter_strides,
                         conv_filter_dilations,
                         input_left_pads,
@@ -979,40 +791,34 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
     static auto MakeInvoker() { return Invoker{}; }
 
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(
-        const void* p_in_grid,
-        void* p_wei_grid,
-        const void* p_out_grid,
-        const std::array<const void*, NumDTensor>& p_ds,
-        const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_lengths, // input
-        const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_strides,
-        const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths, // weight
-        const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_strides,
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output
-        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_k_c_xs_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_k_c_xs_strides,
-        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<ck::index_t, NDimSpatial>& input_left_pads,
-        const std::array<ck::index_t, NDimSpatial>& input_right_pads,
-        InElementwiseOperation in_element_op,
-        WeiElementwiseOperation wei_element_op,
-        OutElementwiseOperation out_element_op,
-        const ck::index_t split_k) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_in_grid,
+                        void* p_wei_grid,
+                        const void* p_out_grid,
+                        const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_lengths, // input
+                        const std::array<index_t, NDimSpatial + 3>& b_g_n_c_wis_strides,
+                        const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths, // weight
+                        const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_strides,
+                        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths, // output
+                        const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
+                        const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
+                        const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
+                        const std::array<ck::index_t, NDimSpatial>& input_left_pads,
+                        const std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op,
+                        const ck::index_t split_k) override
     {
         return std::make_unique<Argument>(static_cast<const InDataType*>(p_in_grid),
                                           static_cast<WeiDataType*>(p_wei_grid),
                                           static_cast<const OutDataType*>(p_out_grid),
-                                          p_ds,
                                           b_g_n_c_wis_lengths, // input
                                           b_g_n_c_wis_strides,
                                           e_g_k_c_xs_lengths, // weight
                                           e_g_k_c_xs_strides,
                                           a_g_n_k_wos_lengths, // output
                                           a_g_n_k_wos_strides,
-                                          ds_g_k_c_xs_lengths,
-                                          ds_g_k_c_xs_strides,
                                           conv_filter_strides,
                                           conv_filter_dilations,
                                           input_left_pads,
@@ -1035,7 +841,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle"
+        str << "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
@@ -1068,7 +874,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         else
             throw std::runtime_error(
                 "The argument pointer is not an object of "
-                "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle::Argument structure!");
+                "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument structure!");
     }
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
@@ -1083,7 +889,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         else
             throw std::runtime_error(
                 "The argument pointer is not an object of "
-                "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle::Argument structure!");
+                "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle::Argument structure!");
     }
 };
 
