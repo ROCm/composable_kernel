@@ -123,26 +123,11 @@ auto get_elimit(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::bf16_t>(std::string init_method)
+auto get_elimit<ck_tile::bf16_t>(std::string /*init_method*/)
 {
-    if(init_method == "ui" || init_method == "ni")
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck_tile::make_tuple(rtol, atol);
-    }
-    else if(init_method == "nf")
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck_tile::make_tuple(rtol, atol);
-    }
-    else
-    {
-        double rtol = 3e-3;
-        double atol = 3e-3;
-        return ck_tile::make_tuple(rtol, atol);
-    }
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    return ck_tile::make_tuple(rtol, atol);
 }
 
 template <>
@@ -707,7 +692,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 else
                 {
                     return ck_tile::Alibi<SaccDataType, true>{
-                        0, real_seqlen_q, real_seqlen_k, ck_tile::AlibiMode::VERTICAL};
+                        0, real_seqlen_q, real_seqlen_k, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT};
                 }
             }();
 
@@ -717,7 +702,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             for(auto i_h = 0; i_h < nhead; i_h++)
             {
                 SaccDataType current_slope = alibi_slope_host(i_b_slope, i_h);
-                alibi_host.slope           = current_slope;
+                alibi_host.slope = alibi_host.mode == ck_tile::AlibiMode::VERTICAL ? current_slope
+                                                                                   : -current_slope;
                 for(auto i_r = 0; i_r < real_seqlen_q; i_r++)
                 {
                     for(auto i_c = 0; i_c < real_seqlen_k; i_c++)

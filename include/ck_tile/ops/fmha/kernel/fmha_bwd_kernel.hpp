@@ -163,6 +163,13 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::index_t batch_stride_bias = 0;
     };
 
+    struct FmhaBwdAlibiKargs
+    {
+        // alibi is batch*nhead*1, no matter in batch/group mode, they are the same
+        const void* alibi_slope_ptr;
+        ck_tile::index_t alibi_slope_stride; // stride in batch, or 0 for all batch share same slope
+    };
+
     struct FmhaBwdCommonBiasGradKargs
     {
         void* dbias_ptr                     = nullptr;
@@ -216,7 +223,9 @@ struct FmhaBwdDQDKDVKernel
         : FmhaBwdCommonKargs,
           std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
                              FmhaBwdBatchModeBiasKargs,
-                             FmhaBwdEmptyKargs<0>>,
+                             std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ALIBI,
+                                                FmhaBwdAlibiKargs,
+                                                FmhaBwdEmptyKargs<0>>>,
           std::conditional_t<kHasBiasGrad, FmhaBwdBatchModeBiasGradKargs, FmhaBwdEmptyKargs<1>>,
           std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<2>>,
           std::conditional_t<kHasDropout, FmhaBwdBatchModeDropoutKargs, FmhaBwdEmptyKargs<3>>
@@ -233,7 +242,9 @@ struct FmhaBwdDQDKDVKernel
         : FmhaBwdCommonKargs,
           std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
                              FmhaBwdCommonBiasKargs,
-                             FmhaBwdEmptyKargs<0>>,
+                             std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ALIBI,
+                                                FmhaBwdAlibiKargs,
+                                                FmhaBwdEmptyKargs<0>>>,
           std::conditional_t<kHasBiasGrad, FmhaBwdCommonBiasGradKargs, FmhaBwdEmptyKargs<1>>,
           std::conditional_t<kHasMask, FmhaBwdMaskKargs, FmhaBwdEmptyKargs<2>>,
           std::conditional_t<kHasDropout, FmhaBwdCommonDropoutKargs, FmhaBwdEmptyKargs<3>>
@@ -348,6 +359,11 @@ struct FmhaBwdDQDKDVKernel
             kargs.stride_bias       = stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
             kargs.batch_stride_bias = batch_stride_bias;
+        }
+        else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+        {
+            kargs.alibi_slope_ptr    = bias_ptr;
+            kargs.alibi_slope_stride = stride_bias;
         }
 
         if constexpr(kHasBiasGrad)
@@ -470,6 +486,11 @@ struct FmhaBwdDQDKDVKernel
             kargs.stride_bias       = stride_bias;
             kargs.nhead_stride_bias = nhead_stride_bias;
         }
+        else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+        {
+            kargs.alibi_slope_ptr    = bias_ptr;
+            kargs.alibi_slope_stride = stride_bias;
+        }
         if constexpr(kHasBiasGrad)
         {
             kargs.dbias_ptr          = dbias_ptr;
@@ -546,10 +567,6 @@ struct FmhaBwdDQDKDVKernel
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = query_start * kargs.stride_bias;
-            }
-            else
-            {
-                batch_offset_bias = key_start;
             }
             if constexpr(kHasBiasGrad)
             {
@@ -983,6 +1000,38 @@ struct FmhaBwdDQDKDVKernel
             }
         }();
 
+        // WA i_batch capture structure binding before c++20
+        auto position_encoding = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
+            {
+                // data loading, shared by entire wg
+                // TODO: how to use s_read?
+                AccDataType slope = *(reinterpret_cast<const AccDataType*>(kargs.alibi_slope_ptr) +
+                                      i_batch_ * kargs.alibi_slope_stride + i_nhead_);
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                slope *= ck_tile::log2e_v<>;
+#endif
+                if constexpr(kHasMask)
+                {
+                    return make_alibi_from_lr_mask<AccDataType, false>(slope,
+                                                                       kargs.window_size_left,
+                                                                       kargs.window_size_right,
+                                                                       kargs.seqlen_q,
+                                                                       kargs.seqlen_k,
+                                                                       kargs.mask_type);
+                }
+                else
+                {
+                    return Alibi<AccDataType, false>{
+                        slope, kargs.seqlen_q, kargs.seqlen_k, AlibiMode::FROM_BOTTOM_RIGHT};
+                }
+            }
+            else
+            {
+                return EmptyPositionEncoding<AccDataType>{};
+            }
+        }();
+
         // dropout
         float rp_undrop             = 1;
         float scale_rp_undrop       = 1;
@@ -1067,6 +1116,7 @@ struct FmhaBwdDQDKDVKernel
                                                          dq_dram_window,
                                                          dbias_dram_window,
                                                          mask,
+                                                         position_encoding,
                                                          kargs.raw_scale,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                                                          kargs.scale,

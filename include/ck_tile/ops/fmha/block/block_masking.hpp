@@ -190,7 +190,7 @@ struct GenericAttentionMask
             }
             else
             {
-                return i_x >= x_end;
+                return i_x >= x_end || i_y >= y_total;
             }
         }
     }
@@ -343,7 +343,7 @@ struct SimplifiedGenericAttentionMask
             index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
             index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
 
-            return i_x < x_start || i_x >= x_end;
+            return i_x < x_start || i_x >= x_end || i_y >= y_total;
         }
     }
 

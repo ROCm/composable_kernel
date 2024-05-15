@@ -836,7 +836,7 @@ struct FmhaFwdKernel
                 else
                 {
                     return Alibi<SaccDataType, true>{
-                        slope, kargs.seqlen_q, kargs.seqlen_k, AlibiMode::VERTICAL};
+                        slope, kargs.seqlen_q, kargs.seqlen_k, AlibiMode::FROM_BOTTOM_RIGHT};
                 }
             }
             else

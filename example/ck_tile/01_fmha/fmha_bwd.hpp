@@ -67,7 +67,7 @@ struct fmha_bwd_args
     const void* q_ptr;
     const void* k_ptr;
     const void* v_ptr;
-    const void* bias_ptr;
+    const void* bias_ptr; // bias or alibi_slope pointer
     const void* o_ptr;
     const void* lse_ptr;
     const void* do_ptr;
@@ -93,7 +93,7 @@ struct fmha_bwd_args
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
-    ck_tile::index_t stride_bias;
+    ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
     ck_tile::index_t stride_o;
     ck_tile::index_t stride_randval;
     ck_tile::index_t stride_do;
@@ -339,7 +339,7 @@ struct fmha_bwd_traits
     std::string data_type;
     bool is_group_mode;
     mask_enum mask_type;
-    bias_enum bias_type;
+    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_dbias;
     bool has_dropout;
     // TODO: padding check is inside this api

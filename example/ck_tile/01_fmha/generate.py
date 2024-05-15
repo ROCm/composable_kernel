@@ -703,7 +703,7 @@ class FmhaBwdDQDKDVApiTrait:
     bhdq      : int  # q head_dim
     bhdv      : int  # v head_dim
     mask      : str
-    bias      : str  # true/false
+    bias      : str
     dbias     : str
     dropout   : str
     spad      : str
@@ -950,7 +950,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], mask_impl) -> Tuple[Fm
             hdim = int(hdim_str)
             if (mode == "group") and (spad == "f" or skpad == "f"):
                 continue
-            if (bias == "no" and dbias == "t"):
+            if ((bias == "no" or bias == "alibi") and dbias == "t"):
                 continue
             k = FmhaBwdDQDKDVKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad, 
