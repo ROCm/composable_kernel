@@ -5,6 +5,7 @@
 
 #include <hip/hip_runtime.h>
 #include <set>
+#include <vector>
 
 #include "ck/ck.hpp"
 #include "ck/stream_config.hpp"
@@ -116,18 +117,19 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #define MEDIAN 1
     if(stream_config.time_kernel_)
     {
-#if DEBUG_LOG
-        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
-               __func__,
-               grid_dim.x,
-               grid_dim.y,
-               grid_dim.z,
-               block_dim.x,
-               block_dim.y,
-               block_dim.z);
+        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
+                   __func__,
+                   grid_dim.x,
+                   grid_dim.y,
+                   grid_dim.z,
+                   block_dim.x,
+                   block_dim.y,
+                   block_dim.z);
 
-        printf("Warm up %d times\n", stream_config.cold_niters_);
-#endif
+            printf("Warm up %d times\n", stream_config.cold_niters_);
+        }
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
@@ -140,9 +142,10 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         {
             return 0.0;
         }
-#if DEBUG_LOG
-        printf("Start running %d times...\n", nrepeat);
-#endif
+        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        {
+            printf("Start running %d times...\n", nrepeat);
+        }
 
 #if MEDIAN
         std::set<float> times;
@@ -183,13 +186,14 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             total_time += cur_time;
 #endif
 
-#if DEBUG_LOG
-            std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
+            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            {
+                std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
 
-            printf("args.p_a_grid: %p, args.p_b_grid:%p\n",
-                   static_cast<const void*>(args.p_a_grid),
-                   static_cast<const void*>(args.p_b_grid));
-#endif
+                printf("args.p_a_grid: %p, args.p_b_grid:%p\n",
+                       static_cast<const void*>(args.p_a_grid),
+                       static_cast<const void*>(args.p_b_grid));
+            }
         }
 
 #if MEDIAN

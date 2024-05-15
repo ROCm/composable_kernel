@@ -40,6 +40,19 @@ MASK_MAP = {
     "generic" : "FmhaMasks::GenericMask"
 }
 
+BIAS_MAP = {
+    "no" : "ck_tile::BlockAttentionBiasEnum::NO_BIAS",
+    "bias"  : "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
+    "alibi" : "ck_tile::BlockAttentionBiasEnum::ALIBI"
+}
+
+# TODO: this is ugly
+BIAS_CHECK_MAP = {
+    "no" : "bias_enum::no_bias",
+    "bias"  : "bias_enum::elementwise_bias",
+    "alibi" : "bias_enum::alibi"
+}
+
 MODE_MAP = {
     "batch" : "false",
     "group" : "true"
@@ -173,7 +186,7 @@ MASK_SIMPLIFIED_CHECK_MAP = {
     "s_mask" : "t.mask_type != mask_enum::no_mask",
 }
 
-FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_bias == {F_bias}) && (t.has_lse == {F_lse}) && (t.do_fp8_static_quant == {F_squant}) &&
+FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse}) && (t.do_fp8_static_quant == {F_squant}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
                 using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 return fmha_fwd_<trait_>(s, a);
@@ -213,7 +226,7 @@ class FmhaFwdApiTrait:
     bk0blen   : int
     vlayout   : str
     mask      : str
-    bias      : str  # true/false
+    bias      : str  #
     lse       : str  #
     squant    : str  #
     spad      : str
@@ -241,8 +254,8 @@ class FmhaFwdApiTrait:
     def skcheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
         if self.pipeline_tag == 'qr_async':
-            if self.skpad == 't' : return f'a.seqlen_k % {self.bn0} != 0'
-            else :                 return f'a.seqlen_k % {self.bn0} == 0'
+            if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
+            else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
         elif self.pipeline_tag in ['qr', 'qr_fp8']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.seqlen_k % {self.bn0} == 0'
@@ -297,7 +310,7 @@ class FmhaFwdPipeline:
         pn = pad_name()
         n = f'{self.tag}_v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
-        if self.F_bias == 't' : n += '_bias'
+        if self.F_bias != 'no' : n += f'_{self.F_bias}'
         if self.F_mask[0:2] == 's_':
             if self.F_mask == 's_mask': n += f'_mask'
         else:
@@ -332,7 +345,8 @@ class FmhaFwdApiPool:
                     if_k = 'if' if k == 0 else 'else if'
                     inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_mask=get_mask_map(self.mask_impl)[trait.mask],
-                                   F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias=BOOL_MAP[trait.bias], F_lse=BOOL_MAP[trait.lse],
+                                   F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
+                                   F_lse=BOOL_MAP[trait.lse],
                                    F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0blen=trait.bk0blen,
@@ -400,7 +414,7 @@ class FmhaFwdKernel:
                 F_skpad         = BOOL_MAP[self.F_pipeline.F_skpad],
                 F_dpad          = BOOL_MAP[self.F_pipeline.F_dpad],
                 F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],
-                F_bias          = BOOL_MAP[self.F_pipeline.F_bias],
+                F_bias          = BIAS_MAP[self.F_pipeline.F_bias],
                 F_lse           = BOOL_MAP[self.F_pipeline.F_lse],
                 F_squant        = BOOL_MAP[self.F_pipeline.F_squant],
                 F_occupancy     = self.F_tile.F_occupancy,
@@ -454,7 +468,9 @@ def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[
             }
         elif dtype == 'fp8' or dtype == 'bf8':
             return {
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1)
+                '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
+                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
+                '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
             }
         else:
             return None
@@ -472,7 +488,7 @@ def get_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFw
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for mask, bias, lse in itertools.product(get_mask_map(mask_impl).keys(), ["t", "f"], ["t", "f"]):
+            for mask, bias, lse in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"]):
                 if hdim == 256:
                 # if True:
                     pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, squant, mask))
@@ -490,7 +506,7 @@ def get_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFw
                         pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 'f', 't', 't', bias, lse, squant, mask)) # TODO: cover arbitraty hdim
         elif dtype in ['fp8', 'bf8']:
             # no need lse kernels
-            for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), ["t", "f"]):
+            for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
                 pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', squant, mask))
         else:
             assert False

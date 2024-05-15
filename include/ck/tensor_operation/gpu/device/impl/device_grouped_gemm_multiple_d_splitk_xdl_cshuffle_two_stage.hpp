@@ -337,6 +337,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             elementwise_d_grid_descs_m_n_.reserve(group_count_);
             ds_grid_pointer_.reserve(group_count_);
             group_grid_size_.reserve(group_count_);
+            e_ptrs_.reserve(group_count_);
 
             for(std::size_t i = 0; i < gemm_descs.size(); ++i)
             {
@@ -380,7 +381,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 const index_t block_end   = grid_size_ + grid_size_grp;
 
                 grid_size_ += grid_size_grp;
-                group_grid_size_[i] = grid_size_grp;
+                group_grid_size_.push_back(grid_size_grp);
                 // block-to-e-tile map
                 auto grouped_block_2_ctile_map =
                     GroupedGemmBlock2ETileMap(local_b2c_tile_map, block_start);
@@ -421,9 +422,9 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 elementwise_c_grid_descs_m_n_.push_back(c_grid_desc_m_n);
                 elementwise_d_grid_descs_m_n_.push_back(ds_grid_desc_m_n);
                 ds_grid_pointer_.push_back(p_ds_grid);
+                // Store a copy of E pointers for elementwise kernel destination
+                e_ptrs_.push_back(p_Es[i]);
             }
-            // Store a copy of E pointers for elementwise kernel destination
-            e_ptrs_ = p_Es;
         }
 
         /**
@@ -467,18 +468,19 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 gemm_kernel_args_[i].block_start_       = block_start;
                 gemm_kernel_args_[i].block_end_         = block_end;
 
-#if DEBUG_LOG
-                index_t tiles = (block_end - block_start) / K_BATCH;
-                std::cout << "block_start: " << block_start << "\n"
-                          << "block_end: " << block_end << "\n"
-                          << "tiles: " << tiles << std::endl
-                          << std::endl;
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    index_t tiles = (block_end - block_start) / K_BATCH;
+                    std::cout << "block_start: " << block_start << "\n"
+                              << "block_end: " << block_end << "\n"
+                              << "tiles: " << tiles << std::endl
+                              << std::endl;
 
-                std::cout << "KPadded: " << karg.KPadded << std::endl
-                          << "K0Padded: " << karg.K0Padded << std::endl
-                          << "KBatch: " << karg.k_batch << std::endl
-                          << "grid_size_: " << karg.KPadded << std::endl;
-#endif
+                    std::cout << "KPadded: " << karg.KPadded << std::endl
+                              << "K0Padded: " << karg.K0Padded << std::endl
+                              << "KBatch: " << karg.k_batch << std::endl
+                              << "grid_size_: " << karg.KPadded << std::endl;
+                }
             }
         }
 
@@ -493,12 +495,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 arg.karg_.p_c_grid = p_workspace + offset;
                 index_t tiles      = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
                 offset += tiles * MPerBlock * NPerBlock;
-#if DEBUG_LOG
-                std::cout << "block_start: " << arg.block_start_ << "\n"
-                          << "block_end: " << arg.block_end_ << "\n"
-                          << "tiles: " << tiles << "\n"
-                          << "offset: " << offset << std::endl;
-#endif
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "block_start: " << arg.block_start_ << "\n"
+                              << "block_end: " << arg.block_end_ << "\n"
+                              << "tiles: " << tiles << "\n"
+                              << "offset: " << offset << std::endl;
+                }
             }
         }
 
@@ -772,13 +775,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 dim3(BlockSize),
                 0,
                 cast_pointer_to_constant_address_space(dev_gemm_args),
-                arg.group_count_,
+                arg.gemm_kernel_args_.size(),
                 arg.a_element_op_,
                 arg.b_element_op_,
                 PassThrough{});
 
             // Elementwise kernels
-            for(int i = 0; i < arg.group_count_; ++i)
+            for(size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
             {
                 time += launch_and_time_kernel(
                     stream_config,
@@ -816,11 +819,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
-#if DEBUG_LOG
-            std::cout << "The group count is not equal to sum of skipped groups "
-                         "and kernel args size!"
-                      << std::endl;
-#endif // DEBUG_LOG
+            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            {
+                std::cout << "The group count is not equal to sum of skipped groups "
+                             "and kernel args size!"
+                          << std::endl;
+            }
             return false;
         }
 
@@ -832,11 +836,12 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             bool group_arg_valid = GridwiseGemm::CheckValidity(gemm_arg);
             if(not group_arg_valid)
             {
-#if DEBUG_LOG
-                std::cout << "[" << __func__ << "] group id: " << i
-                          << " has invalid GridwiseGemm settings!" << std::endl;
-                gemm_arg.Print();
-#endif // DEBUG_LOG
+                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                {
+                    std::cout << "[" << __func__ << "] group id: " << i
+                              << " has invalid GridwiseGemm settings!" << std::endl;
+                    gemm_arg.Print();
+                }
             }
             supported = supported && group_arg_valid;
         }
