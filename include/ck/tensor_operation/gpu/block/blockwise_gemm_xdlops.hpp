@@ -795,11 +795,6 @@ struct BlockwiseGemmXdlops_v2
                       "wrong!");
     }
 
-    __host__ __device__ BlockwiseGemmXdlops_v2(const BlockwiseGemmXdlops_v2& other)
-        : a_thread_copy_(other.a_origin), b_thread_copy_(other.b_origin)
-    {
-    }
-
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
     {
