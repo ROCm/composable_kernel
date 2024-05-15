@@ -238,7 +238,6 @@ struct Epilogue
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         count++;
-        // decltype(solution)::foo = 1;
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include",

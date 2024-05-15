@@ -549,25 +549,13 @@ struct TransformConvFwdToGemm
     }
 };
 
-// TODO: remove hack for getting layout type
-using layouts = std::variant<ck::tensor_layout::convolution::GNWK,
-                             ck::tensor_layout::convolution::GNHWK,
-                             ck::tensor_layout::convolution::NHWGK,
-                             ck::tensor_layout::convolution::GNDHWK,
-                             ck::tensor_layout::convolution::NDHWGK>;
 // wrapper class to call member functions on TransformConvToGemm struct at runtime
+// TODO: figure out aq way to properly pass in layout as an argument
 struct TransformConv
 {
-    std::variant<ck::tensor_layout::convolution::GNWK,
-                 ck::tensor_layout::convolution::GNHWK,
-                 ck::tensor_layout::convolution::NHWGK,
-                 ck::tensor_layout::convolution::GNDHWK,
-                 ck::tensor_layout::convolution::NDHWGK>
-        layout;
     template <index_t NDimSpatial,
               device::ConvolutionForwardSpecialization ConvForwardSpecialization>
-    TransformConv(layouts ELayout,
-                  ck::Array<index_t, NDimSpatial + 3> out_lengths,
+    TransformConv(ck::Array<index_t, NDimSpatial + 3> out_lengths,
                   ck::Array<index_t, NDimSpatial + 3> out_strides,
                   TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
     {
@@ -576,8 +564,7 @@ struct TransformConv
     template <index_t NDimSpatial,
               device::ConvolutionForwardSpecialization ConvForwardSpecialization>
     auto
-    transform_func(layouts ELayout,
-                   ck::Array<index_t, NDimSpatial + 3> out_lengths,
+    transform_func(ck::Array<index_t, NDimSpatial + 3> out_lengths,
                    ck::Array<index_t, NDimSpatial + 3> out_strides,
                    TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
     {

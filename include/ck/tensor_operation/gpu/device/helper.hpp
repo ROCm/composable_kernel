@@ -86,9 +86,9 @@ auto pad(ck::index_t mpb,
 
 // Functions to call on TransformConvFwdToGemm through wrapper: different functions based on num
 // dims
+// FIXME: add a way to properly pass in the layout
 auto transform_conv(ck::index_t num_dim,
                     ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
-                    layouts e_layout,
                     ck::Array<ck::index_t, 5> out_lengths,
                     ck::Array<ck::index_t, 5> out_strides)
 {
@@ -100,9 +100,8 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 2 &&
             spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
@@ -112,9 +111,8 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 2 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
                                         Filter1x1Stride1Pad0)
@@ -124,9 +122,8 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 2 &&
             spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
@@ -136,16 +133,14 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     throw std::runtime_error("Incorrect conv spec");
 }
 
 auto transform_conv_3d(ck::index_t num_dim,
                        ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
-                       layouts e_layout,
                        ck::Array<ck::index_t, 6> out_lengths,
                        ck::Array<ck::index_t, 6> out_strides)
 {
@@ -157,9 +152,8 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 3 &&
             spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
@@ -169,9 +163,8 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 3 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
                                         Filter1x1Stride1Pad0)
@@ -181,9 +174,8 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 3 &&
             spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
@@ -193,16 +185,14 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     throw std::runtime_error("Incorrect conv spec");
 }
 
 auto transform_conv_1d(ck::index_t num_dim,
                        ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
-                       layouts e_layout,
                        ck::Array<ck::index_t, 4> out_lengths,
                        ck::Array<ck::index_t, 4> out_strides)
 {
@@ -214,9 +204,8 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 1 &&
             spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
@@ -226,9 +215,8 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 1 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
                                         Filter1x1Stride1Pad0)
@@ -238,9 +226,8 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 1 &&
             spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
@@ -250,9 +237,8 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>
             conv_fwd;
 
-        auto res =
-            ck::tensor_operation::TransformConv(e_layout, out_lengths, out_strides, conv_fwd);
-        return res.transform_func(e_layout, out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     throw std::runtime_error("Incorrect dims or conv spec");
 }
@@ -315,20 +301,22 @@ auto block_2_etile(ck::index_t m_per_block, ck::index_t n_per_block, CGridDesc_M
 
 // wrapper functions by dims to get grid size - uses above 3 functions
 // TODO: eventually remove the 1d/2d versions as CK will only support 3d convolutions
-auto get_launch_params_1d(ck::index_t m_per_block,
-                          ck::index_t n_per_block,
-                          ck::index_t k_per_block,
-                          ck::index_t num_dim,
-                          ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
-                          ck::tensor_operation::device::GemmSpecialization gemm,
-                          layouts e_layout,
+auto get_launch_params_1d(ck::host::Solution solution,
                           ck::Array<ck::index_t, 4> out_lengths,
                           ck::Array<ck::index_t, 4> out_strides)
 {
-    auto conv_to_gemm_transformer =
-        transform_conv_1d(num_dim, spec, e_layout, out_lengths, out_strides);
-    auto matrix_padder = pad(m_per_block, n_per_block, k_per_block, gemm, conv_to_gemm_transformer);
-    auto b2e           = block_2_etile(m_per_block, n_per_block, matrix_padder);
+    auto num_dim     = solution.GetTemplateParameter<ck::index_t>("NumDim");
+    auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
+    auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
+    auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
+    auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
+    auto ConvType    = solution.GetTemplateParameter<std::string>("ConvSpecialization");
+    ck::tensor_operation::device::GemmSpecialization GemmSpec               = gemm_type(GemmType);
+    ck::tensor_operation::device::ConvolutionForwardSpecialization ConvSpec = conv_type(ConvType);
+    auto conv_to_gemm_transformer = transform_conv_1d(num_dim, ConvSpec, out_lengths, out_strides);
+    auto matrix_padder =
+        pad(m_per_block, n_per_block, k_per_block, GemmSpec, conv_to_gemm_transformer);
+    auto b2e = block_2_etile(m_per_block, n_per_block, matrix_padder);
     return b2e;
 }
 
@@ -342,31 +330,30 @@ auto get_launch_params(ck::host::Solution solution,
     auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
     auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
     auto ConvType    = solution.GetTemplateParameter<std::string>("ConvSpecialization");
-    auto out_layout  = solution.GetTemplateParameter<std::string>("LayoutE");
     ck::tensor_operation::device::GemmSpecialization GemmSpec               = gemm_type(GemmType);
     ck::tensor_operation::device::ConvolutionForwardSpecialization ConvSpec = conv_type(ConvType);
-    auto ELayout = layout_type(out_layout);
-    auto conv_to_gemm_transformer =
-        transform_conv(num_dim, ConvSpec, ELayout, out_lengths, out_strides);
+    auto conv_to_gemm_transformer = transform_conv(num_dim, ConvSpec, out_lengths, out_strides);
     auto matrix_padder =
         pad(m_per_block, n_per_block, k_per_block, GemmSpec, conv_to_gemm_transformer);
     auto b2e = block_2_etile(m_per_block, n_per_block, matrix_padder);
     return b2e;
 }
 
-auto get_launch_params_3d(ck::index_t m_per_block,
-                          ck::index_t n_per_block,
-                          ck::index_t k_per_block,
-                          ck::index_t num_dim,
-                          ck::tensor_operation::device::ConvolutionForwardSpecialization spec,
-                          ck::tensor_operation::device::GemmSpecialization gemm,
-                          layouts e_layout,
+auto get_launch_params_3d(ck::host::Solution solution,
                           ck::Array<ck::index_t, 6> out_lengths,
                           ck::Array<ck::index_t, 6> out_strides)
 {
-    auto conv_to_gemm_transformer =
-        transform_conv_3d(num_dim, spec, e_layout, out_lengths, out_strides);
-    auto matrix_padder = pad(m_per_block, n_per_block, k_per_block, gemm, conv_to_gemm_transformer);
-    auto b2e           = block_2_etile(m_per_block, n_per_block, matrix_padder);
+    auto num_dim     = solution.GetTemplateParameter<ck::index_t>("NumDim");
+    auto m_per_block = solution.GetTemplateParameter<ck::index_t>("MPerBlock");
+    auto n_per_block = solution.GetTemplateParameter<ck::index_t>("NPerBlock");
+    auto k_per_block = solution.GetTemplateParameter<ck::index_t>("KPerBlock");
+    auto GemmType    = solution.GetTemplateParameter<std::string>("GemmSpecialization");
+    auto ConvType    = solution.GetTemplateParameter<std::string>("ConvSpecialization");
+    ck::tensor_operation::device::GemmSpecialization GemmSpec               = gemm_type(GemmType);
+    ck::tensor_operation::device::ConvolutionForwardSpecialization ConvSpec = conv_type(ConvType);
+    auto conv_to_gemm_transformer = transform_conv_3d(num_dim, ConvSpec, out_lengths, out_strides);
+    auto matrix_padder =
+        pad(m_per_block, n_per_block, k_per_block, GemmSpec, conv_to_gemm_transformer);
+    auto b2e = block_2_etile(m_per_block, n_per_block, matrix_padder);
     return b2e;
 }
