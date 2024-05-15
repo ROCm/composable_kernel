@@ -26,6 +26,8 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
+find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
@@ -80,9 +82,6 @@ if(INSTANCES_ONLY)
 endif()
 
 include(getopt)
-
-# CK config file to record supported datatypes, etc.
-configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 # CK version file to record release version as well as git commit hash
 find_package(Git REQUIRED)
@@ -145,6 +144,25 @@ if(GPU_TARGETS)
 else()
     message("Building CK for the following targets: ${AMDGPU_TARGETS}")
 endif()
+
+if (GPU_TARGETS)
+    if (GPU_TARGETS MATCHES "gfx9")
+        add_definitions(-DCK_USE_XDL)
+        set(CK_USE_XDL "ON")
+    endif()
+    if (GPU_TARGETS MATCHES "gfx11")
+        add_definitions(-DCK_USE_WMMA)
+        set(CK_USE_WMMA "ON")
+    endif()
+else()
+    add_definitions(-DCK_USE_WMMA -DCK_USE_XDL)
+    set(CK_USE_XDL "ON")
+    set(CK_USE_WMMA "ON")
+endif()
+
+# CK config file to record supported datatypes, etc.
+configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
+
 find_package(hip)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
@@ -154,7 +172,10 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
    message("Adding the fno-offload-uniform-block compiler flag")
    add_compile_options(-fno-offload-uniform-block)
 endif()
-
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
+   message("Adding the enable-post-misched=0 compiler flag")
+   add_compile_options(-mllvm -enable-post-misched=0)
+endif()
 #
 # Seperate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
@@ -183,7 +204,7 @@ endif()
 
 
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_NAVI3X "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
+option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -191,10 +212,10 @@ if(USE_BITINT_EXTENSION_INT4)
     message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
-if(USE_OPT_NAVI3X)
+if(USE_OPT_GFX11)
     add_compile_options(-mcumode)
     add_compile_options(-mno-wavefrontsize64)
-    message("CK compiled with USE_OPT_NAVI3X set to ${USE_OPT_NAVI3X}")
+    message("CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
 endif()
 
 ## Threads

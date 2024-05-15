@@ -4,11 +4,18 @@
 #pragma once
 
 #include "ck/config.h"
+#include "ck/utility/env.hpp"
 
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
+
+// environment variable to enable logging:
+// export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
+CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
+
+// to do: add various levels of logging with CK_LOG_LEVEL
 
 #define CK_TIME_KERNEL 1
 
@@ -45,6 +52,10 @@
 #endif
 
 // define general macros for various architectures
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__) || defined(__gfx950__)
+#define __gfx9__
+#endif
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
 #define __gfx94__
 #endif
@@ -65,8 +76,7 @@
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
-#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx94__)
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx9__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
@@ -78,8 +88,7 @@
 #ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
 #elif defined(__gfx803__) || defined(__gfx900__) // for GPU code
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx103__) || \
-    defined(__gfx94__) // for GPU code
+#elif defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
@@ -92,7 +101,7 @@
 // MFMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_MFMA
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) // for GPU code
+#elif defined(__gfx9__) // for GPU code
 #define CK_USE_AMD_MFMA
 #endif
 
@@ -116,7 +125,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) // for GPU code
+#elif defined(__gfx9__) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -219,16 +228,16 @@
 // workaround: compiler issue on gfx908
 #define CK_WORKAROUND_SWDEV_388832 1
 
-// flag to enable (1) or disable (0) the debugging output in some kernels
-#define DEBUG_LOG 0
-
 // denorm test fix, required to work around dissue
 #ifndef CK_WORKAROUND_DENORM_FIX
 #define CK_WORKAROUND_DENORM_FIX 0
 #else
-// enable only on MI200
+// enable only for gfx90a
 #define CK_WORKAROUND_DENORM_FIX = CK_WORKAROUND_DENORM_FIX && defined(__gfx90a__)
 #endif // CK_WORKAROUND_DENORM_FIX
+
+// set flag to 1 to build deprecated instances
+#define CK_BUILD_DEPRECATED 1
 
 namespace ck {
 

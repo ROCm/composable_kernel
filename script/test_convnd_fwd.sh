@@ -65,7 +65,7 @@ set -- "${POSITIONAL[@]}" # restore positional parameters
 # NUMACTL="numactl --cpunodebind=1 --membind=1"
 NUMACTL=
 # ENV_CONF=
-GPU=mi100
+GPU=gfx908
 PROF_ITER_COUNT=10000
 LOG_DIR_PATH=../log/${LOG_DIR}
 set -x

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -254,13 +254,14 @@ template <index_t NDimSpatial,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          typename ComputeDataType =
+          typename AComputeDataType =
               decltype(UnpackDataType<is_detected<is_tuple, ADataType>::value,
                                       Number<0>,
                                       ADataType>()), // ComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          typename BComputeDataType = AComputeDataType,
+          LoopScheduler LoopSched   = make_default_loop_scheduler()>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
@@ -274,7 +275,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              AElementwiseOperation,
                                              BElementwiseOperation,
                                              CDEElementwiseOperation,
-                                             ComputeDataType>
+                                             AComputeDataType,
+                                             BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
@@ -386,7 +388,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     using GemmBDataType = std::conditional_t<!isMultiB && isMultiA, Tuple<BDataType>, BDataType>;
 
 #define GridwiseGemmTemplateParameters                                                          \
-    GemmADataType, GemmBDataType, ComputeDataType, AccDataType, CShuffleDataType, DsDataType,   \
+    GemmADataType, GemmBDataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType,  \
         EDataType, AElementwiseOperation, BElementwiseOperation, CDEElementwiseOperation,       \
         InMemoryDataOperationEnum::Set, NumGemmKPrefetchStage, BlockSize, MPerBlock, NPerBlock, \
         KPerBlock, AK1, BK1, MPerXDL, NPerXDL, MXdlPerWave, NXdlPerWave,                        \
@@ -399,7 +401,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                           \
         CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,                           \
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                       \
-        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
+        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,              \
+        BComputeDataType
     // Use appropriate gridwise gemm
     using GridwiseGemm =
         std::conditional_t<isMultiA || isMultiB,
@@ -811,8 +814,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         // check device
         if(get_device_name() == "gfx908")
         {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
-                           is_same_v<AccDataType, int32_t>))
+            // FIXME: re-enable fp64 when SWDEV-335738 is fixed
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
                 return false;
             }

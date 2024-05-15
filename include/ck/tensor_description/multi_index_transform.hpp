@@ -1951,4 +1951,89 @@ struct Modulo
         printf("}");
     }
 };
+
+template <typename LowLengths>
+struct Xor
+{
+    using LowerIndex = MultiIndex<2>;
+    using UpperIndex = MultiIndex<2>;
+
+    using UpLengths = LowLengths;
+
+    UpLengths up_lengths_;
+
+    __host__ __device__ constexpr Xor() : up_lengths_{} {}
+
+    __host__ __device__ constexpr Xor(const LowLengths& low_lengths) : up_lengths_{low_lengths} {}
+
+    __host__ __device__ static constexpr index_t GetNumOfLowerDimension() { return 2; }
+
+    __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 2; }
+
+    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+
+    template <typename LowIdx, typename UpIdx>
+    __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
+                                                           const UpIdx& idx_up) const
+    {
+        static_assert(LowIdx::Size() == 2 && UpIdx::Size() == 2,
+                      "wrong! inconsistent # of dimension");
+
+        idx_low(Number<0>{}) = idx_up[Number<0>{}];
+
+        idx_low(Number<1>{}) =
+            idx_up[Number<1>{}] ^ (idx_up[Number<0>{}] % up_lengths_[Number<1>{}]);
+    }
+
+    template <typename LowIdxDiff,
+              typename UpIdxDiff,
+              typename LowIdx,
+              typename UpIdx,
+              index_t Hack>
+    __host__ __device__ void UpdateLowerIndex(LowIdxDiff& idx_diff_low,
+                                              const UpIdxDiff&,
+                                              LowIdx& idx_low,
+                                              const UpIdx& idx_up,
+                                              Number<Hack>) const
+    {
+        static_assert(LowIdxDiff::Size() == 2 && UpIdxDiff::Size() == 2 && LowIdx::Size() == 2 &&
+                          UpIdx::Size() == 2,
+                      "wrong! inconsistent # of dimension");
+
+        const auto idx_low_old = idx_low;
+
+        CalculateLowerIndex(idx_low, idx_up);
+
+        idx_diff_low = idx_low - idx_low_old;
+    }
+
+    __host__ __device__ static constexpr bool IsValidUpperIndexAlwaysMappedToValidLowerIndex()
+    {
+        return true;
+    }
+
+    template <typename UpIdx>
+    __host__ __device__ static constexpr bool
+    IsValidUpperIndexMappedToValidLowerIndex(const UpIdx& /* idx_up */)
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool IsKnownAtCompileTime()
+    {
+        return is_known_at_compile_time<UpLengths>::value;
+    }
+
+    __host__ __device__ void Print() const
+    {
+        printf("Xor{");
+
+        //
+        printf("up_lengths_: ");
+        print(up_lengths_);
+        printf(", ");
+
+        printf("}");
+    }
+};
 } // namespace ck

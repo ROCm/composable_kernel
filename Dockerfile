@@ -1,8 +1,9 @@
 FROM ubuntu:20.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=6.0
+ARG ROCMVERSION=6.1
 ARG compiler_version=""
 ARG compiler_commit=""
+ARG CK_SCCACHE=""
 
 RUN set -xe
 
@@ -16,29 +17,32 @@ RUN apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
 ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 RUN curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
-RUN if [ "$ROCMVERSION" != "6.0.1" ]; then \
-        sh -c "wget https://repo.radeon.com/amdgpu-install/6.0/ubuntu/focal/amdgpu-install_6.0.60000-1_all.deb  --no-check-certificate" && \
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated ./amdgpu-install_6.0.60000-1_all.deb && \
+RUN if [ "$ROCMVERSION" != "6.2" ]; then \
+        sh -c "wget https://repo.radeon.com/amdgpu-install/6.1/ubuntu/focal/amdgpu-install_6.1.60100-1_all.deb  --no-check-certificate" && \
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated ./amdgpu-install_6.1.60100-1_all.deb && \
         wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
         sh -c "echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] $DEB_ROCM_REPO focal main > /etc/apt/sources.list.d/rocm.list" && \
         sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] https://repo.radeon.com/amdgpu/$ROCMVERSION/ubuntu focal main > /etc/apt/sources.list.d/amdgpu.list'; \
-    elif [ "$ROCMVERSION" = "6.0.1" ] && [ "$compiler_version" = "rc1" ]; then \
-        sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_6.0-20.04-1_all.deb --no-check-certificate" && \
-        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install dialog && DEBIAN_FRONTEND=noninteractive apt-get install ./amdgpu-install-internal_6.0-20.04-1_all.deb && \
-        sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 6.0.1 rel-95 > /etc/apt/sources.list.d/rocm-build.list' && \
-        amdgpu-repo --amdgpu-build=1704947; \
+    elif [ "$ROCMVERSION" = "6.2" ] && [ "$compiler_version" = "rc2" ]; then \
+        sh -c "wget http://artifactory-cdn.amd.com/artifactory/list/amdgpu-deb/amdgpu-install-internal_6.1-20.04-1_all.deb --no-check-certificate" && \
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install dialog && DEBIAN_FRONTEND=noninteractive apt-get install ./amdgpu-install-internal_6.1-20.04-1_all.deb && \
+        sh -c 'echo deb [arch=amd64 trusted=yes] http://compute-artifactory.amd.com/artifactory/list/rocm-release-archive-20.04-deb/ 6.1 rel-48 > /etc/apt/sources.list.d/rocm-build.list' && \
+        amdgpu-repo --amdgpu-build=1736298; \
     fi
 
 RUN sh -c "echo deb http://mirrors.kernel.org/ubuntu focal main universe | tee -a /etc/apt/sources.list"
 RUN amdgpu-install -y --usecase=rocm --no-dkms
 
-## Sccache binary built from source for ROCm
+## Sccache binary built from source for ROCm, only install if CK_SCCACHE is defined
 ARG SCCACHE_REPO_URL=http://compute-artifactory.amd.com/artifactory/rocm-generic-experimental/rocm-sccache
 ENV SCCACHE_INSTALL_LOCATION=/usr/local/.cargo/bin
-RUN mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
-curl ${SCCACHE_REPO_URL}/portable/0.2.16/sccache-0.2.16-alpha.1-rocm --output ${SCCACHE_INSTALL_LOCATION}/sccache && \
-chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache
 ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
+ENV CK_SCCACHE=$CK_SCCACHE
+RUN if [ "$CK_SCCACHE" != "" ]; then \
+        mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
+        curl ${SCCACHE_REPO_URL}/portable/0.2.16/sccache-0.2.16-alpha.1-rocm --output ${SCCACHE_INSTALL_LOCATION}/sccache && \
+        chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache; \
+    fi
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -73,6 +77,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# hipTensor requires rocm-llvm-dev for rocm versions > 6.0.1
+RUN if [ "$ROCMVERSION" = "6.1" ]; then \
+        sh -c "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated rocm-llvm-dev"; \
+    fi
+# Update the cmake to version 3.27.5
+RUN pip install --upgrade cmake==3.27.5
+
 #Install latest ccache
 RUN git clone https://github.com/ccache/ccache.git && \
     cd ccache && mkdir build && cd build && cmake .. && make install
@@ -82,8 +93,6 @@ RUN wget -qO /usr/local/bin/ninja.gz https://github.com/ninja-build/ninja/releas
 RUN gunzip /usr/local/bin/ninja.gz
 RUN chmod a+x /usr/local/bin/ninja
 RUN git clone https://github.com/nico/ninjatracing.git
-# Update the cmake to the latest version
-RUN pip install --upgrade cmake==3.27.5
 
 #Install latest cppcheck
 RUN git clone https://github.com/danmar/cppcheck.git && \
