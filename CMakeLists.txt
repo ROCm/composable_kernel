@@ -23,7 +23,7 @@ endif()
 
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel VERSION ${version} LANGUAGES CXX)
+project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
 find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
@@ -135,12 +135,10 @@ endif()
 
 message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
 
-set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
-
 if(GPU_TARGETS)
     message("Building CK for the following targets: ${GPU_TARGETS}")
 else()
-    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+    message("Building CK for the default targets: ${DEFAULT_GPU_TARGETS}")
 endif()
 
 if (GPU_TARGETS)
@@ -226,6 +224,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+
+## HIP
+set(CMAKE_HIP_PLATFORM amd)
+set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER_ID})
+set(CMAKE_HIP_EXTENSIONS ON)
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
