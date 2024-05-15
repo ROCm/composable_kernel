@@ -530,19 +530,12 @@ struct UnaryTypeConvert<ck::bhalf_t, float>
 
 struct ConvScale
 {
-    __host__ __device__ ConvScale(float scale_in  = 1.f,
-                                  float scale_wei = 1.f,
-                                  float scale_out = 1.f)
-        : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
+    __host__ __device__ ConvScale(float* scale_in_ptr  = nullptr,
+                                  float* scale_wei_ptr = nullptr,
+                                  float* scale_out_ptr = nullptr)
+        : scale_in_ptr_(scale_in_ptr), scale_wei_ptr_(scale_wei_ptr), scale_out_ptr_(scale_out_ptr)
     {
     }
-
-    __host__ __device__ void SetScales(float scale_in, float scale_wei, float scale_out)
-    {
-        scale_in_  = scale_in;
-        scale_wei_ = scale_wei;
-        scale_out_ = scale_out;
-    };
 
     template <typename E, typename C>
     __host__ __device__ void operator()(E& e, const C& c) const;
@@ -550,12 +543,12 @@ struct ConvScale
     template <>
     __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
     {
-        e = type_convert<f8_t>(c * scale_in_ * scale_wei_ * scale_out_);
+        e = type_convert<f8_t>(c * (*scale_in_ptr_) * (*scale_wei_ptr_) * (*scale_out_ptr_));
     };
 
-    float scale_in_;
-    float scale_wei_;
-    float scale_out_;
+    float* scale_in_ptr_;
+    float* scale_wei_ptr_;
+    float* scale_out_ptr_;
 };
 
 struct ConvInvscale
