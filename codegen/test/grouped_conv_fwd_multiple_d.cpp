@@ -31,10 +31,10 @@ template <class T>
 rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
 {
     rtc::buffer<T> result(n);
-    std::mt19937 gen(seed);
+    /**std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
-    std::generate(result.begin(), result.end(), [&] { return dis(gen); });
-    // std::fill(result.begin(), result.end(), 1);
+    std::generate(result.begin(), result.end(), [&] { return dis(gen); });**/
+    std::fill(result.begin(), result.end(), 1);
     return result;
 }
 
@@ -153,16 +153,16 @@ TEST_CASE(test_problem_kernel)
 {
     ck::host::conv::Problem_Conv_Fwd prob;
     prob.NumDim = 2;
-    prob.G      = 1;
-    prob.N      = 128;
-    prob.C      = 192;
-    prob.K      = 256;
+    prob.G      = 32;
+    prob.N      = 256;
+    prob.C      = 32;
+    prob.K      = 64;
     prob.Y      = 3;
     prob.X      = 3;
-    prob.Hi     = 71;
-    prob.Wi     = 71;
-    prob.Ho     = 36;
-    prob.Wo     = 36;
+    prob.Hi     = 28;
+    prob.Wi     = 28;
+    prob.Ho     = 28;
+    prob.Wo     = 28;
     check_all<ck::half_t> check;
     std::string epilogue = R"(
 struct Epilogue
@@ -220,7 +220,7 @@ struct Epilogue
                                           static_cast<int>(prob.C)};
     ck::Array<ck::index_t, 5> d_strides = {};
 
-    ck::Array<ck::index_t, 2> conv_filter_strides   = {2, 2};
+    ck::Array<ck::index_t, 2> conv_filter_strides   = {1, 1};
     ck::Array<ck::index_t, 2> conv_filter_dilations = {1, 1};
     ck::Array<ck::index_t, 2> input_left_pads       = {1, 1};
     ck::Array<ck::index_t, 2> input_right_pads      = {1, 1};
@@ -287,7 +287,7 @@ struct Epilogue
         wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
         Tensor<ck::half_t> out_host(out_lengths, out_strides);
 
-        std::vector<ck::index_t> conv_filter_strides_   = {2, 2};
+        std::vector<ck::index_t> conv_filter_strides_   = {1, 1};
         std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
         std::vector<ck::index_t> input_left_pads_       = {1, 1};
         std::vector<ck::index_t> input_right_pads_      = {1, 1};
@@ -327,7 +327,9 @@ struct Epilogue
         ofh2.close();
         assert(pass);**/
         // auto res = rtc::from_gpu(out_dev);
-        // CHECK(report(solution, check(res)));
+        CHECK(report(solution, check(rtc::from_gpu(out_dev))));
+        // std::cout << "Check 2" << std::endl;
+        // CHECK(report(solution, check(rtc::from_gpu(out_dev))));
     }
 }
 
