@@ -17,3 +17,12 @@ struct StreamConfig
     bool flush_cache   = false;
     int rotating_count = 1;
 };
+
+struct GemmConfig
+{
+    int tile_m          = 1;
+    int tile_n          = 1;
+    int split_k         = 1;
+    int stages          = 1;
+    std::string op_name = "";
+};

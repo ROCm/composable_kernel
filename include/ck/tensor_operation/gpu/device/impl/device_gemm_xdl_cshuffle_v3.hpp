@@ -129,6 +129,430 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
+        int GetOccupancy(const BaseArgument* p_arg) override
+        {
+            int occupancy = 0;
+            auto arg      = *dynamic_cast<const Argument*>(p_arg);
+            ignore        = arg;
+
+            index_t gdx, gdy, gdz;
+            std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.KBatch);
+
+            index_t k_grain = arg.KBatch * KPerBlock;
+            index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
+
+            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
+
+            const auto Run = [&](const auto& kernel) {
+                hipError_t rtn;
+                rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
+                hip_check_error(rtn);
+            };
+
+            constexpr index_t minimum_occupancy =
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+
+            if(has_main_k_block_loop)
+            {
+                // Tail number always full
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(arg.KBatch > 1)
+                    {
+                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            minimum_occupancy>;
+                            Run(kernel);
+                        }
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy>;
+                        Run(kernel);
+                    }
+                }
+                // Tail number could be One to Seven
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+                {
+                    if(arg.KBatch > 1)
+                    {
+                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
+                            {
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::One>;
+                                Run(kernel);
+                            }
+                            else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                    TailNumber::Full)
+                            {
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Full>;
+                                Run(kernel);
+                            }
+
+                            if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Two)
+                                {
+                                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Two>;
+                                    Run(kernel);
+                                }
+                            }
+
+                            if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Three)
+                                {
+                                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Three>;
+                                    Run(kernel);
+                                }
+                            }
+
+                            if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Four)
+                                {
+                                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Four>;
+                                    Run(kernel);
+                                }
+                            }
+
+                            if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Five)
+                                {
+                                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Five>;
+                                    Run(kernel);
+                                }
+                            }
+
+                            if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Six)
+                                {
+                                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Six>;
+                                    Run(kernel);
+                                }
+                            }
+
+                            if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Seven)
+                                {
+                                    const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Seven>;
+                                    Run(kernel);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::One>;
+                            Run(kernel);
+                        }
+                        else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                TailNumber::Full)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Full>;
+                            Run(kernel);
+                        }
+
+                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
+                            {
+                                const auto kernel =
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Two>;
+                                Run(kernel);
+                            }
+                        }
+
+                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                               TailNumber::Three)
+                            {
+                                const auto kernel =
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Three>;
+                                Run(kernel);
+                            }
+                        }
+
+                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                               TailNumber::Four)
+                            {
+                                const auto kernel =
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Four>;
+                                Run(kernel);
+                            }
+                        }
+
+                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                               TailNumber::Five)
+                            {
+                                const auto kernel =
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Five>;
+                                Run(kernel);
+                            }
+                        }
+
+                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
+                            {
+                                const auto kernel =
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Six>;
+                                Run(kernel);
+                            }
+                        }
+
+                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                               TailNumber::Seven)
+                            {
+                                const auto kernel =
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Seven>;
+                                Run(kernel);
+                            }
+                        }
+                    }
+                }
+                // Tail number could be Odd or Even
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+                {
+                    if(arg.KBatch > 1)
+                    {
+                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                            {
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Odd>;
+                                Run(kernel);
+                            }
+                            else
+                            {
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Even>;
+                                Run(kernel);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                }
+                else
+                {
+                    if(arg.KBatch > 1)
+                    {
+                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                            {
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Odd>;
+                                Run(kernel);
+                            }
+                            else
+                            {
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy,
+                                    TailNumber::Even>;
+                                Run(kernel);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd>;
+                            Run(kernel);
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Even>;
+                            Run(kernel);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+
+                    if(arg.KBatch > 1)
+                    {
+                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+                        {
+                            const auto kernel =
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            false,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            minimum_occupancy>;
+                            Run(kernel);
+                        }
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy>;
+                        Run(kernel);
+                    }
+                }
+            }
+
+            return occupancy > 0 ?occupancy : 1;
+        }
+
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
@@ -740,6 +1164,49 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         // clang-format on
 
         return str.str();
+    }
+
+    // static int GetOccupancy2()
+    // {
+    //     int occupancy = 1;
+    //     constexpr index_t minimum_occupancy =
+    //         BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+
+    //     auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+    //                                               true,
+    //                                               InMemoryDataOperationEnum::Set,
+    //                                               minimum_occupancy>;
+
+    //     hipError_t rtn;
+    //     rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+    //         &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
+    //     hip_check_error(rtn);
+    //     return ++occupancy;
+    // }
+    // int GetOccupancy() override
+    // {
+    //     int occupancy = 3;
+    //     // constexpr index_t minimum_occupancy =
+    //     //     BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+
+    //     // const auto kernel = kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+    //     //                                           true,
+    //     //                                           InMemoryDataOperationEnum::Set,
+    //     //                                           minimum_occupancy>;
+
+    //     // hipError_t rtn;
+    //     // rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+    //     //     &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
+    //     // hip_check_error(rtn);
+    //     return ++occupancy;
+    // }
+    GemmConfig GetConfig() override
+    {
+        return GemmConfig{MPerBlock,
+                          NPerBlock,
+                          1,
+                          GridwiseGemm::BlockwiseGemmPipe::PrefetchStages,
+                          GetTypeString()};
     }
 };
 

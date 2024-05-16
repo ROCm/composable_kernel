@@ -33,7 +33,7 @@ struct BaseInvoker
     {
         return float{0};
     }
-
+    virtual int GetOccupancy(const BaseArgument*) { return 1; }
     virtual ~BaseInvoker() {}
 };
 
@@ -67,6 +67,8 @@ struct BaseOperator
         p_arg->p_workspace_ = p_workspace;
     }
 
+    //virtual int GetOccupancy() { return 1; }
+    virtual GemmConfig GetConfig() { return GemmConfig{1, 1, 1, 1, ""}; }
     virtual ~BaseOperator() {}
 };
 
