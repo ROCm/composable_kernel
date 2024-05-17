@@ -129,8 +129,8 @@ constexpr double fp16_to_double_hip(const fp16_hip_t& x)
 CK_TILE_HOST_DEVICE
 constexpr fp16_hip_t float_to_fp16_hip(const float& x)
 {
-    return __float2half(x);
-    // return static_cast<fp16_hip_t>(x);
+    // return __float2half(x);
+    return static_cast<fp16_hip_t>(x);
 }
 
 CK_TILE_HOST_DEVICE
