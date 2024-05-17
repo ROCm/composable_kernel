@@ -446,7 +446,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(!(karg.M % MPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -463,7 +463,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(!(karg.N % NPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -482,7 +482,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
             auto K_t = karg.k_batch * K0PerBlock * K1;
             if(!(karg.K % K_t == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
                               << karg.K << " " << __FILE__ << ":" << __LINE__
@@ -496,7 +496,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -510,7 +510,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -525,7 +525,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -539,7 +539,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -554,7 +554,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(karg.N % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of "
@@ -569,7 +569,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         {
             if(karg.M % CBlockTransferScalarPerVector_NWaveNPerXDL != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of "
@@ -584,7 +584,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         const auto num_k_loop = karg.K0Padded / K0PerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "The number of k loops (" << num_k_loop
                           << ") value is not supported by GridwiseGemm Pipeline."
