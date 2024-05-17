@@ -177,10 +177,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k < 0)
-        seqlen_k = seqlen_q;
+    auto [seqlen_qs, seqlen_ks] =
+        decode_seqlen(mode, batch, arg_parser.get_str("s"), arg_parser.get_str("s_k"));
+
+    std::cout << "seqlen_qs:";
+    for(auto xx : seqlen_qs)
+    {
+        std::cout << xx << ",";
+    }
+    std::cout << std::endl;
+
+    std::cout << "seqlen_ks:";
+    for(auto xx : seqlen_ks)
+    {
+        std::cout << xx << ",";
+    }
+    std::cout << std::endl;
+
+    // ck_tile::index_t seqlen_q = arg_parser.get_int("s");
+    // ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
+    // if(seqlen_k < 0)
+    //     seqlen_k = seqlen_q;
     ck_tile::index_t hdim_q = arg_parser.get_int("d");
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v < 0)
@@ -229,7 +246,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool lse            = arg_parser.get_bool("lse");
 
     bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
+    mask_info mask = mask_info::decode(
+        arg_parser.get_str("mask"), seqlen_qs[0], seqlen_ks[0]); // TODO: we don't need x/y anymore
 
     std::string init_method      = arg_parser.get_str("init");
     std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
@@ -245,8 +263,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::stream_config stream_config{
         nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
 
-    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
-    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+    // const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
+    // const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+    const auto seqstart_q_host = to_seqstarts(seqlen_qs);
+    const auto seqstart_k_host = to_seqstarts(seqlen_ks);
 
     using TypeConfig = FmhaFwdTypeConfig<DataType>;
 
@@ -302,9 +322,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
-        (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
-        (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
+        (mode == mode_enum::batch ? seqlen_ks[0] : seqstart_k_host.back());
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
@@ -430,7 +450,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const std::string prec = arg_parser.get_str("prec");
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
-              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
+              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0] << "/" << seqlen_ks[0]
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
               << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout
               << std::flush;
