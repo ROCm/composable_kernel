@@ -468,7 +468,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 gemm_kernel_args_[i].block_start_       = block_start;
                 gemm_kernel_args_[i].block_end_         = block_end;
 
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     index_t tiles = (block_end - block_start) / K_BATCH;
                     std::cout << "block_start: " << block_start << "\n"
@@ -495,7 +495,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 arg.karg_.p_c_grid = p_workspace + offset;
                 index_t tiles      = (arg.block_end_ - arg.block_start_) / arg.karg_.k_batch;
                 offset += tiles * MPerBlock * NPerBlock;
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "block_start: " << arg.block_start_ << "\n"
                               << "block_end: " << arg.block_end_ << "\n"
@@ -819,7 +819,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "The group count is not equal to sum of skipped groups "
                              "and kernel args size!"
@@ -836,7 +836,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             bool group_arg_valid = GridwiseGemm::CheckValidity(gemm_arg);
             if(not group_arg_valid)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "[" << __func__ << "] group id: " << i
                               << " has invalid GridwiseGemm settings!" << std::endl;
