@@ -587,7 +587,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                          BatchStrideD1s,
                                          BatchStrideE1}
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "a0_grid_desc_m_k_{" << a0_grid_desc_m_k_.GetLength(I0) << ", "
                           << a0_grid_desc_m_k_.GetLength(I1) << "}" << std::endl;

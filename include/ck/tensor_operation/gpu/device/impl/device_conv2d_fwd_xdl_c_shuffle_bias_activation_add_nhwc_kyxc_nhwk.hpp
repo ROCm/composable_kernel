@@ -644,7 +644,7 @@ struct
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << DeviceOp{}.GetTypeString() << std::endl;
                 std::cout << "N " << arg.Conv_N_ << ", "
