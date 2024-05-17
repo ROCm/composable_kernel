@@ -180,24 +180,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto [seqlen_qs, seqlen_ks] =
         decode_seqlen(mode, batch, arg_parser.get_str("s"), arg_parser.get_str("s_k"));
 
-    std::cout << "seqlen_qs:";
-    for(auto xx : seqlen_qs)
-    {
-        std::cout << xx << ",";
-    }
-    std::cout << std::endl;
+#if 0
+    // clang-format off
+    std::cout << "seqlen_qs:"; for(auto xx : seqlen_qs) { std::cout << xx << ","; } std::cout << std::endl;
+    std::cout << "seqlen_ks:"; for(auto xx : seqlen_ks) { std::cout << xx << ","; } std::cout << std::endl;
+    // clang-format on
+#endif
 
-    std::cout << "seqlen_ks:";
-    for(auto xx : seqlen_ks)
-    {
-        std::cout << xx << ",";
-    }
-    std::cout << std::endl;
-
-    // ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    // ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    // if(seqlen_k < 0)
-    //     seqlen_k = seqlen_q;
     ck_tile::index_t hdim_q = arg_parser.get_int("d");
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v < 0)
