@@ -38,8 +38,7 @@ __global__ void
                                                   const BElementwiseOperation b_element_op,
                                                   const CElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
     __shared__ uint8_t p_shared[shared_size];
@@ -52,7 +51,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <index_t BlockSize,
