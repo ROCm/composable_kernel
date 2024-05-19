@@ -1,0 +1,1 @@
+add_example_executable(example_gemm_multiply_multiply_xdl_fp16 gemm_multiply_multiply_xdl_fp16.cpp)
