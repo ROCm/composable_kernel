@@ -236,7 +236,7 @@ struct Epilogue
                                           static_cast<int>(prob.C)};
     ck::Array<ck::index_t, 5> d_strides = {};
 
-    ck::Array<ck::index_t, 2> conv_filter_strides   = {1, 1};
+    ck::Array<ck::index_t, 2> conv_filter_strides   = {2, 2};
     ck::Array<ck::index_t, 2> conv_filter_dilations = {1, 1};
     ck::Array<ck::index_t, 2> input_left_pads       = {1, 1};
     ck::Array<ck::index_t, 2> input_right_pads      = {1, 1};
@@ -252,14 +252,16 @@ struct Epilogue
         get_num_elems(wei_lengths), wei_lengths, wei_strides, 1));
     auto out_dev = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
         get_num_elems(out_lengths), out_lengths, out_strides, 2));
-    bool pass    = true;
+
+    // CK Verficiation: Reference Kernel
+    bool pass = true;
     Tensor<ck::half_t> in_host(in_lengths, in_strides);
     in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
     Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
     wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
     Tensor<ck::half_t> out_host(out_lengths, out_strides);
 
-    std::vector<ck::index_t> conv_filter_strides_   = {1, 1};
+    std::vector<ck::index_t> conv_filter_strides_   = {2, 2};
     std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
     std::vector<ck::index_t> input_left_pads_       = {1, 1};
     std::vector<ck::index_t> input_right_pads_      = {1, 1};
@@ -291,15 +293,10 @@ struct Epilogue
     out_host.SetZero();
     ref_invoker.Run(ref_argument);
 
-    /**    auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
-        auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
-        auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));**/
-
     int count = 0;
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
         count++;
-        // decltype(solution)::foo = 1;
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include",
@@ -307,7 +304,7 @@ struct Epilogue
               "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"},
              {"template", solution.ToTemplateString()}});
 
-        std::ofstream ofh("kernel.txt");
+        std::ofstream ofh("kernel_" + std::to_string(count) + ".txt");
         ofh << "##########################################################\n";
         ofh << src;
         ofh << "##########################################################\n";
@@ -341,42 +338,6 @@ struct Epilogue
                                                               input_left_pads,
                                                               input_right_pads);
 
-        // Verification: CK Reference Kernel
-        /**Tensor<ck::half_t> in_host(in_lengths, in_strides);
-        in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
-        Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
-        wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
-        Tensor<ck::half_t> out_host(out_lengths, out_strides);
-
-        std::vector<ck::index_t> conv_filter_strides_   = {1, 1};
-        std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
-        std::vector<ck::index_t> input_left_pads_       = {1, 1};
-        std::vector<ck::index_t> input_right_pads_      = {1, 1};
-
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
-            2,
-            ck::half_t,
-            ck::half_t,
-            ck::half_t,
-            ck::tensor_operation::element_wise::PassThrough,
-            ck::tensor_operation::element_wise::PassThrough,
-            Epilogue>();
-
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in_host,
-                                                  wei_host,
-                                                  out_host,
-                                                  conv_filter_strides_,
-                                                  conv_filter_dilations_,
-                                                  input_left_pads_,
-                                                  input_right_pads_,
-                                                  ck::tensor_operation::element_wise::PassThrough{},
-                                                  ck::tensor_operation::element_wise::PassThrough{},
-                                                  Epilogue{1.0f, 1.0f});
-
-        ref_invoker.Run(ref_argument);
-
-        bool pass = true;**/
         auto res = rtc::from_gpu(out_dev);
         std::ofstream ofh2("res_" + std::to_string(count) + ".txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
@@ -387,10 +348,7 @@ struct Epilogue
         }
         ofh2.close();
         assert(pass);
-        // auto res = rtc::from_gpu(out_dev);
         CHECK(report(solution, check(rtc::from_gpu(out_dev))));
-        // std::cout << "Check 2" << std::endl;
-        // CHECK(report(solution, check(rtc::from_gpu(out_dev))));
     }
 }
 
