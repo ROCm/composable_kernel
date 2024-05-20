@@ -124,7 +124,7 @@ struct EnvVar
 
 #define CK_DECLARE_ENV_VAR_STR(name) CK_DECLARE_ENV_VAR(name, std::string, "")
 
-#define ENV(name) \
+#define CK_ENV(name) \
     ck::env::name {}
 
 template <class EnvVar>
