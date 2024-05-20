@@ -124,7 +124,7 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx9__)  // for GPU code
+#elif defined(__gfx9__) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
@@ -150,11 +150,12 @@
 
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0xffffffff
-#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx9__)  // for GPU code
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || \
+    defined(__gfx9__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx103__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__)  // for GPU code
+#elif defined(__gfx11__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
