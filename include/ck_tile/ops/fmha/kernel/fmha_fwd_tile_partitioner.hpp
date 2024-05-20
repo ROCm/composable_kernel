@@ -24,10 +24,14 @@ struct FmhaFwdTilePartitioner
                                             ck_tile::index_t hdim_v_)
     {
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kM0) *
-                        ck_tile::integer_divide_ceil(hdim_v_, kN1),
-                    nhead_,
-                    batch_size_);
+        // return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kM0) *
+        //                 ck_tile::integer_divide_ceil(hdim_v_, kN1),
+        //             nhead_,
+        //             batch_size_);
+        return dim3(nhead_,
+                    batch_size_,
+                    ck_tile::integer_divide_ceil(seqlen_q_, kM0) *
+                        ck_tile::integer_divide_ceil(hdim_v_, kN1));
     }
 
     CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t hdim_v)
@@ -35,9 +39,9 @@ struct FmhaFwdTilePartitioner
         // const index_t num_tile_m0 = seqlen_q / kM0;
         const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, kN1);
 
-        const index_t i_block = blockIdx.x;
-        const index_t i_nhead = blockIdx.y;
-        const index_t i_batch = blockIdx.z;
+        const index_t i_block = blockIdx.z;
+        const index_t i_nhead = blockIdx.x;
+        const index_t i_batch = blockIdx.y;
 
         const auto f = [](index_t dividend, index_t divisor) {
             index_t quotient = dividend / divisor;
