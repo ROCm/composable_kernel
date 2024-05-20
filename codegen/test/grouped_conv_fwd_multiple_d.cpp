@@ -27,10 +27,26 @@ std::vector<rtc::src_file> get_headers_for_test()
     return result;
 }
 
-template <class T>
-rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
+template <typename V>
+std::size_t GetSize(V mLens, V mStrides)
 {
-    rtc::buffer<T> result(n);
+    std::size_t space = 1;
+    for(std::size_t i = 0; i < mLens.Size(); ++i)
+    {
+        if(mLens[i] == 0)
+            continue;
+
+        space += (mLens[i] - 1) * mStrides[i];
+    }
+    return space;
+}
+
+template <class T, typename V>
+rtc::buffer<T> generate_buffer(std::size_t n, V mLens, V mStrides, std::size_t seed = 0)
+{
+    std::size_t space = GetSize(mLens, mStrides);
+    std::cout << "Space is: " << space << std::endl;
+    rtc::buffer<T> result(space);
     /**std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
     std::generate(result.begin(), result.end(), [&] { return dis(gen); });**/
@@ -208,11 +224,11 @@ struct Epilogue
                                          1,
                                          static_cast<int>(prob.Wi * prob.G * prob.C),
                                          static_cast<int>(prob.G * prob.C)};
-    ck::Array<ck::index_t, 5> out_strides{static_cast<int>(prob.C),
-                                          static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.C),
+    ck::Array<ck::index_t, 5> out_strides{static_cast<int>(prob.K),
+                                          static_cast<int>(prob.Ho * prob.Wo * prob.G * prob.K),
                                           1,
-                                          static_cast<int>(prob.Wo * prob.G * prob.C),
-                                          static_cast<int>(prob.G * prob.C)};
+                                          static_cast<int>(prob.Wo * prob.G * prob.K),
+                                          static_cast<int>(prob.G * prob.K)};
     ck::Array<ck::index_t, 5> wei_strides{static_cast<int>(prob.K * prob.Y * prob.X * prob.C),
                                           static_cast<int>(prob.Y * prob.X * prob.C),
                                           1,
@@ -230,9 +246,54 @@ struct Epilogue
             tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
     };
 
-    auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
-    auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
-    auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));
+    auto in_dev  = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
+        get_num_elems(in_lengths), in_lengths, in_strides, 0));
+    auto wei_dev = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
+        get_num_elems(wei_lengths), wei_lengths, wei_strides, 1));
+    auto out_dev = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
+        get_num_elems(out_lengths), out_lengths, out_strides, 2));
+    bool pass    = true;
+    Tensor<ck::half_t> in_host(in_lengths, in_strides);
+    in_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+    Tensor<ck::half_t> wei_host(wei_lengths, wei_strides);
+    wei_host.GenerateTensorValue(GeneratorTensor_1<ck::half_t>{1});
+    Tensor<ck::half_t> out_host(out_lengths, out_strides);
+
+    std::vector<ck::index_t> conv_filter_strides_   = {1, 1};
+    std::vector<ck::index_t> conv_filter_dilations_ = {1, 1};
+    std::vector<ck::index_t> input_left_pads_       = {1, 1};
+    std::vector<ck::index_t> input_right_pads_      = {1, 1};
+
+    auto dev_size  = out_dev.size();
+    auto host_size = out_host.size();
+    std::cout << "Device size: " << out_dev.size() << std::endl;
+    std::cout << "Host size: " << out_host.size() << std::endl;
+    auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
+        2,
+        ck::half_t,
+        ck::half_t,
+        ck::half_t,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        Epilogue>();
+
+    auto ref_invoker  = ref_conv.MakeInvoker();
+    auto ref_argument = ref_conv.MakeArgument(in_host,
+                                              wei_host,
+                                              out_host,
+                                              conv_filter_strides_,
+                                              conv_filter_dilations_,
+                                              input_left_pads_,
+                                              input_right_pads_,
+                                              ck::tensor_operation::element_wise::PassThrough{},
+                                              ck::tensor_operation::element_wise::PassThrough{},
+                                              Epilogue{1.0f, 1.0f});
+    out_host.SetZero();
+    ref_invoker.Run(ref_argument);
+
+    /**    auto in_dev  = to_gpu(generate_buffer<ck::half_t>(get_num_elems(in_lengths), 0));
+        auto wei_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(wei_lengths), 1));
+        auto out_dev = to_gpu(generate_buffer<ck::half_t>(get_num_elems(out_lengths), 2));**/
 
     int count = 0;
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
@@ -315,8 +376,8 @@ struct Epilogue
 
         ref_invoker.Run(ref_argument);
 
-        bool pass = true;
-        auto res  = rtc::from_gpu(out_dev);
+        bool pass = true;**/
+        auto res = rtc::from_gpu(out_dev);
         std::ofstream ofh2("res_" + std::to_string(count) + ".txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
         for(int i = 0; i < res.size(); i++)
@@ -325,7 +386,7 @@ struct Epilogue
             ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
         }
         ofh2.close();
-        assert(pass);**/
+        assert(pass);
         // auto res = rtc::from_gpu(out_dev);
         CHECK(report(solution, check(rtc::from_gpu(out_dev))));
         // std::cout << "Check 2" << std::endl;
