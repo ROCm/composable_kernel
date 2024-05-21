@@ -1531,6 +1531,8 @@ struct BlockToCTileMap_LinearKSplit
             return false;
     }
 
+    __host__ __device__ void AdvanceTileKIdx(index_t k_tiles) { K0_idx_ += k_tiles; }
+
     ///
     /// @brief      Determines whether the current workgroup processed first tile in K dimension
     ///
