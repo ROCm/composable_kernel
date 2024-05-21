@@ -92,9 +92,10 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     auto group_count = problem_size.group_count;
 
     using KernelArguments = ck::tensor_operation::device::GroupedGemmTileLoopKernelArguments<NumDs>;
+    using GemmDesc        = ck::tensor_operation::device::GemmDesc;
 
     // GEMM shape
-    std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
+    std::vector<GemmDesc> gemm_descs;
     std::vector<KernelArguments> ggemm_kargs;
     std::vector<void*> p_Cs;
     std::vector<const void*> p_As;
