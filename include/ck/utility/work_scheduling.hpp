@@ -53,6 +53,35 @@ class StridedReductionTileLoop
         return HasTile();
     }
 
+    /// @brief Returns the number of next k-tiles to process.
+    /// @param[in]  k_tiles     The number of tiles in the reduced dimension.
+    /// @param[in]  k_tile_idx  Current k-tile index.
+    /// @return The number of next k-tiles to process.
+    __device__ index_t GetNextKTiles(index_t k_tiles, index_t k_tile_idx)
+    {
+        index_t k_tiles_left = k_tiles - k_tile_idx;
+        index_t next_k_tiles =
+            k_tiles_left <= tiles_per_block_ ? k_tiles_left : tiles_per_block_ - block_tile_idx_;
+        tile_id_ += next_k_tiles;
+        block_tile_idx_ += next_k_tiles;
+
+        if(blockIdx.x < 4 && ck::debug::is_thread_local_1d_id_idx<0>())
+        {
+            printf("[GetNextKTiles] bid: %d, k_tiles: %d, k_idx:%d, next_k_tiles: %d, "
+                   "k_tiles_left: %d,"
+                   " tile_id: %d, block_tile_idx: %d\n",
+                   static_cast<index_t>(blockIdx.x),
+                   k_tiles,
+                   k_tile_idx,
+                   next_k_tiles,
+                   k_tiles_left,
+                   tile_id_,
+                   block_tile_idx_);
+        }
+
+        return next_k_tiles;
+    }
+
     __device__ index_t GetFlagCount() const { return get_grid_size(); }
 
     ///
