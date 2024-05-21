@@ -1,5 +1,5 @@
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
-#include "ck/tensor_operation/operator_transform/copy_transform_conv_fwd_to_gemm.hpp"
+#include "ck/tensor_operation/operator_transform/codegen_transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include <fstream>
 #include <variant>

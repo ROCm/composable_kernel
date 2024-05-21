@@ -14,7 +14,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
-#include "ck/tensor_operation/operator_transform/copy_transform_conv_fwd_to_gemm.hpp"
+#include "ck/tensor_operation/operator_transform/codegen_transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
@@ -73,7 +73,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
-__device__ void copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
+__device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     AsPointer p_as_grid,
     BsPointer p_bs_grid,
     DsPointer p_ds_grid,
@@ -224,7 +224,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 
-    copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
         GridwiseGemm,
         AsPointer, // tuples if multi AB, pointers if no
         BsPointer,

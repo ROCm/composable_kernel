@@ -18,7 +18,7 @@ namespace conv {
 std::string Problem_Conv_Fwd::GetIncludeHeader() const
 {
     return "ck/tensor_operation/gpu/device/impl/"
-           "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp";
+           "codegen_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp";
 }
 
 // return vector of forward convolution instances when provided with a problem instance

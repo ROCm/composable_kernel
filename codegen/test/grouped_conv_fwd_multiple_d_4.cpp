@@ -292,10 +292,7 @@ struct Epilogue
     {
         auto src = ck::host::InterpolateString(
             conv_compile_check,
-            {{"include",
-              "ck/tensor_operation/gpu/device/impl/"
-              "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"},
-             {"template", solution.ToTemplateString()}});
+            {{"include", prob.GetIncludeHeader()}, {"template", solution.ToTemplateString()}});
 
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});

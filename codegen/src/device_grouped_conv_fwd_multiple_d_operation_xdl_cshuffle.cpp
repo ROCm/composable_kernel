@@ -238,53 +238,10 @@ extern "C" __global__ void run_${name}(
 
     // GridwiseGemm
     using GridwiseGemm = DeviceConv::GridwiseGemm;
-/**ck::GridwiseGemmMultipleD_xdl_cshuffle<
-        ${ADataType},
-        ${BDataType},
-        ${ComputeDataType},//double-check this assignment for correctness
-        ${AccDataType},
-        ${CShuffleDataType},
-        ${DsDataType},
-        ${EDataType},
-        ${AElementwiseOperation},
-        ${BElementwiseOperation},
-        ${CDEElementwiseOperation},
-        ck::InMemoryDataOperationEnum::Set,
-        ${NumGemmkPrefetchStage},
-        ${BlockSize},
-        ${MPerBlock},
-        ${NPerBlock},
-        ${KPerBlock},
-        ${AK1},
-        ${BK1},
-        ${MPerXDL},
-        ${NPerXDL},
-        ${MXdlPerWave},
-        ${NXdlPerWave},
-        ${ABlockTransferThreadClusterLengths_AK0_M_AK1},
-        ${ABlockTransferThreadClusterArrangeOrder},
-        ${ABlockTransferSrcAccessOrder},
-        ${ABlockTransferSrcVectorDim},
-        ${ABlockTransferSrcScalarPerVector},
-        ${ABlockTransferDstScalarPerVector_AK1},
-        false,
-        ${ABlockLdsExtraM},
-        ${BBlockTransferThreadClusterLengths_BK0_N_BK1},
-        ${BBlockTransferThreadClusterArrangeOrder},
-        ${BBlockTransferSrcAccessOrder},
-        ${BBlockTransferSrcVectorDim},
-        ${BBlockTransferSrcScalarPerVector},
-        ${BBlockTransferDstScalarPerVector_BK1},
-        false,
-        ${BBlockLdsExtraN},
-        ${CShuffleMXdlPerWavePerShuffle},
-        ${CShuffleNXdlPerWavePerShuffle},
-        ${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock},
-        ${CDEBlockTransferScalarPerVector_NPerBlock},
-        LoopSched>;**/
+
     static constexpr auto I0 = ck::Number<0>{};
 
-    ck::tensor_operation::device::copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+    ck::tensor_operation::device::device_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                     GridwiseGemm,
                     const ${ADataType}*,
                     const ${BDataType}*,
