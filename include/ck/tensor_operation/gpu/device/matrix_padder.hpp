@@ -180,6 +180,33 @@ struct MatrixPadder : public GemmPadder<GemmSpec, MPerTileType, NPerTileType, KP
 {
 };
 
+// wrapper class to call member functions on Matrix/GemmPadder struct at runtime
+struct Padder
+{
+    template <GemmSpecialization GemmSpec,
+              typename MPerTileType,
+              typename NPerTileType,
+              typename KPerTileType,
+              typename CDesc_MRaw_NRaw>
+    Padder(MatrixPadder<GemmSpec, MPerTileType, NPerTileType, KPerTileType> matrix_padder,
+           CDesc_MRaw_NRaw conv_desc)
+    {
+    }
+    // function to take in a struct of type MatrixPadder and call the appropriate function to get
+    // the output descriptor
+    template <GemmSpecialization GemmSpec,
+              typename MPerTileType,
+              typename NPerTileType,
+              typename KPerTileType,
+              typename CDesc_MRaw_NRaw>
+    auto grid_desc(MatrixPadder<GemmSpec, MPerTileType, NPerTileType, KPerTileType> matrix_padder,
+                   CDesc_MRaw_NRaw conv_desc)
+    {
+        auto res = matrix_padder.PadCDescriptor_M_N(conv_desc);
+        return res;
+    }
+};
+
 // M/N/KPerTileType could be index_t or Number<>
 template <bool PadM,
           bool PadN,

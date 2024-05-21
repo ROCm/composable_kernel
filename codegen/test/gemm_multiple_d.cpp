@@ -165,17 +165,12 @@ TEST_CASE(test_problem_kernel)
 
     for(auto solution : prob.GetSolutions("gfx90a", prologue, epilogue))
     {
-        auto src = ck::host::InterpolateString(gemm_compile_check,
+        auto src  = ck::host::InterpolateString(gemm_compile_check,
                                                {{"include", prob.GetIncludeHeader()},
                                                 {"template", solution.ToTemplateString()},
                                                 {"m", std::to_string(prob.M)},
                                                 {"n", std::to_string(prob.N)},
                                                 {"k", std::to_string(prob.K)}});
-        std::ofstream ofh("kernel.txt");
-        ofh << "##########################################################\n";
-        ofh << src;
-        ofh << "##########################################################\n";
-        ofh.close();
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;

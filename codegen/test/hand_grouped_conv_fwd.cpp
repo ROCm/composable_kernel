@@ -365,9 +365,6 @@ struct Prologue
               "ck/tensor_operation/gpu/device/impl/"
               "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"}});
 
-        std::ofstream ofh("kernel.txt");
-        ofh << src;
-
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
@@ -379,10 +376,6 @@ struct Prologue
         auto tmp = get_launch_params(solution, out_lengths, out_strides);
 
         auto grid_size = tmp * in_lengths[1];
-
-        ofh.close();
-        // print arg kernels - host_side
-        // arg.Print();
 
         k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),
                                                               wei_dev.data(),
@@ -425,22 +418,12 @@ struct Prologue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   Prologue{1.0f, 1.0f});
-        // std::cout << "Ref args" << std::endl;
-        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
         bool pass = true;
         auto res  = rtc::from_gpu(out_dev);
-        std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-
-        // for(int i = 0; i < res.size(); i++)
-        //{
-        //    auto tmp = (res.data())[i];
-        //    ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
-        //}
-        // ofh2.close();
 
         if(pass)
         {

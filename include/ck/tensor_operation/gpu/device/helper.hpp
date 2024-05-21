@@ -1,6 +1,6 @@
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/operator_transform/copy_transform_conv_fwd_to_gemm.hpp"
-#include "ck/tensor_operation/gpu/device/copy_matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include <fstream>
 #include <variant>
 
@@ -68,7 +68,7 @@ auto pad(ck::index_t mpb,
 {
     if(gemm == ck::tensor_operation::device::GemmSpecialization::MNKPadding)
     {
-        ck::tensor_operation::device::CopyMatrixPadder<
+        ck::tensor_operation::device::MatrixPadder<
             ck::tensor_operation::device::GemmSpecialization::MNKPadding,
             ck::index_t,
             ck::index_t,

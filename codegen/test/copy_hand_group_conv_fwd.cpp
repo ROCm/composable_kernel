@@ -420,9 +420,6 @@ struct Prologue
         auto src =
             ck::host::InterpolateString(conv_compile_check, {{"include", prob.GetIncludeHeader()}});
 
-        std::ofstream ofh("kernel.txt");
-        ofh << src;
-
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
@@ -433,10 +430,6 @@ struct Prologue
             arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
         auto block_size = solution.GetTemplateParameter<ck::index_t>("BlockSize");
         ;
-
-        ofh.close();
-        // print arg kernels - host_side
-        // arg.Print();
 
         k.launch(nullptr, grid_size * block_size, block_size)(
             arg.p_as_grid_,
@@ -481,21 +474,12 @@ struct Prologue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   CDEElementOp{1.0f, 1.0f});
-        // std::cout << "Ref args" << std::endl;
-        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
         bool pass = true;
         auto res  = rtc::from_gpu(out_dev);
-        std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-        for(int i = 0; i < res.size(); i++)
-        {
-            auto tmp = (res.data())[i];
-            ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
-        }
-        ofh2.close();
         assert(pass);**/
         auto res = rtc::from_gpu(out_dev);
         CHECK(report(solution, check(res)));

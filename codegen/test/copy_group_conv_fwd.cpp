@@ -329,12 +329,6 @@ struct Epilogue
             conv_compile_check,
             {{"include", prob.GetIncludeHeader()}, {"template", solution.ToTemplateString()}});
 
-        std::ofstream ofh("kernel.txt");
-        ofh << "##########################################################\n";
-        ofh << src;
-        ofh << "##########################################################\n";
-        ofh.close();
-
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
@@ -388,20 +382,12 @@ struct Epilogue
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   ck::tensor_operation::element_wise::PassThrough{},
                                                   CDEElementOp{1.0f, 1.0f});
-        // std::cout << "Ref args" << std::endl;
-        // ref_argument.Print();
 
         ref_invoker.Run(ref_argument);
 
         bool pass = true;
         auto res  = rtc::from_gpu(out_dev);
-        std::ofstream ofh2("res.txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-        for(int i = 0; i < res.size(); i++)
-        {
-            auto tmp = (res.data())[i];
-            ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
-        }
         ofh2.close();
         assert(pass);**/
         auto res = rtc::from_gpu(out_dev);

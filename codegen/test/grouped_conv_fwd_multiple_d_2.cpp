@@ -266,10 +266,6 @@ struct Epilogue
     std::vector<ck::index_t> input_left_pads_       = {0, 0};
     std::vector<ck::index_t> input_right_pads_      = {0, 0};
 
-    auto dev_size  = out_dev.size();
-    auto host_size = out_host.size();
-    std::cout << "Device size: " << out_dev.size() << std::endl;
-    std::cout << "Host size: " << out_host.size() << std::endl;
     auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
         2,
         ck::half_t,
@@ -293,22 +289,14 @@ struct Epilogue
     out_host.SetZero();
     ref_invoker.Run(ref_argument);
 
-    int count = 0;
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
-        count++;
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include",
               "ck/tensor_operation/gpu/device/impl/"
               "copy_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"},
              {"template", solution.ToTemplateString()}});
-
-        std::ofstream ofh("kernel_" + std::to_string(count) + ".txt");
-        ofh << "##########################################################\n";
-        ofh << src;
-        ofh << "##########################################################\n";
-        ofh.close();
 
         auto srcs = get_headers_for_test();
         srcs.push_back({"main.cpp", src});
@@ -339,14 +327,7 @@ struct Epilogue
                                                               input_right_pads);
 
         auto res = rtc::from_gpu(out_dev);
-        std::ofstream ofh2("res_" + std::to_string(count) + ".txt");
         pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-        for(int i = 0; i < res.size(); i++)
-        {
-            auto tmp = (res.data())[i];
-            ofh2 << std::to_string(static_cast<int>(tmp)) << ", ";
-        }
-        ofh2.close();
         assert(pass);
         CHECK(report(solution, check(rtc::from_gpu(out_dev))));
     }
