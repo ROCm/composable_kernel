@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -783,8 +783,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                 a_lds_block_desc,
-                make_tuple(make_xor_transform(make_tuple(Number<MPerBlock / MLdsLayer>{},
-                                                         Number<AK0Number * MLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<MPerBlock / MLdsLayer>{}, Number<AK0Number * MLdsLayer>{})),
                            make_pass_through_transform(AK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
@@ -849,7 +849,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(
                     make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(Number<K0PerThreadWrite>{}),
-                    make_xor_transform(
+                    make_xor_with_modulo_transform(
                         make_tuple(Number<KThreadReadPerm * M1>{}, Number<kfold * M0 / mpair>{})),
                     make_pass_through_transform(Number<mpair>{}),
                     make_pass_through_transform(AK1Number)),
@@ -920,8 +920,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,
-                make_tuple(make_xor_transform(make_tuple(Number<NPerBlock / NLdsLayer>{},
-                                                         Number<BK0Number * NLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
                            make_pass_through_transform(BK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
@@ -983,7 +983,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(
                     make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(Number<K0PerThreadWrite>{}),
-                    make_xor_transform(
+                    make_xor_with_modulo_transform(
                         make_tuple(Number<KThreadReadPerm * N1>{}, Number<kfold * N0 / npair>{})),
                     make_pass_through_transform(Number<npair>{}),
                     make_pass_through_transform(BK1Number)),
