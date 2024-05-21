@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <stdexcept>
+#include <iostream>
 
 #include "ck/host_utility/hip_check_error.hpp"
-
 #include "ck/library/utility/device_memory.hpp"
 
 DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
@@ -71,6 +73,13 @@ DeviceMem::~DeviceMem()
 {
     if(mpDeviceBuf)
     {
-        hip_check_error(hipFree(mpDeviceBuf));
+        try
+        {
+            hip_check_error(hipFree(mpDeviceBuf));
+        }
+        catch(std::runtime_error& re)
+        {
+            std::cerr << re.what() << std::endl;
+        }
     }
 }
