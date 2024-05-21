@@ -13,11 +13,11 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                ck::Tuple<NDHWGK, NDHWGK, NDHWGK>,
+                                                                ck::Tuple<>,
                                                                 NDHWGK,
                                                                 F8,
                                                                 F8,
-                                                                ck::Tuple<F32, F32, F32>,
+                                                                ck::Tuple<>,
                                                                 F8,
                                                                 PassThrough,
                                                                 PassThrough,
@@ -30,7 +30,7 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
         device_grouped_conv_fwd_xdl_convscale_f8_instances<3,
                                                            NDHWGC,
                                                            GKZYXC,
-                                                           ck::Tuple<NDHWGK, NDHWGK, NDHWGK>,
+                                                           ck::Tuple<>,
                                                            NDHWGK,
                                                            ConvFwdDefault>{});
     add_device_operation_instances(
@@ -38,7 +38,7 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
         device_grouped_conv_fwd_xdl_convscale_f8_instances<3,
                                                            NDHWGC,
                                                            GKZYXC,
-                                                           ck::Tuple<NDHWGK, NDHWGK, NDHWGK>,
+                                                           ck::Tuple<>,
                                                            NDHWGK,
                                                            ConvFwd1x1P0>{});
     add_device_operation_instances(
@@ -46,7 +46,7 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
         device_grouped_conv_fwd_xdl_convscale_f8_instances<3,
                                                            NDHWGC,
                                                            GKZYXC,
-                                                           ck::Tuple<NDHWGK, NDHWGK, NDHWGK>,
+                                                           ck::Tuple<>,
                                                            NDHWGK,
                                                            ConvFwd1x1S1P0>{});
 }

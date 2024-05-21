@@ -21,24 +21,22 @@ namespace instance {
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ConvScale   = ck::tensor_operation::element_wise::ConvScale;
 
-#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP8
 void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
-                                                                ck::Tuple<NDHWGK, NDHWGK, NDHWGK>,
+                                                                ck::Tuple<>,
                                                                 NDHWGK,
                                                                 F8,
                                                                 F8,
-                                                                ck::Tuple<F32, F32, F32>,
+                                                                ck::Tuple<>,
                                                                 F8,
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 ConvScale,
                                                                 F8,
                                                                 F8>>>& instances);
-#endif
 #endif
 
 template <ck::index_t NumDimSpatial,
@@ -87,10 +85,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-#ifdef CK_USE_XDL
         if constexpr(NumDimSpatial == 3 && is_same_v<InLayout, NDHWGC> &&
-                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK> &&
-                     DLayouts::Size() == 3)
+                     is_same_v<WeiLayout, GKZYXC> && is_same_v<OutLayout, NDHWGK>)
         {
 #ifdef CK_ENABLE_FP8
             if constexpr(is_same_v<InDataType, f8_t> && is_same_v<WeiDataType, f8_t> &&
@@ -102,7 +98,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
 #endif
         }
-#endif
         return op_ptrs;
     }
 };
