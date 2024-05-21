@@ -17,37 +17,37 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
+void add_device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
                                                       ck::Tuple<B0Layout, B1Layout>,
-                                                      ck::Tuple<D0Layout>,
+                                                      ck::Tuple<>,
                                                       ELayout,
                                                       AsDataType,
                                                       ck::Tuple<B0DataType, B1DataType>,
-                                                      ck::Tuple<D0DataType>,
+                                                      ck::Tuple<>,
                                                       EDataType,
                                                       AElementOp,
                                                       Multiply,
-                                                      AddFastGelu>>>& instances)
+                                                      PassThrough>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<
                                        ck::Tuple<B0Layout, B1Layout>,
-                                       ck::Tuple<D0Layout>,
+                                       ck::Tuple<>,
                                        ck::Tuple<B0DataType, B1DataType>,
-                                       ck::Tuple<D0DataType>,
+                                       ck::Tuple<>,
                                        Multiply,
-                                       AddFastGelu,
+                                       PassThrough,
                                        GemmMNKPadding,
                                        Interwave>{});
     add_device_operation_instances(instances,
                                    device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<
                                        ck::Tuple<B0Layout, B1Layout>,
-                                       ck::Tuple<D0Layout>,
+                                       ck::Tuple<>,
                                        ck::Tuple<B0DataType, B1DataType>,
-                                       ck::Tuple<D0DataType>,
+                                       ck::Tuple<>,
                                        Multiply,
-                                       AddFastGelu,
+                                       PassThrough,
                                        GemmMNKPadding,
                                        Interwave>{});
 }
