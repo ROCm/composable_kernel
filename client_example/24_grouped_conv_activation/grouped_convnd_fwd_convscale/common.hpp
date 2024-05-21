@@ -95,15 +95,9 @@ GetOutputByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& o
 template <ck::index_t NumDimSpatial,
           typename InDataType,
           typename WeiDataType,
-          typename D0DataType,
-          typename D1DataType,
-          typename D2DataType,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename D0Layout,
-          typename D1Layout,
-          typename D2Layout,
           typename OutLayout,
           ck::index_t NumNonSpatialDim = 3,
           typename AComputeType        = InDataType,
@@ -111,42 +105,27 @@ template <ck::index_t NumDimSpatial,
 bool run_grouped_conv_fwd_convscale(
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> d0_lengths,
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> d1_lengths,
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> d2_lengths,
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
 {
     std::size_t in_mem_size  = GetInputByte<InDataType, NumDimSpatial>(in_lengths);
     std::size_t wei_mem_size = GetWeightByte<WeiDataType, NumDimSpatial>(wei_lengths);
-    std::size_t d0_mem_size  = GetOutputByte<D0DataType, NumDimSpatial>(d0_lengths);
-    std::size_t d1_mem_size  = GetOutputByte<D1DataType, NumDimSpatial>(d1_lengths);
-    std::size_t d2_mem_size  = GetOutputByte<D2DataType, NumDimSpatial>(d2_lengths);
     std::size_t out_mem_size = GetOutputByte<OutDataType, NumDimSpatial>(out_lengths);
 
     SimpleDeviceMem in(in_mem_size);
     SimpleDeviceMem wei(wei_mem_size);
-    SimpleDeviceMem d0(d0_mem_size);
-    SimpleDeviceMem d1(d1_mem_size);
-    SimpleDeviceMem d2(d2_mem_size);
     SimpleDeviceMem out(out_mem_size);
+    SimpleDeviceMem scale_in(sizeof(float));
+    SimpleDeviceMem scale_wei(sizeof(float));
+    SimpleDeviceMem scale_out(sizeof(float));
 
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_strides;
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_strides;
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> d0_strides;
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> d1_strides;
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> d2_strides;
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_strides;
     in_strides.fill(0);
     wei_strides.fill(0);
-    d0_strides.fill(0);
-    d1_strides.fill(0);
-    d2_strides.fill(0);
     out_strides.fill(0);
     in_strides.back()  = 1;
     wei_strides.back() = 1;
-    d0_strides.back()  = 0;
-    d1_strides.back()  = 0;
-    d2_strides.back()  = 0;
     out_strides.back() = 1;
 
     std::partial_sum(rbegin(in_lengths),
@@ -156,18 +135,6 @@ bool run_grouped_conv_fwd_convscale(
     std::partial_sum(rbegin(wei_lengths),
                      std::prev(rend(wei_lengths)),
                      std::next(rbegin(wei_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(d0_lengths),
-                     std::prev(rend(d0_lengths)),
-                     std::next(rbegin(d0_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(d1_lengths),
-                     std::prev(rend(d1_lengths)),
-                     std::next(rbegin(d1_strides)),
-                     std::multiplies<>{});
-    std::partial_sum(rbegin(d2_lengths),
-                     std::prev(rend(d2_lengths)),
-                     std::next(rbegin(d2_strides)),
                      std::multiplies<>{});
     std::partial_sum(rbegin(out_lengths),
                      std::prev(rend(out_lengths)),
@@ -193,36 +160,6 @@ bool run_grouped_conv_fwd_convscale(
                 std::next(rbegin(wei_strides)),
                 std::next(rbegin(wei_strides), NumDimSpatial + 1));
 
-    std::rotate(std::next(rbegin(d0_lengths)), std::next(rbegin(d0_lengths), 2), rend(d0_lengths));
-    std::rotate(rbegin(d0_lengths),
-                std::next(rbegin(d0_lengths)),
-                std::next(rbegin(d0_lengths), NumDimSpatial + 1));
-
-    std::rotate(std::next(rbegin(d0_strides)), std::next(rbegin(d0_strides), 2), rend(d0_strides));
-    std::rotate(rbegin(d0_strides),
-                std::next(rbegin(d0_strides)),
-                std::next(rbegin(d0_strides), NumDimSpatial + 1));
-
-    std::rotate(std::next(rbegin(d1_lengths)), std::next(rbegin(d1_lengths), 2), rend(d1_lengths));
-    std::rotate(rbegin(d1_lengths),
-                std::next(rbegin(d1_lengths)),
-                std::next(rbegin(d1_lengths), NumDimSpatial + 1));
-
-    std::rotate(std::next(rbegin(d1_strides)), std::next(rbegin(d1_strides), 2), rend(d1_strides));
-    std::rotate(rbegin(d1_strides),
-                std::next(rbegin(d1_strides)),
-                std::next(rbegin(d1_strides), NumDimSpatial + 1));
-
-    std::rotate(std::next(rbegin(d2_lengths)), std::next(rbegin(d2_lengths), 2), rend(d2_lengths));
-    std::rotate(rbegin(d2_lengths),
-                std::next(rbegin(d2_lengths)),
-                std::next(rbegin(d2_lengths), NumDimSpatial + 1));
-
-    std::rotate(std::next(rbegin(d2_strides)), std::next(rbegin(d2_strides), 2), rend(d2_strides));
-    std::rotate(rbegin(d2_strides),
-                std::next(rbegin(d2_strides)),
-                std::next(rbegin(d2_strides), NumDimSpatial + 1));
-
     std::rotate(
         std::next(rbegin(out_lengths)), std::next(rbegin(out_lengths), 2), rend(out_lengths));
     std::rotate(rbegin(out_lengths),
@@ -244,26 +181,25 @@ bool run_grouped_conv_fwd_convscale(
     input_left_pads.fill(1);
     input_right_pads.fill(1);
 
-    std::size_t ds_size   = 3; // 3 element-wise scale multipliers
-    std::size_t flop      = GetFlops<NumDimSpatial>(out_lengths, wei_lengths, ds_size);
-    std::size_t num_bytes = in_mem_size + wei_mem_size + sizeof(D0DataType) + sizeof(D1DataType) +
-                            sizeof(D2DataType) + out_mem_size;
+    std::size_t ds_size = 3; // 3 element-wise scale multipliers
+    std::size_t flop    = GetFlops<NumDimSpatial>(out_lengths, wei_lengths, ds_size);
+    std::size_t num_bytes =
+        in_mem_size + wei_mem_size + sizeof(float) + sizeof(float) + sizeof(float) + out_mem_size;
 
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
-        NumDimSpatial,
-        InLayout,
-        WeiLayout,
-        ck::Tuple<D0Layout, D1Layout, D2Layout>,
-        OutLayout,
-        InDataType,
-        WeiDataType,
-        ck::Tuple<D0DataType, D1DataType, D2DataType>,
-        OutDataType,
-        PassThrough,
-        PassThrough,
-        ConvScale,
-        AComputeType,
-        BComputeType>;
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   PassThrough,
+                                                                                   PassThrough,
+                                                                                   ConvScale,
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
@@ -285,17 +221,14 @@ bool run_grouped_conv_fwd_convscale(
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             in.GetDeviceBuffer(),
             wei.GetDeviceBuffer(),
-            std::array<const void*, 3>{
-                d0.GetDeviceBuffer(), d1.GetDeviceBuffer(), d2.GetDeviceBuffer()},
+            std::array<const void*, 0>{},
             out.GetDeviceBuffer(),
             in_lengths,
             in_strides,
             wei_lengths,
             wei_strides,
-            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 3>{
-                d0_lengths, d1_lengths, d2_lengths},
-            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 3>{
-                d0_strides, d1_strides, d2_strides},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
             out_lengths,
             out_strides,
             conv_filter_strides,
@@ -304,7 +237,9 @@ bool run_grouped_conv_fwd_convscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvScale{});
+            ConvScale{reinterpret_cast<float*>(scale_in.GetDeviceBuffer()),
+                      reinterpret_cast<float*>(scale_wei.GetDeviceBuffer()),
+                      reinterpret_cast<float*>(scale_out.GetDeviceBuffer())});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -351,17 +286,14 @@ bool run_grouped_conv_fwd_convscale(
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             in.GetDeviceBuffer(),
             wei.GetDeviceBuffer(),
-            std::array<const void*, 3>{
-                d0.GetDeviceBuffer(), d1.GetDeviceBuffer(), d2.GetDeviceBuffer()},
+            std::array<const void*, 0>{},
             out.GetDeviceBuffer(),
             in_lengths,
             in_strides,
             wei_lengths,
             wei_strides,
-            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 3>{
-                d0_lengths, d1_lengths, d2_lengths},
-            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 3>{
-                d0_strides, d1_strides, d2_strides},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
+            std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
             out_lengths,
             out_strides,
             conv_filter_strides,
@@ -370,7 +302,9 @@ bool run_grouped_conv_fwd_convscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvScale{});
+            ConvScale{reinterpret_cast<float*>(scale_in.GetDeviceBuffer()),
+                      reinterpret_cast<float*>(scale_wei.GetDeviceBuffer()),
+                      reinterpret_cast<float*>(scale_out.GetDeviceBuffer())});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 

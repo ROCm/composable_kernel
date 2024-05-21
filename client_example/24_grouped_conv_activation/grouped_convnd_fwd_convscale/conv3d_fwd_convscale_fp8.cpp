@@ -9,18 +9,12 @@
 using InDataType       = ck::f8_t;
 using WeiDataType      = ck::f8_t;
 using CShuffleDataType = float;
-using D0DataType       = float;
-using D1DataType       = float;
-using D2DataType       = float;
 using OutDataType      = ck::f8_t;
 using AComputeDataType = ck::f8_t;
 using BComputeDataType = ck::f8_t;
 
 using InLayout  = ck::tensor_layout::convolution::NDHWGC;
 using WeiLayout = ck::tensor_layout::convolution::GKZYXC;
-using D0Layout  = ck::tensor_layout::convolution::NDHWGK;
-using D1Layout  = ck::tensor_layout::convolution::NDHWGK;
-using D2Layout  = ck::tensor_layout::convolution::NDHWGK;
 using OutLayout = ck::tensor_layout::convolution::NDHWGK;
 
 static constexpr ck::index_t NumDimSpatial = 3;
@@ -43,24 +37,14 @@ int main()
     return run_grouped_conv_fwd_convscale<NumDimSpatial,
                                           InDataType,
                                           WeiDataType,
-                                          D0DataType,
-                                          D1DataType,
-                                          D2DataType,
                                           OutDataType,
                                           InLayout,
                                           WeiLayout,
-                                          D0Layout,
-                                          D1Layout,
-                                          D2Layout,
                                           OutLayout,
                                           3,
                                           AComputeDataType,
-                                          BComputeDataType>({N, Di, Hi, Wi, G, C},
-                                                            {G, K, Z, Y, X, C},
-                                                            {N, Do, Ho, Wo, G, K},
-                                                            {N, Do, Ho, Wo, G, K},
-                                                            {N, Do, Ho, Wo, G, K},
-                                                            {N, Do, Ho, Wo, G, K})
+                                          BComputeDataType>(
+               {N, Di, Hi, Wi, G, C}, {G, K, Z, Y, X, C}, {N, Do, Ho, Wo, G, K})
                ? EXIT_SUCCESS
                : EXIT_FAILURE;
 }
