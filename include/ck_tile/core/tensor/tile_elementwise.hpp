@@ -112,7 +112,7 @@ namespace impl {
 template <typename OutDataType, typename InTensor>
 CK_TILE_DEVICE auto cast_tile_pk_fp8x4(const InTensor& in_dstr_tensors)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     // This API is designed to use the _pk_ serious of function
     constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
 
