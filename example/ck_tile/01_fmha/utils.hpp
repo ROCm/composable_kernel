@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <ostream>
 #include <tuple>
@@ -113,7 +114,7 @@ decode_seqlen(mode_enum mode,
               std::string k_pad_val,
               std::optional<unsigned> seed = std::nullopt)
 {
-#define _S2I_(str_) static_cast<ck_tile::index_t>(atoi((str_).c_str()))
+#define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
     if(mode == mode_enum::batch)
     {
         ck_tile::index_t q = _S2I_(q_val);
@@ -176,6 +177,6 @@ int env_get_int(const char* var_name, int default_int)
     char* v = getenv(var_name);
     int r   = default_int;
     if(v)
-        r = atoi(v);
+        r = std::atoi(v);
     return r;
 }
