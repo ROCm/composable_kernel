@@ -117,7 +117,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #define MEDIAN 1
     if(stream_config.time_kernel_)
     {
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
                    __func__,
@@ -142,7 +142,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         {
             return 0.0;
         }
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("Start running %d times...\n", nrepeat);
         }
@@ -186,7 +186,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             total_time += cur_time;
 #endif
 
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
 

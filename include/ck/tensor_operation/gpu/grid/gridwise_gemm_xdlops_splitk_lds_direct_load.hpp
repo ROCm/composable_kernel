@@ -51,7 +51,7 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = c_element_op;
-#endif // end of if (defined(__gfx9__)
+#endif // end of if (defined(__gfx9__))
 }
 
 template <index_t BlockSize,

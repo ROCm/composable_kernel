@@ -48,7 +48,7 @@ __global__ void
         karg.c_element_op);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx9__)
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -82,7 +82,7 @@ __global__ void
         karg.c_element_op);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx9__)
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename ALayout,
@@ -1111,7 +1111,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(!(karg.M % MPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -1128,7 +1128,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(!(karg.N % NPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -1147,7 +1147,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             auto K_t = karg.KBatch * KPerBlock;
             if(!(karg.K % K_t == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
                               << karg.K << " " << __FILE__ << ":" << __LINE__
@@ -1171,7 +1171,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -1185,7 +1185,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -1200,7 +1200,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -1214,7 +1214,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -1229,7 +1229,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of "
@@ -1245,7 +1245,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of "
