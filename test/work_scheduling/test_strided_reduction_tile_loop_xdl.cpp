@@ -53,8 +53,7 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
                                                             index_t tile_count,
                                                             index_t k_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
 
     StridedReductionTileLoop work_scheduler{tile_count, p_flags};
 
@@ -161,7 +160,12 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
                                               w_buffer_resource,
                                               get_thread_local_1d_id() * sizeof(float),
                                               0,
+#if(defined(__gfx908__) || defined(__gfx90a__))
                                               static_cast<index_t>(AmdBufferCoherenceEnum::GLC));
+#elif defined(__gfx94__)
+                                              static_cast<index_t>(
+                                                  AmdBufferCoherenceEnum::SYSTEM_NT0));
+#endif
             // p_workspace[get_block_1d_id() * MPerBlock * NPerBlock + get_thread_local_1d_id()] =
             //     partial_result;
         }
@@ -190,7 +194,11 @@ __global__ void grouped_gemm_naive_strided_tile_loop_reduce(const GemmArgDesc* p
                     w_buffer_resource,
                     get_thread_local_1d_id() * sizeof(float),
                     0,
+#if(defined(__gfx908__) || defined(__gfx90a__))
                     static_cast<index_t>(AmdBufferCoherenceEnum::GLC));
+#elif defined(__gfx94__)
+                    static_cast<index_t>(AmdBufferCoherenceEnum::SYSTEM_NT0));
+#endif
                 partial_result += value;
             }
 
@@ -292,6 +300,8 @@ struct GroupedGemmStridedTileLoopReduce
 
             ck::utils::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_m_k[i]);
             ck::utils::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_k_n[i]);
+            // ck::utils::FillConstant<ADataType>{1}(a_m_k[i]);
+            // ck::utils::FillConstant<BDataType>{1}(b_k_n[i]);
             c_m_n_host[i].SetZero();
             c_m_n_device[i].SetZero();
 
@@ -506,3 +516,21 @@ TEST(TestStridedReductionTileLoop, GroupedGemm_CrossGroups_CrossK_TilePerBlockGT
     EXPECT_TRUE((GroupedGemmStridedTileLoopReduce<BlockSize, MPerBlock, NPerBlock, KPerBlock>{}.Run(
         Ms, Ns, Ks, kbatch, grid_size)));
 }
+
+// TEST(TestStridedReductionTileLoop, GroupedGemm_ExampleCase_kbatch1)
+// {
+//     constexpr index_t MPerBlock = 64;
+//     constexpr index_t NPerBlock = 64;
+//     constexpr index_t KPerBlock = 32;
+//     constexpr index_t BlockSize = 128;
+//     const index_t kbatch        = 1;
+//     const index_t grid_size = 216;
+
+//     std::vector<index_t> Ms{167};
+//     std::vector<index_t> Ns{4608};
+//     std::vector<index_t> Ks{384};
+
+//     EXPECT_TRUE((GroupedGemmStridedTileLoopReduce<BlockSize, MPerBlock, NPerBlock,
+//     KPerBlock>{}.Run(
+//         Ms, Ns, Ks, kbatch, grid_size)));
+// }
