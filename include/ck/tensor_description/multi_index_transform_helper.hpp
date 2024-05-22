@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -129,8 +129,14 @@ __host__ __device__ constexpr auto make_modulo_transform(const Modulus& modulus,
 }
 
 template <typename LowLengths>
+__host__ __device__ constexpr auto make_xor_with_modulo_transform(const LowLengths& low_lengths)
+{
+    return Xor<LowLengths, true /*ApplyModulo*/>{low_lengths};
+}
+
+template <typename LowLengths>
 __host__ __device__ constexpr auto make_xor_transform(const LowLengths& low_lengths)
 {
-    return Xor<LowLengths>{low_lengths};
+    return Xor<LowLengths, false /*ApplyModulo*/>{low_lengths};
 }
 } // namespace ck

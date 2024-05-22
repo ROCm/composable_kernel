@@ -104,14 +104,19 @@ inline void flush_icache()
     hip_check_error(hipGetLastError());
 }
 // if TimePrePress == false, return time does not include preprocess's time
-template <bool TimePreprocess, typename Args, typename F, typename PreProcessFunc>
+template <bool TimePreprocess,
+          typename GemmArgs,
+          typename... Args,
+          typename F,
+          typename PreProcessFunc>
 float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                                              PreProcessFunc preprocess,
                                              F kernel,
                                              dim3 grid_dim,
                                              dim3 block_dim,
                                              std::size_t lds_byte,
-                                             Args& args)
+                                             GemmArgs& gemm_args,
+                                             Args... args)
 {
 #if CK_TIME_KERNEL
 #define MEDIAN 1
@@ -133,7 +138,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         // warm up
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
             hip_check_error(hipGetLastError());
         }
 
@@ -172,7 +177,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
                 preprocess();
             }
             // run real kernel
-            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
             hip_check_error(hipGetLastError());
             // end real kernel
 
@@ -190,9 +195,9 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             {
                 std::cout << "i: " << i << " cur_time: " << cur_time << std::endl;
 
-                printf("args.p_a_grid: %p, args.p_b_grid:%p\n",
-                       static_cast<const void*>(args.p_a_grid),
-                       static_cast<const void*>(args.p_b_grid));
+                printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
+                       static_cast<const void*>(gemm_args.p_a_grid),
+                       static_cast<const void*>(gemm_args.p_b_grid));
             }
         }
 
@@ -216,13 +221,13 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     else
     {
         preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
+        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
         hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
-    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args);
+    kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(gemm_args, args...);
     hip_check_error(hipGetLastError());
 
     return 0;
