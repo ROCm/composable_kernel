@@ -353,8 +353,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
     using ABCGridDescs = decltype(GetABCGridDesc<NDimSpatial>());
 
-    using AGridDesc_K0_M_K1 = remove_cvref_t<decltype((ABCGridDescs{}[I0]))>;
-    using BGridDesc_K0_N_K1 = remove_cvref_t<decltype((ABCGridDescs{}[I1]))>;
+    using AGridDesc_K0_M_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
+    using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
     using CElementwiseGridDesc_M_N =
         remove_cvref_t<decltype(GetElementwiseCGridDesc<NDimSpatial>())>;

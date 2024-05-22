@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -21,7 +20,7 @@ namespace tensor_operation {
  * 1. Merge KBatch with K0 to align descriptor with universal gemm
  * 2. Merge Batch with M and N dimension. It allows to increase compute in
  *    case of small M and N. It also allows to vector load and store in case of
- *    K = 1, C = 1 and HHWGC layout.
+ *    K = 1, C = 1 and NHWGC layout.
  */
 template <index_t NDimSpatial,
           index_t MPerBlock,
@@ -89,7 +88,8 @@ struct TransformConvBwdWeightToGemmV2
         const auto KStride     = weights_strides[1];
         const auto XStride     = weights_strides[4];
         const auto BatchStride = weights_strides[0];
-        // Add NumBatchToMerge for Batch+M dimension and, 1 for placehord for Batch+N dimension
+        // Add NumBatchToMerge for Batch+M dimension and, 1 as a placehorder
+        // for Batch+N dimension
         const auto desc = make_naive_tensor_descriptor(
             make_tuple(NumBatchToMerge, K, Y * X, 1, C),
             make_tuple(BatchStride, KStride, XStride, BatchStride, CStride));

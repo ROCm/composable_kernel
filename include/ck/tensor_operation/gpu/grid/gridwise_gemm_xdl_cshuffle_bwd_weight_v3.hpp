@@ -631,7 +631,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
-    // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
     template <typename AGridDesc_AK0_M_K1,
               typename BGridDesc_BK0_N_K1,
