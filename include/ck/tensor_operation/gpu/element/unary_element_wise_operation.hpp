@@ -961,6 +961,30 @@ struct Elu
     const float alpha_;
 };
 
+struct ConvInvscale
+{
+
+    __host__ __device__ ConvInvscale(float* scale_in_ptr  = nullptr,
+                                     float* scale_wei_ptr = nullptr,
+                                     float* scale_out_ptr = nullptr)
+        : scale_in_ptr_(scale_in_ptr), scale_wei_ptr_(scale_wei_ptr), scale_out_ptr_(scale_out_ptr)
+    {
+    }
+
+    template <typename E, typename C>
+    __host__ __device__ void operator()(E& e, const C& c) const;
+
+    template <>
+    __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
+    {
+        e = type_convert<f8_t>(c / (*scale_in_ptr_) / (*scale_wei_ptr_) / (*scale_out_ptr_));
+    };
+
+    float* scale_in_ptr_;
+    float* scale_wei_ptr_;
+    float* scale_out_ptr_;
+};
+
 // support fastconvert of int8 to fp16
 
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
