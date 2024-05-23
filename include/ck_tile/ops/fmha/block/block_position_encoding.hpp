@@ -54,7 +54,7 @@ struct Alibi
                               index_t x_total_,
                               AlibiMode mode_ = AlibiMode::VERTICAL)
     {
-        slope = mode_ == AlibiMode::VERTICAL ? slope_ : -slope;
+        slope = mode_ == AlibiMode::VERTICAL ? slope_ : -slope_;
 
         shift_left_up = [&]() {
             if(RowMajor)

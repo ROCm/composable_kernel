@@ -690,7 +690,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 else
                 {
                     return ck_tile::Alibi<SaccDataType, true>{
-                        0, real_seqlen_q, real_seqlen_k, ck_tile::AlibiMode::VERTICAL};
+                        0, real_seqlen_q, real_seqlen_k, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT};
                 }
             }();
 
@@ -700,7 +700,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             for(auto i_h = 0; i_h < nhead; i_h++)
             {
                 SaccDataType current_slope = alibi_slope_host(i_b_slope, i_h);
-                alibi_host.slope           = current_slope;
+                alibi_host.slope = alibi_host.mode == ck_tile::AlibiMode::VERTICAL ? current_slope
+                                                                                   : -current_slope;
                 for(auto i_r = 0; i_r < real_seqlen_q; i_r++)
                 {
                     for(auto i_c = 0; i_c < real_seqlen_k; i_c++)
