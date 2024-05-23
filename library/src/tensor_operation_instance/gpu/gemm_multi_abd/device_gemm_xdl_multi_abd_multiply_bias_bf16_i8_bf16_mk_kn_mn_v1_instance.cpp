@@ -17,7 +17,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_gemm_xdl_multi_abd_multiply_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_instances(
+void add_device_gemm_xdl_multi_abd_multiply_bf16_i8_bf16_mk_kn_mn_bias_v1_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleABD<AsLayout,
                                                       ck::Tuple<B0Layout>,
                                                       ck::Tuple<D0Layout, B1Layout>,
@@ -28,7 +28,7 @@ void add_device_gemm_xdl_multi_abd_multiply_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_i
                                                       EDataType,
                                                       AElementOp,
                                                       PassThrough,
-                                                      MultiplyAddFastGelu>>>& instances)
+                                                      MultiplyAdd>>>& instances)
 {
     add_device_operation_instances(instances,
                                    device_gemm_xdl_multi_abd_bf16_i8_bf16_mk_kn_mn_comp_instances<
@@ -37,7 +37,7 @@ void add_device_gemm_xdl_multi_abd_multiply_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_i
                                        ck::Tuple<B0DataType>,
                                        ck::Tuple<D0DataType, B1DataType>,
                                        PassThrough,
-                                       MultiplyAddFastGelu,
+                                       MultiplyAdd,
                                        GemmMNKPadding,
                                        Interwave>{});
     add_device_operation_instances(instances,
@@ -47,7 +47,7 @@ void add_device_gemm_xdl_multi_abd_multiply_bf16_i8_bf16_mk_kn_mn_bias_gelu_v1_i
                                        ck::Tuple<B0DataType>,
                                        ck::Tuple<D0DataType, B1DataType>,
                                        PassThrough,
-                                       MultiplyAddFastGelu,
+                                       MultiplyAdd,
                                        GemmMNKPadding,
                                        Interwave>{});
 }
