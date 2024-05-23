@@ -7,7 +7,7 @@ KNAME=1
 export CK_WARMUP=0
 export CK_REPEAT=1
 
-COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
+COMMON_ARGS='-v=1'
 
 for prec in "fp16" "bf16" ; do
 for perm in 0 1 ; do

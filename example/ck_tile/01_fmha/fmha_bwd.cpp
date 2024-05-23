@@ -734,7 +734,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     dq_buf.SetZero();
     dbias_buf.SetZero();
 
-    fmha_bwd(fmha_traits, fmha_args, stream_config);
+    ck_tile::stream_config stream_config_v{nullptr, true, /* log_level = */ (kname ? 1 : 0), 0, 1};
+    fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
     dk_buf.FromDevice(dk_host.data());
