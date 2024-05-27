@@ -544,8 +544,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         CDataType* p_c_grid;
     };
 
+    template <bool Reduce = false>
     struct SplitKBatchOffset
     {
+
         __device__ SplitKBatchOffset(Argument& karg)
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
@@ -574,10 +576,15 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
+            if constexpr(Reduce)
+            {
+                c_reduce_offset = blockIdx.z * karg.MPadded * karg.NPadded;
+            }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t c_reduce_offset = 0;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()

@@ -200,7 +200,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
 #endif
-    DeviceMem workspace;
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
@@ -239,6 +238,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
+    DeviceMem gemm_workspace_dev(gemm.GetWorkSpaceSize(&argument));
+    gemm.SetWorkSpacePointer(&argument, gemm_workspace_dev.GetDeviceBuffer(), StreamConfig{});
+    
     bool pass = true;
     if(config.do_verification)
     {
