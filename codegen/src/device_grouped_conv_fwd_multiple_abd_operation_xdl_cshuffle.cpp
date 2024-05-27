@@ -182,7 +182,6 @@ Operation_Conv_Fwd_Xdl_Cshuffle::CreateOperations(const std::string& prologue,
     return CreateOperations(prob, prologue, epilogue);
 }
 
-// TODO: clean up template
 static const char* const CopyDevice_ConvTemplate =
     R"(
 ${Prologue}

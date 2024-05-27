@@ -51,7 +51,6 @@ std::size_t get_available_gpu_memory()
     auto status = hipMemGetInfo(&free, &total);
     if(status != hipSuccess)
     {
-        // throw std::runtime_error("Failed getting available memory: " + hip_error(status));
         std::cerr << "Failed getting available memory: " + hip_error(status) << std::endl;
         return (8ull * 1024ull * 1024ull * 1024ull);
     }

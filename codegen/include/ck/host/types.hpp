@@ -48,10 +48,8 @@ enum class Layout
 {
     Row,
     Column,
-    GNCHW,
-    GNKHW,
-    GKCYX,
     GKYXC,
+    GKCYX,
     GNHWK,
     GNHWC,
     NHWGC,

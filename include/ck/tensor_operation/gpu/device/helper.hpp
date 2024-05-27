@@ -77,7 +77,7 @@ auto pad(ck::index_t mpb,
         a.MPerTile_ = mpb;
         a.NPerTile_ = npb;
         a.KPerTile_ = kpb;
-        auto res    = ck::tensor_operation::device::Padder(a, conv);
+        auto res    = ck::tensor_operation::device::Padder();
         auto tmp    = res.grid_desc(a, conv);
         return tmp;
     }

@@ -74,8 +74,6 @@ struct Epilogue
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
         "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
-    // e.Register<ck::host::conv::Operation_Conv_Fwd_Xdl_Cshuffle>(
-    //		            "DeviceConvFwdMultipleD_Xdl_CShuffle", prologue, epilogue);
 
     if(args.empty() or std::any_of(args.begin(), args.end(), [](auto arg) {
            return arg == "-h" or arg == "--help";
