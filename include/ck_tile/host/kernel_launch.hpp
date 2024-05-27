@@ -34,44 +34,18 @@ make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
     };
 }
 
-template <typename Timer, typename... Callables>
-CK_TILE_HOST float launch_with_timer_(const stream_config& s, Callables... callables)
-{
-    // TODO: assume the s.
-    Timer timer{};
-
-    // warmup
-    for(int i = 0; i < s.cold_niters_; i++)
-    {
-        (callables(s), ...);
-    }
-    hip_check_error(hipGetLastError());
-
-    timer.start(s.stream_id_);
-    // repeat
-    for(int i = 0; i < s.nrepeat_; i++)
-    {
-        (callables(s), ...);
-    }
-    hip_check_error(hipGetLastError());
-    timer.stop(s.stream_id_);
-
-    float ms = timer.duration();
-    return ms / s.nrepeat_;
-}
-
+// clang-format off
 /*
  * launch_kernel()
  * this is the function to launch arbitrary kernels with potential timer(selected by stream_config)
  *
  * the callables should have signature as "operator()(const stream_config& s){ ... }" to call
  * ck_tile::launch_kernel(s,
- *                       ck_tile::make_kernel<ThreadPerBlock0, BlockPerCu0>(ck_kernel_0{}, grids0,
- *blocks0, 0, kargs0), ck_tile::make_kernel<ThreadPerBlock1, BlockPerCu1>(ck_kernel_1{}, grids1,
- *blocks1, 0, kargs1),
+ *                       ck_tile::make_kernel<ThreadPerBlock0, BlockPerCu0>(ck_kernel_0{}, grids0, blocks0, 0, kargs0),
+ *                       ck_tile::make_kernel<ThreadPerBlock1, BlockPerCu1>(ck_kernel_1{}, grids1, blocks1, 0, kargs1),
  *                       ...);
  **/
-
+// clang-format on
 template <typename... Callables>
 CK_TILE_HOST float launch_kernel(const stream_config& s, Callables... callables)
 {
