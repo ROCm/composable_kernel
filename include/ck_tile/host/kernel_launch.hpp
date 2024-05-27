@@ -20,6 +20,13 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
     Kernel{}(args...);
 }
 
+//
+// return a anonymous functor(lambda) to be called later
+// the KernelImpl should be a class without non-static data member, or let's say
+// can be instantiate with "KernelImpl{}"
+//
+// the "static __device__ operator()(some_arg)" is the entry point of KernelImpl
+//
 template <int MaxThreadPerBlock = CK_TILE_MAX_THREAD_PER_BLOCK,
           int MinBlockPerCu     = CK_TILE_MIN_BLOCK_PER_CU,
           typename KernelImpl,
@@ -37,12 +44,27 @@ make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byt
 // clang-format off
 /*
  * launch_kernel()
- * this is the function to launch arbitrary kernels with potential timer(selected by stream_config)
  *
+ * this is the function to launch arbitrary number of kernels with optional timer(selected by stream_config)
  * the callables should have signature as "operator()(const stream_config& s){ ... }" to call
- * ck_tile::launch_kernel(s,
- *                       ck_tile::make_kernel<ThreadPerBlock0, BlockPerCu0>(ck_kernel_0{}, grids0, blocks0, 0, kargs0),
- *                       ck_tile::make_kernel<ThreadPerBlock1, BlockPerCu1>(ck_kernel_1{}, grids1, blocks1, 0, kargs1),
+ * 
+ * the simplest way is pass in a lambda function, with "[=](const stream_config& s){ call_your_kernel_here() }"
+ * as signature, for the callable (pay attention to the capture list)
+ * 
+ * e.g.
+ *  ck_tile::launch_kernel(s,
+ *                      [=](const stream_config& s){ hipMemset(ptr, 0, size) },
+ *                      [=](const stream_config& s){ some_kernel<<<grids, blocks>>>(arg); }
+ *                      );
+ * 
+ * if you use ck_tile kernel, or similiar to this style (structure with "static __device__ operator()(...){}")
+ * you can pass your kernel to ck_tile::make_kernel(), which will create a anonymous functor for you,
+ * then pass it to ck_tile::launch_kernel()
+ * 
+ * e.g.
+ *  ck_tile::launch_kernel(s,
+ *                      ck_tile::make_kernel<T0, B0>(kernel_0{}, grids0, blocks0, 0, kargs0),
+ *                      ck_tile::make_kernel<T0, B1>(kernel_1{}, grids1, blocks1, 0, kargs1),
  *                       ...);
  **/
 // clang-format on
