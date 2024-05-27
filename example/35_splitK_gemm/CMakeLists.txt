@@ -21,3 +21,5 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_executable(example_splitK_gemm_xdl_int4 splitK_gemm_xdl_int4.cpp)
     add_example_dependencies(example_splitK_gemm_xdl example_splitK_gemm_xdl_int4)
 endif()
+
+add_example_executable(example_gemm_xdl_splitk_reduce_multi_d_fp16 gemm_xdl_splitk_reduce_multi_d_fp16.cpp)
