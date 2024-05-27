@@ -110,6 +110,7 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -260,8 +261,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
 
-    ck_tile::stream_config stream_config{
-        nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
+    ck_tile::stream_config stream_config{nullptr,
+                                         true,
+                                         /* log_level = */ (kname ? 1 : 0),
+                                         stream_warmup,
+                                         stream_repeat,
+                                         arg_parser.get_str("timer") == std::string("gpu")};
 
     const auto seqstart_q_host              = to_seqstarts(seqlen_qs);
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);

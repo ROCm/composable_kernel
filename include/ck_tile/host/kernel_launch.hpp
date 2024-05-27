@@ -6,6 +6,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/timer.hpp"
 #include <hip/hip_runtime.h>
 #include <cstddef>
 
@@ -14,153 +15,96 @@ template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename...
 #if CK_TILE_USE_LAUNCH_BOUNDS
 __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 #endif
-    __global__ void kentry(Kernel f, Args... args)
+    __global__ void kentry(Args... args)
 {
-    f(args...);
-}
-
-template <typename... Args, typename F>
-CK_TILE_HOST float launch_and_time_kernel(const stream_config& s,
-                                          F kernel,
-                                          dim3 grid_dim,
-                                          dim3 block_dim,
-                                          std::size_t lds_byte,
-                                          Args... args)
-{
-#if CK_TILE_TIME_KERNEL
-    if(s.time_kernel_)
-    {
-        // warm up
-        for(int i = 0; i < s.cold_niters_; ++i)
-        {
-            kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-            hip_check_error(hipGetLastError());
-        }
-
-        const int nrepeat = s.nrepeat_;
-        hipEvent_t start, stop;
-
-        HIP_CHECK_ERROR(hipEventCreate(&start));
-        HIP_CHECK_ERROR(hipEventCreate(&stop));
-
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
-        HIP_CHECK_ERROR(hipEventRecord(start, s.stream_id_));
-
-        for(int i = 0; i < nrepeat; ++i)
-        {
-            kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-            hip_check_error(hipGetLastError());
-        }
-
-        HIP_CHECK_ERROR(hipEventRecord(stop, s.stream_id_));
-        HIP_CHECK_ERROR(hipEventSynchronize(stop));
-
-        float total_time = 0;
-
-        HIP_CHECK_ERROR(hipEventElapsedTime(&total_time, start, stop));
-
-        return total_time / nrepeat;
-    }
-    else
-    {
-        kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-        hip_check_error(hipGetLastError());
-        return 0;
-    }
-#else
-    kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-    hip_check_error(hipGetLastError());
-    return 0;
-#endif
-}
-
-template <typename... Args, typename F, typename PreProcessFunc>
-CK_TILE_HOST float launch_and_time_kernel_with_preprocess(const stream_config& s,
-                                                          PreProcessFunc preprocess,
-                                                          F kernel,
-                                                          dim3 grid_dim,
-                                                          dim3 block_dim,
-                                                          std::size_t lds_byte,
-                                                          Args... args)
-{
-#if CK_TILE_TIME_KERNEL
-    if(s.time_kernel_)
-    {
-#if CK_TILE_DEBUG_LOG
-        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
-               __func__,
-               grid_dim.x,
-               grid_dim.y,
-               grid_dim.z,
-               block_dim.x,
-               block_dim.y,
-               block_dim.z);
-
-        printf("Warm up 1 time\n");
-#endif
-        // warm up
-        preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-        hip_check_error(hipGetLastError());
-
-        const int nrepeat = 10;
-#if CK_TILE_DEBUG_LOG
-        printf("Start running %d times...\n", nrepeat);
-#endif
-        hipEvent_t start, stop;
-
-        HIP_CHECK_ERROR(hipEventCreate(&start));
-        HIP_CHECK_ERROR(hipEventCreate(&stop));
-
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
-        HIP_CHECK_ERROR(hipEventRecord(start, s.stream_id_));
-
-        for(int i = 0; i < nrepeat; ++i)
-        {
-            preprocess();
-            kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-            hip_check_error(hipGetLastError());
-        }
-
-        HIP_CHECK_ERROR(hipEventRecord(stop, s.stream_id_));
-        HIP_CHECK_ERROR(hipEventSynchronize(stop));
-
-        float total_time = 0;
-
-        HIP_CHECK_ERROR(hipEventElapsedTime(&total_time, start, stop));
-
-        return total_time / nrepeat;
-    }
-    else
-    {
-        preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-        hip_check_error(hipGetLastError());
-
-        return 0;
-    }
-#else
-    kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
-    hip_check_error(hipGetLastError());
-
-    return 0;
-#endif
+    Kernel{}(args...);
 }
 
 template <int MaxThreadPerBlock = CK_TILE_MAX_THREAD_PER_BLOCK,
           int MinBlockPerCu     = CK_TILE_MIN_BLOCK_PER_CU,
           typename KernelImpl,
           typename... Args>
-CK_TILE_HOST float launch_kernel(const stream_config& s,
-                                 KernelImpl kernel_impl,
-                                 dim3 grid_dim,
-                                 dim3 block_dim,
-                                 std::size_t dynamic_smem_byte,
-                                 Args... args)
+CK_TILE_HOST auto
+make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
 {
     const auto kernel = kentry<MaxThreadPerBlock, MinBlockPerCu, KernelImpl, Args...>;
 
-    return launch_and_time_kernel(
-        s, kernel, grid_dim, block_dim, dynamic_smem_byte, kernel_impl, args...);
+    return [=](const stream_config& s) {
+        kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
+    };
 }
+
+template <typename Timer, typename... Callables>
+CK_TILE_HOST float launch_with_timer_(const stream_config& s, Callables... callables)
+{
+    // TODO: assume the s.
+    Timer timer{};
+
+    // warmup
+    for(int i = 0; i < s.cold_niters_; i++)
+    {
+        (callables(s), ...);
+    }
+    hip_check_error(hipGetLastError());
+
+    timer.start(s.stream_id_);
+    // repeat
+    for(int i = 0; i < s.nrepeat_; i++)
+    {
+        (callables(s), ...);
+    }
+    hip_check_error(hipGetLastError());
+    timer.stop(s.stream_id_);
+
+    float ms = timer.duration();
+    return ms / s.nrepeat_;
+}
+
+/*
+ * launch_kernel()
+ * this is the function to launch arbitrary kernels with potential timer(selected by stream_config)
+ *
+ * the callables should have signature as "operator()(const stream_config& s){ ... }" to call
+ * ck_tile::launch_kernel(s,
+ *                       ck_tile::make_kernel<ThreadPerBlock0, BlockPerCu0>(ck_kernel_0{}, grids0,
+ *blocks0, 0, kargs0), ck_tile::make_kernel<ThreadPerBlock1, BlockPerCu1>(ck_kernel_1{}, grids1,
+ *blocks1, 0, kargs1),
+ *                       ...);
+ **/
+
+template <typename... Callables>
+CK_TILE_HOST float launch_kernel(const stream_config& s, Callables... callables)
+{
+    // clang-format off
+    if(!s.time_kernel_) {
+        (callables(s),...); hip_check_error(hipGetLastError());
+        return 0;
+    }
+    if(s.is_gpu_timer_) {
+        gpu_timer timer {};
+
+        // warmup
+        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+
+        timer.start(s.stream_id_);
+        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        timer.stop(s.stream_id_);
+
+        return timer.duration() / s.nrepeat_;
+    }
+    else {
+        cpu_timer timer {};
+
+        // warmup
+        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+
+        timer.start(s.stream_id_);
+        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        timer.stop(s.stream_id_);
+
+        return timer.duration() / s.nrepeat_;
+    }
+    // clang-format on
+}
+
 } // namespace ck_tile
