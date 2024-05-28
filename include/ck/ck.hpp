@@ -53,10 +53,10 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // define general macros for various architectures
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__) || defined(__gfx950__)
+    defined(__gfx942__)
 #define __gfx9__
 #endif
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
