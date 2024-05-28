@@ -24,71 +24,6 @@
 namespace ck {
 namespace tensor_operation {
 namespace device {
-// Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
-// kernel function Blockers:
-// 1. Two separted declaration of __shared__ pointer is the key to make sure data access operate on
-// two lds chunks.
-// 2. Occupied __shared__ won't release until whole shader end, a.k.a AB and C may not use same lds
-// buffer when we declare __shared__ inside blkgemmpipe
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_reduce(typename GridwiseGemm::Argument karg)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    auto splitk_batch_offset = typename GridwiseGemm::template SplitKBatchOffset<true>(karg);
-
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared,
-        karg);
-#else
-    ignore = karg;
-#endif // end of if (defined(__gfx9__))
-}
-
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_reduce_2lds(typename GridwiseGemm::Argument karg)
-{
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    auto splitk_batch_offset = typename GridwiseGemm::template SplitKBatchOffset<true>(karg);
-
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared_0,
-        p_shared_1,
-        karg);
-#else
-    ignore = karg;
-#endif // end of if (defined(__gfx9__))
-}
 
 template <typename ALayout,
           typename BLayout,
@@ -225,12 +160,21 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
     {
         float RunReduce(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const index_t KBatch                  = arg.KBatch;
-            std::array<ck::index_t, 3> in_lengths = {KBatch, arg.M, arg.N};
-            std::array<ck::index_t, 3> in_strides = {arg.M * arg.N, arg.N, 1};
-
+            std::array<ck::index_t, 3> in_lengths  = {arg.KBatch, arg.M, arg.N};
             std::array<ck::index_t, 2> out_lengths = {arg.M, arg.N};
-            std::array<ck::index_t, 2> out_strides = {arg.N, 1};
+
+            std::array<ck::index_t, 3> in_strides;
+            std::array<ck::index_t, 2> out_strides;
+            if constexpr(std::is_same<CLayout, ck::tensor_layout::gemm::RowMajor>::value)
+            {
+                in_strides  = {arg.M * arg.N, arg.N, 1};
+                out_strides = {arg.N, 1};
+            }
+            else
+            {
+                in_strides  = {arg.M * arg.N, 1, arg.M};
+                out_strides = {1, arg.M};
+            }
 
             std::array<int, 1> reduce_dims{0};
 
@@ -358,10 +302,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                 {
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy>;
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Full,
+                                                        true>;
                         Run(kernel);
                     }
                 }
@@ -372,22 +318,24 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                true,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy,
-                                                                TailNumber::One>;
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::One,
+                                                            true>;
                             Run(kernel);
                         }
                         else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
                                 TailNumber::Full)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                true,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy,
-                                                                TailNumber::Full>;
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Full,
+                                                            true>;
                             Run(kernel);
                         }
 
@@ -396,11 +344,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy,
-                                                                    TailNumber::Two>;
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Two,
+                                                                true>;
                                 Run(kernel);
                             }
                         }
@@ -411,11 +360,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                                TailNumber::Three)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy,
-                                                                    TailNumber::Three>;
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Three,
+                                                                true>;
                                 Run(kernel);
                             }
                         }
@@ -426,11 +376,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                                TailNumber::Four)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy,
-                                                                    TailNumber::Four>;
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Four,
+                                                                true>;
                                 Run(kernel);
                             }
                         }
@@ -441,11 +392,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                                TailNumber::Five)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy,
-                                                                    TailNumber::Five>;
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Five,
+                                                                true>;
                                 Run(kernel);
                             }
                         }
@@ -455,11 +407,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy,
-                                                                    TailNumber::Six>;
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Six,
+                                                                true>;
                                 Run(kernel);
                             }
                         }
@@ -470,11 +423,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                                TailNumber::Seven)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                    true,
-                                                                    InMemoryDataOperationEnum::Set,
-                                                                    minimum_occupancy,
-                                                                    TailNumber::Seven>;
+                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Seven,
+                                                                true>;
                                 Run(kernel);
                             }
                         }
@@ -487,21 +441,23 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_reduce_2lds<GridwiseGemm,
-                                                                     true,
-                                                                     InMemoryDataOperationEnum::Set,
-                                                                     minimum_occupancy,
-                                                                     TailNumber::Odd>;
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Odd,
+                                                                 true>;
                             Run(kernel);
                         }
                         else
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_reduce_2lds<GridwiseGemm,
-                                                                     true,
-                                                                     InMemoryDataOperationEnum::Set,
-                                                                     minimum_occupancy,
-                                                                     TailNumber::Even>;
+                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                                                 true,
+                                                                 InMemoryDataOperationEnum::Set,
+                                                                 minimum_occupancy,
+                                                                 TailNumber::Even,
+                                                                 true>;
                             Run(kernel);
                         }
                     }
@@ -512,21 +468,23 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                true,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy,
-                                                                TailNumber::Odd>;
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Odd,
+                                                            true>;
                             Run(kernel);
                         }
                         else
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                                true,
-                                                                InMemoryDataOperationEnum::Set,
-                                                                minimum_occupancy,
-                                                                TailNumber::Even>;
+                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            minimum_occupancy,
+                                                            TailNumber::Even,
+                                                            true>;
                             Run(kernel);
                         }
                     }
@@ -540,10 +498,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
 
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_reduce<GridwiseGemm,
-                                                            false,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy>;
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy,
+                                                        TailNumber::Full,
+                                                        true>;
                         Run(kernel);
                     }
                 }
