@@ -21,3 +21,4 @@
 #include "ck_tile/host/reference/reference_reduce.hpp"
 #include "ck_tile/host/reference/reference_softmax.hpp"
 #include "ck_tile/host/stream_config.hpp"
+#include "ck_tile/host/timer.hpp"

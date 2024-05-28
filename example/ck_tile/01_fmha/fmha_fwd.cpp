@@ -44,11 +44,18 @@ auto create_args(int argc, char* argv[])
                 "-1",
                 "num of head, for k/v, -1 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
-        .insert("s",
-                "3328",
-                "seqlen_q. if group-mode, means the average value of seqlen_q\n"
-                "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary")
+        .insert(
+            "s",
+            "3328",
+            "seqlen_q. if group-mode, means the average value of seqlen_q\n"
+            "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
+            "also with \"-s=s0,s1,s2...\" comma seperated int to set per batch seqlen(group-mode)")
         .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
+        .insert("s_kpad",
+                "-1",
+                "seqlen_k stride between 2 tokens, currently used in group-mode only\n"
+                "for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride\n"
+                "along seqlen, instead of packed. same as xformer kv_padding")
         .insert("d", "128", "head dim for q, k")
         .insert("d_v", "-1", "head dim for v, -1 means equal to d")
         .insert("scale_s",
@@ -106,6 +113,7 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -165,10 +173,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
-    if(seqlen_k < 0)
-        seqlen_k = seqlen_q;
+    auto [seqlen_qs, seqlen_ks, seqlen_kpads] = decode_seqlen(mode,
+                                                              batch,
+                                                              arg_parser.get_str("s"),
+                                                              arg_parser.get_str("s_k"),
+                                                              arg_parser.get_str("s_kpad"));
+
+#if 0
+    // clang-format off
+    std::cout << "seqlen_qs:"; for(auto xx : seqlen_qs) { std::cout << xx << ","; } std::cout << std::endl;
+    std::cout << "seqlen_ks:"; for(auto xx : seqlen_ks) { std::cout << xx << ","; } std::cout << std::endl;
+    std::cout << "seqlen_kpads:"; for(auto xx : seqlen_kpads) { std::cout << xx << ","; } std::cout << std::endl;
+    // clang-format on
+#endif
+
     ck_tile::index_t hdim_q = arg_parser.get_int("d");
     ck_tile::index_t hdim_v = arg_parser.get_int("d_v");
     if(hdim_v < 0)
@@ -217,7 +235,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool lse            = arg_parser.get_bool("lse");
 
     bias_info bias = bias_info::decode(arg_parser.get_str("bias"));
-    mask_info mask = mask_info::decode(arg_parser.get_str("mask"), seqlen_q, seqlen_k);
+    mask_info mask = mask_info::decode(
+        arg_parser.get_str("mask"), seqlen_qs[0], seqlen_ks[0]); // TODO: we don't need x/y anymore
 
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
@@ -245,11 +264,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
 
-    ck_tile::stream_config stream_config{
-        nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
+    ck_tile::stream_config stream_config{nullptr,
+                                         true,
+                                         /* log_level = */ (kname ? 1 : 0),
+                                         stream_warmup,
+                                         stream_repeat,
+                                         arg_parser.get_str("timer") == std::string("gpu")};
 
-    const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
-    const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
+    const auto seqstart_q_host              = to_seqstarts(seqlen_qs);
+    const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
+    const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
 
     using TypeConfig = FmhaFwdTypeConfig<DataType>;
 
@@ -312,9 +336,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
-        (mode == mode_enum::batch ? seqlen_q : seqstart_q_host.back());
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
-        (mode == mode_enum::batch ? seqlen_k : seqstart_k_host.back());
+        (mode == mode_enum::batch ? seqlen_ks[0]
+                                  : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
+                                                         : seqstart_k_with_padding_host.back()));
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
@@ -421,6 +447,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqlen_k_buf(seqlen_kpads[0] < 0 ? 0 : seqlen_ks.size() * sizeof(int32_t));
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
 
@@ -429,7 +456,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     v_buf.ToDevice(v_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
-    seqstart_k.ToDevice(seqstart_k_host.data());
+    seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
+                                            : seqstart_k_with_padding_host.data());
+    seqlen_k_buf.ToDevice(seqlen_kpads[0] < 0 ? nullptr : seqlen_ks.data());
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
@@ -445,7 +474,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const std::string prec = arg_parser.get_str("prec");
 
     std::cout << "[" << prec << "|" << mode << "|" << io_layout(i_perm, o_perm) << "] b:" << batch
-              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_q << "/" << seqlen_k
+              << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0] << "/" << seqlen_ks[0]
+              << (seqlen_kpads[0] < 0 ? ""
+                                      : (std::string("(") + std::to_string(seqlen_kpads[0]) + ")"))
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
               << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
               << ", mask:" << mask << ", v:" << vlayout << std::flush;
@@ -476,7 +507,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return ck_tile::identity{};
     }();
 
-    auto fmha_args = [&]() {
+    auto fmha_args = [&, k_paddings_ = seqlen_kpads]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
         ///       seqlen_k] in this example, hence both the 'batch_stride_bias' &
@@ -526,7 +557,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              o_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
-                             nullptr,
+                             k_paddings_[0] < 0 ? nullptr : seqlen_k_buf.GetDeviceBuffer(),
                              shape_seqlen_q,
                              shape_seqlen_k,
                              batch,
@@ -607,7 +638,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // adjust matrix index according to the mode
         const ck_tile::index_t b            = (mode == mode_enum::batch ? wb : 0);
         const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
-        const ck_tile::index_t key_offset   = (mode == mode_enum::batch ? 0 : seqstart_k_host[wb]);
+        const ck_tile::index_t key_offset =
+            (mode == mode_enum::batch
+                 ? 0
+                 : (seqlen_kpads[0] < 0 ? seqstart_k_host[wb] : seqstart_k_with_padding_host[wb]));
 
         const auto v_host_ref_lengths =
             std::array<ck_tile::index_t, 3>{nhead, hdim_v, real_seqlen_k};

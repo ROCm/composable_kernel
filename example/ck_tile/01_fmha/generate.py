@@ -78,6 +78,11 @@ BOOL_MAP = {
     "f" : "false"
 }
 
+TILE_PARTITIONER_MAP = {
+    "shb" : "ck_tile::FmhaFwdTilePartitioner_SHB",
+    "hbs" : "ck_tile::FmhaFwdTilePartitioner_HBS",
+}
+
 GEN_DIR = ""    # in Cmake, have to generate files in same folder
 
 FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
@@ -138,7 +143,7 @@ using fmha_epilogue_{F_idx} =
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdKernel<ck_tile::FmhaFwdTilePartitioner<fmha_shape_{F_idx}>,
+    ck_tile::FmhaFwdKernel<{F_tile_partitioner}<fmha_shape_{F_idx}>,
                   fmha_pipeline_{F_idx},
                   fmha_epilogue_{F_idx}>;
 
@@ -156,7 +161,7 @@ float fmha_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
     constexpr dim3 blocks             = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel<blocks.x, kBlockPerCu>(s, k_{{}}, grids, blocks, 0, kargs);
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
 }}
 """
 
@@ -394,6 +399,12 @@ class FmhaFwdKernel:
     F_pipeline      : FmhaFwdPipeline
     mask_impl       : str
 
+    def get_tp(self) -> str:
+        if self.F_mode == 'group':
+            return 'hbs'
+        else:
+            return 'shb'
+
     @property
     def template(self) -> str:
         kernel_body = str()
@@ -418,7 +429,7 @@ class FmhaFwdKernel:
                 F_spad          = BOOL_MAP[self.F_pipeline.F_spad],
                 F_skpad         = BOOL_MAP[self.F_pipeline.F_skpad],
                 F_dpad          = BOOL_MAP[self.F_pipeline.F_dpad],
-                F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],
+                F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],    
                 F_bias          = BIAS_MAP[self.F_pipeline.F_bias],
                 F_lse           = BOOL_MAP[self.F_pipeline.F_lse],
                 F_dropout       = BOOL_MAP[self.F_pipeline.F_dropout],
@@ -427,12 +438,13 @@ class FmhaFwdKernel:
                 F_pipeline_enum = PIPELINE_ENUM_MAP[self.F_pipeline.tag],
                 F_mask          = get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
                 F_mode          = MODE_MAP[self.F_mode],
-                F_pipeline      = PIPELINE_MAP[self.F_pipeline.tag])
+                F_pipeline      = PIPELINE_MAP[self.F_pipeline.tag],
+                F_tile_partitioner = TILE_PARTITIONER_MAP[self.get_tp()])
 
     @property
     def name(self) -> str:
         # TODO: we don't encode idx here
-        return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" +\
+        return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_{self.get_tp()}_" + \
                 self.F_tile.name + '_' + self.F_pipeline.name
 
     @property
