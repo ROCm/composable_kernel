@@ -911,7 +911,6 @@ pipeline {
                         execute_args = """ cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_TARGETS="gfx90a;gfx1030;gfx1101" \
                                            -D INSTANCES_ONLY=ON \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j32 """
                    }
