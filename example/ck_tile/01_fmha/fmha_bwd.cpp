@@ -85,6 +85,7 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -180,8 +181,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
 
-    ck_tile::stream_config stream_config{
-        nullptr, true, /* log_level = */ (kname ? 1 : 0), stream_warmup, stream_repeat};
+    ck_tile::stream_config stream_config{nullptr,
+                                         true,
+                                         /* log_level = */ (kname ? 1 : 0),
+                                         stream_warmup,
+                                         stream_repeat,
+                                         arg_parser.get_str("timer") == std::string("gpu")};
 
     const auto seqstart_q_host = generate_seqstarts(mode, batch, seqlen_q);
     const auto seqstart_k_host = generate_seqstarts(mode, batch, seqlen_k);
@@ -734,7 +739,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     dq_buf.SetZero();
     dbias_buf.SetZero();
 
-    ck_tile::stream_config stream_config_v{nullptr, true, /* log_level = */ (kname ? 1 : 0), 0, 1};
+    ck_tile::stream_config stream_config_v{
+        nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
     fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
