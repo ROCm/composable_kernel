@@ -131,74 +131,74 @@ int main()
                                                                                                             0, 1, 2, 3, 4, 5,
                                                                                                             0, 1, 2, 3, 4, 5});
 
-    rtn &= test_alibi_traverse_with_slope<true, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,     {0, 1, 2, 3, 4, 5,
-                                                                                                            1, 0, 1, 2, 3, 4,
-                                                                                                            2, 1, 0, 1, 2, 3,
-                                                                                                            3, 2, 1, 0, 1, 2});
+    rtn &= test_alibi_traverse_with_slope<true, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,     { 0, -1, -2, -3, -4, -5,
+                                                                                                            -1,  0, -1, -2, -3, -4,
+                                                                                                            -2, -1,  0, -1, -2, -3,
+                                                                                                            -3, -2, -1,  0, -1, -2});
 
-    rtn &= test_alibi_traverse_with_slope<true, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,     {0, 1, 2, 3,
-                                                                                                            1, 0, 1, 2,
-                                                                                                            2, 1, 0, 1,
-                                                                                                            3, 2, 1, 0,
-                                                                                                            4, 3, 2, 1,
-                                                                                                            5, 4, 3, 2});
+    rtn &= test_alibi_traverse_with_slope<true, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,     { 0, -1, -2, -3,
+                                                                                                            -1,  0, -1, -2,
+                                                                                                            -2, -1,  0, -1,
+                                                                                                            -3, -2, -1,  0,
+                                                                                                            -4, -3, -2, -1,
+                                                                                                            -5, -4, -3, -2});
 
-    rtn &= test_alibi_traverse_with_slope<true, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,     {0, 1, 2,
-                                                                                                            1, 0, 1,
-                                                                                                            2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<true, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,     { 0, -1, -2,
+                                                                                                            -1,  0, -1,
+                                                                                                            -2, -1,  0});
 
-    rtn &= test_alibi_traverse_with_slope<true, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {2, 1, 0, 1, 2, 3,
-                                                                                                            3, 2, 1, 0, 1, 2,
-                                                                                                            4, 3, 2, 1, 0, 1,
-                                                                                                            5, 4, 3, 2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<true, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {-2, -1,  0, -1, -2, -3,
+                                                                                                            -3, -2, -1,  0, -1, -2,
+                                                                                                            -4, -3, -2, -1,  0, -1,
+                                                                                                            -5, -4, -3, -2, -1,  0});
 
-    rtn &= test_alibi_traverse_with_slope<true, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {2, 3, 4, 5,
-                                                                                                            1, 2, 3, 4,
-                                                                                                            0, 1, 2, 3,
-                                                                                                            1, 0, 1, 2,
-                                                                                                            2, 1, 0, 1,
-                                                                                                            3, 2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<true, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {-2, -3, -4, -5,
+                                                                                                            -1, -2, -3, -4,
+                                                                                                             0, -1, -2, -3,
+                                                                                                            -1,  0, -1, -2,
+                                                                                                            -2, -1,  0, -1,
+                                                                                                            -3, -2, -1,  0});
 
-    rtn &= test_alibi_traverse_with_slope<true, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {0, 1, 2,
-                                                                                                            1, 0, 1,
-                                                                                                            2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<true, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, { 0, -1, -2,
+                                                                                                            -1,  0, -1,
+                                                                                                            -2, -1,  0});
 
     rtn &= test_alibi_traverse_with_slope<false, dtype>(4, 6, slope, ck_tile::AlibiMode::VERTICAL,         {0, 1, 2, 3, 4, 5,
                                                                                                             0, 1, 2, 3, 4, 5,
                                                                                                             0, 1, 2, 3, 4, 5,
                                                                                                             0, 1, 2, 3, 4, 5});
 
-    rtn &= test_alibi_traverse_with_slope<false, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,    {0, 1, 2, 3, 4, 5,
-                                                                                                            1, 0, 1, 2, 3, 4,
-                                                                                                            2, 1, 0, 1, 2, 3,
-                                                                                                            3, 2, 1, 0, 1, 2});
+    rtn &= test_alibi_traverse_with_slope<false, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,    { 0, -1, -2, -3, -4, -5,
+                                                                                                            -1,  0, -1, -2, -3, -4,
+                                                                                                            -2, -1,  0, -1, -2, -3,
+                                                                                                            -3, -2, -1,  0, -1, -2});
 
-    rtn &= test_alibi_traverse_with_slope<false, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,    {0, 1, 2, 3,
-                                                                                                            1, 0, 1, 2,
-                                                                                                            2, 1, 0, 1,
-                                                                                                            3, 2, 1, 0,
-                                                                                                            4, 3, 2, 1,
-                                                                                                            5, 4, 3, 2});
+    rtn &= test_alibi_traverse_with_slope<false, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,    { 0, -1, -2, -3,
+                                                                                                            -1,  0, -1, -2,
+                                                                                                            -2, -1,  0, -1,
+                                                                                                            -3, -2, -1,  0,
+                                                                                                            -4, -3, -2, -1,
+                                                                                                            -5, -4, -3, -2});
 
-    rtn &= test_alibi_traverse_with_slope<false, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,    {0, 1, 2,
-                                                                                                            1, 0, 1,
-                                                                                                            2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<false, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_TOP_LEFT,    { 0, -1, -2,
+                                                                                                            -1,  0, -1,
+                                                                                                            -2, -1,  0});
 
-    rtn &= test_alibi_traverse_with_slope<false, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {2, 1, 0, 1, 2, 3,
-                                                                                                             3, 2, 1, 0, 1, 2,
-                                                                                                             4, 3, 2, 1, 0, 1,
-                                                                                                             5, 4, 3, 2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<false, dtype>(4, 6, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {-2, -1,  0, -1, -2, -3,
+                                                                                                             -3, -2, -1,  0, -1, -2,
+                                                                                                             -4, -3, -2, -1,  0, -1,
+                                                                                                             -5, -4, -3, -2, -1,  0});
 
-    rtn &= test_alibi_traverse_with_slope<false, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {2, 3, 4, 5,
-                                                                                                             1, 2, 3, 4,
-                                                                                                             0, 1, 2, 3,
-                                                                                                             1, 0, 1, 2,
-                                                                                                             2, 1, 0, 1,
-                                                                                                             3, 2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<false, dtype>(6, 4, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {-2, -3, -4, -5,
+                                                                                                             -1, -2, -3, -4,
+                                                                                                              0, -1, -2, -3,
+                                                                                                             -1,  0, -1, -2,
+                                                                                                             -2, -1,  0, -1,
+                                                                                                             -3, -2, -1,  0});
 
-    rtn &= test_alibi_traverse_with_slope<false, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, {0, 1, 2,
-                                                                                                             1, 0, 1,
-                                                                                                             2, 1, 0});
+    rtn &= test_alibi_traverse_with_slope<false, dtype>(3, 3, slope, ck_tile::AlibiMode::FROM_BOTTOM_RIGHT, { 0, -1, -2,
+                                                                                                             -1,  0, -1,
+                                                                                                             -2, -1,  0});
 
     rtn &= test_alibi_slope_generation<float>(8, {0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625});
     rtn &= test_alibi_slope_generation<float>(16, {0.7071067811865476, 0.5, 0.35355339059327384, 0.25000000000000006, 0.17677669529663692,
