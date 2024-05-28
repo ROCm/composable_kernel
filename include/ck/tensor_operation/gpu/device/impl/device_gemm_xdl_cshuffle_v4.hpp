@@ -17,6 +17,10 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -191,9 +195,77 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
 
     using Argument = typename GridwiseGemm::Argument;
 
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+    using ReduceAdd   = ck::reduce::Add;
+    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL  = 8;
+    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ = 8;
+    using DeviceReduceInstance =
+        DeviceReduceThreadWise<CDataType,       // InDataType,
+                               GemmAccDataType, // AccDataType,
+                               CDataType,       // OutDataType,
+                               3,               // Rank
+                               1,               // NumReduceDim
+                               ReduceAdd,
+                               PassThrough,
+                               PassThrough,
+                               false, // PropagateNan,
+                               false, // OutputIndex,
+                               false,
+                               false, // HaveIndexInputIfOutputIndex
+                               64,    // BlockSize_,
+                               CBlockTransferScalarPerVector_NWaveNPerXDL,  // MThreadSliceSize_,
+                               1,                                           // KThreadSliceSize_,
+                               0,                                           // InSrcVectorDim_,
+                               CBlockTransferScalarPerVector_NWaveNPerXDL_, // InSrcVectorSize_,
+                               CBlockTransferScalarPerVector_NWaveNPerXDL   // OutDstVectorSize_
+                               >;
+
     // Invoker
     struct Invoker : public BaseInvoker
     {
+        float RunReduce(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            const index_t KBatch                  = arg.KBatch;
+            std::array<ck::index_t, 3> in_lengths = {KBatch, arg.M, arg.N};
+            std::array<ck::index_t, 3> in_strides = {arg.M * arg.N, arg.N, 1};
+
+            std::array<ck::index_t, 2> out_lengths = {arg.M, arg.N};
+            std::array<ck::index_t, 2> out_strides = {arg.N, 1};
+
+            std::array<int, 1> reduce_dims{0};
+
+            auto reduce = DeviceReduceInstance{};
+
+            auto argument_ptr = reduce.MakeArgumentPointer(in_lengths,
+                                                           in_strides,
+                                                           out_lengths,
+                                                           out_strides,
+                                                           reduce_dims,
+                                                           1.0,
+                                                           0,
+                                                           arg.p_workspace_,
+                                                           nullptr,
+                                                           arg.p_c_grid,
+                                                           nullptr,
+                                                           PassThrough{},
+                                                           PassThrough{});
+
+            auto invoker_ptr = reduce.MakeInvokerPointer();
+
+            float ave_time = 0;
+
+            if(reduce.IsSupportedArgument(argument_ptr.get()))
+            {
+                ave_time = invoker_ptr->Run(argument_ptr.get(), stream_config);
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "The runtime parameters seems not supported by the device instance, exiting!");
+            }
+
+            return ave_time;
+        }
         float Run(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
         {
             auto arg          = arg_; // remove const
@@ -480,10 +552,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
             if(kbatch > 1)
             {
                 // reduce c data
-                hip_check_error(hipMemcpy(static_cast<void*>(arg_.p_c_grid),
-                                          static_cast<void*>(arg.p_c_grid),
-                                          arg.M * arg.N * sizeof(CDataType),
-                                          hipMemcpyDeviceToDevice));
+                ave_time += RunReduce(arg_, stream_config);
             }
             return ave_time;
         }
@@ -628,7 +697,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
         auto arg = *dynamic_cast<const Argument*>(p_arg);
         if(arg.KBatch > 1)
         {
-            return arg.MPadded * arg.NPadded * arg.KBatch * sizeof(CDataType);
+            return arg.M * arg.N * arg.KBatch * sizeof(CDataType);
         }
         return 0;
     }

@@ -578,7 +578,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
             if constexpr(Reduce)
             {
-                c_reduce_offset = blockIdx.z * karg.MPadded * karg.NPadded;
+                c_reduce_offset = blockIdx.z * karg.M * karg.N;
             }
         }
 
