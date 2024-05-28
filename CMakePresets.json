@@ -1,0 +1,81 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "linux-debug",
+            "displayName": "Linux Debug",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "installDir": "${sourceDir}/build/install/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "gfx90a-debug",
+            "displayName": "MI200 Debug",
+            "inherits": "linux-debug",
+            "generator": "Unix Makefiles",
+            "description": "Development Environment for MI200 Series.",
+            "environment": {
+                "NONE": ""
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "BUILD_DEV": "ON",
+                "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
+                "GPU_TARGETS": "gfx90a",
+                "CMAKE_PREFIX_PATH": "/opt/rocm",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            }
+        },
+        {
+            "name": "gfx90a-release",
+            "displayName": "MI200 Release",
+            "inherits": "gfx90a-debug",
+            "generator": "Unix Makefiles",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "hidden": true,
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release",
+            "hidden": true,
+            "configuration": "Release"
+        },
+        {
+            "name": "gfx90a-debug",
+            "displayName": "MI200 Debug Build",
+            "configurePreset": "gfx90a-debug",
+            "description": "Development Environment for MI200 Series.",
+            "inherits": [
+                "Debug"
+            ],
+            "jobs": 64
+        },
+        {
+            "name": "gfx90a-release",
+            "displayName": "MI200 Release Build",
+            "configurePreset": "gfx90a-release",
+            "description": "Development Environment for MI200 Series.",
+            "inherits": [
+                "Release"
+            ],
+            "jobs": 64
+        }
+    ]
+}
