@@ -20,7 +20,8 @@ message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 message(STATUS "RELATIVE: ${CK_ROOT}/include")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
-add_definitions(-std=c++17)
+add_compile_options(-std=c++17)
+#add_definitions(-std=c++17)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # TODO: Use object library
