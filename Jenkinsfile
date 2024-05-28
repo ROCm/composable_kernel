@@ -912,7 +912,7 @@ pipeline {
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
                                            -D INSTANCES_ONLY=ON \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j32 """
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j64 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
