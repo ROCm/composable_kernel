@@ -79,7 +79,7 @@ __global__ void
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx1100__))
+#endif // end of if (defined(__gfx11__))
 }
 
 // Assume B is Col-Major
