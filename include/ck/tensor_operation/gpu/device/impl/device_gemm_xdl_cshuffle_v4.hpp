@@ -569,7 +569,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch};
+        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch, KBatch > 1};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -598,7 +598,8 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
                                           StrideA,
                                           StrideB,
                                           StrideC,
-                                          KBatch);
+                                          KBatch,
+                                          KBatch > 1);
     }
 
     // polymorphic

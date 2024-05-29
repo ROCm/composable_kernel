@@ -533,17 +533,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
                           index_t StrideA_,
                           index_t StrideB_,
                           index_t StrideC_,
-                          index_t k_batch_)
+                          index_t k_batch_,
+                          bool is_reduce_ = false)
             : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_}
+              p_c_grid{p_c_grid_},
+              is_reduce(is_reduce_)
         {
         }
 
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
+        bool is_reduce = false;
     };
 
     template <bool Reduce = false>
@@ -1091,14 +1094,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
         {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            if(!karg.is_reduce)
             {
-                std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
-                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
-            }
-            if(karg.KBatch > 1)
-            {
-                return false;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
+                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                if(karg.KBatch > 1)
+                {
+                    return false;
+                }
             }
         }
 
