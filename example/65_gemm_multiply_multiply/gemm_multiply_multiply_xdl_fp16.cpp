@@ -59,7 +59,7 @@ struct MultiplyMultiply
     {
         const float x0_f = c * d0 * d1;
 
-        e = ck::type_convert<ck::bhalf_t>(x0_f);
+        e = ck::type_convert<ck::half_t>(x0_f);
     }
 };
 
@@ -95,7 +95,7 @@ int main(int argc, char* argv[])
     ck::index_t K = 4096;
 
     ck::index_t StrideA = K;
-    ck::index_t StrideB = N;
+    ck::index_t StrideB = K;
     ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
 

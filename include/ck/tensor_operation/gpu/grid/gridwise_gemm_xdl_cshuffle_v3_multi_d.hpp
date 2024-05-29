@@ -146,7 +146,7 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
           typename LDSTypeB                           = BDataType>
-struct GridwiseGemm_xdl_cshuffle_v3
+struct GridwiseGemmMultiD_xdl_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
