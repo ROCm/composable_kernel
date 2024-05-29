@@ -23,3 +23,4 @@ if(USE_BITINT_EXTENSION_INT4)
 endif()
 
 add_example_executable(example_gemm_xdl_splitk_reduce_multi_d_bf16 gemm_xdl_splitk_reduce_multi_d_bf16.cpp)
+add_example_executable(example_gemm_xdl_splitk_reduce_multi_d_bf16A_i8B gemm_xdl_splitk_reduce_multi_d_bf16A_i8B.cpp)
