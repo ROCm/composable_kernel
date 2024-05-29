@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,8 +34,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -48,7 +47,7 @@ __global__ void
         karg);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -63,8 +62,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -81,7 +79,7 @@ __global__ void
         karg);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename ALayout,
@@ -605,8 +603,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                 a_lds_block_desc,
-                make_tuple(make_xor_transform(make_tuple(Number<MPerBlock / MLdsLayer>{},
-                                                         Number<AK0Number * MLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<MPerBlock / MLdsLayer>{}, Number<AK0Number * MLdsLayer>{})),
                            make_pass_through_transform(AK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
@@ -671,7 +669,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(
                     make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(Number<K0PerThreadWrite>{}),
-                    make_xor_transform(
+                    make_xor_with_modulo_transform(
                         make_tuple(Number<KThreadReadPerm * M1>{}, Number<kfold * M0 / mpair>{})),
                     make_pass_through_transform(Number<mpair>{}),
                     make_pass_through_transform(AK1Number)),
@@ -742,8 +740,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,
-                make_tuple(make_xor_transform(make_tuple(Number<NPerBlock / NLdsLayer>{},
-                                                         Number<BK0Number * NLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
                            make_pass_through_transform(BK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
@@ -805,7 +803,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(
                     make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(Number<K0PerThreadWrite>{}),
-                    make_xor_transform(
+                    make_xor_with_modulo_transform(
                         make_tuple(Number<KThreadReadPerm * N1>{}, Number<kfold * N0 / npair>{})),
                     make_pass_through_transform(Number<npair>{}),
                     make_pass_through_transform(BK1Number)),
