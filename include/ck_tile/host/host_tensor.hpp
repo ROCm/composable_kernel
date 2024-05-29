@@ -481,7 +481,7 @@ struct HostTensor
         return mData[mDesc.GetOffsetFromMultiIndex(idx)];
     }
 
-    HostTensor<T> Transpose(std::vector<size_t> axes = {}) const
+    HostTensor<T> transpose(std::vector<size_t> axes = {}) const
     {
         if(axes.empty())
         {
@@ -491,7 +491,7 @@ struct HostTensor
         if(axes.size() != mDesc.get_num_of_dimension())
         {
             throw std::runtime_error(
-                "HostTensor::Transpose(): size of axes must match tensor dimension");
+                "HostTensor::transpose(): size of axes must match tensor dimension");
         }
         std::vector<size_t> tlengths, tstrides;
         for(const auto& axis : axes)
@@ -504,9 +504,9 @@ struct HostTensor
         return ret;
     }
 
-    HostTensor<T> Transpose(std::vector<size_t> axes = {})
+    HostTensor<T> transpose(std::vector<size_t> axes = {})
     {
-        return const_cast<HostTensor<T> const*>(this)->Transpose(axes);
+        return const_cast<HostTensor<T> const*>(this)->transpose(axes);
     }
 
     typename Data::iterator begin() { return mData.begin(); }
