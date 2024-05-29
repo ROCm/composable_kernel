@@ -112,7 +112,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_dvpad},
                                                     {F_bias},
                                                     {F_lse},
-                                                    {F_squant}, 
+                                                    {F_squant},
                                                     {F_occupancy}>;
 using fmha_mask_{F_idx} = {F_mask};
 
@@ -424,7 +424,7 @@ class FmhaFwdKernel:
                 F_spad          = BOOL_MAP[self.F_pipeline.F_spad],
                 F_skpad         = BOOL_MAP[self.F_pipeline.F_skpad],
                 F_dpad          = BOOL_MAP[self.F_pipeline.F_dpad],
-                F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],    
+                F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],
                 F_bias          = BIAS_MAP[self.F_pipeline.F_bias],
                 F_lse           = BOOL_MAP[self.F_pipeline.F_lse],
                 F_squant        = BOOL_MAP[self.F_pipeline.F_squant],
@@ -551,6 +551,14 @@ def get_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFw
                 if kernel_filter != None:
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
+
+                if receipt == 2:
+                    cond = dtype in ['fp16', 'bf16']
+                    cond &= pipeline.F_vlayout == 'row'
+                    cond &= pipeline.F_bias in ['no', 'alibi']
+                    cond &= pipeline.F_squant == 'f'
+                    if not cond:
+                        continue
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -623,11 +631,12 @@ if __name__ == "__main__":
         default=0,
         required=False,
         help="codegen receipt. 0: generate only 8xhdim coverage\n"  + \
-             "  1: generate more instance to cover all hdim"
+             "  1: generate more instance to cover all hdim\n"  + \
+             "  2: Only generate instance for Flash attention integration"
     )
 
     args = parser.parse_args()
     if args.list_blobs is not None:
-        list_blobs(args.list_blobs, args.filter, args.receipt, mask_impl=args.mask)
+        list_blobs(args.list_blobs, args.filter, int(args.receipt), mask_impl=args.mask)
     else:
-        write_blobs(args.output_dir, args.filter, args.receipt, mask_impl=args.mask)
+        write_blobs(args.output_dir, args.filter, int(args.receipt), mask_impl=args.mask)
