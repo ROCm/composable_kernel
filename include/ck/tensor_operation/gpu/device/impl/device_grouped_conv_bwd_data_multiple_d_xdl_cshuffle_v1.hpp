@@ -756,8 +756,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             {
                                 ds_grid_desc_mblock_mperblock_nblock_nperblock_container_.push_back(
 
-                                    MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                        ds_grid_desc_m_n));
+                                    GridwiseGemm::
+                                        MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                            ds_grid_desc_m_n));
 
                                 e_grid_desc_mblock_mperblock_nblock_nperblock_container_.push_back(
                                     MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
