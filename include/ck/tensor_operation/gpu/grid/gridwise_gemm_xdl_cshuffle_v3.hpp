@@ -26,8 +26,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full,
-          bool Reduce              = false>
+          TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
@@ -55,8 +54,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full,
-          bool Reduce              = false>
+          TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
@@ -539,8 +537,18 @@ struct GridwiseGemm_xdl_cshuffle_v3
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_c_grid{p_c_grid_},
-              is_reduce(is_reduce_)
+              is_reduce(k_batch_ > 1 ? is_reduce_ : false)
         {
+        }
+
+        __host__ __device__ inline bool IsReduce() const
+        {
+            return (Problem::KBatch > 1) && is_reduce;
+        }
+
+        __host__ __device__ inline bool IsAtomic() const
+        {
+            return (Problem::KBatch > 1) && (!is_reduce);
         }
 
         const ADataType* p_a_grid;
@@ -581,7 +589,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
 
-            if(karg.is_reduce)
+            if(karg.IsReduce())
             {
                 c_reduce_offset = blockIdx.z * karg.M * karg.N;
             }
@@ -1094,7 +1102,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
         {
-            if(!karg.is_reduce)
+            if(!karg.IsReduce())
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
