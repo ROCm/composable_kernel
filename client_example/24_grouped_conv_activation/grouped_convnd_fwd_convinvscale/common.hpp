@@ -238,9 +238,7 @@ bool run_grouped_conv_fwd_convinvscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvInvscale{scale_in,
-                         scale_wei,
-                         scale_out});
+            ConvInvscale{scale_in, scale_wei, scale_out});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -303,9 +301,7 @@ bool run_grouped_conv_fwd_convinvscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvInvscale{scale_in,
-                         scale_wei,
-                         scale_out});
+            ConvInvscale{scale_in, scale_wei, scale_out});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
