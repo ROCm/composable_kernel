@@ -7,19 +7,6 @@ endif()
 if((DTYPES MATCHES "fp8") OR NOT DEFINED DTYPES)
     add_executable(client_conv3d_fwd_fp16_comp_fp8 conv3d_fwd_fp16_comp_fp8.cpp)
     target_link_libraries(client_conv3d_fwd_fp16_comp_fp8 PRIVATE composable_kernel::device_conv_operations)
-
-    add_executable(client_conv3d_fwd_fp8 conv3d_fwd_fp8.cpp)
-    target_link_libraries(client_conv3d_fwd_fp8 PRIVATE composable_kernel::device_conv_operations)
-endif()
-
-if((DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
-    add_executable(client_conv3d_fwd_bf8 conv3d_fwd_bf8.cpp)
-    target_link_libraries(client_conv3d_fwd_bf8 PRIVATE composable_kernel::device_conv_operations)
-endif()
-
-if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
-    add_executable(client_conv3d_fwd_fp8_bf8 conv3d_fwd_fp8_bf8.cpp)
-    target_link_libraries(client_conv3d_fwd_fp8_bf8 PRIVATE composable_kernel::device_conv_operations)
 endif()
 
 if((DTYPES MATCHES "fp32") OR NOT DEFINED DTYPES)

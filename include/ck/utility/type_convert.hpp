@@ -8,7 +8,7 @@
 #include "ck/utility/random_gen.hpp"
 
 namespace ck {
-// Define the common macro for MI300 models
+// Define the common macro for gfx94x models
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
 #define __gfx94__
 #endif

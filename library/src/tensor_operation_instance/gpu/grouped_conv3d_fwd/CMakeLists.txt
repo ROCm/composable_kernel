@@ -44,6 +44,8 @@ endif()
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
     list(APPEND GROUPED_CONV3D_FWD
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp)
+    list(APPEND GROUPED_CONV3D_FWD
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_fp8_instance.cpp)
 endif()
 
 add_instance_library(device_grouped_conv3d_fwd_instance ${GROUPED_CONV3D_FWD})
