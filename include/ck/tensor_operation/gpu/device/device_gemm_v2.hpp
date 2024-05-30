@@ -38,6 +38,42 @@ struct DeviceGemmV2 : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename DsLayout,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename DsDataType,
+          typename AElementwiseOperation,
+          typename BElementwiseOperation,
+          typename CElementwiseOperation>
+struct DeviceGemmV3 : public BaseOperator
+{
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        void* p_c,
+                        const std::array<const void*, NumDTensor> p_ds,
+                        ck::index_t M,
+                        ck::index_t N,
+                        ck::index_t K,
+                        ck::index_t StrideA,
+                        ck::index_t StrideB,
+                        ck::index_t StrideC,
+                        std::array<ck::index_t, NumDTensor> DsStrides,
+                        ck::index_t KSplit,
+                        bool IsReduce,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op) = 0;
+
+    virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
+};
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

@@ -28,9 +28,11 @@ namespace device {
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
+          typename DsLayout,
           typename ADataType,
           typename BDataType,
           typename CDataType,
+          typename DsDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
           typename AElementwiseOperation,
@@ -69,16 +71,20 @@ template <typename ALayout,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA>
-struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
+struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
                                                        BLayout,
                                                        CLayout,
+                                                       DsLayout,
                                                        ADataType,
                                                        BDataType,
                                                        CDataType,
+                                                       DsDataType,
                                                        AElementwiseOperation,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
+    static constexpr index_t NumDTensor = DsDataType::Size();
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
         ALayout,
@@ -128,7 +134,36 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
         ComputeTypeA,
         ComputeTypeB>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    struct Argument : public GridwiseGemm::Argument
+    {
+        Argument(const ADataType* p_a_grid_,
+                 const BDataType* p_b_grid_,
+                 CDataType* p_c_grid_,
+                 const std::array<const void*, NumDTensor>,
+                 index_t M_,
+                 index_t N_,
+                 index_t K_,
+                 index_t StrideA_,
+                 index_t StrideB_,
+                 index_t StrideC_,
+                 std::array<ck::index_t, NumDTensor>,
+                 index_t k_batch_,
+                 bool is_reduce_)
+            : GridwiseGemm::Argument(p_a_grid_,
+                                     p_b_grid_,
+                                     p_c_grid_,
+                                     M_,
+                                     N_,
+                                     K_,
+                                     StrideA_,
+                                     StrideB_,
+                                     StrideC_,
+                                     k_batch_,
+                                     is_reduce_)
+        {
+        }
+        /* data */
+    };
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
     using ReduceAdd   = ck::reduce::Add;
@@ -739,48 +774,58 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2<ALayout,
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
+                             const std::array<const void*, NumDTensor> p_ds,
                              index_t M,
                              index_t N,
                              index_t K,
                              index_t StrideA,
                              index_t StrideB,
                              index_t StrideC,
+                             std::array<ck::index_t, NumDTensor> StrideDs,
                              index_t KBatch,
+                             bool IsReduce,
                              AElementwiseOperation,
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch, KBatch > 1};
+        return Argument{
+            p_a, p_b, p_c, p_ds, M, N, K, StrideA, StrideB, StrideC, StrideDs, KBatch, IsReduce};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      void* p_c,
-                                                      index_t M,
-                                                      index_t N,
-                                                      index_t K,
-                                                      index_t StrideA,
-                                                      index_t StrideB,
-                                                      index_t StrideC,
-                                                      index_t KBatch,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      CElementwiseOperation) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        void* p_c,
+                        const std::array<const void*, NumDTensor> p_ds,
+                        index_t M,
+                        index_t N,
+                        index_t K,
+                        index_t StrideA,
+                        index_t StrideB,
+                        index_t StrideC,
+                        std::array<ck::index_t, NumDTensor> StrideDs,
+                        index_t KBatch,
+                        bool IsReduce,
+                        AElementwiseOperation,
+                        BElementwiseOperation,
+                        CElementwiseOperation) override
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           static_cast<CDataType*>(p_c),
+                                          p_ds,
                                           M,
                                           N,
                                           K,
                                           StrideA,
                                           StrideB,
                                           StrideC,
+                                          StrideDs,
                                           KBatch,
-                                          KBatch > 1);
+                                          IsReduce);
     }
 
     // polymorphic

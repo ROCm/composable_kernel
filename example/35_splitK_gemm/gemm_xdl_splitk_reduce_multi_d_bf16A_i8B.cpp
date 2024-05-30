@@ -10,10 +10,12 @@ using BDataType        = int8_t;
 using AccDataType      = float;
 using CShuffleDataType = ck::bhalf_t;
 using CDataType        = ck::bhalf_t;
+using D0DataType       = ck::bhalf_t;
 
-using ALayout = Row;
-using BLayout = Col;
-using CLayout = Row;
+using ALayout  = Row;
+using BLayout  = Col;
+using CLayout  = Row;
+using D0Layout = Row;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
@@ -24,8 +26,8 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 // clang-format off
 using DeviceGemmV2Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV4<
-       ALayout,   BLayout,  CLayout,   
-        ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
+       ALayout,   BLayout,  CLayout,   ck::Tuple<D0Layout>,
+        ADataType,   BDataType,  CDataType, ck::Tuple<D0DataType>, AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
         256,
         128, 128, 
