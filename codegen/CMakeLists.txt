@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(composable_kernel_host)
+project(composable_kernel_host LANGUAGES CXX HIP)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -12,6 +12,22 @@ find_package(ROCM)
 include(ROCMInstallTargets)
 include(ROCMTest)
 
+add_compile_options(-std=c++17)
+find_package(hip)
+## HIP
+set(CMAKE_HIP_PLATFORM amd)
+set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
+set(CMAKE_HIP_EXTENSIONS ON)
+message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
+
+# add include directories
+include_directories(BEFORE
+            ${PROJECT_BINARY_DIR}/include
+            ${PROJECT_SOURCE_DIR}/include
+            ${PROJECT_SOURCE_DIR}/library/include
+            ${HIP_INCLUDE_DIRS}
+            )
+
 list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
@@ -20,12 +36,9 @@ message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 message(STATUS "RELATIVE: ${CK_ROOT}/include")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
-add_compile_options(-std=c++17)
-#add_definitions(-std=c++17)
-
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # TODO: Use object library
-message(STATUS "SOURCES: ${SOURCES}")
+#message(STATUS "SOURCES: ${SOURCES}")
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
 
