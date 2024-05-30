@@ -1077,11 +1077,7 @@ struct TransformConvFwdToGemm
 // TODO: figure out aq way to properly pass in layout as an argument
 struct TransformConv
 {
-    template <index_t NDimSpatial,
-              device::ConvolutionForwardSpecialization ConvForwardSpecialization>
-    TransformConv()
-    {
-    }
+    TransformConv() {}
 
     template <index_t NDimSpatial,
               device::ConvolutionForwardSpecialization ConvForwardSpecialization>

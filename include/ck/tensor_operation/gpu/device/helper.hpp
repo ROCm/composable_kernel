@@ -105,7 +105,7 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 2 &&
@@ -116,7 +116,7 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 2 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
@@ -127,7 +127,7 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 2 &&
@@ -138,7 +138,7 @@ auto transform_conv(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     throw std::runtime_error("Incorrect conv spec");
@@ -157,7 +157,7 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 3 &&
@@ -168,7 +168,7 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 3 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
@@ -179,7 +179,7 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 3 &&
@@ -190,7 +190,7 @@ auto transform_conv_3d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     throw std::runtime_error("Incorrect conv spec");
@@ -209,7 +209,7 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Default>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 1 &&
@@ -220,7 +220,7 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 1 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
@@ -231,7 +231,7 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     else if(num_dim == 1 &&
@@ -242,7 +242,7 @@ auto transform_conv_1d(ck::index_t num_dim,
             ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC>
             conv_fwd;
 
-        auto res = ck::tensor_operation::TransformConv(out_lengths, out_strides, conv_fwd);
+        auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
     throw std::runtime_error("Incorrect dims or conv spec");
