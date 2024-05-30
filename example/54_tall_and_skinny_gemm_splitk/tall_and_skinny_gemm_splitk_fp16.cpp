@@ -19,6 +19,12 @@ using CElementOp = PassThrough;
 
 static constexpr auto GemmMNPadding = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
+// #define K1 2
+// #define K0 4
+// #define N1 2
+// #define B 64 // block-size:64
+// #define M1 16
+
 #define K1 2
 #define K0 4
 #define N1 2
@@ -41,3 +47,4 @@ using ReferenceGemmInstance = ck::tensor_operation::host::
 #include "run_tall_and_skinny_gemm_splitk_example.inc"
 
 int main(int argc, char* argv[]) { return !run_tall_and_skinny_gemm_example(argc, argv); }
+

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
-
+ 
 #pragma once
 
 bool run_tall_and_skinny_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)

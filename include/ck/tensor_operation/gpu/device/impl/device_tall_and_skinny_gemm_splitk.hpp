@@ -122,15 +122,15 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
             const auto K0 = karg.K0;
 
             const bool has_main_k_block_loop = GridwiseTsmm::CalculateHasMainKBlockLoop(K0);
-            const bool has_double_tail_k_block_loop =
-                GridwiseTsmm::CalculateHasDoubleTailKBlockLoop(K0);
+            const bool has_triple_tail_k_block_loop =
+                GridwiseTsmm::CalculateHasTripleTailKBlockLoop(K0);
 
             float ave_time = 0;
 
             if(karg.k_batch > 1)
                 hipGetErrorString(hipMemset(karg.p_c_grid, 0, karg.M * karg.N * sizeof(CDataType)));
 
-            if(has_main_k_block_loop && has_double_tail_k_block_loop)
+            if(has_main_k_block_loop && has_triple_tail_k_block_loop)
             {
                 if(karg.k_batch == 1)
                 {
@@ -158,7 +158,7 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                         stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
                 }
             }
-            else if(has_main_k_block_loop && !has_double_tail_k_block_loop)
+            else if(has_main_k_block_loop && !has_triple_tail_k_block_loop)
             {
 
                 if(karg.k_batch == 1)
@@ -186,7 +186,7 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
                         stream_config, kernel, dim3(grid_size), dim3(BlockSize), 0, karg);
                 }
             }
-            else if(!has_main_k_block_loop && has_double_tail_k_block_loop)
+            else if(!has_main_k_block_loop && has_triple_tail_k_block_loop)
             {
                 if(karg.k_batch == 1)
                 {
@@ -375,3 +375,4 @@ struct deviceTsmmDl : public DeviceTsmm<ALayout,
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+

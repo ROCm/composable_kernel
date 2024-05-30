@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#pragma once
+#pragma once 
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
@@ -23,7 +23,7 @@ template <typename GridwiseTsmm,
           typename FloatC,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           bool HasMainKBlockLoop,
-          bool HasDoubleTailKBlockLoop,
+          bool HasTripleTailKBlockLoop,
           typename Block2CTileMap>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -35,7 +35,7 @@ __global__ void
 {
 
     GridwiseTsmm::template Run<HasMainKBlockLoop,
-                               HasDoubleTailKBlockLoop,
+                               HasTripleTailKBlockLoop,
                                GridwiseTsmm,
                                CGlobalMemoryDataOperation>(karg);
 }
@@ -142,7 +142,7 @@ struct GridwiseTsmmDl_km_kn_mn
         constexpr auto a_block_aligned_space_size =
             math::integer_least_multiple(a_block_desc_k_m.GetElementSpaceSize(), max_lds_align);
 
-        return 2 * (a_block_aligned_space_size) * sizeof(FloatAB);
+        return 3 * (a_block_aligned_space_size) * sizeof(FloatAB);
     }
 
     __host__ __device__ static constexpr index_t
@@ -156,17 +156,17 @@ struct GridwiseTsmmDl_km_kn_mn
 
     __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K0)
     {
-        const bool has_main_k_block_loop = (K0 + K0PerBlock) / (2 * K0PerBlock) > 1;
+        const bool has_main_k_block_loop = (K0 + K0PerBlock) / (3 * K0PerBlock) > 1;
 
         return has_main_k_block_loop;
     }
 
-    __host__ __device__ static constexpr bool CalculateHasDoubleTailKBlockLoop(index_t K0)
+    __host__ __device__ static constexpr bool CalculateHasTripleTailKBlockLoop(index_t K0)
 
     {
-        const bool has_double_tail_k_block_loop = (K0 / K0PerBlock) % 2 == 0;
+        const bool has_triple_tail_k_block_loop = (K0 / K0PerBlock) % 3 == 0;
 
-        return has_double_tail_k_block_loop;
+        return has_triple_tail_k_block_loop;
     }
 
     __host__ __device__ static auto CalculateMPadded(index_t M)
@@ -430,7 +430,7 @@ struct GridwiseTsmmDl_km_kn_mn
     using Block2CTileMap = decltype(MakeDefaultBlock2CTileMap());             //
 
     template <bool HasMainKBlockLoop,
-              bool HasDoubleTailKBlockLoop,
+              bool HasTripleTailKBlockLoop,
               typename GridwiseTsmm,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation>
     __device__ static void Run(const Argument& karg)
@@ -581,12 +581,15 @@ struct GridwiseTsmmDl_km_kn_mn
         constexpr auto a_block_aligned_space_size = math::integer_least_multiple(
             a_block_desc_k0_m0_m1_k1.GetElementSpaceSize(), max_lds_align);
 
-        FloatAB* p_a_block_double = p_shared_block;
+        FloatAB* p_a_block_triple = p_shared_block;
 
-        auto b_thread_odd_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+        auto b_thread_buf1 = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             b_k0_n_k1_thread_desc.GetElementSpaceSize());
 
-        auto b_thread_even_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+        auto b_thread_buf2 = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
+            b_k0_n_k1_thread_desc.GetElementSpaceSize());
+
+        auto b_thread_buf3 = make_static_buffer<AddressSpaceEnum::Vgpr, FloatAB>(
             b_k0_n_k1_thread_desc.GetElementSpaceSize());
 
         // register allocation for output
@@ -599,25 +602,29 @@ struct GridwiseTsmmDl_km_kn_mn
         constexpr auto a_block_slice_copy_step  = make_multi_index(0, K0PerBlock, 0, 0, 0);
         constexpr auto b_thread_slice_copy_step = make_multi_index(0, K0PerBlock, 0, 0, 0);
 
-        auto a_block_even_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_a_block_double, a_block_desc_copy_kbatch_k0_m0_m1_k1.GetElementSpaceSize());
+        auto a_block_buf1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            p_a_block_triple, a_block_desc_copy_kbatch_k0_m0_m1_k1.GetElementSpaceSize());
 
-        auto a_block_odd_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            p_a_block_double + a_block_aligned_space_size,
+        auto a_block_buf2 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            p_a_block_triple + a_block_aligned_space_size,
             a_block_desc_copy_kbatch_k0_m0_m1_k1.GetElementSpaceSize());
 
-        // LDS double buffer: preload data into LDS
+        auto a_block_buf3 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            p_a_block_triple + 2 * a_block_aligned_space_size,
+            a_block_desc_copy_kbatch_k0_m0_m1_k1.GetElementSpaceSize());
+
+        // LDS triple buffer: preload data into LDS
         {
             a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1,
                                      a_global_buf); // a_global_buf -> reg_tmp_buf
             a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1,
-                                      a_block_even_buf); // reg_tmp_buf->a_block_even_buf
+                                      a_block_buf1); // reg_tmp_buf->a_block_buf1
 
             b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
                                   b_global_buf,
                                   b_thread_desc_copy_k0_n0_n1_k1,
                                   make_tuple(I0, I0, I0, I0, I0),
-                                  b_thread_even_buf);
+                                  b_thread_buf1);
         }
 
         if constexpr(HasMainKBlockLoop)
@@ -626,64 +633,93 @@ struct GridwiseTsmmDl_km_kn_mn
 
             index_t k_block_data_begin = 0;
 
-            // LDS double buffer: main body
+            // LDS triple buffer: main body
             // use Do-While loop instead of For loop to simplify control flow
             do
             {
-                // even iteration
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_kbatch_k0_m0_m1_k1,
-                                                    a_block_slice_copy_step);
+                #pragma unroll 2
+                for (int unroll_idx = 0; unroll_idx < 2; ++unroll_idx)
+                {
+                    // First iteration
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_kbatch_k0_m0_m1_k1,
+                                                        a_block_slice_copy_step);
 
-                b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_kbatch_k0_n0_n1_k1,
-                                                     b_thread_slice_copy_step);
+                    b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                                        b_thread_slice_copy_step);
 
-                // LDS doubel buffer: load next data from device mem
-                a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
+                    // LDS triple buffer: load next data from device mem
+                    a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
 
-                b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
-                                      b_global_buf,
-                                      b_thread_desc_copy_k0_n0_n1_k1,
-                                      make_tuple(I0, I0, I0, I0, I0),
-                                      b_thread_odd_buf);
+                    b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                        b_global_buf,
+                                        b_thread_desc_copy_k0_n0_n1_k1,
+                                        make_tuple(I0, I0, I0, I0, I0),
+                                        b_thread_buf2);
 
-                block_sync_lds();
+                    block_sync_lds();
 
-                // LDS double buffer: GEMM on current data
-                blockwise_tsmm.Run(a_block_even_buf, b_thread_even_buf, c_thread_buf);
+                    // LDS triple buffer: GEMM on current data
+                    blockwise_tsmm.Run(a_block_buf1, b_thread_buf1, c_thread_buf);
 
-                // LDS double buffer: store next data to LDS
-                a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_odd_buf);
+                    // LDS triple buffer: store next data to LDS
+                    a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_buf2);
 
-                // odd iteration
-                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_kbatch_k0_m0_m1_k1,
-                                                    a_block_slice_copy_step);
+                    // Second iteration
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_kbatch_k0_m0_m1_k1,
+                                                        a_block_slice_copy_step);
 
-                b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_kbatch_k0_n0_n1_k1,
-                                                     b_thread_slice_copy_step);
+                    b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                                        b_thread_slice_copy_step);
 
-                // LDS doubel buffer: load next data from device mem
-                a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
+                    // LDS triple buffer: load next data from device mem
+                    a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
 
-                b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
-                                      b_global_buf,
-                                      b_thread_desc_copy_k0_n0_n1_k1,
-                                      make_tuple(I0, I0, I0, I0, I0),
-                                      b_thread_even_buf);
+                    b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                        b_global_buf,
+                                        b_thread_desc_copy_k0_n0_n1_k1,
+                                        make_tuple(I0, I0, I0, I0, I0),
+                                        b_thread_buf3);
 
-                block_sync_lds();
+                    block_sync_lds();
 
-                // LDS double buffer: GEMM on current data
-                blockwise_tsmm.Run(a_block_odd_buf, b_thread_odd_buf, c_thread_buf);
+                    // LDS triple buffer: GEMM on current data
+                    blockwise_tsmm.Run(a_block_buf2, b_thread_buf2, c_thread_buf);
 
-                // LDS double buffer: store next data to LDS
-                a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_even_buf);
+                    // LDS triple buffer: store next data to LDS
+                    a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_buf3);
 
-                k_block_data_begin += 2 * K0PerBlock;
-            } while(k_block_data_begin < K0 - 2 * K0PerBlock);
+                    // Third iteration
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_kbatch_k0_m0_m1_k1,
+                                                        a_block_slice_copy_step);
+
+                    b_threadwise_copy.MoveSrcSliceWindow(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                                        b_thread_slice_copy_step);
+
+                    // LDS triple buffer: load next data from device mem
+                    a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
+
+                    b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                        b_global_buf,
+                                        b_thread_desc_copy_k0_n0_n1_k1,
+                                        make_tuple(I0, I0, I0, I0, I0),
+                                        b_thread_buf1);
+
+                    block_sync_lds();
+
+                    // LDS triple buffer: GEMM on current data
+                    blockwise_tsmm.Run(a_block_buf3, b_thread_buf3, c_thread_buf);
+
+                    // LDS triple buffer: store next data to LDS
+                    a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_buf1);
+
+                    k_block_data_begin += 3 * K0PerBlock;
+                }
+            } while(k_block_data_begin < K0 - 6 * K0PerBlock);
         }
 
-        // LDS double buffer: tail
-        if constexpr(HasDoubleTailKBlockLoop) // if has 2 iteration left
+
+        // LDS triple buffer: tail
+        if constexpr(HasTripleTailKBlockLoop) // if has 3 iterations left
         {
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_kbatch_k0_m0_m1_k1,
                                                 a_block_slice_copy_step);
@@ -693,32 +729,49 @@ struct GridwiseTsmmDl_km_kn_mn
 
             block_sync_lds();
 
-            // LDS double buffer: load last data from device mem
+            // LDS triple buffer: load second last data from device mem
             a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
 
             b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
                                   b_global_buf,
                                   b_thread_desc_copy_k0_n0_n1_k1,
                                   make_tuple(I0, I0, I0, I0, I0),
-                                  b_thread_odd_buf);
+                                  b_thread_buf2);
 
-            // LDS double buffer: GEMM on 2nd-last data
-            blockwise_tsmm.Run(a_block_even_buf, b_thread_even_buf, c_thread_buf);
+            // LDS triple buffer: GEMM on 3rd last data
+            blockwise_tsmm.Run(a_block_buf1, b_thread_buf1, c_thread_buf);
 
-            // LDS double buffer: store last data to LDS
-            a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_odd_buf);
+            // LDS triple buffer: store second last data to LDS
+            a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_buf2);
 
             block_sync_lds();
 
-            // LDS double buffer: GEMM on last data
-            blockwise_tsmm.Run(a_block_odd_buf, b_thread_odd_buf, c_thread_buf);
+            // LDS triple buffer: load last data from device mem
+            a_blockwise_copy.RunRead(a_grid_desc_kbatch_k0_m0_m1_k1, a_global_buf);
+
+            b_threadwise_copy.Run(b_grid_desc_kbatch_k0_n0_n1_k1,
+                                  b_global_buf,
+                                  b_thread_desc_copy_k0_n0_n1_k1,
+                                  make_tuple(I0, I0, I0, I0, I0),
+                                  b_thread_buf3);
+
+            // LDS triple buffer: GEMM on 2nd last data
+            blockwise_tsmm.Run(a_block_buf2, b_thread_buf2, c_thread_buf);
+
+            // LDS triple buffer: store last data to LDS
+            a_blockwise_copy.RunWrite(a_block_desc_copy_kbatch_k0_m0_m1_k1, a_block_buf3);
+
+            block_sync_lds();
+
+            // LDS triple buffer: GEMM on last data
+            blockwise_tsmm.Run(a_block_buf3, b_thread_buf3, c_thread_buf);
         }
-        else // if has 1 iteration left
+        else // if has less than 3 iterations left
         {
             __syncthreads();
 
-            // LDS double buffer: GEMM on last data
-            blockwise_tsmm.Run(a_block_even_buf, b_thread_even_buf, c_thread_buf);
+            // LDS triple buffer: GEMM on remaining data
+            blockwise_tsmm.Run(a_block_buf1, b_thread_buf1, c_thread_buf);
         }
 
         // output: register to global memory
