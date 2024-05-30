@@ -1079,9 +1079,7 @@ struct TransformConv
 {
     template <index_t NDimSpatial,
               device::ConvolutionForwardSpecialization ConvForwardSpecialization>
-    TransformConv(ck::Array<index_t, NDimSpatial + 3> out_lengths,
-                  ck::Array<index_t, NDimSpatial + 3> out_strides,
-                  TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization> conv_fwd_to_gemm)
+    TransformConv()
     {
     }
 
