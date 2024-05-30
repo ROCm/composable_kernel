@@ -156,8 +156,7 @@ bool run_grouped_conv_fwd(bool do_verification,
                           const HostTensorDescriptor& wei_g_k_c_xs_desc,
                           const HostTensorDescriptor& out_g_n_k_wos_desc,
                           const InElementOp& in_element_op,
-                          const WeiElementOp& wei_element_op,
-                          const OutElementOp& out_element_op)
+                          const WeiElementOp& wei_element_op)
 {
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
@@ -211,6 +210,14 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
+
+    // sample scale values, same as host
+    float scale_in  = 3.3f;
+    float scale_wei = 4.4f;
+    float scale_out = 5.5f;
+
+    // initialize out_element_op for each iteration
+    const auto out_element_op = OutElementOp{scale_in, scale_wei, scale_out};
 
     // do Conv
     auto conv     = DeviceConvNDFwdInstance{};
@@ -284,13 +291,7 @@ bool run_grouped_conv_fwd(bool do_verification,
         float scale_wei_host = 4.4f;
         float scale_out_host = 5.5f;
 
-        // set up pointers to pass to out_element_op_host
-        float* scale_in_host_ptr  = &scale_in_host;
-        float* scale_wei_host_ptr = &scale_wei_host;
-        float* scale_out_host_ptr = &scale_out_host;
-
-        const OutElementOp out_element_op_host{
-            scale_in_host_ptr, scale_wei_host_ptr, scale_out_host_ptr};
+        const OutElementOp out_element_op_host{scale_in_host, scale_wei_host, scale_out_host};
 
         out_host.ForEach([&](auto&, auto idx) { out_element_op_host(out_host(idx), c(idx)); });
 
