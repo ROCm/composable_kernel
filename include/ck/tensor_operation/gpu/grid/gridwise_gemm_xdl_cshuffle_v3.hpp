@@ -38,7 +38,7 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::template SplitKBatchOffset<Reduce>(karg);
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -70,7 +70,7 @@ __global__ void
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::template SplitKBatchOffset<Reduce>(karg);
+    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -549,7 +549,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
         bool is_reduce = false;
     };
 
-    template <bool Reduce = false>
     struct SplitKBatchOffset
     {
 
@@ -581,7 +580,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
-            if constexpr(Reduce)
+
+            if(karg.is_reduce)
             {
                 c_reduce_offset = blockIdx.z * karg.M * karg.N;
             }
