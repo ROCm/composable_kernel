@@ -49,6 +49,7 @@ build*
 install.dir*
 
 # documentation artifacts
+_build/
 _images/
 _static/
 _templates/
@@ -57,6 +58,8 @@ _doxygen/
 
 # JetBrains IDE
 .idea/
+cmake-build*/
+build*/
 
 # Python virtualenv
 .venv/

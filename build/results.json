@@ -1,0 +1,1608 @@
+{ "traceEvents":[{}
+,{"args":{"name":"CPU HIP API"},"ph":"M","pid":2,"name":"process_name","sort_index":0}
+,{"args":{"name":"COPY"},"ph":"M","pid":1,"name":"process_name","sort_index":1}
+,{"args":{"name":"GPU0"},"ph":"M","pid":6,"name":"process_name","sort_index":2}
+,{"args":{"name":"GPU1"},"ph":"M","pid":7,"name":"process_name","sort_index":3}
+,{"args":{"name":"GPU2"},"ph":"M","pid":8,"name":"process_name","sort_index":4}
+,{"ph":"X","name":"CopyHostToDevice","pid":"1","tid":"0","ts":"3434447383169","dur":"7",
+  "args":{
+    "BeginNs":"3434447383169830",
+    "EndNs":"3434447383177030",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"CopyHostToDevice",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"0",
+    "Data":"",
+    "DurationNs":"7200"
+  }
+}
+,{"ph":"X","name":"CopyHostToDevice","pid":"1","tid":"0","ts":"3434447383198","dur":"5",
+  "args":{
+    "BeginNs":"3434447383198150",
+    "EndNs":"3434447383203590",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"CopyHostToDevice",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"0",
+    "Data":"",
+    "DurationNs":"5440"
+  }
+}
+,{"ph":"X","name":"FillBuffer","pid":"1","tid":"0","ts":"3434447383268","dur":"7",
+  "args":{
+    "BeginNs":"3434447383268510",
+    "EndNs":"3434447383276350",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"FillBuffer",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"0",
+    "Data":"",
+    "DurationNs":"7840"
+  }
+}
+,{"ph":"X","name":"FillBuffer","pid":"1","tid":"0","ts":"3434447383276","dur":"6",
+  "args":{
+    "BeginNs":"3434447383276350",
+    "EndNs":"3434447383283230",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"FillBuffer",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"0",
+    "Data":"",
+    "DurationNs":"6880"
+  }
+}
+,{"ph":"X","name":"CopyDeviceToHost","pid":"1","tid":"0","ts":"3434447388138","dur":"462",
+  "args":{
+    "BeginNs":"3434447388138110",
+    "EndNs":"3434447388601030",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"CopyDeviceToHost",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"0",
+    "Data":"",
+    "DurationNs":"462920"
+  }
+}
+,{"ph":"X","name":"FillBuffer","pid":"1","tid":"0","ts":"3434447388630","dur":"9",
+  "args":{
+    "BeginNs":"3434447388630910",
+    "EndNs":"3434447388640190",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"FillBuffer",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"0",
+    "Data":"",
+    "DurationNs":"9280"
+  }
+}
+,{"ph":"X","name":"hipMalloc","pid":"2","tid":"767610","ts":"3434447172410","dur":"18",
+  "args":{
+    "BeginNs":"3434447172410781",
+    "EndNs":"3434447172429436",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMalloc",
+    "args":"( ptr(0x7f15caa00000) size(32768))",
+    "Data":"",
+    "DurationNs":"18655"
+  }
+}
+,{"ph":"X","name":"hipMalloc","pid":"2","tid":"767610","ts":"3434447172436","dur":"3",
+  "args":{
+    "BeginNs":"3434447172436038",
+    "EndNs":"3434447172439365",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMalloc",
+    "args":"( ptr(0x7f15caa08000) size(32768))",
+    "Data":"",
+    "DurationNs":"3327"
+  }
+}
+,{"ph":"X","name":"hipMalloc","pid":"2","tid":"767610","ts":"3434447172439","dur":"1",
+  "args":{
+    "BeginNs":"3434447172439735",
+    "EndNs":"3434447172440687",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMalloc",
+    "args":"( ptr(0x7f15caa10000) size(512))",
+    "Data":"",
+    "DurationNs":"952"
+  }
+}
+,{"ph":"X","name":"hipMemcpy","pid":"2","tid":"767610","ts":"3434447172443","dur":"210742",
+  "args":{
+    "BeginNs":"3434447172443863",
+    "EndNs":"3434447383186383",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMemcpy",
+    "args":"( dst(0x7f15caa00000) src(0xbf7970) sizeBytes(32768) kind(1))",
+    "Data":"",
+    "DurationNs":"210742520"
+  }
+}
+,{"ph":"X","name":"hipMemcpy","pid":"2","tid":"767610","ts":"3434447383189","dur":"14",
+  "args":{
+    "BeginNs":"3434447383189870",
+    "EndNs":"3434447383204698",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMemcpy",
+    "args":"( dst(0x7f15caa08000) src(0xbff9c0) sizeBytes(32768) kind(1))",
+    "Data":"",
+    "DurationNs":"14828"
+  }
+}
+,{"ph":"X","name":"hipGetDevice","pid":"2","tid":"767610","ts":"3434447383213","dur":"1",
+  "args":{
+    "BeginNs":"3434447383213084",
+    "EndNs":"3434447383213194",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetDevice",
+    "args":"( deviceId(0))",
+    "Data":"",
+    "DurationNs":"110"
+  }
+}
+,{"ph":"X","name":"hipGetDeviceProperties","pid":"2","tid":"767610","ts":"3434447383214","dur":"1",
+  "args":{
+    "BeginNs":"3434447383214587",
+    "EndNs":"3434447383216210",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetDeviceProperties",
+    "args":"( props({pageableMemoryAccessUsesHostPageTables(0) pageableMemoryAccess(0) concurrentManagedAccess(1) directManagedMemAccessFromHost(0) managedMemory(1) asicRevision(2) isLargeBar(1) cooperativeMultiDeviceUnmatchedSharedMem(1) cooperativeMultiDeviceUnmatchedBlockDim(1) cooperativeMultiDeviceUnmatchedGridDim(1) cooperativeMultiDeviceUnmatchedFunc(1) tccDriver(0) ECCEnabled(0) kernelExecTimeoutEnabled(0) texturePitchAlignment(256) textureAlignment(256) memPitch(2147483647) hdpRegFlushCntl(0x7f1804a83004) hdpMemFlushCntl(0x7f1804a83000) maxTexture3D(0x7f1743bad878) maxTexture2D(0x7f1743bad870) maxTexture1D(16384) maxTexture1DLinear(2147483647) cooperativeMultiDeviceLaunch(1) cooperativeLaunch(1) integrated(0) gcnArchName(\"gfx908:sramecc+:xnack-\") gcnArch(908) canMapHostMemory(1) isMultiGpuBoard(0) maxSharedMemoryPerMultiProcessor(65536) pciDeviceID(0) pciBusID(227) pciDomainID(0) concurrentKernels(1) arch({}) clockInstructionRate(1000000) computeMode(0) maxThreadsPerMultiProcessor(2560) l2CacheSize(8388608) multiProcessorCount(120) minor(0) major(9) totalConstMem(2147483647) memoryBusWidth(4096) memoryClockRate(1200000) clockRate(1502000) maxGridSize(0x7f1743bad6f8) maxThreadsDim(0x7f1743bad6ec) maxThreadsPerBlock(1024) warpSize(64) regsPerBlock(65536) sharedMemPerBlock(65536) totalGlobalMem(34342961152) name(\"\"}) device(0))",
+    "Data":"",
+    "DurationNs":"1623"
+  }
+}
+,{"ph":"X","name":"hipGetDevice","pid":"2","tid":"767610","ts":"3434447383235","dur":"1",
+  "args":{
+    "BeginNs":"3434447383235376",
+    "EndNs":"3434447383235466",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetDevice",
+    "args":"( deviceId(0))",
+    "Data":"",
+    "DurationNs":"90"
+  }
+}
+,{"ph":"X","name":"hipGetDeviceProperties","pid":"2","tid":"767610","ts":"3434447383235","dur":"1",
+  "args":{
+    "BeginNs":"3434447383235616",
+    "EndNs":"3434447383235776",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetDeviceProperties",
+    "args":"( props({pageableMemoryAccessUsesHostPageTables(0) pageableMemoryAccess(0) concurrentManagedAccess(1) directManagedMemAccessFromHost(0) managedMemory(1) asicRevision(2) isLargeBar(1) cooperativeMultiDeviceUnmatchedSharedMem(1) cooperativeMultiDeviceUnmatchedBlockDim(1) cooperativeMultiDeviceUnmatchedGridDim(1) cooperativeMultiDeviceUnmatchedFunc(1) tccDriver(0) ECCEnabled(0) kernelExecTimeoutEnabled(0) texturePitchAlignment(256) textureAlignment(256) memPitch(2147483647) hdpRegFlushCntl(0x7f1804a83004) hdpMemFlushCntl(0x7f1804a83000) maxTexture3D(0x7f1743badf98) maxTexture2D(0x7f1743badf90) maxTexture1D(16384) maxTexture1DLinear(2147483647) cooperativeMultiDeviceLaunch(1) cooperativeLaunch(1) integrated(0) gcnArchName(\"gfx908:sramecc+:xnack-\") gcnArch(908) canMapHostMemory(1) isMultiGpuBoard(0) maxSharedMemoryPerMultiProcessor(65536) pciDeviceID(0) pciBusID(227) pciDomainID(0) concurrentKernels(1) arch({}) clockInstructionRate(1000000) computeMode(0) maxThreadsPerMultiProcessor(2560) l2CacheSize(8388608) multiProcessorCount(120) minor(0) major(9) totalConstMem(2147483647) memoryBusWidth(4096) memoryClockRate(1200000) clockRate(1502000) maxGridSize(0x7f1743bade18) maxThreadsDim(0x7f1743bade0c) maxThreadsPerBlock(1024) warpSize(64) regsPerBlock(65536) sharedMemPerBlock(65536) totalGlobalMem(34342961152) name(\"\"}) device(0))",
+    "Data":"",
+    "DurationNs":"160"
+  }
+}
+,{"ph":"X","name":"hipGetDevice","pid":"2","tid":"767610","ts":"3434447383237","dur":"1",
+  "args":{
+    "BeginNs":"3434447383237069",
+    "EndNs":"3434447383237119",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetDevice",
+    "args":"( deviceId(0))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"hipGetDeviceProperties","pid":"2","tid":"767610","ts":"3434447383237","dur":"1",
+  "args":{
+    "BeginNs":"3434447383237249",
+    "EndNs":"3434447383237400",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetDeviceProperties",
+    "args":"( props({pageableMemoryAccessUsesHostPageTables(0) pageableMemoryAccess(0) concurrentManagedAccess(1) directManagedMemAccessFromHost(0) managedMemory(1) asicRevision(2) isLargeBar(1) cooperativeMultiDeviceUnmatchedSharedMem(1) cooperativeMultiDeviceUnmatchedBlockDim(1) cooperativeMultiDeviceUnmatchedGridDim(1) cooperativeMultiDeviceUnmatchedFunc(1) tccDriver(0) ECCEnabled(0) kernelExecTimeoutEnabled(0) texturePitchAlignment(256) textureAlignment(256) memPitch(2147483647) hdpRegFlushCntl(0x7f1804a83004) hdpMemFlushCntl(0x7f1804a83000) maxTexture3D(0x7f1743bae6b8) maxTexture2D(0x7f1743bae6b0) maxTexture1D(16384) maxTexture1DLinear(2147483647) cooperativeMultiDeviceLaunch(1) cooperativeLaunch(1) integrated(0) gcnArchName(\"gfx908:sramecc+:xnack-\") gcnArch(908) canMapHostMemory(1) isMultiGpuBoard(0) maxSharedMemoryPerMultiProcessor(65536) pciDeviceID(0) pciBusID(227) pciDomainID(0) concurrentKernels(1) arch({}) clockInstructionRate(1000000) computeMode(0) maxThreadsPerMultiProcessor(2560) l2CacheSize(8388608) multiProcessorCount(120) minor(0) major(9) totalConstMem(2147483647) memoryBusWidth(4096) memoryClockRate(1200000) clockRate(1502000) maxGridSize(0x7f1743bae538) maxThreadsDim(0x7f1743bae52c) maxThreadsPerBlock(1024) warpSize(64) regsPerBlock(65536) sharedMemPerBlock(65536) totalGlobalMem(34342961152) name(\"\"}) device(0))",
+    "Data":"",
+    "DurationNs":"151"
+  }
+}
+,{"ph":"X","name":"hipMemset","pid":"2","tid":"767610","ts":"3434447383239","dur":"16",
+  "args":{
+    "BeginNs":"3434447383239243",
+    "EndNs":"3434447383255544",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMemset",
+    "args":"( dst(0x7f15caa10000) value(0) sizeBytes(512))",
+    "Data":"",
+    "DurationNs":"16301"
+  }
+}
+,{"ph":"X","name":"hipMemset","pid":"2","tid":"767610","ts":"3434447383255","dur":"1",
+  "args":{
+    "BeginNs":"3434447383255905",
+    "EndNs":"3434447383257588",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMemset",
+    "args":"( dst(0x7f15caa10000) value(0) sizeBytes(512))",
+    "Data":"",
+    "DurationNs":"1683"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447383259","dur":"1",
+  "args":{
+    "BeginNs":"3434447383259722",
+    "EndNs":"3434447383260183",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"461"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447383267","dur":"1",
+  "args":{
+    "BeginNs":"3434447383267026",
+    "EndNs":"3434447383267276",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"250"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447383268","dur":"448",
+  "args":{
+    "BeginNs":"3434447383268268",
+    "EndNs":"3434447383716765",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe787988c8) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"448497"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447383734","dur":"1",
+  "args":{
+    "BeginNs":"3434447383734268",
+    "EndNs":"3434447383734378",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"110"
+  }
+}
+,{"ph":"X","name":"hipMemcpy","pid":"2","tid":"767610","ts":"3434447388033","dur":"576",
+  "args":{
+    "BeginNs":"3434447388033030",
+    "EndNs":"3434447388609809",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMemcpy",
+    "args":"( dst(0xc07a50) src(0x7f15caa10000) sizeBytes(512) kind(2))",
+    "Data":"",
+    "DurationNs":"576779"
+  }
+}
+,{"ph":"X","name":"hipMemset","pid":"2","tid":"767610","ts":"3434447388612","dur":"5",
+  "args":{
+    "BeginNs":"3434447388612966",
+    "EndNs":"3434447388618276",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipMemset",
+    "args":"( dst(0x7f15caa10000) value(0) sizeBytes(512))",
+    "Data":"",
+    "DurationNs":"5310"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388619","dur":"1",
+  "args":{
+    "BeginNs":"3434447388619077",
+    "EndNs":"3434447388619297",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"220"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388619","dur":"1",
+  "args":{
+    "BeginNs":"3434447388619919",
+    "EndNs":"3434447388620119",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"200"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388620","dur":"3",
+  "args":{
+    "BeginNs":"3434447388620520",
+    "EndNs":"3434447388624267",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798910) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"3747"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388625","dur":"1",
+  "args":{
+    "BeginNs":"3434447388625900",
+    "EndNs":"3434447388625990",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"90"
+  }
+}
+,{"ph":"X","name":"hipEventCreate","pid":"2","tid":"767610","ts":"3434447388639","dur":"1",
+  "args":{
+    "BeginNs":"3434447388639726",
+    "EndNs":"3434447388640848",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipEventCreate",
+    "args":"( event(0x11d8610))",
+    "Data":"",
+    "DurationNs":"1122"
+  }
+}
+,{"ph":"X","name":"hipEventCreate","pid":"2","tid":"767610","ts":"3434447388641","dur":"1",
+  "args":{
+    "BeginNs":"3434447388641139",
+    "EndNs":"3434447388641389",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipEventCreate",
+    "args":"( event(0x11d8730))",
+    "Data":"",
+    "DurationNs":"250"
+  }
+}
+,{"ph":"X","name":"hipDeviceSynchronize","pid":"2","tid":"767610","ts":"3434447388642","dur":"18",
+  "args":{
+    "BeginNs":"3434447388642531",
+    "EndNs":"3434447388661407",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipDeviceSynchronize",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"18876"
+  }
+}
+,{"ph":"X","name":"hipEventRecord","pid":"2","tid":"767610","ts":"3434447388663","dur":"7",
+  "args":{
+    "BeginNs":"3434447388663000",
+    "EndNs":"3434447388670053",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipEventRecord",
+    "args":"( event(0x11d8610) stream(1))",
+    "Data":"",
+    "DurationNs":"7053"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388671","dur":"1",
+  "args":{
+    "BeginNs":"3434447388671316",
+    "EndNs":"3434447388671436",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"120"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388671","dur":"1",
+  "args":{
+    "BeginNs":"3434447388671686",
+    "EndNs":"3434447388671806",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"120"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388672","dur":"2",
+  "args":{
+    "BeginNs":"3434447388672027",
+    "EndNs":"3434447388674622",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"2595"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388675","dur":"1",
+  "args":{
+    "BeginNs":"3434447388675253",
+    "EndNs":"3434447388675303",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388675","dur":"1",
+  "args":{
+    "BeginNs":"3434447388675513",
+    "EndNs":"3434447388675614",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"101"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388676","dur":"1",
+  "args":{
+    "BeginNs":"3434447388676726",
+    "EndNs":"3434447388676806",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"80"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388676","dur":"1",
+  "args":{
+    "BeginNs":"3434447388676986",
+    "EndNs":"3434447388678499",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1513"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388678","dur":"1",
+  "args":{
+    "BeginNs":"3434447388678820",
+    "EndNs":"3434447388678880",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"60"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388679","dur":"1",
+  "args":{
+    "BeginNs":"3434447388679060",
+    "EndNs":"3434447388679131",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"71"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388680","dur":"1",
+  "args":{
+    "BeginNs":"3434447388680202",
+    "EndNs":"3434447388680282",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"80"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388680","dur":"1",
+  "args":{
+    "BeginNs":"3434447388680443",
+    "EndNs":"3434447388682397",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1954"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388682","dur":"1",
+  "args":{
+    "BeginNs":"3434447388682697",
+    "EndNs":"3434447388682747",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388682","dur":"1",
+  "args":{
+    "BeginNs":"3434447388682918",
+    "EndNs":"3434447388682978",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"60"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388683","dur":"1",
+  "args":{
+    "BeginNs":"3434447388683138",
+    "EndNs":"3434447388683208",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388684","dur":"1",
+  "args":{
+    "BeginNs":"3434447388684571",
+    "EndNs":"3434447388686184",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1613"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388686","dur":"1",
+  "args":{
+    "BeginNs":"3434447388686605",
+    "EndNs":"3434447388686655",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388686","dur":"1",
+  "args":{
+    "BeginNs":"3434447388686815",
+    "EndNs":"3434447388686885",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388687","dur":"1",
+  "args":{
+    "BeginNs":"3434447388687035",
+    "EndNs":"3434447388687115",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"80"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388688","dur":"1",
+  "args":{
+    "BeginNs":"3434447388688217",
+    "EndNs":"3434447388689440",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1223"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388689","dur":"1",
+  "args":{
+    "BeginNs":"3434447388689800",
+    "EndNs":"3434447388689861",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"61"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388690","dur":"1",
+  "args":{
+    "BeginNs":"3434447388690021",
+    "EndNs":"3434447388690091",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388690","dur":"1",
+  "args":{
+    "BeginNs":"3434447388690252",
+    "EndNs":"3434447388690321",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"69"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388690","dur":"1",
+  "args":{
+    "BeginNs":"3434447388690482",
+    "EndNs":"3434447388691664",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1182"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388693","dur":"1",
+  "args":{
+    "BeginNs":"3434447388693057",
+    "EndNs":"3434447388693107",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388693","dur":"1",
+  "args":{
+    "BeginNs":"3434447388693277",
+    "EndNs":"3434447388693337",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"60"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388693","dur":"1",
+  "args":{
+    "BeginNs":"3434447388693498",
+    "EndNs":"3434447388693578",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"80"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388693","dur":"1",
+  "args":{
+    "BeginNs":"3434447388693738",
+    "EndNs":"3434447388695050",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1312"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388696","dur":"1",
+  "args":{
+    "BeginNs":"3434447388696473",
+    "EndNs":"3434447388696523",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388696","dur":"1",
+  "args":{
+    "BeginNs":"3434447388696684",
+    "EndNs":"3434447388696754",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388696","dur":"1",
+  "args":{
+    "BeginNs":"3434447388696914",
+    "EndNs":"3434447388696984",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388697","dur":"1",
+  "args":{
+    "BeginNs":"3434447388697134",
+    "EndNs":"3434447388698417",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1283"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388698","dur":"1",
+  "args":{
+    "BeginNs":"3434447388698717",
+    "EndNs":"3434447388698777",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"60"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388699","dur":"1",
+  "args":{
+    "BeginNs":"3434447388699850",
+    "EndNs":"3434447388699930",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"80"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388700","dur":"1",
+  "args":{
+    "BeginNs":"3434447388700100",
+    "EndNs":"3434447388700180",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"80"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388700","dur":"1",
+  "args":{
+    "BeginNs":"3434447388700340",
+    "EndNs":"3434447388701613",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1273"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388701","dur":"1",
+  "args":{
+    "BeginNs":"3434447388701994",
+    "EndNs":"3434447388702044",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"50"
+  }
+}
+,{"ph":"X","name":"__hipPushCallConfiguration","pid":"2","tid":"767610","ts":"3434447388703","dur":"1",
+  "args":{
+    "BeginNs":"3434447388703096",
+    "EndNs":"3434447388703166",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPushCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"__hipPopCallConfiguration","pid":"2","tid":"767610","ts":"3434447388703","dur":"1",
+  "args":{
+    "BeginNs":"3434447388703366",
+    "EndNs":"3434447388703436",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"__hipPopCallConfiguration",
+    "args":"( gridDim({z(1) y(1) x(462}) blockDim({z(1) y(1) x(64}) sharedMem(0) stream(1))",
+    "Data":"",
+    "DurationNs":"70"
+  }
+}
+,{"ph":"X","name":"hipLaunchKernel","pid":"2","tid":"767610","ts":"3434447388703","dur":"1",
+  "args":{
+    "BeginNs":"3434447388703597",
+    "EndNs":"3434447388704779",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipLaunchKernel",
+    "args":"( kernel(void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)) function_address(0x204168) numBlocks({z(1) y(1) x(462}) dimBlocks({z(1) y(1) x(64}) args(0x7ffe78798880) sharedMemBytes(0) stream(1))",
+    "Data":"",
+    "DurationNs":"1182"
+  }
+}
+,{"ph":"X","name":"hipGetLastError","pid":"2","tid":"767610","ts":"3434447388705","dur":"1",
+  "args":{
+    "BeginNs":"3434447388705080",
+    "EndNs":"3434447388705129",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipGetLastError",
+    "args":"( ))",
+    "Data":"",
+    "DurationNs":"49"
+  }
+}
+,{"ph":"X","name":"hipEventRecord","pid":"2","tid":"767610","ts":"3434447388705","dur":"2",
+  "args":{
+    "BeginNs":"3434447388705330",
+    "EndNs":"3434447388707674",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipEventRecord",
+    "args":"( event(0x11d8730) stream(1))",
+    "Data":"",
+    "DurationNs":"2344"
+  }
+}
+,{"ph":"X","name":"hipEventSynchronize","pid":"2","tid":"767610","ts":"3434447388709","dur":"26",
+  "args":{
+    "BeginNs":"3434447388709728",
+    "EndNs":"3434447388736328",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipEventSynchronize",
+    "args":"( event(0x11d8730))",
+    "Data":"",
+    "DurationNs":"26600"
+  }
+}
+,{"ph":"X","name":"hipEventElapsedTime","pid":"2","tid":"767610","ts":"3434447388737","dur":"1",
+  "args":{
+    "BeginNs":"3434447388737310",
+    "EndNs":"3434447388738593",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipEventElapsedTime",
+    "args":"( ms(0.06016) start(0x11d8610) stop(0x11d8730))",
+    "Data":"",
+    "DurationNs":"1283"
+  }
+}
+,{"ph":"X","name":"hipFree","pid":"2","tid":"767610","ts":"3434447388820","dur":"27",
+  "args":{
+    "BeginNs":"3434447388820327",
+    "EndNs":"3434447388848010",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipFree",
+    "args":"( ptr(0x7f15caa10000))",
+    "Data":"",
+    "DurationNs":"27683"
+  }
+}
+,{"ph":"X","name":"hipFree","pid":"2","tid":"767610","ts":"3434447388848","dur":"2",
+  "args":{
+    "BeginNs":"3434447388848500",
+    "EndNs":"3434447388850504",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipFree",
+    "args":"( ptr(0x7f15caa08000))",
+    "Data":"",
+    "DurationNs":"2004"
+  }
+}
+,{"ph":"X","name":"hipFree","pid":"2","tid":"767610","ts":"3434447388853","dur":"1",
+  "args":{
+    "BeginNs":"3434447388853349",
+    "EndNs":"3434447388854812",
+    "pid":"767610",
+    "tid":"767610",
+    "Name":"hipFree",
+    "args":"( ptr(0x7f15caa00000))",
+    "Data":"",
+    "DurationNs":"1463"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447383720","dur":"11",
+  "args":{
+    "BeginNs":"3434447383720830",
+    "EndNs":"3434447383732670",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"11840"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388640","dur":"10",
+  "args":{
+    "BeginNs":"3434447388640190",
+    "EndNs":"3434447388650750",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"10560"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388678","dur":"7",
+  "args":{
+    "BeginNs":"3434447388678750",
+    "EndNs":"3434447388686110",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"7360"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388686","dur":"4",
+  "args":{
+    "BeginNs":"3434447388686110",
+    "EndNs":"3434447388690910",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4800"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388690","dur":"4",
+  "args":{
+    "BeginNs":"3434447388690910",
+    "EndNs":"3434447388695390",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4480"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388695","dur":"4",
+  "args":{
+    "BeginNs":"3434447388695390",
+    "EndNs":"3434447388699870",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4480"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388699","dur":"4",
+  "args":{
+    "BeginNs":"3434447388699870",
+    "EndNs":"3434447388704670",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4800"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388704","dur":"4",
+  "args":{
+    "BeginNs":"3434447388704670",
+    "EndNs":"3434447388709310",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4640"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388709","dur":"4",
+  "args":{
+    "BeginNs":"3434447388709310",
+    "EndNs":"3434447388713950",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4640"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388713","dur":"4",
+  "args":{
+    "BeginNs":"3434447388713950",
+    "EndNs":"3434447388718590",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4640"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388718","dur":"4",
+  "args":{
+    "BeginNs":"3434447388718590",
+    "EndNs":"3434447388723390",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4800"
+  }
+}
+,{"ph":"X","name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)","pid":"8","tid":"1","ts":"3434447388723","dur":"4",
+  "args":{
+    "BeginNs":"3434447388723390",
+    "EndNs":"3434447388728030",
+    "dev-id":"2",
+    "queue-id":"0",
+    "Name":"void ck::kernel_tsmm_dl_v1r3<ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>, _Float16, _Float16, (ck::InMemoryDataOperationEnum)1, false, false, ck::BlockToCTileMap_3DGrid_KSplit<8, 128>>(ck::GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, ck::tensor_layout::gemm::RowMajor, (ck::tensor_operation::device::GemmSpecialization)4, 8, 128, 4, 2, 8, 2, 1, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<1, 4, 1, 8, 1>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, ck::Sequence<1, 1, 1, 1, 2>, ck::Sequence<0, 1, 2, 3, 4>, 3, 2, ck::Sequence<0, 1, 2, 3, 4, 5>, 5, 2>::Argument)",
+    "pid":"767610",
+    "tid":"767610",
+    "stream-id":"1",
+    "Data":"",
+    "DurationNs":"4640"
+  }
+}
+,{"ts":3434447277814,"ph":"s","cat":"DataFlow","id":0,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447383169,"ph":"t","cat":"DataFlow","id":0,"pid":1,"tid":0,"name":"dep"}
+,{"ts":3434447383196,"ph":"s","cat":"DataFlow","id":1,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447383198,"ph":"t","cat":"DataFlow","id":1,"pid":1,"tid":0,"name":"dep"}
+,{"ts":3434447383247,"ph":"s","cat":"DataFlow","id":2,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447383268,"ph":"t","cat":"DataFlow","id":2,"pid":1,"tid":0,"name":"dep"}
+,{"ts":3434447383255,"ph":"s","cat":"DataFlow","id":3,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447383276,"ph":"t","cat":"DataFlow","id":3,"pid":1,"tid":0,"name":"dep"}
+,{"ts":3434447388138,"ph":"s","cat":"DataFlow","id":4,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388138,"ph":"t","cat":"DataFlow","id":4,"pid":1,"tid":0,"name":"dep"}
+,{"ts":3434447388614,"ph":"s","cat":"DataFlow","id":5,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388630,"ph":"t","cat":"DataFlow","id":5,"pid":1,"tid":0,"name":"dep"}
+,{"ts":3434447383492,"ph":"s","cat":"DataFlow","id":19,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447383720,"ph":"t","cat":"DataFlow","id":19,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388621,"ph":"s","cat":"DataFlow","id":20,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388640,"ph":"t","cat":"DataFlow","id":20,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388673,"ph":"s","cat":"DataFlow","id":21,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388678,"ph":"t","cat":"DataFlow","id":21,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388676,"ph":"s","cat":"DataFlow","id":22,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388686,"ph":"t","cat":"DataFlow","id":22,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388680,"ph":"s","cat":"DataFlow","id":23,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388690,"ph":"t","cat":"DataFlow","id":23,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388684,"ph":"s","cat":"DataFlow","id":24,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388695,"ph":"t","cat":"DataFlow","id":24,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388688,"ph":"s","cat":"DataFlow","id":25,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388699,"ph":"t","cat":"DataFlow","id":25,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388690,"ph":"s","cat":"DataFlow","id":26,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388704,"ph":"t","cat":"DataFlow","id":26,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388693,"ph":"s","cat":"DataFlow","id":27,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388709,"ph":"t","cat":"DataFlow","id":27,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388697,"ph":"s","cat":"DataFlow","id":28,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388713,"ph":"t","cat":"DataFlow","id":28,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388700,"ph":"s","cat":"DataFlow","id":29,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388718,"ph":"t","cat":"DataFlow","id":29,"pid":8,"tid":1,"name":"dep"}
+,{"ts":3434447388703,"ph":"s","cat":"DataFlow","id":30,"pid":2,"tid":767610,"name":"dep"}
+,{"ts":3434447388723,"ph":"t","cat":"DataFlow","id":30,"pid":8,"tid":1,"name":"dep"}
+],
+"otherData": {
+    "CMD": "/opt/rocm-5.7.1/bin/rocminfo",
+    "HSASystemAttributes.RuntimeVersion": "1.1",
+    "HSASystemAttributes.SystemTimestampFreq.": "1000.000000MHz",
+    "HSASystemAttributes.Sig.MaxWaitDuration": "18446744073709551615(0xFFFFFFFFFFFFFFFF)(timestampcount)",
+    "HSASystemAttributes.MachineModel": "LARGE",
+    "HSASystemAttributes.SystemEndianness": "LITTLE",
+    "HSASystemAttributes.Mwaitx": "DISABLED",
+    "HSASystemAttributes.DMAbufSupport": "YES",
+    "Agent1.Name": "AMDEPYC7V1364-CoreProcessor",
+    "Agent1.Uuid": "CPU-XX",
+    "Agent1.MarketingName": "AMDEPYC7V1364-CoreProcessor",
+    "Agent1.VendorName": "CPU",
+    "Agent1.Feature": "Nonespecified",
+    "Agent1.Profile": "FULL_PROFILE",
+    "Agent1.FloatRoundMode": "NEAR",
+    "Agent1.MaxQueueNumber": "0(0x0)",
+    "Agent1.QueueMinSize": "0(0x0)",
+    "Agent1.QueueMaxSize": "0(0x0)",
+    "Agent1.QueueType": "MULTI",
+    "Agent1.Node": "0",
+    "Agent1.DeviceType": "CPU",
+    "Agent1.CacheInfo.L1": "32768(0x8000)KB",
+    "Agent1.ChipID": "0(0x0)",
+    "Agent1.ASICRevision": "0(0x0)",
+    "Agent1.CachelineSize": "64(0x40)",
+    "Agent1.MaxClockFreq.(MHz)": "2450",
+    "Agent1.BDFID": "0",
+    "Agent1.InternalNodeID": "0",
+    "Agent1.ComputeUnit": "64",
+    "Agent1.SIMDsperCU": "0",
+    "Agent1.ShaderEngines": "0",
+    "Agent1.ShaderArrs.perEng.": "0",
+    "Agent1.WatchPtsonAddr.Ranges": "1",
+    "Agent1.Features": "None",
+    "Agent1.PoolInfo.Pool1.Segment": "GLOBAL",
+    "Agent1.PoolInfo.Pool1.FLAGS": "FINEGRAINED",
+    "Agent1.PoolInfo.Pool1.Size": "263479012(0xfb45ee4)KB",
+    "Agent1.PoolInfo.Pool1.Allocatable": "TRUE",
+    "Agent1.PoolInfo.Pool1.AllocGranule": "4KB",
+    "Agent1.PoolInfo.Pool1.AllocAlignment": "4KB",
+    "Agent1.PoolInfo.Pool1.Accessiblebyall": "TRUE",
+    "Agent1.PoolInfo.Pool2.Segment": "GLOBAL",
+    "Agent1.PoolInfo.Pool2.FLAGS": "KERNARG,FINEGRAINED",
+    "Agent1.PoolInfo.Pool2.Size": "263479012(0xfb45ee4)KB",
+    "Agent1.PoolInfo.Pool2.Allocatable": "TRUE",
+    "Agent1.PoolInfo.Pool2.AllocGranule": "4KB",
+    "Agent1.PoolInfo.Pool2.AllocAlignment": "4KB",
+    "Agent1.PoolInfo.Pool2.Accessiblebyall": "TRUE",
+    "Agent1.PoolInfo.Pool3.Segment": "GLOBAL",
+    "Agent1.PoolInfo.Pool3.FLAGS": "COARSEGRAINED",
+    "Agent1.PoolInfo.Pool3.Size": "263479012(0xfb45ee4)KB",
+    "Agent1.PoolInfo.Pool3.Allocatable": "TRUE",
+    "Agent1.PoolInfo.Pool3.AllocGranule": "4KB",
+    "Agent1.PoolInfo.Pool3.AllocAlignment": "4KB",
+    "Agent1.PoolInfo.Pool3.Accessiblebyall": "TRUE",
+    "Agent2.Name": "AMDEPYC7V1364-CoreProcessor",
+    "Agent2.Uuid": "CPU-XX",
+    "Agent2.MarketingName": "AMDEPYC7V1364-CoreProcessor",
+    "Agent2.VendorName": "CPU",
+    "Agent2.Feature": "Nonespecified",
+    "Agent2.Profile": "FULL_PROFILE",
+    "Agent2.FloatRoundMode": "NEAR",
+    "Agent2.MaxQueueNumber": "0(0x0)",
+    "Agent2.QueueMinSize": "0(0x0)",
+    "Agent2.QueueMaxSize": "0(0x0)",
+    "Agent2.QueueType": "MULTI",
+    "Agent2.Node": "1",
+    "Agent2.DeviceType": "CPU",
+    "Agent2.CacheInfo.L1": "32768(0x8000)KB",
+    "Agent2.ChipID": "0(0x0)",
+    "Agent2.ASICRevision": "0(0x0)",
+    "Agent2.CachelineSize": "64(0x40)",
+    "Agent2.MaxClockFreq.(MHz)": "2450",
+    "Agent2.BDFID": "0",
+    "Agent2.InternalNodeID": "1",
+    "Agent2.ComputeUnit": "64",
+    "Agent2.SIMDsperCU": "0",
+    "Agent2.ShaderEngines": "0",
+    "Agent2.ShaderArrs.perEng.": "0",
+    "Agent2.WatchPtsonAddr.Ranges": "1",
+    "Agent2.Features": "None",
+    "Agent2.PoolInfo.Pool1.Segment": "GLOBAL",
+    "Agent2.PoolInfo.Pool1.FLAGS": "FINEGRAINED",
+    "Agent2.PoolInfo.Pool1.Size": "264172236(0xfbef2cc)KB",
+    "Agent2.PoolInfo.Pool1.Allocatable": "TRUE",
+    "Agent2.PoolInfo.Pool1.AllocGranule": "4KB",
+    "Agent2.PoolInfo.Pool1.AllocAlignment": "4KB",
+    "Agent2.PoolInfo.Pool1.Accessiblebyall": "TRUE",
+    "Agent2.PoolInfo.Pool2.Segment": "GLOBAL",
+    "Agent2.PoolInfo.Pool2.FLAGS": "KERNARG,FINEGRAINED",
+    "Agent2.PoolInfo.Pool2.Size": "264172236(0xfbef2cc)KB",
+    "Agent2.PoolInfo.Pool2.Allocatable": "TRUE",
+    "Agent2.PoolInfo.Pool2.AllocGranule": "4KB",
+    "Agent2.PoolInfo.Pool2.AllocAlignment": "4KB",
+    "Agent2.PoolInfo.Pool2.Accessiblebyall": "TRUE",
+    "Agent2.PoolInfo.Pool3.Segment": "GLOBAL",
+    "Agent2.PoolInfo.Pool3.FLAGS": "COARSEGRAINED",
+    "Agent2.PoolInfo.Pool3.Size": "264172236(0xfbef2cc)KB",
+    "Agent2.PoolInfo.Pool3.Allocatable": "TRUE",
+    "Agent2.PoolInfo.Pool3.AllocGranule": "4KB",
+    "Agent2.PoolInfo.Pool3.AllocAlignment": "4KB",
+    "Agent2.PoolInfo.Pool3.Accessiblebyall": "TRUE",
+    "Agent3.Name": "gfx908",
+    "Agent3.Uuid": "GPU-dfa72a2787e4f37f",
+    "Agent3.MarketingName.VendorName": "AMD",
+    "Agent3.MarketingName.Feature": "KERNEL_DISPATCH",
+    "Agent3.MarketingName.Profile": "BASE_PROFILE",
+    "Agent3.MarketingName.FloatRoundMode": "NEAR",
+    "Agent3.MarketingName.MaxQueueNumber": "128(0x80)",
+    "Agent3.MarketingName.QueueMinSize": "64(0x40)",
+    "Agent3.MarketingName.QueueMaxSize": "131072(0x20000)",
+    "Agent3.MarketingName.QueueType": "MULTI",
+    "Agent3.MarketingName.Node": "2",
+    "Agent3.MarketingName.DeviceType": "GPU",
+    "Agent3.MarketingName.CacheInfo.L1": "16(0x10)KB",
+    "Agent3.MarketingName.CacheInfo.L2": "8192(0x2000)KB",
+    "Agent3.MarketingName.ChipID": "29580(0x738c)",
+    "Agent3.MarketingName.ASICRevision": "2(0x2)",
+    "Agent3.MarketingName.CachelineSize": "64(0x40)",
+    "Agent3.MarketingName.MaxClockFreq.(MHz)": "1502",
+    "Agent3.MarketingName.BDFID": "58112",
+    "Agent3.MarketingName.InternalNodeID": "2",
+    "Agent3.MarketingName.ComputeUnit": "120",
+    "Agent3.MarketingName.SIMDsperCU": "4",
+    "Agent3.MarketingName.ShaderEngines": "8",
+    "Agent3.MarketingName.ShaderArrs.perEng.": "1",
+    "Agent3.MarketingName.WatchPtsonAddr.Ranges": "4",
+    "Agent3.MarketingName.Features": "KERNEL_DISPATCH",
+    "Agent3.MarketingName.FastF16Operation": "TRUE",
+    "Agent3.MarketingName.WavefrontSize": "64(0x40)",
+    "Agent3.MarketingName.WorkgroupMaxSize": "1024(0x400)",
+    "Agent3.MarketingName.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent3.MarketingName.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent3.MarketingName.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent3.MarketingName.MaxWavesPerCU": "40(0x28)",
+    "Agent3.MarketingName.MaxWork-itemPerCU": "2560(0xa00)",
+    "Agent3.MarketingName.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.Maxfbarriers/Workgrp": "32",
+    "Agent3.MarketingName.PacketProcessoruCode:": "65",
+    "Agent3.MarketingName.SDMAengineuCode:": "18",
+    "Agent3.MarketingName.IOMMUSupport:": "None",
+    "Agent3.MarketingName.PoolInfo.Pool1.Segment": "GLOBAL",
+    "Agent3.MarketingName.PoolInfo.Pool1.FLAGS": "COARSEGRAINED",
+    "Agent3.MarketingName.PoolInfo.Pool1.Size": "33538048(0x1ffc000)KB",
+    "Agent3.MarketingName.PoolInfo.Pool1.Allocatable": "TRUE",
+    "Agent3.MarketingName.PoolInfo.Pool1.AllocGranule": "4KB",
+    "Agent3.MarketingName.PoolInfo.Pool1.AllocAlignment": "4KB",
+    "Agent3.MarketingName.PoolInfo.Pool1.Accessiblebyall": "FALSE",
+    "Agent3.MarketingName.PoolInfo.Pool2.Segment": "GLOBAL",
+    "Agent3.MarketingName.PoolInfo.Pool2.FLAGS.Size": "33538048(0x1ffc000)KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.FLAGS.Allocatable": "TRUE",
+    "Agent3.MarketingName.PoolInfo.Pool2.FLAGS.AllocGranule": "4KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.FLAGS.AllocAlignment": "4KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.FLAGS.Accessiblebyall": "FALSE",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.Segment": "GLOBAL",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.FLAGS": "FINEGRAINED",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.Size": "33538048(0x1ffc000)KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.Allocatable": "TRUE",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.AllocGranule": "4KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.AllocAlignment": "4KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool3.Accessiblebyall": "FALSE",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool4.Segment": "GROUP",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool4.Size": "64(0x40)KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool4.Allocatable": "FALSE",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool4.AllocGranule": "0KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool4.AllocAlignment": "0KB",
+    "Agent3.MarketingName.PoolInfo.Pool2.Pool4.Accessiblebyall": "FALSE",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.Name:amdgcn-amd-amdhsa--gfx908:sramecc+": "xnack-",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.MachineModels": "HSA_MACHINE_MODEL_LARGE",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.Profiles": "HSA_PROFILE_BASE",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.Fastf16": "TRUE",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSize": "1024(0x400)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent3.MarketingName.PoolInfo.ISAInfo.ISA1.FBarrierMaxSize": "32",
+    "Agent4.Name": "gfx908",
+    "Agent4.Uuid": "GPU-b91345523887afd5",
+    "Agent4.MarketingName.VendorName": "AMD",
+    "Agent4.MarketingName.Feature": "KERNEL_DISPATCH",
+    "Agent4.MarketingName.Profile": "BASE_PROFILE",
+    "Agent4.MarketingName.FloatRoundMode": "NEAR",
+    "Agent4.MarketingName.MaxQueueNumber": "128(0x80)",
+    "Agent4.MarketingName.QueueMinSize": "64(0x40)",
+    "Agent4.MarketingName.QueueMaxSize": "131072(0x20000)",
+    "Agent4.MarketingName.QueueType": "MULTI",
+    "Agent4.MarketingName.Node": "3",
+    "Agent4.MarketingName.DeviceType": "GPU",
+    "Agent4.MarketingName.CacheInfo.L1": "16(0x10)KB",
+    "Agent4.MarketingName.CacheInfo.L2": "8192(0x2000)KB",
+    "Agent4.MarketingName.ChipID": "29580(0x738c)",
+    "Agent4.MarketingName.ASICRevision": "2(0x2)",
+    "Agent4.MarketingName.CachelineSize": "64(0x40)",
+    "Agent4.MarketingName.MaxClockFreq.(MHz)": "1502",
+    "Agent4.MarketingName.BDFID": "49920",
+    "Agent4.MarketingName.InternalNodeID": "3",
+    "Agent4.MarketingName.ComputeUnit": "120",
+    "Agent4.MarketingName.SIMDsperCU": "4",
+    "Agent4.MarketingName.ShaderEngines": "8",
+    "Agent4.MarketingName.ShaderArrs.perEng.": "1",
+    "Agent4.MarketingName.WatchPtsonAddr.Ranges": "4",
+    "Agent4.MarketingName.Features": "KERNEL_DISPATCH",
+    "Agent4.MarketingName.FastF16Operation": "TRUE",
+    "Agent4.MarketingName.WavefrontSize": "64(0x40)",
+    "Agent4.MarketingName.WorkgroupMaxSize": "1024(0x400)",
+    "Agent4.MarketingName.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent4.MarketingName.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent4.MarketingName.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent4.MarketingName.MaxWavesPerCU": "40(0x28)",
+    "Agent4.MarketingName.MaxWork-itemPerCU": "2560(0xa00)",
+    "Agent4.MarketingName.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.Maxfbarriers/Workgrp": "32",
+    "Agent4.MarketingName.PacketProcessoruCode:": "65",
+    "Agent4.MarketingName.SDMAengineuCode:": "18",
+    "Agent4.MarketingName.IOMMUSupport:": "None",
+    "Agent4.MarketingName.PoolInfo.Pool1.Segment": "GLOBAL",
+    "Agent4.MarketingName.PoolInfo.Pool1.FLAGS": "COARSEGRAINED",
+    "Agent4.MarketingName.PoolInfo.Pool1.Size": "33538048(0x1ffc000)KB",
+    "Agent4.MarketingName.PoolInfo.Pool1.Allocatable": "TRUE",
+    "Agent4.MarketingName.PoolInfo.Pool1.AllocGranule": "4KB",
+    "Agent4.MarketingName.PoolInfo.Pool1.AllocAlignment": "4KB",
+    "Agent4.MarketingName.PoolInfo.Pool1.Accessiblebyall": "FALSE",
+    "Agent4.MarketingName.PoolInfo.Pool2.Segment": "GLOBAL",
+    "Agent4.MarketingName.PoolInfo.Pool2.FLAGS.Size": "33538048(0x1ffc000)KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.FLAGS.Allocatable": "TRUE",
+    "Agent4.MarketingName.PoolInfo.Pool2.FLAGS.AllocGranule": "4KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.FLAGS.AllocAlignment": "4KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.FLAGS.Accessiblebyall": "FALSE",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.Segment": "GLOBAL",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.FLAGS": "FINEGRAINED",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.Size": "33538048(0x1ffc000)KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.Allocatable": "TRUE",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.AllocGranule": "4KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.AllocAlignment": "4KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool3.Accessiblebyall": "FALSE",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool4.Segment": "GROUP",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool4.Size": "64(0x40)KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool4.Allocatable": "FALSE",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool4.AllocGranule": "0KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool4.AllocAlignment": "0KB",
+    "Agent4.MarketingName.PoolInfo.Pool2.Pool4.Accessiblebyall": "FALSE",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.Name:amdgcn-amd-amdhsa--gfx908:sramecc+": "xnack-",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.MachineModels": "HSA_MACHINE_MODEL_LARGE",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.Profiles": "HSA_PROFILE_BASE",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.Fastf16": "TRUE",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSize": "1024(0x400)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent4.MarketingName.PoolInfo.ISAInfo.ISA1.FBarrierMaxSize": "32",
+    "Agent5.Name": "gfx908",
+    "Agent5.Uuid": "GPU-dfbbe56f2edd9589",
+    "Agent5.MarketingName.VendorName": "AMD",
+    "Agent5.MarketingName.Feature": "KERNEL_DISPATCH",
+    "Agent5.MarketingName.Profile": "BASE_PROFILE",
+    "Agent5.MarketingName.FloatRoundMode": "NEAR",
+    "Agent5.MarketingName.MaxQueueNumber": "128(0x80)",
+    "Agent5.MarketingName.QueueMinSize": "64(0x40)",
+    "Agent5.MarketingName.QueueMaxSize": "131072(0x20000)",
+    "Agent5.MarketingName.QueueType": "MULTI",
+    "Agent5.MarketingName.Node": "4",
+    "Agent5.MarketingName.DeviceType": "GPU",
+    "Agent5.MarketingName.CacheInfo.L1": "16(0x10)KB",
+    "Agent5.MarketingName.CacheInfo.L2": "8192(0x2000)KB",
+    "Agent5.MarketingName.ChipID": "29580(0x738c)",
+    "Agent5.MarketingName.ASICRevision": "2(0x2)",
+    "Agent5.MarketingName.CachelineSize": "64(0x40)",
+    "Agent5.MarketingName.MaxClockFreq.(MHz)": "1502",
+    "Agent5.MarketingName.BDFID": "41728",
+    "Agent5.MarketingName.InternalNodeID": "4",
+    "Agent5.MarketingName.ComputeUnit": "120",
+    "Agent5.MarketingName.SIMDsperCU": "4",
+    "Agent5.MarketingName.ShaderEngines": "8",
+    "Agent5.MarketingName.ShaderArrs.perEng.": "1",
+    "Agent5.MarketingName.WatchPtsonAddr.Ranges": "4",
+    "Agent5.MarketingName.Features": "KERNEL_DISPATCH",
+    "Agent5.MarketingName.FastF16Operation": "TRUE",
+    "Agent5.MarketingName.WavefrontSize": "64(0x40)",
+    "Agent5.MarketingName.WorkgroupMaxSize": "1024(0x400)",
+    "Agent5.MarketingName.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent5.MarketingName.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent5.MarketingName.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent5.MarketingName.MaxWavesPerCU": "40(0x28)",
+    "Agent5.MarketingName.MaxWork-itemPerCU": "2560(0xa00)",
+    "Agent5.MarketingName.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.Maxfbarriers/Workgrp": "32",
+    "Agent5.MarketingName.PacketProcessoruCode:": "65",
+    "Agent5.MarketingName.SDMAengineuCode:": "18",
+    "Agent5.MarketingName.IOMMUSupport:": "None",
+    "Agent5.MarketingName.PoolInfo.Pool1.Segment": "GLOBAL",
+    "Agent5.MarketingName.PoolInfo.Pool1.FLAGS": "COARSEGRAINED",
+    "Agent5.MarketingName.PoolInfo.Pool1.Size": "33538048(0x1ffc000)KB",
+    "Agent5.MarketingName.PoolInfo.Pool1.Allocatable": "TRUE",
+    "Agent5.MarketingName.PoolInfo.Pool1.AllocGranule": "4KB",
+    "Agent5.MarketingName.PoolInfo.Pool1.AllocAlignment": "4KB",
+    "Agent5.MarketingName.PoolInfo.Pool1.Accessiblebyall": "FALSE",
+    "Agent5.MarketingName.PoolInfo.Pool2.Segment": "GLOBAL",
+    "Agent5.MarketingName.PoolInfo.Pool2.FLAGS.Size": "33538048(0x1ffc000)KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.FLAGS.Allocatable": "TRUE",
+    "Agent5.MarketingName.PoolInfo.Pool2.FLAGS.AllocGranule": "4KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.FLAGS.AllocAlignment": "4KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.FLAGS.Accessiblebyall": "FALSE",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.Segment": "GLOBAL",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.FLAGS": "FINEGRAINED",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.Size": "33538048(0x1ffc000)KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.Allocatable": "TRUE",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.AllocGranule": "4KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.AllocAlignment": "4KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool3.Accessiblebyall": "FALSE",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool4.Segment": "GROUP",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool4.Size": "64(0x40)KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool4.Allocatable": "FALSE",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool4.AllocGranule": "0KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool4.AllocAlignment": "0KB",
+    "Agent5.MarketingName.PoolInfo.Pool2.Pool4.Accessiblebyall": "FALSE",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.Name:amdgcn-amd-amdhsa--gfx908:sramecc+": "xnack-",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.MachineModels": "HSA_MACHINE_MODEL_LARGE",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.Profiles": "HSA_PROFILE_BASE",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.Fastf16": "TRUE",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSize": "1024(0x400)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent5.MarketingName.PoolInfo.ISAInfo.ISA1.FBarrierMaxSize": "32",
+    "Agent6.Name": "gfx908",
+    "Agent6.Uuid": "GPU-ab76d875ac3c3834",
+    "Agent6.MarketingName.VendorName": "AMD",
+    "Agent6.MarketingName.Feature": "KERNEL_DISPATCH",
+    "Agent6.MarketingName.Profile": "BASE_PROFILE",
+    "Agent6.MarketingName.FloatRoundMode": "NEAR",
+    "Agent6.MarketingName.MaxQueueNumber": "128(0x80)",
+    "Agent6.MarketingName.QueueMinSize": "64(0x40)",
+    "Agent6.MarketingName.QueueMaxSize": "131072(0x20000)",
+    "Agent6.MarketingName.QueueType": "MULTI",
+    "Agent6.MarketingName.Node": "5",
+    "Agent6.MarketingName.DeviceType": "GPU",
+    "Agent6.MarketingName.CacheInfo.L1": "16(0x10)KB",
+    "Agent6.MarketingName.CacheInfo.L2": "8192(0x2000)KB",
+    "Agent6.MarketingName.ChipID": "29580(0x738c)",
+    "Agent6.MarketingName.ASICRevision": "2(0x2)",
+    "Agent6.MarketingName.CachelineSize": "64(0x40)",
+    "Agent6.MarketingName.MaxClockFreq.(MHz)": "1502",
+    "Agent6.MarketingName.BDFID": "33536",
+    "Agent6.MarketingName.InternalNodeID": "5",
+    "Agent6.MarketingName.ComputeUnit": "120",
+    "Agent6.MarketingName.SIMDsperCU": "4",
+    "Agent6.MarketingName.ShaderEngines": "8",
+    "Agent6.MarketingName.ShaderArrs.perEng.": "1",
+    "Agent6.MarketingName.WatchPtsonAddr.Ranges": "4",
+    "Agent6.MarketingName.Features": "KERNEL_DISPATCH",
+    "Agent6.MarketingName.FastF16Operation": "TRUE",
+    "Agent6.MarketingName.WavefrontSize": "64(0x40)",
+    "Agent6.MarketingName.WorkgroupMaxSize": "1024(0x400)",
+    "Agent6.MarketingName.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent6.MarketingName.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent6.MarketingName.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent6.MarketingName.MaxWavesPerCU": "40(0x28)",
+    "Agent6.MarketingName.MaxWork-itemPerCU": "2560(0xa00)",
+    "Agent6.MarketingName.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.Maxfbarriers/Workgrp": "32",
+    "Agent6.MarketingName.PacketProcessoruCode:": "65",
+    "Agent6.MarketingName.SDMAengineuCode:": "18",
+    "Agent6.MarketingName.IOMMUSupport:": "None",
+    "Agent6.MarketingName.PoolInfo.Pool1.Segment": "GLOBAL",
+    "Agent6.MarketingName.PoolInfo.Pool1.FLAGS": "COARSEGRAINED",
+    "Agent6.MarketingName.PoolInfo.Pool1.Size": "33538048(0x1ffc000)KB",
+    "Agent6.MarketingName.PoolInfo.Pool1.Allocatable": "TRUE",
+    "Agent6.MarketingName.PoolInfo.Pool1.AllocGranule": "4KB",
+    "Agent6.MarketingName.PoolInfo.Pool1.AllocAlignment": "4KB",
+    "Agent6.MarketingName.PoolInfo.Pool1.Accessiblebyall": "FALSE",
+    "Agent6.MarketingName.PoolInfo.Pool2.Segment": "GLOBAL",
+    "Agent6.MarketingName.PoolInfo.Pool2.FLAGS.Size": "33538048(0x1ffc000)KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.FLAGS.Allocatable": "TRUE",
+    "Agent6.MarketingName.PoolInfo.Pool2.FLAGS.AllocGranule": "4KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.FLAGS.AllocAlignment": "4KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.FLAGS.Accessiblebyall": "FALSE",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.Segment": "GLOBAL",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.FLAGS": "FINEGRAINED",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.Size": "33538048(0x1ffc000)KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.Allocatable": "TRUE",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.AllocGranule": "4KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.AllocAlignment": "4KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool3.Accessiblebyall": "FALSE",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool4.Segment": "GROUP",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool4.Size": "64(0x40)KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool4.Allocatable": "FALSE",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool4.AllocGranule": "0KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool4.AllocAlignment": "0KB",
+    "Agent6.MarketingName.PoolInfo.Pool2.Pool4.Accessiblebyall": "FALSE",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.Name:amdgcn-amd-amdhsa--gfx908:sramecc+": "xnack-",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.MachineModels": "HSA_MACHINE_MODEL_LARGE",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.Profiles": "HSA_PROFILE_BASE",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.DefaultRoundingMode": "NEAR",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.Fastf16": "TRUE",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSize": "1024(0x400)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.x": "1024(0x400)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.y": "1024(0x400)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.WorkgroupMaxSizeperDimension.z": "1024(0x400)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSize": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.x": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.y": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.GridMaxSizeperDimension.z": "4294967295(0xffffffff)",
+    "Agent6.MarketingName.PoolInfo.ISAInfo.ISA1.FBarrierMaxSize": "32"
+  }
+}

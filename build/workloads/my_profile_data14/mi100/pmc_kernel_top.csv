@@ -1,0 +1,2 @@
+KernelName,Count,Sum(ns),Mean(ns),Median(ns),Pct
+__amd_rocclr_fillBufferAligned.kd,1,7040.0,7040.0,7040.0,100.0

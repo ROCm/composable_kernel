@@ -1,0 +1,3 @@
+Index,KernelName,gpu-id,queue-id,queue-index,pid,tid,grd,wgr,lds,scr,arch_vgpr,accum_vgpr,sgpr,wave_size,sig,obj,DispatchNs,BeginNs,EndNs,CompleteNs
+0,__amd_rocclr_fillBufferAligned.kd,2,0,0,306140,306140,256,256,0,0,8,8,32,64,0x0,0x7fd8640b5900,608342801663850,608342801700380,608342801707580,608342801723684
+1,__amd_rocclr_fillBufferAligned.kd,2,0,1,306140,306140,256,256,0,0,8,8,32,64,0x0,0x7fd8640b5900,608342801687425,608342801707580,608342801714620,608342801803434

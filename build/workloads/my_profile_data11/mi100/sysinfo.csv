@@ -1,0 +1,2 @@
+workload_name,command,host_name,host_cpu,host_distro,host_kernel,host_rocmver,date,gpu_soc,numSE,numCU,numSIMD,waveSize,maxWavesPerCU,maxWorkgroupSize,L1,L2,sclk,mclk,cur_sclk,cur_mclk,L2Banks,LDSBanks,name,numSQC,hbmBW,ip_blocks
+my_profile_data11,"bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231",login1.hpcfund,AMD EPYC 7V13 64-Core Processor,Rocky Linux 9.1 (Blue Onyx),5.14.0-162.18.1.el9_1.x86_64,5.7.1-98,Sun May 26 19:10:53 2024 (CDT),gfx908,8,120,4,64,40,1024,16,8192,1502,1200,300,1200,32,32,mi100,48,1228.8,SQ|LDS|SQC|TA|TD|TCP|TCC|SPI|CPC|CPF

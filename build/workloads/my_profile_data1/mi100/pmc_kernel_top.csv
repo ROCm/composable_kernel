@@ -1,0 +1,3 @@
+KernelName,Count,Sum(ns),Mean(ns),Median(ns),Pct
+"void kernel_tsmm_dl_v1r3<GridwiseTsmmDl_km_kn_mn, _Float16, _Float16, (InMemoryDataOperationEnum)1, false, false, BlockToCTileMap_3DGrid_KSplit>(GridwiseTsmmDl_km_kn_mn<64, _Float16, float, _Float16, RowMajor, RowMajor, RowMajor, (GemmSpecialization)4, 16, 128, 4, 4, 16, 2, 1, Sequence, Sequence, Sequence, Sequence, Sequence, Sequence, Sequence, Sequence, 3, 2, Sequence, 5, Argument) (kd)",12,119359.0,9946.583333333334,7360.0,82.70555301486993
+__amd_rocclr_fillBufferAligned.kd,3,24959.0,8319.666666666666,7520.0,17.29444698513006

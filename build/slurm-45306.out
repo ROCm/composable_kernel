@@ -1,0 +1,850 @@
+RPL: on '240526_183223' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '"bin/example_tall_and_skinny_gemm_splitk_fp16" "1" "2" "1" "231"'
+RPL: input file ''
+RPL: output dir '/tmp/rpl_data_240526_183223_4153648'
+RPL: result dir '/tmp/rpl_data_240526_183223_4153648/input_results_240526_183223'
+ROCtracer (4153668):
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+    HIP-trace(*)
+Perf: 0.007008 ms, 0.0748128 TFlops, 9.42466 GB/s, deviceTsmmDl<64, 2, 128, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.609375 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.234375 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.24219 != 14.20312
+max err: 0.078125, number of errors: 134, 52.34375% wrong values
+hsa_copy_deps: 0
+scan hip API data 0:73                                                                                                    scan hip API data 72:73                                                                                                    scan ops data 0:18                                                                                                    scan ops data 17:18                                                                                                    File '/work1/sadasivan/student04/composable_kernel/build/results.copy_stats.csv' is generating
+dump json 0:6                                                                                                    dump json 5:6                                                                                                    
+File '/work1/sadasivan/student04/composable_kernel/build/results.json' is generating
+File '/work1/sadasivan/student04/composable_kernel/build/results.hip_stats.csv' is generating
+dump json 0:73                                                                                                    dump json 72:73                                                                                                    
+File '/work1/sadasivan/student04/composable_kernel/build/results.json' is generating
+File '/work1/sadasivan/student04/composable_kernel/build/results.stats.csv' is generating
+dump json 0:12                                                                                                    dump json 11:12                                                                                                    
+File '/work1/sadasivan/student04/composable_kernel/build/results.json' is generating
+RPL: on '240526_183224' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+Basic HW counters:
+
+  gpu-agent2 : SQ_INSTS_VMEM_WR : Number of VMEM write instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_VMEM_RD : Number of VMEM read instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_SALU : Number of SALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_SMEM : Number of SMEM instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_FLAT : Number of FLAT instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_FLAT_LDS_ONLY : Number of FLAT instructions issued that read/wrote only from/to LDS (only works if EARLY_TA_DONE is enabled). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_LDS : Number of LDS instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_GDS : Number of GDS instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_WAIT_INST_LDS : Number of wave-cycles spent waiting for LDS instruction issue. In units of 4 cycles. (per-simd, nondeterministic)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_ACTIVE_INST_VALU : regspec 71? Number of cycles the SQ instruction arbiter is working on a VALU instruction. (per-simd, nondeterministic). Units in quad-cycles(4 cycles)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INST_CYCLES_SALU : Number of cycles needed to execute non-memory read scalar operations. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_THREAD_CYCLES_VALU : Number of thread-cycles used to execute VALU operations (similar to INST_CYCLES_VALU but multiplied by # of active threads). (per-simd)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_LDS_BANK_CONFLICT : Number of cycles LDS is stalled by bank conflicts. (emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : TCC_HIT[0-31] : Number of cache hits.
+      block TCC has 4 counters
+
+  gpu-agent2 : TCC_MISS[0-31] : Number of cache misses. UC reads count as misses.
+      block TCC has 4 counters
+
+  gpu-agent2 : TCC_EA_WRREQ[0-31] : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Atomics may travel over the same interface and are generally classified as write requests. This does not include probe commands.
+      block TCC has 4 counters
+
+  gpu-agent2 : TCC_EA_WRREQ_64B[0-31] : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface.
+      block TCC has 4 counters
+
+  gpu-agent2 : TCC_EA_WRREQ_STALL[0-31] : Number of cycles a write request was stalled.
+      block TCC has 4 counters
+
+  gpu-agent2 : TCC_EA_RDREQ[0-31] : Number of TCC/EA read requests (either 32-byte or 64-byte)
+      block TCC has 4 counters
+
+  gpu-agent2 : TCC_EA_RDREQ_32B[0-31] : Number of 32-byte TCC/EA read requests
+      block TCC has 4 counters
+
+  gpu-agent2 : GRBM_COUNT : Tie High - Count Number of Clocks
+      block GRBM has 2 counters
+
+  gpu-agent2 : GRBM_GUI_ACTIVE : The GUI is Active
+      block GRBM has 2 counters
+
+  gpu-agent2 : SQ_WAVES : Count number of waves sent to SQs. (per-simd, emulated, global)
+      block SQ has 8 counters
+
+  gpu-agent2 : SQ_INSTS_VALU : Number of VALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent2 : TA_TA_BUSY[0-15] : TA block is busy. Perf_Windowing not supported for this counter.
+      block TA has 2 counters
+
+  gpu-agent2 : TA_FLAT_READ_WAVEFRONTS[0-15] : Number of flat opcode reads processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent2 : TA_FLAT_WRITE_WAVEFRONTS[0-15] : Number of flat opcode writes processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent2 : TCP_TCP_TA_DATA_STALL_CYCLES[0-15] : TCP stalls TA data interface. Now Windowed.
+      block TCP has 4 counters
+
+  gpu-agent3 : SQ_INSTS_VMEM_WR : Number of VMEM write instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_VMEM_RD : Number of VMEM read instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_SALU : Number of SALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_SMEM : Number of SMEM instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_FLAT : Number of FLAT instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_FLAT_LDS_ONLY : Number of FLAT instructions issued that read/wrote only from/to LDS (only works if EARLY_TA_DONE is enabled). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_LDS : Number of LDS instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_GDS : Number of GDS instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_WAIT_INST_LDS : Number of wave-cycles spent waiting for LDS instruction issue. In units of 4 cycles. (per-simd, nondeterministic)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_ACTIVE_INST_VALU : regspec 71? Number of cycles the SQ instruction arbiter is working on a VALU instruction. (per-simd, nondeterministic). Units in quad-cycles(4 cycles)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INST_CYCLES_SALU : Number of cycles needed to execute non-memory read scalar operations. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_THREAD_CYCLES_VALU : Number of thread-cycles used to execute VALU operations (similar to INST_CYCLES_VALU but multiplied by # of active threads). (per-simd)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_LDS_BANK_CONFLICT : Number of cycles LDS is stalled by bank conflicts. (emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : TCC_HIT[0-31] : Number of cache hits.
+      block TCC has 4 counters
+
+  gpu-agent3 : TCC_MISS[0-31] : Number of cache misses. UC reads count as misses.
+      block TCC has 4 counters
+
+  gpu-agent3 : TCC_EA_WRREQ[0-31] : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Atomics may travel over the same interface and are generally classified as write requests. This does not include probe commands.
+      block TCC has 4 counters
+
+  gpu-agent3 : TCC_EA_WRREQ_64B[0-31] : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface.
+      block TCC has 4 counters
+
+  gpu-agent3 : TCC_EA_WRREQ_STALL[0-31] : Number of cycles a write request was stalled.
+      block TCC has 4 counters
+
+  gpu-agent3 : TCC_EA_RDREQ[0-31] : Number of TCC/EA read requests (either 32-byte or 64-byte)
+      block TCC has 4 counters
+
+  gpu-agent3 : TCC_EA_RDREQ_32B[0-31] : Number of 32-byte TCC/EA read requests
+      block TCC has 4 counters
+
+  gpu-agent3 : GRBM_COUNT : Tie High - Count Number of Clocks
+      block GRBM has 2 counters
+
+  gpu-agent3 : GRBM_GUI_ACTIVE : The GUI is Active
+      block GRBM has 2 counters
+
+  gpu-agent3 : SQ_WAVES : Count number of waves sent to SQs. (per-simd, emulated, global)
+      block SQ has 8 counters
+
+  gpu-agent3 : SQ_INSTS_VALU : Number of VALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent3 : TA_TA_BUSY[0-15] : TA block is busy. Perf_Windowing not supported for this counter.
+      block TA has 2 counters
+
+  gpu-agent3 : TA_FLAT_READ_WAVEFRONTS[0-15] : Number of flat opcode reads processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent3 : TA_FLAT_WRITE_WAVEFRONTS[0-15] : Number of flat opcode writes processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent3 : TCP_TCP_TA_DATA_STALL_CYCLES[0-15] : TCP stalls TA data interface. Now Windowed.
+      block TCP has 4 counters
+
+  gpu-agent4 : SQ_INSTS_VMEM_WR : Number of VMEM write instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_VMEM_RD : Number of VMEM read instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_SALU : Number of SALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_SMEM : Number of SMEM instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_FLAT : Number of FLAT instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_FLAT_LDS_ONLY : Number of FLAT instructions issued that read/wrote only from/to LDS (only works if EARLY_TA_DONE is enabled). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_LDS : Number of LDS instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_GDS : Number of GDS instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_WAIT_INST_LDS : Number of wave-cycles spent waiting for LDS instruction issue. In units of 4 cycles. (per-simd, nondeterministic)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_ACTIVE_INST_VALU : regspec 71? Number of cycles the SQ instruction arbiter is working on a VALU instruction. (per-simd, nondeterministic). Units in quad-cycles(4 cycles)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INST_CYCLES_SALU : Number of cycles needed to execute non-memory read scalar operations. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_THREAD_CYCLES_VALU : Number of thread-cycles used to execute VALU operations (similar to INST_CYCLES_VALU but multiplied by # of active threads). (per-simd)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_LDS_BANK_CONFLICT : Number of cycles LDS is stalled by bank conflicts. (emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : TCC_HIT[0-31] : Number of cache hits.
+      block TCC has 4 counters
+
+  gpu-agent4 : TCC_MISS[0-31] : Number of cache misses. UC reads count as misses.
+      block TCC has 4 counters
+
+  gpu-agent4 : TCC_EA_WRREQ[0-31] : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Atomics may travel over the same interface and are generally classified as write requests. This does not include probe commands.
+      block TCC has 4 counters
+
+  gpu-agent4 : TCC_EA_WRREQ_64B[0-31] : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface.
+      block TCC has 4 counters
+
+  gpu-agent4 : TCC_EA_WRREQ_STALL[0-31] : Number of cycles a write request was stalled.
+      block TCC has 4 counters
+
+  gpu-agent4 : TCC_EA_RDREQ[0-31] : Number of TCC/EA read requests (either 32-byte or 64-byte)
+      block TCC has 4 counters
+
+  gpu-agent4 : TCC_EA_RDREQ_32B[0-31] : Number of 32-byte TCC/EA read requests
+      block TCC has 4 counters
+
+  gpu-agent4 : GRBM_COUNT : Tie High - Count Number of Clocks
+      block GRBM has 2 counters
+
+  gpu-agent4 : GRBM_GUI_ACTIVE : The GUI is Active
+      block GRBM has 2 counters
+
+  gpu-agent4 : SQ_WAVES : Count number of waves sent to SQs. (per-simd, emulated, global)
+      block SQ has 8 counters
+
+  gpu-agent4 : SQ_INSTS_VALU : Number of VALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent4 : TA_TA_BUSY[0-15] : TA block is busy. Perf_Windowing not supported for this counter.
+      block TA has 2 counters
+
+  gpu-agent4 : TA_FLAT_READ_WAVEFRONTS[0-15] : Number of flat opcode reads processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent4 : TA_FLAT_WRITE_WAVEFRONTS[0-15] : Number of flat opcode writes processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent4 : TCP_TCP_TA_DATA_STALL_CYCLES[0-15] : TCP stalls TA data interface. Now Windowed.
+      block TCP has 4 counters
+
+  gpu-agent5 : SQ_INSTS_VMEM_WR : Number of VMEM write instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_VMEM_RD : Number of VMEM read instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_SALU : Number of SALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_SMEM : Number of SMEM instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_FLAT : Number of FLAT instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_FLAT_LDS_ONLY : Number of FLAT instructions issued that read/wrote only from/to LDS (only works if EARLY_TA_DONE is enabled). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_LDS : Number of LDS instructions issued (including FLAT). (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_GDS : Number of GDS instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_WAIT_INST_LDS : Number of wave-cycles spent waiting for LDS instruction issue. In units of 4 cycles. (per-simd, nondeterministic)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_ACTIVE_INST_VALU : regspec 71? Number of cycles the SQ instruction arbiter is working on a VALU instruction. (per-simd, nondeterministic). Units in quad-cycles(4 cycles)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INST_CYCLES_SALU : Number of cycles needed to execute non-memory read scalar operations. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_THREAD_CYCLES_VALU : Number of thread-cycles used to execute VALU operations (similar to INST_CYCLES_VALU but multiplied by # of active threads). (per-simd)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_LDS_BANK_CONFLICT : Number of cycles LDS is stalled by bank conflicts. (emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : TCC_HIT[0-31] : Number of cache hits.
+      block TCC has 4 counters
+
+  gpu-agent5 : TCC_MISS[0-31] : Number of cache misses. UC reads count as misses.
+      block TCC has 4 counters
+
+  gpu-agent5 : TCC_EA_WRREQ[0-31] : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Atomics may travel over the same interface and are generally classified as write requests. This does not include probe commands.
+      block TCC has 4 counters
+
+  gpu-agent5 : TCC_EA_WRREQ_64B[0-31] : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface.
+      block TCC has 4 counters
+
+  gpu-agent5 : TCC_EA_WRREQ_STALL[0-31] : Number of cycles a write request was stalled.
+      block TCC has 4 counters
+
+  gpu-agent5 : TCC_EA_RDREQ[0-31] : Number of TCC/EA read requests (either 32-byte or 64-byte)
+      block TCC has 4 counters
+
+  gpu-agent5 : TCC_EA_RDREQ_32B[0-31] : Number of 32-byte TCC/EA read requests
+      block TCC has 4 counters
+
+  gpu-agent5 : GRBM_COUNT : Tie High - Count Number of Clocks
+      block GRBM has 2 counters
+
+  gpu-agent5 : GRBM_GUI_ACTIVE : The GUI is Active
+      block GRBM has 2 counters
+
+  gpu-agent5 : SQ_WAVES : Count number of waves sent to SQs. (per-simd, emulated, global)
+      block SQ has 8 counters
+
+  gpu-agent5 : SQ_INSTS_VALU : Number of VALU instructions issued. (per-simd, emulated)
+      block SQ has 8 counters
+
+  gpu-agent5 : TA_TA_BUSY[0-15] : TA block is busy. Perf_Windowing not supported for this counter.
+      block TA has 2 counters
+
+  gpu-agent5 : TA_FLAT_READ_WAVEFRONTS[0-15] : Number of flat opcode reads processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent5 : TA_FLAT_WRITE_WAVEFRONTS[0-15] : Number of flat opcode writes processed by the TA.
+      block TA has 2 counters
+
+  gpu-agent5 : TCP_TCP_TA_DATA_STALL_CYCLES[0-15] : TCP stalls TA data interface. Now Windowed.
+      block TCP has 4 counters
+
+ROCPRofiler: 0 contexts collected
+RPL: on '240526_183224' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+Derived metrics:
+
+  gpu-agent2 : TCC_HIT_sum : Number of cache hits. Sum over TCC instances.
+      TCC_HIT_sum = sum(TCC_HIT,32)
+
+  gpu-agent2 : TCC_MISS_sum : Number of cache misses. Sum over TCC instances.
+      TCC_MISS_sum = sum(TCC_MISS,32)
+
+  gpu-agent2 : TCC_EA_RDREQ_32B_sum : Number of 32-byte TCC/EA read requests. Sum over TCC instances.
+      TCC_EA_RDREQ_32B_sum = sum(TCC_EA_RDREQ_32B,32)
+
+  gpu-agent2 : TCC_EA_RDREQ_sum : Number of TCC/EA read requests (either 32-byte or 64-byte). Sum over TCC instances.
+      TCC_EA_RDREQ_sum = sum(TCC_EA_RDREQ,32)
+
+  gpu-agent2 : TCC_EA_WRREQ_sum : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_sum = sum(TCC_EA_WRREQ,32)
+
+  gpu-agent2 : TCC_EA_WRREQ_64B_sum : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_64B_sum = sum(TCC_EA_WRREQ_64B,32)
+
+  gpu-agent2 : TCC_WRREQ_STALL_max : Number of cycles a write request was stalled. Max over TCC instances.
+      TCC_WRREQ_STALL_max = max(TCC_EA_WRREQ_STALL,32)
+
+  gpu-agent2 : TA_BUSY_avr : TA block is busy. Average over TA instances.
+      TA_BUSY_avr = avr(TA_TA_BUSY,16)
+
+  gpu-agent2 : TA_BUSY_max : TA block is busy. Max over TA instances.
+      TA_BUSY_max = max(TA_TA_BUSY,16)
+
+  gpu-agent2 : TA_BUSY_min : TA block is busy. Min over TA instances.
+      TA_BUSY_min = min(TA_TA_BUSY,16)
+
+  gpu-agent2 : TA_FLAT_READ_WAVEFRONTS_sum : Number of flat opcode reads processed by the TA. Sum over TA instances.
+      TA_FLAT_READ_WAVEFRONTS_sum = sum(TA_FLAT_READ_WAVEFRONTS,16)
+
+  gpu-agent2 : TA_FLAT_WRITE_WAVEFRONTS_sum : Number of flat opcode writes processed by the TA. Sum over TA instances.
+      TA_FLAT_WRITE_WAVEFRONTS_sum = sum(TA_FLAT_WRITE_WAVEFRONTS,16)
+
+  gpu-agent2 : TCP_TCP_TA_DATA_STALL_CYCLES_sum : Total number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_sum = sum(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent2 : TCP_TCP_TA_DATA_STALL_CYCLES_max : Maximum number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_max = max(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent2 : FETCH_SIZE : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FETCH_SIZE = (TCC_EA_RDREQ_32B_sum*32+(TCC_EA_RDREQ_sum-TCC_EA_RDREQ_32B_sum)*64)/1024
+
+  gpu-agent2 : WRITE_SIZE : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WRITE_SIZE = ((TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)*32+TCC_EA_WRREQ_64B_sum*64)/1024
+
+  gpu-agent2 : WRITE_REQ_32B : The total number of 32-byte effective memory writes.
+      WRITE_REQ_32B = TCC_EA_WRREQ_64B_sum*2+(TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)
+
+  gpu-agent2 : VFetchInsts : The average number of vector fetch instructions from the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that fetch from video memory.
+      VFetchInsts = (SQ_INSTS_VMEM_RD-TA_FLAT_READ_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent2 : VWriteInsts : The average number of vector write instructions to the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that write to video memory.
+      VWriteInsts = (SQ_INSTS_VMEM_WR-TA_FLAT_WRITE_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent2 : FlatVMemInsts : The average number of FLAT instructions that read from or write to the video memory executed per work item (affected by flow control). Includes FLAT instructions that read from or write to scratch.
+      FlatVMemInsts = (SQ_INSTS_FLAT-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent2 : LDSInsts : The average number of LDS read or LDS write instructions executed per work item (affected by flow control).  Excludes FLAT instructions that read from or write to LDS.
+      LDSInsts = (SQ_INSTS_LDS-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent2 : FlatLDSInsts : The average number of FLAT instructions that read or write to LDS executed per work item (affected by flow control).
+      FlatLDSInsts = SQ_INSTS_FLAT_LDS_ONLY/SQ_WAVES
+
+  gpu-agent2 : VALUUtilization : The percentage of active vector ALU threads in a wave. A lower number can mean either more thread divergence in a wave or that the work-group size is not a multiple of 64. Value range: 0% (bad), 100% (ideal - no thread divergence).
+      VALUUtilization = 100*SQ_THREAD_CYCLES_VALU/(SQ_ACTIVE_INST_VALU*MAX_WAVE_SIZE)
+
+  gpu-agent2 : VALUBusy : The percentage of GPUTime vector ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      VALUBusy = 100*SQ_ACTIVE_INST_VALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent2 : SALUBusy : The percentage of GPUTime scalar ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      SALUBusy = 100*SQ_INST_CYCLES_SALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent2 : FetchSize : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FetchSize = FETCH_SIZE
+
+  gpu-agent2 : WriteSize : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WriteSize = WRITE_SIZE
+
+  gpu-agent2 : MemWrites32B : The total number of effective 32B write transactions to the memory
+      MemWrites32B = WRITE_REQ_32B
+
+  gpu-agent2 : L2CacheHit : The percentage of fetch, write, atomic, and other instructions that hit the data in L2 cache. Value range: 0% (no hit) to 100% (optimal).
+      L2CacheHit = 100*sum(TCC_HIT,16)/(sum(TCC_HIT,16)+sum(TCC_MISS,16))
+
+  gpu-agent2 : MemUnitStalled : The percentage of GPUTime the memory unit is stalled. Try reducing the number or size of fetches and writes if possible. Value range: 0% (optimal) to 100% (bad).
+      MemUnitStalled = 100*max(TCP_TCP_TA_DATA_STALL_CYCLES,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent2 : WriteUnitStalled : The percentage of GPUTime the Write unit is stalled. Value range: 0% to 100% (bad).
+      WriteUnitStalled = 100*TCC_WRREQ_STALL_max/GRBM_GUI_ACTIVE
+
+  gpu-agent2 : LDSBankConflict : The percentage of GPUTime LDS is stalled by bank conflicts. Value range: 0% (optimal) to 100% (bad).
+      LDSBankConflict = 100*SQ_LDS_BANK_CONFLICT/GRBM_GUI_ACTIVE/CU_NUM
+
+  gpu-agent2 : GPUBusy : The percentage of time GPU was busy.
+      GPUBusy = 100*GRBM_GUI_ACTIVE/GRBM_COUNT
+
+  gpu-agent2 : Wavefronts : Total wavefronts.
+      Wavefronts = SQ_WAVES
+
+  gpu-agent2 : VALUInsts : The average number of vector ALU instructions executed per work-item (affected by flow control).
+      VALUInsts = SQ_INSTS_VALU/SQ_WAVES
+
+  gpu-agent2 : SALUInsts : The average number of scalar ALU instructions executed per work-item (affected by flow control).
+      SALUInsts = SQ_INSTS_SALU/SQ_WAVES
+
+  gpu-agent2 : SFetchInsts : The average number of scalar fetch instructions from the video memory executed per work-item (affected by flow control).
+      SFetchInsts = SQ_INSTS_SMEM/SQ_WAVES
+
+  gpu-agent2 : GDSInsts : The average number of GDS read or GDS write instructions executed per work item (affected by flow control).
+      GDSInsts = SQ_INSTS_GDS/SQ_WAVES
+
+  gpu-agent2 : MemUnitBusy : The percentage of GPUTime the memory unit is active. The result includes the stall time (MemUnitStalled). This is measured with all extra fetches and writes and any cache or memory effects taken into account. Value range: 0% to 100% (fetch-bound).
+      MemUnitBusy = 100*max(TA_TA_BUSY,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent2 : ALUStalledByLDS : The percentage of GPUTime ALU units are stalled by the LDS input queue being full or the output queue being not ready. If there are LDS bank conflicts, reduce them. Otherwise, try reducing the number of LDS accesses if possible. Value range: 0% (optimal) to 100% (bad).
+      ALUStalledByLDS = 100*SQ_WAIT_INST_LDS*4/SQ_WAVES/GRBM_GUI_ACTIVE
+
+  gpu-agent3 : TCC_HIT_sum : Number of cache hits. Sum over TCC instances.
+      TCC_HIT_sum = sum(TCC_HIT,32)
+
+  gpu-agent3 : TCC_MISS_sum : Number of cache misses. Sum over TCC instances.
+      TCC_MISS_sum = sum(TCC_MISS,32)
+
+  gpu-agent3 : TCC_EA_RDREQ_32B_sum : Number of 32-byte TCC/EA read requests. Sum over TCC instances.
+      TCC_EA_RDREQ_32B_sum = sum(TCC_EA_RDREQ_32B,32)
+
+  gpu-agent3 : TCC_EA_RDREQ_sum : Number of TCC/EA read requests (either 32-byte or 64-byte). Sum over TCC instances.
+      TCC_EA_RDREQ_sum = sum(TCC_EA_RDREQ,32)
+
+  gpu-agent3 : TCC_EA_WRREQ_sum : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_sum = sum(TCC_EA_WRREQ,32)
+
+  gpu-agent3 : TCC_EA_WRREQ_64B_sum : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_64B_sum = sum(TCC_EA_WRREQ_64B,32)
+
+  gpu-agent3 : TCC_WRREQ_STALL_max : Number of cycles a write request was stalled. Max over TCC instances.
+      TCC_WRREQ_STALL_max = max(TCC_EA_WRREQ_STALL,32)
+
+  gpu-agent3 : TA_BUSY_avr : TA block is busy. Average over TA instances.
+      TA_BUSY_avr = avr(TA_TA_BUSY,16)
+
+  gpu-agent3 : TA_BUSY_max : TA block is busy. Max over TA instances.
+      TA_BUSY_max = max(TA_TA_BUSY,16)
+
+  gpu-agent3 : TA_BUSY_min : TA block is busy. Min over TA instances.
+      TA_BUSY_min = min(TA_TA_BUSY,16)
+
+  gpu-agent3 : TA_FLAT_READ_WAVEFRONTS_sum : Number of flat opcode reads processed by the TA. Sum over TA instances.
+      TA_FLAT_READ_WAVEFRONTS_sum = sum(TA_FLAT_READ_WAVEFRONTS,16)
+
+  gpu-agent3 : TA_FLAT_WRITE_WAVEFRONTS_sum : Number of flat opcode writes processed by the TA. Sum over TA instances.
+      TA_FLAT_WRITE_WAVEFRONTS_sum = sum(TA_FLAT_WRITE_WAVEFRONTS,16)
+
+  gpu-agent3 : TCP_TCP_TA_DATA_STALL_CYCLES_sum : Total number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_sum = sum(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent3 : TCP_TCP_TA_DATA_STALL_CYCLES_max : Maximum number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_max = max(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent3 : FETCH_SIZE : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FETCH_SIZE = (TCC_EA_RDREQ_32B_sum*32+(TCC_EA_RDREQ_sum-TCC_EA_RDREQ_32B_sum)*64)/1024
+
+  gpu-agent3 : WRITE_SIZE : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WRITE_SIZE = ((TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)*32+TCC_EA_WRREQ_64B_sum*64)/1024
+
+  gpu-agent3 : WRITE_REQ_32B : The total number of 32-byte effective memory writes.
+      WRITE_REQ_32B = TCC_EA_WRREQ_64B_sum*2+(TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)
+
+  gpu-agent3 : VFetchInsts : The average number of vector fetch instructions from the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that fetch from video memory.
+      VFetchInsts = (SQ_INSTS_VMEM_RD-TA_FLAT_READ_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent3 : VWriteInsts : The average number of vector write instructions to the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that write to video memory.
+      VWriteInsts = (SQ_INSTS_VMEM_WR-TA_FLAT_WRITE_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent3 : FlatVMemInsts : The average number of FLAT instructions that read from or write to the video memory executed per work item (affected by flow control). Includes FLAT instructions that read from or write to scratch.
+      FlatVMemInsts = (SQ_INSTS_FLAT-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent3 : LDSInsts : The average number of LDS read or LDS write instructions executed per work item (affected by flow control).  Excludes FLAT instructions that read from or write to LDS.
+      LDSInsts = (SQ_INSTS_LDS-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent3 : FlatLDSInsts : The average number of FLAT instructions that read or write to LDS executed per work item (affected by flow control).
+      FlatLDSInsts = SQ_INSTS_FLAT_LDS_ONLY/SQ_WAVES
+
+  gpu-agent3 : VALUUtilization : The percentage of active vector ALU threads in a wave. A lower number can mean either more thread divergence in a wave or that the work-group size is not a multiple of 64. Value range: 0% (bad), 100% (ideal - no thread divergence).
+      VALUUtilization = 100*SQ_THREAD_CYCLES_VALU/(SQ_ACTIVE_INST_VALU*MAX_WAVE_SIZE)
+
+  gpu-agent3 : VALUBusy : The percentage of GPUTime vector ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      VALUBusy = 100*SQ_ACTIVE_INST_VALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent3 : SALUBusy : The percentage of GPUTime scalar ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      SALUBusy = 100*SQ_INST_CYCLES_SALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent3 : FetchSize : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FetchSize = FETCH_SIZE
+
+  gpu-agent3 : WriteSize : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WriteSize = WRITE_SIZE
+
+  gpu-agent3 : MemWrites32B : The total number of effective 32B write transactions to the memory
+      MemWrites32B = WRITE_REQ_32B
+
+  gpu-agent3 : L2CacheHit : The percentage of fetch, write, atomic, and other instructions that hit the data in L2 cache. Value range: 0% (no hit) to 100% (optimal).
+      L2CacheHit = 100*sum(TCC_HIT,16)/(sum(TCC_HIT,16)+sum(TCC_MISS,16))
+
+  gpu-agent3 : MemUnitStalled : The percentage of GPUTime the memory unit is stalled. Try reducing the number or size of fetches and writes if possible. Value range: 0% (optimal) to 100% (bad).
+      MemUnitStalled = 100*max(TCP_TCP_TA_DATA_STALL_CYCLES,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent3 : WriteUnitStalled : The percentage of GPUTime the Write unit is stalled. Value range: 0% to 100% (bad).
+      WriteUnitStalled = 100*TCC_WRREQ_STALL_max/GRBM_GUI_ACTIVE
+
+  gpu-agent3 : LDSBankConflict : The percentage of GPUTime LDS is stalled by bank conflicts. Value range: 0% (optimal) to 100% (bad).
+      LDSBankConflict = 100*SQ_LDS_BANK_CONFLICT/GRBM_GUI_ACTIVE/CU_NUM
+
+  gpu-agent3 : GPUBusy : The percentage of time GPU was busy.
+      GPUBusy = 100*GRBM_GUI_ACTIVE/GRBM_COUNT
+
+  gpu-agent3 : Wavefronts : Total wavefronts.
+      Wavefronts = SQ_WAVES
+
+  gpu-agent3 : VALUInsts : The average number of vector ALU instructions executed per work-item (affected by flow control).
+      VALUInsts = SQ_INSTS_VALU/SQ_WAVES
+
+  gpu-agent3 : SALUInsts : The average number of scalar ALU instructions executed per work-item (affected by flow control).
+      SALUInsts = SQ_INSTS_SALU/SQ_WAVES
+
+  gpu-agent3 : SFetchInsts : The average number of scalar fetch instructions from the video memory executed per work-item (affected by flow control).
+      SFetchInsts = SQ_INSTS_SMEM/SQ_WAVES
+
+  gpu-agent3 : GDSInsts : The average number of GDS read or GDS write instructions executed per work item (affected by flow control).
+      GDSInsts = SQ_INSTS_GDS/SQ_WAVES
+
+  gpu-agent3 : MemUnitBusy : The percentage of GPUTime the memory unit is active. The result includes the stall time (MemUnitStalled). This is measured with all extra fetches and writes and any cache or memory effects taken into account. Value range: 0% to 100% (fetch-bound).
+      MemUnitBusy = 100*max(TA_TA_BUSY,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent3 : ALUStalledByLDS : The percentage of GPUTime ALU units are stalled by the LDS input queue being full or the output queue being not ready. If there are LDS bank conflicts, reduce them. Otherwise, try reducing the number of LDS accesses if possible. Value range: 0% (optimal) to 100% (bad).
+      ALUStalledByLDS = 100*SQ_WAIT_INST_LDS*4/SQ_WAVES/GRBM_GUI_ACTIVE
+
+  gpu-agent4 : TCC_HIT_sum : Number of cache hits. Sum over TCC instances.
+      TCC_HIT_sum = sum(TCC_HIT,32)
+
+  gpu-agent4 : TCC_MISS_sum : Number of cache misses. Sum over TCC instances.
+      TCC_MISS_sum = sum(TCC_MISS,32)
+
+  gpu-agent4 : TCC_EA_RDREQ_32B_sum : Number of 32-byte TCC/EA read requests. Sum over TCC instances.
+      TCC_EA_RDREQ_32B_sum = sum(TCC_EA_RDREQ_32B,32)
+
+  gpu-agent4 : TCC_EA_RDREQ_sum : Number of TCC/EA read requests (either 32-byte or 64-byte). Sum over TCC instances.
+      TCC_EA_RDREQ_sum = sum(TCC_EA_RDREQ,32)
+
+  gpu-agent4 : TCC_EA_WRREQ_sum : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_sum = sum(TCC_EA_WRREQ,32)
+
+  gpu-agent4 : TCC_EA_WRREQ_64B_sum : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_64B_sum = sum(TCC_EA_WRREQ_64B,32)
+
+  gpu-agent4 : TCC_WRREQ_STALL_max : Number of cycles a write request was stalled. Max over TCC instances.
+      TCC_WRREQ_STALL_max = max(TCC_EA_WRREQ_STALL,32)
+
+  gpu-agent4 : TA_BUSY_avr : TA block is busy. Average over TA instances.
+      TA_BUSY_avr = avr(TA_TA_BUSY,16)
+
+  gpu-agent4 : TA_BUSY_max : TA block is busy. Max over TA instances.
+      TA_BUSY_max = max(TA_TA_BUSY,16)
+
+  gpu-agent4 : TA_BUSY_min : TA block is busy. Min over TA instances.
+      TA_BUSY_min = min(TA_TA_BUSY,16)
+
+  gpu-agent4 : TA_FLAT_READ_WAVEFRONTS_sum : Number of flat opcode reads processed by the TA. Sum over TA instances.
+      TA_FLAT_READ_WAVEFRONTS_sum = sum(TA_FLAT_READ_WAVEFRONTS,16)
+
+  gpu-agent4 : TA_FLAT_WRITE_WAVEFRONTS_sum : Number of flat opcode writes processed by the TA. Sum over TA instances.
+      TA_FLAT_WRITE_WAVEFRONTS_sum = sum(TA_FLAT_WRITE_WAVEFRONTS,16)
+
+  gpu-agent4 : TCP_TCP_TA_DATA_STALL_CYCLES_sum : Total number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_sum = sum(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent4 : TCP_TCP_TA_DATA_STALL_CYCLES_max : Maximum number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_max = max(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent4 : FETCH_SIZE : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FETCH_SIZE = (TCC_EA_RDREQ_32B_sum*32+(TCC_EA_RDREQ_sum-TCC_EA_RDREQ_32B_sum)*64)/1024
+
+  gpu-agent4 : WRITE_SIZE : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WRITE_SIZE = ((TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)*32+TCC_EA_WRREQ_64B_sum*64)/1024
+
+  gpu-agent4 : WRITE_REQ_32B : The total number of 32-byte effective memory writes.
+      WRITE_REQ_32B = TCC_EA_WRREQ_64B_sum*2+(TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)
+
+  gpu-agent4 : VFetchInsts : The average number of vector fetch instructions from the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that fetch from video memory.
+      VFetchInsts = (SQ_INSTS_VMEM_RD-TA_FLAT_READ_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent4 : VWriteInsts : The average number of vector write instructions to the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that write to video memory.
+      VWriteInsts = (SQ_INSTS_VMEM_WR-TA_FLAT_WRITE_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent4 : FlatVMemInsts : The average number of FLAT instructions that read from or write to the video memory executed per work item (affected by flow control). Includes FLAT instructions that read from or write to scratch.
+      FlatVMemInsts = (SQ_INSTS_FLAT-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent4 : LDSInsts : The average number of LDS read or LDS write instructions executed per work item (affected by flow control).  Excludes FLAT instructions that read from or write to LDS.
+      LDSInsts = (SQ_INSTS_LDS-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent4 : FlatLDSInsts : The average number of FLAT instructions that read or write to LDS executed per work item (affected by flow control).
+      FlatLDSInsts = SQ_INSTS_FLAT_LDS_ONLY/SQ_WAVES
+
+  gpu-agent4 : VALUUtilization : The percentage of active vector ALU threads in a wave. A lower number can mean either more thread divergence in a wave or that the work-group size is not a multiple of 64. Value range: 0% (bad), 100% (ideal - no thread divergence).
+      VALUUtilization = 100*SQ_THREAD_CYCLES_VALU/(SQ_ACTIVE_INST_VALU*MAX_WAVE_SIZE)
+
+  gpu-agent4 : VALUBusy : The percentage of GPUTime vector ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      VALUBusy = 100*SQ_ACTIVE_INST_VALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent4 : SALUBusy : The percentage of GPUTime scalar ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      SALUBusy = 100*SQ_INST_CYCLES_SALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent4 : FetchSize : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FetchSize = FETCH_SIZE
+
+  gpu-agent4 : WriteSize : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WriteSize = WRITE_SIZE
+
+  gpu-agent4 : MemWrites32B : The total number of effective 32B write transactions to the memory
+      MemWrites32B = WRITE_REQ_32B
+
+  gpu-agent4 : L2CacheHit : The percentage of fetch, write, atomic, and other instructions that hit the data in L2 cache. Value range: 0% (no hit) to 100% (optimal).
+      L2CacheHit = 100*sum(TCC_HIT,16)/(sum(TCC_HIT,16)+sum(TCC_MISS,16))
+
+  gpu-agent4 : MemUnitStalled : The percentage of GPUTime the memory unit is stalled. Try reducing the number or size of fetches and writes if possible. Value range: 0% (optimal) to 100% (bad).
+      MemUnitStalled = 100*max(TCP_TCP_TA_DATA_STALL_CYCLES,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent4 : WriteUnitStalled : The percentage of GPUTime the Write unit is stalled. Value range: 0% to 100% (bad).
+      WriteUnitStalled = 100*TCC_WRREQ_STALL_max/GRBM_GUI_ACTIVE
+
+  gpu-agent4 : LDSBankConflict : The percentage of GPUTime LDS is stalled by bank conflicts. Value range: 0% (optimal) to 100% (bad).
+      LDSBankConflict = 100*SQ_LDS_BANK_CONFLICT/GRBM_GUI_ACTIVE/CU_NUM
+
+  gpu-agent4 : GPUBusy : The percentage of time GPU was busy.
+      GPUBusy = 100*GRBM_GUI_ACTIVE/GRBM_COUNT
+
+  gpu-agent4 : Wavefronts : Total wavefronts.
+      Wavefronts = SQ_WAVES
+
+  gpu-agent4 : VALUInsts : The average number of vector ALU instructions executed per work-item (affected by flow control).
+      VALUInsts = SQ_INSTS_VALU/SQ_WAVES
+
+  gpu-agent4 : SALUInsts : The average number of scalar ALU instructions executed per work-item (affected by flow control).
+      SALUInsts = SQ_INSTS_SALU/SQ_WAVES
+
+  gpu-agent4 : SFetchInsts : The average number of scalar fetch instructions from the video memory executed per work-item (affected by flow control).
+      SFetchInsts = SQ_INSTS_SMEM/SQ_WAVES
+
+  gpu-agent4 : GDSInsts : The average number of GDS read or GDS write instructions executed per work item (affected by flow control).
+      GDSInsts = SQ_INSTS_GDS/SQ_WAVES
+
+  gpu-agent4 : MemUnitBusy : The percentage of GPUTime the memory unit is active. The result includes the stall time (MemUnitStalled). This is measured with all extra fetches and writes and any cache or memory effects taken into account. Value range: 0% to 100% (fetch-bound).
+      MemUnitBusy = 100*max(TA_TA_BUSY,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent4 : ALUStalledByLDS : The percentage of GPUTime ALU units are stalled by the LDS input queue being full or the output queue being not ready. If there are LDS bank conflicts, reduce them. Otherwise, try reducing the number of LDS accesses if possible. Value range: 0% (optimal) to 100% (bad).
+      ALUStalledByLDS = 100*SQ_WAIT_INST_LDS*4/SQ_WAVES/GRBM_GUI_ACTIVE
+
+  gpu-agent5 : TCC_HIT_sum : Number of cache hits. Sum over TCC instances.
+      TCC_HIT_sum = sum(TCC_HIT,32)
+
+  gpu-agent5 : TCC_MISS_sum : Number of cache misses. Sum over TCC instances.
+      TCC_MISS_sum = sum(TCC_MISS,32)
+
+  gpu-agent5 : TCC_EA_RDREQ_32B_sum : Number of 32-byte TCC/EA read requests. Sum over TCC instances.
+      TCC_EA_RDREQ_32B_sum = sum(TCC_EA_RDREQ_32B,32)
+
+  gpu-agent5 : TCC_EA_RDREQ_sum : Number of TCC/EA read requests (either 32-byte or 64-byte). Sum over TCC instances.
+      TCC_EA_RDREQ_sum = sum(TCC_EA_RDREQ,32)
+
+  gpu-agent5 : TCC_EA_WRREQ_sum : Number of transactions (either 32-byte or 64-byte) going over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_sum = sum(TCC_EA_WRREQ,32)
+
+  gpu-agent5 : TCC_EA_WRREQ_64B_sum : Number of 64-byte transactions going (64-byte write or CMPSWAP) over the TC_EA_wrreq interface. Sum over TCC instances.
+      TCC_EA_WRREQ_64B_sum = sum(TCC_EA_WRREQ_64B,32)
+
+  gpu-agent5 : TCC_WRREQ_STALL_max : Number of cycles a write request was stalled. Max over TCC instances.
+      TCC_WRREQ_STALL_max = max(TCC_EA_WRREQ_STALL,32)
+
+  gpu-agent5 : TA_BUSY_avr : TA block is busy. Average over TA instances.
+      TA_BUSY_avr = avr(TA_TA_BUSY,16)
+
+  gpu-agent5 : TA_BUSY_max : TA block is busy. Max over TA instances.
+      TA_BUSY_max = max(TA_TA_BUSY,16)
+
+  gpu-agent5 : TA_BUSY_min : TA block is busy. Min over TA instances.
+      TA_BUSY_min = min(TA_TA_BUSY,16)
+
+  gpu-agent5 : TA_FLAT_READ_WAVEFRONTS_sum : Number of flat opcode reads processed by the TA. Sum over TA instances.
+      TA_FLAT_READ_WAVEFRONTS_sum = sum(TA_FLAT_READ_WAVEFRONTS,16)
+
+  gpu-agent5 : TA_FLAT_WRITE_WAVEFRONTS_sum : Number of flat opcode writes processed by the TA. Sum over TA instances.
+      TA_FLAT_WRITE_WAVEFRONTS_sum = sum(TA_FLAT_WRITE_WAVEFRONTS,16)
+
+  gpu-agent5 : TCP_TCP_TA_DATA_STALL_CYCLES_sum : Total number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_sum = sum(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent5 : TCP_TCP_TA_DATA_STALL_CYCLES_max : Maximum number of TCP stalls TA data interface.
+      TCP_TCP_TA_DATA_STALL_CYCLES_max = max(TCP_TCP_TA_DATA_STALL_CYCLES,16)
+
+  gpu-agent5 : FETCH_SIZE : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FETCH_SIZE = (TCC_EA_RDREQ_32B_sum*32+(TCC_EA_RDREQ_sum-TCC_EA_RDREQ_32B_sum)*64)/1024
+
+  gpu-agent5 : WRITE_SIZE : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WRITE_SIZE = ((TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)*32+TCC_EA_WRREQ_64B_sum*64)/1024
+
+  gpu-agent5 : WRITE_REQ_32B : The total number of 32-byte effective memory writes.
+      WRITE_REQ_32B = TCC_EA_WRREQ_64B_sum*2+(TCC_EA_WRREQ_sum-TCC_EA_WRREQ_64B_sum)
+
+  gpu-agent5 : VFetchInsts : The average number of vector fetch instructions from the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that fetch from video memory.
+      VFetchInsts = (SQ_INSTS_VMEM_RD-TA_FLAT_READ_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent5 : VWriteInsts : The average number of vector write instructions to the video memory executed per work-item (affected by flow control). Excludes FLAT instructions that write to video memory.
+      VWriteInsts = (SQ_INSTS_VMEM_WR-TA_FLAT_WRITE_WAVEFRONTS_sum)/SQ_WAVES
+
+  gpu-agent5 : FlatVMemInsts : The average number of FLAT instructions that read from or write to the video memory executed per work item (affected by flow control). Includes FLAT instructions that read from or write to scratch.
+      FlatVMemInsts = (SQ_INSTS_FLAT-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent5 : LDSInsts : The average number of LDS read or LDS write instructions executed per work item (affected by flow control).  Excludes FLAT instructions that read from or write to LDS.
+      LDSInsts = (SQ_INSTS_LDS-SQ_INSTS_FLAT_LDS_ONLY)/SQ_WAVES
+
+  gpu-agent5 : FlatLDSInsts : The average number of FLAT instructions that read or write to LDS executed per work item (affected by flow control).
+      FlatLDSInsts = SQ_INSTS_FLAT_LDS_ONLY/SQ_WAVES
+
+  gpu-agent5 : VALUUtilization : The percentage of active vector ALU threads in a wave. A lower number can mean either more thread divergence in a wave or that the work-group size is not a multiple of 64. Value range: 0% (bad), 100% (ideal - no thread divergence).
+      VALUUtilization = 100*SQ_THREAD_CYCLES_VALU/(SQ_ACTIVE_INST_VALU*MAX_WAVE_SIZE)
+
+  gpu-agent5 : VALUBusy : The percentage of GPUTime vector ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      VALUBusy = 100*SQ_ACTIVE_INST_VALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent5 : SALUBusy : The percentage of GPUTime scalar ALU instructions are processed. Value range: 0% (bad) to 100% (optimal).
+      SALUBusy = 100*SQ_INST_CYCLES_SALU*4/SIMD_NUM/GRBM_GUI_ACTIVE
+
+  gpu-agent5 : FetchSize : The total kilobytes fetched from the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      FetchSize = FETCH_SIZE
+
+  gpu-agent5 : WriteSize : The total kilobytes written to the video memory. This is measured with all extra fetches and any cache or memory effects taken into account.
+      WriteSize = WRITE_SIZE
+
+  gpu-agent5 : MemWrites32B : The total number of effective 32B write transactions to the memory
+      MemWrites32B = WRITE_REQ_32B
+
+  gpu-agent5 : L2CacheHit : The percentage of fetch, write, atomic, and other instructions that hit the data in L2 cache. Value range: 0% (no hit) to 100% (optimal).
+      L2CacheHit = 100*sum(TCC_HIT,16)/(sum(TCC_HIT,16)+sum(TCC_MISS,16))
+
+  gpu-agent5 : MemUnitStalled : The percentage of GPUTime the memory unit is stalled. Try reducing the number or size of fetches and writes if possible. Value range: 0% (optimal) to 100% (bad).
+      MemUnitStalled = 100*max(TCP_TCP_TA_DATA_STALL_CYCLES,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent5 : WriteUnitStalled : The percentage of GPUTime the Write unit is stalled. Value range: 0% to 100% (bad).
+      WriteUnitStalled = 100*TCC_WRREQ_STALL_max/GRBM_GUI_ACTIVE
+
+  gpu-agent5 : LDSBankConflict : The percentage of GPUTime LDS is stalled by bank conflicts. Value range: 0% (optimal) to 100% (bad).
+      LDSBankConflict = 100*SQ_LDS_BANK_CONFLICT/GRBM_GUI_ACTIVE/CU_NUM
+
+  gpu-agent5 : GPUBusy : The percentage of time GPU was busy.
+      GPUBusy = 100*GRBM_GUI_ACTIVE/GRBM_COUNT
+
+  gpu-agent5 : Wavefronts : Total wavefronts.
+      Wavefronts = SQ_WAVES
+
+  gpu-agent5 : VALUInsts : The average number of vector ALU instructions executed per work-item (affected by flow control).
+      VALUInsts = SQ_INSTS_VALU/SQ_WAVES
+
+  gpu-agent5 : SALUInsts : The average number of scalar ALU instructions executed per work-item (affected by flow control).
+      SALUInsts = SQ_INSTS_SALU/SQ_WAVES
+
+  gpu-agent5 : SFetchInsts : The average number of scalar fetch instructions from the video memory executed per work-item (affected by flow control).
+      SFetchInsts = SQ_INSTS_SMEM/SQ_WAVES
+
+  gpu-agent5 : GDSInsts : The average number of GDS read or GDS write instructions executed per work item (affected by flow control).
+      GDSInsts = SQ_INSTS_GDS/SQ_WAVES
+
+  gpu-agent5 : MemUnitBusy : The percentage of GPUTime the memory unit is active. The result includes the stall time (MemUnitStalled). This is measured with all extra fetches and writes and any cache or memory effects taken into account. Value range: 0% to 100% (fetch-bound).
+      MemUnitBusy = 100*max(TA_TA_BUSY,16)/GRBM_GUI_ACTIVE/SE_NUM
+
+  gpu-agent5 : ALUStalledByLDS : The percentage of GPUTime ALU units are stalled by the LDS input queue being full or the output queue being not ready. If there are LDS bank conflicts, reduce them. Otherwise, try reducing the number of LDS accesses if possible. Value range: 0% (optimal) to 100% (bad).
+      ALUStalledByLDS = 100*SQ_WAIT_INST_LDS*4/SQ_WAVES/GRBM_GUI_ACTIVE
+
+ROCPRofiler: 0 contexts collected

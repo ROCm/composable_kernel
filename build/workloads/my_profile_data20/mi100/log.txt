@@ -1,0 +1,449 @@
+RPL: on '240527_184215' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_4.txt'
+RPL: output dir '/tmp/rpl_data_240527_184215_302140'
+RPL: result dir '/tmp/rpl_data_240527_184215_302140/input0_results_240527_184215'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 302299 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/pmc_perf_4.csv' is generating
+RPL: on '240527_184216' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/SQ_INST_LEVEL_LDS.txt'
+RPL: output dir '/tmp/rpl_data_240527_184216_302338'
+RPL: result dir '/tmp/rpl_data_240527_184216_302338/input0_results_240527_184216'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 302497 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_INSTS_LDS'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184216_302338/input0_results_240527_184216/results.txt'
+RPL: on '240527_184216' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_0.txt'
+RPL: output dir '/tmp/rpl_data_240527_184216_302548'
+RPL: result dir '/tmp/rpl_data_240527_184216_302548/input0_results_240527_184216'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 302707 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/pmc_perf_0.csv' is generating
+RPL: on '240527_184217' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_9.txt'
+RPL: output dir '/tmp/rpl_data_240527_184217_302740'
+RPL: result dir '/tmp/rpl_data_240527_184217_302740/input0_results_240527_184217'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 303027 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCP_TCC_RW_READ_REQ_sum'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184217_302740/input0_results_240527_184217/results.txt'
+RPL: on '240527_184218' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_16.txt'
+RPL: output dir '/tmp/rpl_data_240527_184218_303073'
+RPL: result dir '/tmp/rpl_data_240527_184218_303073/input0_results_240527_184218'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 303247 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_RW_REQ[0]'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184218_303073/input0_results_240527_184218/results.txt'
+RPL: on '240527_184219' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_11.txt'
+RPL: output dir '/tmp/rpl_data_240527_184219_303299'
+RPL: result dir '/tmp/rpl_data_240527_184219_303299/input0_results_240527_184219'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 303458 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_ATOMIC[0]'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184219_303299/input0_results_240527_184219/results.txt'
+RPL: on '240527_184220' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_15.txt'
+RPL: output dir '/tmp/rpl_data_240527_184220_303496'
+RPL: result dir '/tmp/rpl_data_240527_184220_303496/input0_results_240527_184220'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 303787 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_HIT[0]'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184220_303496/input0_results_240527_184220/results.txt'
+RPL: on '240527_184221' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_6.txt'
+RPL: output dir '/tmp/rpl_data_240527_184221_303859'
+RPL: result dir '/tmp/rpl_data_240527_184221_303859/input0_results_240527_184221'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 304018 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_ACTIVE_INST_MISC'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184221_303859/input0_results_240527_184221/results.txt'
+RPL: on '240527_184222' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_13.txt'
+RPL: output dir '/tmp/rpl_data_240527_184222_304094'
+RPL: result dir '/tmp/rpl_data_240527_184222_304094/input0_results_240527_184222'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 304253 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_EA_RDREQ_IO_CREDIT_STALL[0]'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184222_304094/input0_results_240527_184222/results.txt'
+RPL: on '240527_184223' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/SQ_LEVEL_WAVES.txt'
+RPL: output dir '/tmp/rpl_data_240527_184223_304309'
+RPL: result dir '/tmp/rpl_data_240527_184223_304309/input0_results_240527_184223'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 304468 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'GRBM_COUNT'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184223_304309/input0_results_240527_184223/results.txt'
+RPL: on '240527_184223' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_10.txt'
+RPL: output dir '/tmp/rpl_data_240527_184223_304534'
+RPL: result dir '/tmp/rpl_data_240527_184223_304534/input0_results_240527_184223'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 304700 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_EA_ATOMIC_LEVEL_sum'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184223_304534/input0_results_240527_184223/results.txt'
+RPL: on '240527_184224' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_12.txt'
+RPL: output dir '/tmp/rpl_data_240527_184224_304749'
+RPL: result dir '/tmp/rpl_data_240527_184224_304749/input0_results_240527_184224'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 304917 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_EA_RDREQ_DRAM_CREDIT_STALL[31]'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184224_304749/input0_results_240527_184224/results.txt'
+RPL: on '240527_184224' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_7.txt'
+RPL: output dir '/tmp/rpl_data_240527_184224_304950'
+RPL: result dir '/tmp/rpl_data_240527_184224_304950/input0_results_240527_184224'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 305110 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_LDS_BANK_CONFLICT'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184224_304950/input0_results_240527_184224/results.txt'
+RPL: on '240527_184225' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_14.txt'
+RPL: output dir '/tmp/rpl_data_240527_184225_305158'
+RPL: result dir '/tmp/rpl_data_240527_184225_305158/input0_results_240527_184225'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240527_184225_305158/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  128 metrics
+    TCC_EA_WRREQ_DRAM_CREDIT_STALL[0], TCC_EA_WRREQ_GMI_CREDIT_STALL[0], TCC_EA_WRREQ_IO_CREDIT_STALL[0], TCC_EA_WRREQ_LEVEL[0], TCC_EA_WRREQ_DRAM_CREDIT_STALL[1], TCC_EA_WRREQ_GMI_CREDIT_STALL[1], TCC_EA_WRREQ_IO_CREDIT_STALL[1], TCC_EA_WRREQ_LEVEL[1], TCC_EA_WRREQ_DRAM_CREDIT_STALL[2], TCC_EA_WRREQ_GMI_CREDIT_STALL[2], TCC_EA_WRREQ_IO_CREDIT_STALL[2], TCC_EA_WRREQ_LEVEL[2], TCC_EA_WRREQ_DRAM_CREDIT_STALL[3], TCC_EA_WRREQ_GMI_CREDIT_STALL[3], TCC_EA_WRREQ_IO_CREDIT_STALL[3], TCC_EA_WRREQ_LEVEL[3], TCC_EA_WRREQ_DRAM_CREDIT_STALL[4], TCC_EA_WRREQ_GMI_CREDIT_STALL[4], TCC_EA_WRREQ_IO_CREDIT_STALL[4], TCC_EA_WRREQ_LEVEL[4], TCC_EA_WRREQ_DRAM_CREDIT_STALL[5], TCC_EA_WRREQ_GMI_CREDIT_STALL[5], TCC_EA_WRREQ_IO_CREDIT_STALL[5], TCC_EA_WRREQ_LEVEL[5], TCC_EA_WRREQ_DRAM_CREDIT_STALL[6], TCC_EA_WRREQ_GMI_CREDIT_STALL[6], TCC_EA_WRREQ_IO_CREDIT_STALL[6], TCC_EA_WRREQ_LEVEL[6], TCC_EA_WRREQ_DRAM_CREDIT_STALL[7], TCC_EA_WRREQ_GMI_CREDIT_STALL[7], TCC_EA_WRREQ_IO_CREDIT_STALL[7], TCC_EA_WRREQ_LEVEL[7], TCC_EA_WRREQ_DRAM_CREDIT_STALL[8], TCC_EA_WRREQ_GMI_CREDIT_STALL[8], TCC_EA_WRREQ_IO_CREDIT_STALL[8], TCC_EA_WRREQ_LEVEL[8], TCC_EA_WRREQ_DRAM_CREDIT_STALL[9], TCC_EA_WRREQ_GMI_CREDIT_STALL[9], TCC_EA_WRREQ_IO_CREDIT_STALL[9], TCC_EA_WRREQ_LEVEL[9], TCC_EA_WRREQ_DRAM_CREDIT_STALL[10], TCC_EA_WRREQ_GMI_CREDIT_STALL[10], TCC_EA_WRREQ_IO_CREDIT_STALL[10], TCC_EA_WRREQ_LEVEL[10], TCC_EA_WRREQ_DRAM_CREDIT_STALL[11], TCC_EA_WRREQ_GMI_CREDIT_STALL[11], TCC_EA_WRREQ_IO_CREDIT_STALL[11], TCC_EA_WRREQ_LEVEL[11], TCC_EA_WRREQ_DRAM_CREDIT_STALL[12], TCC_EA_WRREQ_GMI_CREDIT_STALL[12], TCC_EA_WRREQ_IO_CREDIT_STALL[12], TCC_EA_WRREQ_LEVEL[12], TCC_EA_WRREQ_DRAM_CREDIT_STALL[13], TCC_EA_WRREQ_GMI_CREDIT_STALL[13], TCC_EA_WRREQ_IO_CREDIT_STALL[13], TCC_EA_WRREQ_LEVEL[13], TCC_EA_WRREQ_DRAM_CREDIT_STALL[14], TCC_EA_WRREQ_GMI_CREDIT_STALL[14], TCC_EA_WRREQ_IO_CREDIT_STALL[14], TCC_EA_WRREQ_LEVEL[14], TCC_EA_WRREQ_DRAM_CREDIT_STALL[15], TCC_EA_WRREQ_GMI_CREDIT_STALL[15], TCC_EA_WRREQ_IO_CREDIT_STALL[15], TCC_EA_WRREQ_LEVEL[15], TCC_EA_WRREQ_DRAM_CREDIT_STALL[16], TCC_EA_WRREQ_GMI_CREDIT_STALL[16], TCC_EA_WRREQ_IO_CREDIT_STALL[16], TCC_EA_WRREQ_LEVEL[16], TCC_EA_WRREQ_DRAM_CREDIT_STALL[17], TCC_EA_WRREQ_GMI_CREDIT_STALL[17], TCC_EA_WRREQ_IO_CREDIT_STALL[17], TCC_EA_WRREQ_LEVEL[17], TCC_EA_WRREQ_DRAM_CREDIT_STALL[18], TCC_EA_WRREQ_GMI_CREDIT_STALL[18], TCC_EA_WRREQ_IO_CREDIT_STALL[18], TCC_EA_WRREQ_LEVEL[18], TCC_EA_WRREQ_DRAM_CREDIT_STALL[19], TCC_EA_WRREQ_GMI_CREDIT_STALL[19], TCC_EA_WRREQ_IO_CREDIT_STALL[19], TCC_EA_WRREQ_LEVEL[19], TCC_EA_WRREQ_DRAM_CREDIT_STALL[20], TCC_EA_WRREQ_GMI_CREDIT_STALL[20], TCC_EA_WRREQ_IO_CREDIT_STALL[20], TCC_EA_WRREQ_LEVEL[20], TCC_EA_WRREQ_DRAM_CREDIT_STALL[21], TCC_EA_WRREQ_GMI_CREDIT_STALL[21], TCC_EA_WRREQ_IO_CREDIT_STALL[21], TCC_EA_WRREQ_LEVEL[21], TCC_EA_WRREQ_DRAM_CREDIT_STALL[22], TCC_EA_WRREQ_GMI_CREDIT_STALL[22], TCC_EA_WRREQ_IO_CREDIT_STALL[22], TCC_EA_WRREQ_LEVEL[22], TCC_EA_WRREQ_DRAM_CREDIT_STALL[23], TCC_EA_WRREQ_GMI_CREDIT_STALL[23], TCC_EA_WRREQ_IO_CREDIT_STALL[23], TCC_EA_WRREQ_LEVEL[23], TCC_EA_WRREQ_DRAM_CREDIT_STALL[24], TCC_EA_WRREQ_GMI_CREDIT_STALL[24], TCC_EA_WRREQ_IO_CREDIT_STALL[24], TCC_EA_WRREQ_LEVEL[24], TCC_EA_WRREQ_DRAM_CREDIT_STALL[25], TCC_EA_WRREQ_GMI_CREDIT_STALL[25], TCC_EA_WRREQ_IO_CREDIT_STALL[25], TCC_EA_WRREQ_LEVEL[25], TCC_EA_WRREQ_DRAM_CREDIT_STALL[26], TCC_EA_WRREQ_GMI_CREDIT_STALL[26], TCC_EA_WRREQ_IO_CREDIT_STALL[26], TCC_EA_WRREQ_LEVEL[26], TCC_EA_WRREQ_DRAM_CREDIT_STALL[27], TCC_EA_WRREQ_GMI_CREDIT_STALL[27], TCC_EA_WRREQ_IO_CREDIT_STALL[27], TCC_EA_WRREQ_LEVEL[27], TCC_EA_WRREQ_DRAM_CREDIT_STALL[28], TCC_EA_WRREQ_GMI_CREDIT_STALL[28], TCC_EA_WRREQ_IO_CREDIT_STALL[28], TCC_EA_WRREQ_LEVEL[28], TCC_EA_WRREQ_DRAM_CREDIT_STALL[29], TCC_EA_WRREQ_GMI_CREDIT_STALL[29], TCC_EA_WRREQ_IO_CREDIT_STALL[29], TCC_EA_WRREQ_LEVEL[29], TCC_EA_WRREQ_DRAM_CREDIT_STALL[30], TCC_EA_WRREQ_GMI_CREDIT_STALL[30], TCC_EA_WRREQ_IO_CREDIT_STALL[30], TCC_EA_WRREQ_LEVEL[30], TCC_EA_WRterminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 305318 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'TCC_EA_WRREQ_IO_CREDIT_STALL[27]'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184225_305158/input0_results_240527_184225/results.txt'
+RPL: on '240527_184226' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/SQ_INST_LEVEL_VMEM.txt'
+RPL: output dir '/tmp/rpl_data_240527_184226_305367'
+RPL: result dir '/tmp/rpl_data_240527_184226_305367/input0_results_240527_184226'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 305526 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_INSTS_VMEM'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184226_305367/input0_results_240527_184226/results.txt'
+RPL: on '240527_184226' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_5.txt'
+RPL: output dir '/tmp/rpl_data_240527_184226_305576'
+RPL: result dir '/tmp/rpl_data_240527_184226_305576/input0_results_240527_184226'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 305735 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_WAIT_INST_ANY'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184226_305576/input0_results_240527_184226/results.txt'
+RPL: on '240527_184227' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_2.txt'
+RPL: output dir '/tmp/rpl_data_240527_184227_305766'
+RPL: result dir '/tmp/rpl_data_240527_184227_305766/input0_results_240527_184227'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 305925 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQC_DCACHE_INPUT_VALID_READYB'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184227_305766/input0_results_240527_184227/results.txt'
+RPL: on '240527_184227' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/timestamps.txt'
+RPL: output dir '/tmp/rpl_data_240527_184227_305981'
+RPL: result dir '/tmp/rpl_data_240527_184227_305981/input0_results_240527_184227'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 306140 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/timestamps.csv' is generating
+RPL: on '240527_184228' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_3.txt'
+RPL: output dir '/tmp/rpl_data_240527_184228_306190'
+RPL: result dir '/tmp/rpl_data_240527_184228_306190/input0_results_240527_184228'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 306354 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQC_DCACHE_REQ_READ_2'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184228_306190/input0_results_240527_184228/results.txt'
+RPL: on '240527_184228' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/SQ_INST_LEVEL_SMEM.txt'
+RPL: output dir '/tmp/rpl_data_240527_184228_306406'
+RPL: result dir '/tmp/rpl_data_240527_184228_306406/input0_results_240527_184228'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 306565 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_INSTS_SMEM'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184228_306406/input0_results_240527_184228/results.txt'
+RPL: on '240527_184229' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_8.txt'
+RPL: output dir '/tmp/rpl_data_240527_184229_306600'
+RPL: result dir '/tmp/rpl_data_240527_184229_306600/input0_results_240527_184229'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 306759 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQ_ITEMS'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184229_306600/input0_results_240527_184229/results.txt'
+RPL: on '240527_184229' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/pmc_perf_1.txt'
+RPL: output dir '/tmp/rpl_data_240527_184229_306808'
+RPL: result dir '/tmp/rpl_data_240527_184229_306808/input0_results_240527_184229'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 306972 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'SQC_TC_DATA_ATOMIC_REQ'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184229_306808/input0_results_240527_184229/results.txt'
+RPL: on '240527_184230' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data20/mi100/perfmon/SQ_IFETCH_LEVEL.txt'
+RPL: output dir '/tmp/rpl_data_240527_184230_307020'
+RPL: result dir '/tmp/rpl_data_240527_184230_307020/input0_results_240527_184230'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  HIP runtime error: unspecified launch failure. /work1/sadasivan/student04/composable_kernel/include/ck/host_utility/hip_check_error.hpp: 15in function: hip_check_error
+/opt/rocm-5.7.1/bin/rocprof: line 300: 307179 Aborted                 (core dumped) ""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""
+Traceback (most recent call last):
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 828, in <module>
+    dump_csv(csvfile)
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in dump_csv
+    val_list = [entry[var] for var in var_list]
+  File "/opt/rocm-5.7.1/libexec/rocprofiler/tblextr.py", line 229, in <listcomp>
+    val_list = [entry[var] for var in var_list]
+KeyError: 'GRBM_COUNT'
+Profiling data corrupted: ' /tmp/rpl_data_240527_184230_307020/input0_results_240527_184230/results.txt'
+Successfully joined gpu in pmc_perf.csv
+Successfully joined grd in pmc_perf.csv
+Successfully joined wgr in pmc_perf.csv
+Successfully joined lds in pmc_perf.csv
+Successfully joined scr in pmc_perf.csv
+Successfully joined spgr in pmc_perf.csv
+Successfully joined arch_vgpr in pmc_perf.csv
+Successfully joined accum_vgpr in pmc_perf.csv

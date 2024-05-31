@@ -1,0 +1,536 @@
+RPL: on '240530_172955' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_5.txt'
+RPL: output dir '/tmp/rpl_data_240530_172955_3883214'
+RPL: result dir '/tmp/rpl_data_240530_172955_3883214/input0_results_240530_172955'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172955_3883214/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  21 metrics
+    SQ_WAIT_INST_ANY, SQ_ACTIVE_INST_ANY, SQ_INSTS_VALU, SQ_ACTIVE_INST_VMEM, SQ_ACTIVE_INST_LDS, SQ_ACTIVE_INST_VALU, SQ_ACTIVE_INST_SCA, SQ_ACTIVE_INST_EXP_GDS, TCP_TCP_LATENCY_sum, TCP_TCC_READ_REQ_LATENCY_sum, TCP_TCC_WRITE_REQ_LATENCY_sum, TCP_TCC_READ_REQ_sum, TA_ADDR_STALLED_BY_TD_CYCLES_sum, TA_DATA_STALLED_BY_TC_CYCLES_sum, SPI_RA_SGPR_SIMD_FULL_CSN, SPI_RA_LDS_CU_FULL_CSN, CPC_ME1_DC0_SPI_BUSY, TCC_EA_WRREQ_IO_CREDIT_STALL_sum, TCC_EA_WRREQ_GMI_CREDIT_STALL_sum, TCC_EA_WRREQ_DRAM_CREDIT_STALL_sum, TCC_TOO_MANY_EA_WRREQS_STALL_sum
+Perf: 0.557983 ms, 0.000939613 TFlops, 0.118369 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.628906 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.238281 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.24219 != 14.20312
+max err: 0.09375, number of errors: 137, 53.51562% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172955_3883214/input0_results_240530_172955
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_5.csv' is generating
+RPL: on '240530_172956' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_14.txt'
+RPL: output dir '/tmp/rpl_data_240530_172956_3883550'
+RPL: result dir '/tmp/rpl_data_240530_172956_3883550/input0_results_240530_172956'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172956_3883550/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  128 metrics
+    TCC_EA_WRREQ_DRAM_CREDIT_STALL[0], TCC_EA_WRREQ_GMI_CREDIT_STALL[0], TCC_EA_WRREQ_IO_CREDIT_STALL[0], TCC_EA_WRREQ_LEVEL[0], TCC_EA_WRREQ_DRAM_CREDIT_STALL[1], TCC_EA_WRREQ_GMI_CREDIT_STALL[1], TCC_EA_WRREQ_IO_CREDIT_STALL[1], TCC_EA_WRREQ_LEVEL[1], TCC_EA_WRREQ_DRAM_CREDIT_STALL[2], TCC_EA_WRREQ_GMI_CREDIT_STALL[2], TCC_EA_WRREQ_IO_CREDIT_STALL[2], TCC_EA_WRREQ_LEVEL[2], TCC_EA_WRREQ_DRAM_CREDIT_STALL[3], TCC_EA_WRREQ_GMI_CREDIT_STALL[3], TCC_EA_WRREQ_IO_CREDIT_STALL[3], TCC_EA_WRREQ_LEVEL[3], TCC_EA_WRREQ_DRAM_CREDIT_STALL[4], TCC_EA_WRREQ_GMI_CREDIT_STALL[4], TCC_EA_WRREQ_IO_CREDIT_STALL[4], TCC_EA_WRREQ_LEVEL[4], TCC_EA_WRREQ_DRAM_CREDIT_STALL[5], TCC_EA_WRREQ_GMI_CREDIT_STALL[5], TCC_EA_WRREQ_IO_CREDIT_STALL[5], TCC_EA_WRREQ_LEVEL[5], TCC_EA_WRREQ_DRAM_CREDIT_STALL[6], TCC_EA_WRREQ_GMI_CREDIT_STALL[6], TCC_EA_WRREQ_IO_CREDIT_STALL[6], TCC_EA_WRREQ_LEVEL[6], TCC_EA_WRREQ_DRAM_CREDIT_STALL[7], TCC_EA_WRREQ_GMI_CREDIT_STALL[7], TCC_EA_WRREQ_IO_CREDIT_STALL[7], TCC_EA_WRREQ_LEVEL[7], TCC_EA_WRREQ_DRAM_CREDIT_STALL[8], TCC_EA_WRREQ_GMI_CREDIT_STALL[8], TCC_EA_WRREQ_IO_CREDIT_STALL[8], TCC_EA_WRREQ_LEVEL[8], TCC_EA_WRREQ_DRAM_CREDIT_STALL[9], TCC_EA_WRREQ_GMI_CREDIT_STALL[9], TCC_EA_WRREQ_IO_CREDIT_STALL[9], TCC_EA_WRREQ_LEVEL[9], TCC_EA_WRREQ_DRAM_CREDIT_STALL[10], TCC_EA_WRREQ_GMI_CREDIT_STALL[10], TCC_EA_WRREQ_IO_CREDIT_STALL[10], TCC_EA_WRREQ_LEVEL[10], TCC_EA_WRREQ_DRAM_CREDIT_STALL[11], TCC_EA_WRREQ_GMI_CREDIT_STALL[11], TCC_EA_WRREQ_IO_CREDIT_STALL[11], TCC_EA_WRREQ_LEVEL[11], TCC_EA_WRREQ_DRAM_CREDIT_STALL[12], TCC_EA_WRREQ_GMI_CREDIT_STALL[12], TCC_EA_WRREQ_IO_CREDIT_STALL[12], TCC_EA_WRREQ_LEVEL[12], TCC_EA_WRREQ_DRAM_CREDIT_STALL[13], TCC_EA_WRREQ_GMI_CREDIT_STALL[13], TCC_EA_WRREQ_IO_CREDIT_STALL[13], TCC_EA_WRREQ_LEVEL[13], TCC_EA_WRREQ_DRAM_CREDIT_STALL[14], TCC_EA_WRREQ_GMI_CREDIT_STALL[14], TCC_EA_WRREQ_IO_CREDIT_STALL[14], TCC_EA_WRREQ_LEVEL[14], TCC_EA_WRREQ_DRAM_CREDIT_STALL[15], TCC_EA_WRREQ_GMI_CREDIT_STALL[15], TCC_EA_WRREQ_IO_CREDIT_STALL[15], TCC_EA_WRREQ_LEVEL[15], TCC_EA_WRREQ_DRAM_CREDIT_STALL[16], TCC_EA_WRREQ_GMI_CREDIT_STALL[16], TCC_EA_WRREQ_IO_CREDIT_STALL[16], TCC_EA_WRREQ_LEVEL[16], TCC_EA_WRREQ_DRAM_CREDIT_STALL[17], TCC_EA_WRREQ_GMI_CREDIT_STALL[17], TCC_EA_WRREQ_IO_CREDIT_STALL[17], TCC_EA_WRREQ_LEVEL[17], TCC_EA_WRREQ_DRAM_CREDIT_STALL[18], TCC_EA_WRREQ_GMI_CREDIT_STALL[18], TCC_EA_WRREQ_IO_CREDIT_STALL[18], TCC_EA_WRREQ_LEVEL[18], TCC_EA_WRREQ_DRAM_CREDIT_STALL[19], TCC_EA_WRREQ_GMI_CREDIT_STALL[19], TCC_EA_WRREQ_IO_CREDIT_STALL[19], TCC_EA_WRREQ_LEVEL[19], TCC_EA_WRREQ_DRAM_CREDIT_STALL[20], TCC_EA_WRREQ_GMI_CREDIT_STALL[20], TCC_EA_WRREQ_IO_CREDIT_STALL[20], TCC_EA_WRREQ_LEVEL[20], TCC_EA_WRREQ_DRAM_CREDIT_STALL[21], TCC_EA_WRREQ_GMI_CREDIT_STALL[21], TCC_EA_WRREQ_IO_CREDIT_STALL[21], TCC_EA_WRREQ_LEVEL[21], TCC_EA_WRREQ_DRAM_CREDIT_STALL[22], TCC_EA_WRREQ_GMI_CREDIT_STALL[22], TCC_EA_WRREQ_IO_CREDIT_STALL[22], TCC_EA_WRREQ_LEVEL[22], TCC_EA_WRREQ_DRAM_CREDIT_STALL[23], TCC_EA_WRREQ_GMI_CREDIT_STALL[23], TCC_EA_WRREQ_IO_CREDIT_STALL[23], TCC_EA_WRREQ_LEVEL[23], TCC_EA_WRREQ_DRAM_CREDIT_STALL[24], TCC_EA_WRREQ_GMI_CREDIT_STALL[24], TCC_EA_WRREQ_IO_CREDIT_STALL[24], TCC_EA_WRREQ_LEVEL[24], TCC_EA_WRREQ_DRAM_CREDIT_STALL[25], TCC_EA_WRREQ_GMI_CREDIT_STALL[25], TCC_EA_WRREQ_IO_CREDIT_STALL[25], TCC_EA_WRREQ_LEVEL[25], TCC_EA_WRREQ_DRAM_CREDIT_STALL[26], TCC_EA_WRREQ_GMI_CREDIT_STALL[26], TCC_EA_WRREQ_IO_CREDIT_STALL[26], TCC_EA_WRREQ_LEVEL[26], TCC_EA_WRREQ_DRAM_CREDIT_STALL[27], TCC_EA_WRREQ_GMI_CREDIT_STALL[27], TCC_EA_WRREQ_IO_CREDIT_STALL[27], TCC_EA_WRREQ_LEVEL[27], TCC_EA_WRREQ_DRAM_CREDIT_STALL[28], TCC_EA_WRREQ_GMI_CREDIT_STALL[28], TCC_EA_WRREQ_IO_CREDIT_STALL[28], TCC_EA_WRREQ_LEVEL[28], TCC_EA_WRREQ_DRAM_CREDIT_STALL[29], TCC_EA_WRREQ_GMI_CREDIT_STALL[29], TCC_EA_WRREQ_IO_CREDIT_STALL[29], TCC_EA_WRREQ_LEVEL[29], TCC_EA_WRREQ_DRAM_CREDIT_STALL[30], TCC_EA_WRREQ_GMI_CREDIT_STALL[30], TCC_EA_WRREQ_IO_CREDIT_STALL[30], TCC_EA_WRREQ_LEVEL[30], TCC_EA_WRREQ_DRAM_CREDIT_STALL[31], TCC_EA_WRREQ_GMI_CREDIT_STALL[31], TCC_EA_WRREQ_IO_CREDIT_STALL[31], TCC_EA_WRREQ_LEVEL[31]
+Perf: 0.297152 ms, 0.00176438 TFlops, 0.22227 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.82812 != 23.78125
+Error: Incorrect results!        out[3] != ref[3]: 14.22656 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.669922 != -3.685547
+Error: Incorrect results!        out[6] != ref[6]: 1.00293 != 1.007812
+max err: 0.1015625, number of errors: 145, 56.64062% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172956_3883550/input0_results_240530_172956
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_14.csv' is generating
+RPL: on '240530_172957' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/SQ_INST_LEVEL_VMEM.txt'
+RPL: output dir '/tmp/rpl_data_240530_172957_3883861'
+RPL: result dir '/tmp/rpl_data_240530_172957_3883861/input0_results_240530_172957'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172957_3883861/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  3 metrics
+    SQ_INSTS_VMEM, SQ_INST_LEVEL_VMEM, SQ_ACCUM_PREV_HIRES
+Perf: 0.138336 ms, 0.00378997 TFlops, 0.477447 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.84375 != 23.78125
+Error: Incorrect results!        out[5] != ref[5]: 0.5625 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 0.9863281 != 1.007812
+Error: Incorrect results!        out[7] != ref[7]: -4.03125 != -4.023438
+max err: 0.078125, number of errors: 130, 50.78125% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172957_3883861/input0_results_240530_172957
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/SQ_INST_LEVEL_VMEM.csv' is generating
+RPL: on '240530_172957' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_4.txt'
+RPL: output dir '/tmp/rpl_data_240530_172957_3884191'
+RPL: result dir '/tmp/rpl_data_240530_172957_3884191/input0_results_240530_172957'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172957_3884191/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  22 metrics
+    SQ_INSTS_FLAT, SQ_INSTS_LDS, SQ_INSTS_GDS, SQ_INSTS_EXP_GDS, SQ_INSTS_BRANCH, SQ_INSTS_SENDMSG, SQ_INSTS, SQ_WAIT_ANY, TCP_UTCL1_TRANSLATION_MISS_sum, TCP_UTCL1_TRANSLATION_HIT_sum, TCP_UTCL1_PERMISSION_MISS_sum, TCP_UTCL1_REQUEST_sum, TA_ADDR_STALLED_BY_TC_CYCLES_sum, TA_TOTAL_WAVEFRONTS_sum, SPI_RA_WAVE_SIMD_FULL_CSN, SPI_RA_VGPR_SIMD_FULL_CSN, CPC_CPC_UTCL2IU_STALL, CPC_ME1_BUSY_FOR_PACKET_DECODE, TCC_EA_WRREQ_sum, TCC_EA_WRREQ_64B_sum, TCC_EA_WR_UNCACHED_32B_sum, TCC_EA_WRREQ_STALL_sum
+Perf: 0.530975 ms, 0.000987406 TFlops, 0.12439 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[2] != ref[2]: 6.242188 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.22656 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.669922 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5654297 != 0.5678711
+max err: 0.0859375, number of errors: 147, 57.42188% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172957_3884191/input0_results_240530_172957
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_4.csv' is generating
+RPL: on '240530_172957' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_1.txt'
+RPL: output dir '/tmp/rpl_data_240530_172957_3884522'
+RPL: result dir '/tmp/rpl_data_240530_172957_3884522/input0_results_240530_172957'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172957_3884522/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  27 metrics
+    SQC_TC_DATA_ATOMIC_REQ, SQC_TC_STALL, SQC_TC_REQ, SQC_DCACHE_REQ_READ_16, SQC_ICACHE_REQ, SQC_ICACHE_HITS, SQC_ICACHE_MISSES, SQC_ICACHE_MISSES_DUPLICATE, GRBM_SPI_BUSY, TCP_READ_TAGCONFLICT_STALL_CYCLES_sum, TCP_WRITE_TAGCONFLICT_STALL_CYCLES_sum, TCP_ATOMIC_TAGCONFLICT_STALL_CYCLES_sum, TCP_TA_TCP_STATE_READ_sum, TA_BUFFER_READ_WAVEFRONTS_sum, TA_BUFFER_WRITE_WAVEFRONTS_sum, TD_COALESCABLE_WAVEFRONT_sum, TD_LOAD_WAVEFRONT_sum, SPI_CSN_NUM_THREADGROUPS, SPI_CSN_WAVE, CPC_CPC_TCIU_BUSY, CPC_CPC_TCIU_IDLE, CPF_CPF_TCIU_BUSY, CPF_CPF_TCIU_STALL, TCC_NC_REQ_sum, TCC_UC_REQ_sum, TCC_CC_REQ_sum, TCC_RW_REQ_sum
+Perf: 0.59896 ms, 0.000875331 TFlops, 0.110271 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[1] != ref[1]: -6.613281 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.289062 != 6.253906
+Error: Incorrect results!        out[4] != ref[4]: -3.691406 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5429688 != 0.5678711
+max err: 0.078125, number of errors: 149, 58.20312% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172957_3884522/input0_results_240530_172957
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_1.csv' is generating
+RPL: on '240530_172958' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_13.txt'
+RPL: output dir '/tmp/rpl_data_240530_172958_3884858'
+RPL: result dir '/tmp/rpl_data_240530_172958_3884858/input0_results_240530_172958'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172958_3884858/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  128 metrics
+    TCC_EA_RDREQ_IO_CREDIT_STALL[0], TCC_EA_RDREQ_LEVEL[0], TCC_EA_WRREQ[0], TCC_EA_WRREQ_64B[0], TCC_EA_RDREQ_IO_CREDIT_STALL[1], TCC_EA_RDREQ_LEVEL[1], TCC_EA_WRREQ[1], TCC_EA_WRREQ_64B[1], TCC_EA_RDREQ_IO_CREDIT_STALL[2], TCC_EA_RDREQ_LEVEL[2], TCC_EA_WRREQ[2], TCC_EA_WRREQ_64B[2], TCC_EA_RDREQ_IO_CREDIT_STALL[3], TCC_EA_RDREQ_LEVEL[3], TCC_EA_WRREQ[3], TCC_EA_WRREQ_64B[3], TCC_EA_RDREQ_IO_CREDIT_STALL[4], TCC_EA_RDREQ_LEVEL[4], TCC_EA_WRREQ[4], TCC_EA_WRREQ_64B[4], TCC_EA_RDREQ_IO_CREDIT_STALL[5], TCC_EA_RDREQ_LEVEL[5], TCC_EA_WRREQ[5], TCC_EA_WRREQ_64B[5], TCC_EA_RDREQ_IO_CREDIT_STALL[6], TCC_EA_RDREQ_LEVEL[6], TCC_EA_WRREQ[6], TCC_EA_WRREQ_64B[6], TCC_EA_RDREQ_IO_CREDIT_STALL[7], TCC_EA_RDREQ_LEVEL[7], TCC_EA_WRREQ[7], TCC_EA_WRREQ_64B[7], TCC_EA_RDREQ_IO_CREDIT_STALL[8], TCC_EA_RDREQ_LEVEL[8], TCC_EA_WRREQ[8], TCC_EA_WRREQ_64B[8], TCC_EA_RDREQ_IO_CREDIT_STALL[9], TCC_EA_RDREQ_LEVEL[9], TCC_EA_WRREQ[9], TCC_EA_WRREQ_64B[9], TCC_EA_RDREQ_IO_CREDIT_STALL[10], TCC_EA_RDREQ_LEVEL[10], TCC_EA_WRREQ[10], TCC_EA_WRREQ_64B[10], TCC_EA_RDREQ_IO_CREDIT_STALL[11], TCC_EA_RDREQ_LEVEL[11], TCC_EA_WRREQ[11], TCC_EA_WRREQ_64B[11], TCC_EA_RDREQ_IO_CREDIT_STALL[12], TCC_EA_RDREQ_LEVEL[12], TCC_EA_WRREQ[12], TCC_EA_WRREQ_64B[12], TCC_EA_RDREQ_IO_CREDIT_STALL[13], TCC_EA_RDREQ_LEVEL[13], TCC_EA_WRREQ[13], TCC_EA_WRREQ_64B[13], TCC_EA_RDREQ_IO_CREDIT_STALL[14], TCC_EA_RDREQ_LEVEL[14], TCC_EA_WRREQ[14], TCC_EA_WRREQ_64B[14], TCC_EA_RDREQ_IO_CREDIT_STALL[15], TCC_EA_RDREQ_LEVEL[15], TCC_EA_WRREQ[15], TCC_EA_WRREQ_64B[15], TCC_EA_RDREQ_IO_CREDIT_STALL[16], TCC_EA_RDREQ_LEVEL[16], TCC_EA_WRREQ[16], TCC_EA_WRREQ_64B[16], TCC_EA_RDREQ_IO_CREDIT_STALL[17], TCC_EA_RDREQ_LEVEL[17], TCC_EA_WRREQ[17], TCC_EA_WRREQ_64B[17], TCC_EA_RDREQ_IO_CREDIT_STALL[18], TCC_EA_RDREQ_LEVEL[18], TCC_EA_WRREQ[18], TCC_EA_WRREQ_64B[18], TCC_EA_RDREQ_IO_CREDIT_STALL[19], TCC_EA_RDREQ_LEVEL[19], TCC_EA_WRREQ[19], TCC_EA_WRREQ_64B[19], TCC_EA_RDREQ_IO_CREDIT_STALL[20], TCC_EA_RDREQ_LEVEL[20], TCC_EA_WRREQ[20], TCC_EA_WRREQ_64B[20], TCC_EA_RDREQ_IO_CREDIT_STALL[21], TCC_EA_RDREQ_LEVEL[21], TCC_EA_WRREQ[21], TCC_EA_WRREQ_64B[21], TCC_EA_RDREQ_IO_CREDIT_STALL[22], TCC_EA_RDREQ_LEVEL[22], TCC_EA_WRREQ[22], TCC_EA_WRREQ_64B[22], TCC_EA_RDREQ_IO_CREDIT_STALL[23], TCC_EA_RDREQ_LEVEL[23], TCC_EA_WRREQ[23], TCC_EA_WRREQ_64B[23], TCC_EA_RDREQ_IO_CREDIT_STALL[24], TCC_EA_RDREQ_LEVEL[24], TCC_EA_WRREQ[24], TCC_EA_WRREQ_64B[24], TCC_EA_RDREQ_IO_CREDIT_STALL[25], TCC_EA_RDREQ_LEVEL[25], TCC_EA_WRREQ[25], TCC_EA_WRREQ_64B[25], TCC_EA_RDREQ_IO_CREDIT_STALL[26], TCC_EA_RDREQ_LEVEL[26], TCC_EA_WRREQ[26], TCC_EA_WRREQ_64B[26], TCC_EA_RDREQ_IO_CREDIT_STALL[27], TCC_EA_RDREQ_LEVEL[27], TCC_EA_WRREQ[27], TCC_EA_WRREQ_64B[27], TCC_EA_RDREQ_IO_CREDIT_STALL[28], TCC_EA_RDREQ_LEVEL[28], TCC_EA_WRREQ[28], TCC_EA_WRREQ_64B[28], TCC_EA_RDREQ_IO_CREDIT_STALL[29], TCC_EA_RDREQ_LEVEL[29], TCC_EA_WRREQ[29], TCC_EA_WRREQ_64B[29], TCC_EA_RDREQ_IO_CREDIT_STALL[30], TCC_EA_RDREQ_LEVEL[30], TCC_EA_WRREQ[30], TCC_EA_WRREQ_64B[30], TCC_EA_RDREQ_IO_CREDIT_STALL[31], TCC_EA_RDREQ_LEVEL[31], TCC_EA_WRREQ[31], TCC_EA_WRREQ_64B[31]
+Perf: 0.317104 ms, 0.00165336 TFlops, 0.208285 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.652344 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.261719 != 6.253906
+Error: Incorrect results!        out[4] != ref[4]: -3.679688 != -3.685547
+max err: 0.078125, number of errors: 140, 54.6875% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172958_3884858/input0_results_240530_172958
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_13.csv' is generating
+RPL: on '240530_172959' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/timestamps.txt'
+RPL: output dir '/tmp/rpl_data_240530_172959_3885190'
+RPL: result dir '/tmp/rpl_data_240530_172959_3885190/input0_results_240530_172959'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172959_3885190/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  0 metrics
+Perf: 0.01816 ms, 0.0288705 TFlops, 3.637 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[2] != ref[2]: 6.238281 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.17969 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.677734 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5522461 != 0.5678711
+max err: 0.078125, number of errors: 139, 54.29688% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172959_3885190/input0_results_240530_172959
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/timestamps.csv' is generating
+RPL: on '240530_172959' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_8.txt'
+RPL: output dir '/tmp/rpl_data_240530_172959_3885505'
+RPL: result dir '/tmp/rpl_data_240530_172959_3885505/input0_results_240530_172959'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172959_3885505/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  17 metrics
+    SQ_ITEMS, SQ_LDS_MEM_VIOLATIONS, SQ_LDS_ATOMIC_RETURN, SQ_LDS_IDX_ACTIVE, SQ_WAVES_RESTORED, SQ_WAVES_SAVED, SQ_INSTS_SMEM_NORM, TCP_TCC_UC_ATOMIC_REQ_sum, TCP_TCC_CC_READ_REQ_sum, TCP_TCC_CC_WRITE_REQ_sum, TCP_TCC_CC_ATOMIC_REQ_sum, SPI_VWC_CSC_WR, SPI_RA_BULKY_CU_FULL_CSN, TCC_NORMAL_WRITEBACK_sum, TCC_ALL_TC_OP_WB_WRITEBACK_sum, TCC_NORMAL_EVICT_sum, TCC_ALL_TC_OP_INV_EVICT_sum
+Perf: 0.444223 ms, 0.00118023 TFlops, 0.148682 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.82812 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.609375 != -6.621094
+Error: Incorrect results!        out[3] != ref[3]: 14.25781 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.660156 != -3.685547
+max err: 0.0625, number of errors: 135, 52.73438% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172959_3885505/input0_results_240530_172959
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_8.csv' is generating
+RPL: on '240530_172959' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_2.txt'
+RPL: output dir '/tmp/rpl_data_240530_172959_3885834'
+RPL: result dir '/tmp/rpl_data_240530_172959_3885834/input0_results_240530_172959'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_172959_3885834/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  26 metrics
+    SQC_DCACHE_INPUT_VALID_READYB, SQC_DCACHE_ATOMIC, SQC_DCACHE_REQ_READ_8, SQC_DCACHE_REQ, SQC_DCACHE_HITS, SQC_DCACHE_MISSES, SQC_DCACHE_MISSES_DUPLICATE, SQC_DCACHE_REQ_READ_1, TCP_VOLATILE_sum, TCP_TOTAL_ACCESSES_sum, TCP_TOTAL_READ_sum, TCP_TOTAL_WRITE_sum, TA_BUFFER_ATOMIC_WAVEFRONTS_sum, TA_BUFFER_TOTAL_CYCLES_sum, TD_ATOMIC_WAVEFRONT_sum, TD_STORE_WAVEFRONT_sum, SPI_RA_REQ_NO_ALLOC, SPI_RA_REQ_NO_ALLOC_CSN, CPC_CPC_STAT_STALL, CPC_UTCL1_STALL_ON_TRANSLATION, CPF_CPF_STAT_IDLE, CPF_CPF_TCIU_IDLE, TCC_REQ_sum, TCC_STREAMING_REQ_sum, TCC_HIT_sum, TCC_MISS_sum
+Perf: 0.608576 ms, 0.0008615 TFlops, 0.108529 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.636719 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.242188 != 6.253906
+Error: Incorrect results!        out[5] != ref[5]: 0.5625 != 0.5678711
+max err: 0.078125, number of errors: 152, 59.375% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_172959_3885834/input0_results_240530_172959
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_2.csv' is generating
+RPL: on '240530_173000' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_0.txt'
+RPL: output dir '/tmp/rpl_data_240530_173000_3886145'
+RPL: result dir '/tmp/rpl_data_240530_173000_3886145/input0_results_240530_173000'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173000_3886145/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  28 metrics
+    SQ_CYCLES, SQ_BUSY_CYCLES, SQ_WAVES, SQ_BUSY_CU_CYCLES, SQ_WAVE_CYCLES, SQC_TC_INST_REQ, SQC_TC_DATA_READ_REQ, SQC_TC_DATA_WRITE_REQ, GRBM_COUNT, GRBM_GUI_ACTIVE, TCP_GATE_EN1_sum, TCP_GATE_EN2_sum, TCP_TD_TCP_STALL_CYCLES_sum, TCP_TCR_TCP_STALL_CYCLES_sum, TA_TA_BUSY_sum, TA_BUFFER_WAVEFRONTS_sum, TD_TD_BUSY_sum, TD_TC_STALL_sum, SPI_CSN_WINDOW_VALID, SPI_CSN_BUSY, CPC_CPC_STAT_BUSY, CPC_CPC_STAT_IDLE, CPF_CPF_STAT_BUSY, CPF_CPF_STAT_STALL, TCC_CYCLE_sum, TCC_BUSY_sum, TCC_PROBE_sum, TCC_PROBE_ALL_sum
+Perf: 0.605295 ms, 0.00086617 TFlops, 0.109117 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[4] != ref[4]: -3.695312 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5605469 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 1.010742 != 1.007812
+Error: Incorrect results!        out[7] != ref[7]: -3.984375 != -4.023438
+max err: 0.078125, number of errors: 137, 53.51562% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173000_3886145/input0_results_240530_173000
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_0.csv' is generating
+RPL: on '240530_173000' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_6.txt'
+RPL: output dir '/tmp/rpl_data_240530_173000_3886514'
+RPL: result dir '/tmp/rpl_data_240530_173000_3886514/input0_results_240530_173000'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173000_3886514/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  20 metrics
+    SQ_ACTIVE_INST_MISC, SQ_ACTIVE_INST_FLAT, SQ_INST_CYCLES_VMEM_WR, SQ_INST_CYCLES_VMEM_RD, SQ_INST_CYCLES_SMEM, SQ_INST_CYCLES_SALU, SQ_THREAD_CYCLES_VALU, SQ_IFETCH, TCP_TCC_WRITE_REQ_sum, TCP_TCC_ATOMIC_WITH_RET_REQ_sum, TCP_TCC_ATOMIC_WITHOUT_RET_REQ_sum, TCP_TCC_NC_READ_REQ_sum, TA_FLAT_WAVEFRONTS_sum, TA_FLAT_READ_WAVEFRONTS_sum, SPI_RA_BAR_CU_FULL_CSN, SPI_RA_TGLIM_CU_FULL_CSN, TCC_EA_ATOMIC_sum, TCC_EA_RDREQ_sum, TCC_EA_RDREQ_32B_sum, TCC_EA_RD_UNCACHED_32B_sum
+Perf: 0.52155 ms, 0.00100525 TFlops, 0.126638 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[3] != ref[3]: 14.21875 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.677734 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5605469 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 1.029297 != 1.007812
+max err: 0.0625, number of errors: 129, 50.39062% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173000_3886514/input0_results_240530_173000
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_6.csv' is generating
+RPL: on '240530_173001' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/SQ_IFETCH_LEVEL.txt'
+RPL: output dir '/tmp/rpl_data_240530_173001_3886828'
+RPL: result dir '/tmp/rpl_data_240530_173001_3886828/input0_results_240530_173001'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173001_3886828/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  6 metrics
+    GRBM_COUNT, GRBM_GUI_ACTIVE, SQ_WAVES, SQ_IFETCH, SQ_IFETCH_LEVEL, SQ_ACCUM_PREV_HIRES
+Perf: 0.127408 ms, 0.00411504 TFlops, 0.518398 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[1] != ref[1]: -6.632812 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.246094 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.21875 != 14.20312
+Error: Incorrect results!        out[5] != ref[5]: 0.5546875 != 0.5678711
+max err: 0.078125, number of errors: 144, 56.25% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173001_3886828/input0_results_240530_173001
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/SQ_IFETCH_LEVEL.csv' is generating
+RPL: on '240530_173001' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_7.txt'
+RPL: output dir '/tmp/rpl_data_240530_173001_3887168'
+RPL: result dir '/tmp/rpl_data_240530_173001_3887168/input0_results_240530_173001'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173001_3887168/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  20 metrics
+    SQ_LDS_BANK_CONFLICT, SQ_LDS_ADDR_CONFLICT, SQ_LDS_UNALIGNED_STALL, SQ_WAVES_EQ_64, SQ_WAVES_LT_64, SQ_WAVES_LT_48, SQ_WAVES_LT_32, SQ_WAVES_LT_16, TCP_TCC_NC_WRITE_REQ_sum, TCP_TCC_NC_ATOMIC_REQ_sum, TCP_TCC_UC_READ_REQ_sum, TCP_TCC_UC_WRITE_REQ_sum, TA_FLAT_WRITE_WAVEFRONTS_sum, TA_FLAT_ATOMIC_WAVEFRONTS_sum, SPI_RA_WVLIM_STALL_CSN, SPI_SWC_CSC_WR, TCC_EA_RDREQ_IO_CREDIT_STALL_sum, TCC_EA_RDREQ_GMI_CREDIT_STALL_sum, TCC_EA_RDREQ_DRAM_CREDIT_STALL_sum, TCC_TAG_STALL_sum
+Perf: 0.534096 ms, 0.000981637 TFlops, 0.123663 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.597656 != -6.621094
+Error: Incorrect results!        out[3] != ref[3]: 14.1875 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.673828 != -3.685547
+max err: 0.078125, number of errors: 136, 53.125% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173001_3887168/input0_results_240530_173001
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_7.csv' is generating
+RPL: on '240530_173002' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_3.txt'
+RPL: output dir '/tmp/rpl_data_240530_173002_3887487'
+RPL: result dir '/tmp/rpl_data_240530_173002_3887487/input0_results_240530_173002'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173002_3887487/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  23 metrics
+    SQC_DCACHE_REQ_READ_2, SQC_DCACHE_REQ_READ_4, SQ_INSTS_VMEM_WR, SQ_INSTS_VMEM_RD, SQ_INSTS_VMEM, SQ_INSTS_SALU, SQ_INSTS_VSKIPPED, SQ_INSTS_SMEM, TCP_TOTAL_ATOMIC_WITH_RET_sum, TCP_TOTAL_ATOMIC_WITHOUT_RET_sum, TCP_TOTAL_WRITEBACK_INVALIDATES_sum, TCP_TOTAL_CACHE_ACCESSES_sum, TA_BUFFER_COALESCED_READ_CYCLES_sum, TA_BUFFER_COALESCED_WRITE_CYCLES_sum, SPI_RA_RES_STALL_CSN, SPI_RA_TMP_STALL_CSN, CPC_CPC_UTCL2IU_BUSY, CPC_CPC_UTCL2IU_IDLE, CPF_CMP_UTCL1_STALL_ON_TRANSLATION, TCC_READ_sum, TCC_WRITE_sum, TCC_ATOMIC_sum, TCC_WRITEBACK_sum
+Perf: 0.533329 ms, 0.000983049 TFlops, 0.123841 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[1] != ref[1]: -6.609375 != -6.621094
+Error: Incorrect results!        out[3] != ref[3]: 14.21875 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.701172 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5532227 != 0.5678711
+max err: 0.09375, number of errors: 142, 55.46875% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173002_3887487/input0_results_240530_173002
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_3.csv' is generating
+RPL: on '240530_173002' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/SQ_LEVEL_WAVES.txt'
+RPL: output dir '/tmp/rpl_data_240530_173002_3887803'
+RPL: result dir '/tmp/rpl_data_240530_173002_3887803/input0_results_240530_173002'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173002_3887803/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  9 metrics
+    GRBM_COUNT, GRBM_GUI_ACTIVE, CPC_ME1_BUSY_FOR_PACKET_DECODE, SQ_CYCLES, SQ_WAVES, SQ_WAVE_CYCLES, SQ_BUSY_CYCLES, SQ_LEVEL_WAVES, SQ_ACCUM_PREV_HIRES
+Perf: 0.159456 ms, 0.00328799 TFlops, 0.414209 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[2] != ref[2]: 6.246094 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.23438 != 14.20312
+Error: Incorrect results!        out[5] != ref[5]: 0.5532227 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 0.9956055 != 1.007812
+max err: 0.125, number of errors: 143, 55.85938% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173002_3887803/input0_results_240530_173002
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/SQ_LEVEL_WAVES.csv' is generating
+RPL: on '240530_173003' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/SQ_INST_LEVEL_SMEM.txt'
+RPL: output dir '/tmp/rpl_data_240530_173003_3888126'
+RPL: result dir '/tmp/rpl_data_240530_173003_3888126/input0_results_240530_173003'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173003_3888126/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  3 metrics
+    SQ_INSTS_SMEM, SQ_INST_LEVEL_SMEM, SQ_ACCUM_PREV_HIRES
+Perf: 0.116736 ms, 0.00449123 TFlops, 0.56579 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[1] != ref[1]: -6.664062 != -6.621094
+Error: Incorrect results!        out[5] != ref[5]: 0.5786133 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 0.9970703 != 1.007812
+max err: 0.09375, number of errors: 148, 57.8125% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173003_3888126/input0_results_240530_173003
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/SQ_INST_LEVEL_SMEM.csv' is generating
+RPL: on '240530_173003' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_16.txt'
+RPL: output dir '/tmp/rpl_data_240530_173003_3888454'
+RPL: result dir '/tmp/rpl_data_240530_173003_3888454/input0_results_240530_173003'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173003_3888454/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  96 metrics
+    TCC_RW_REQ[0], TCC_TOO_MANY_EA_WRREQS_STALL[0], TCC_WRITE[0], TCC_RW_REQ[1], TCC_TOO_MANY_EA_WRREQS_STALL[1], TCC_WRITE[1], TCC_RW_REQ[2], TCC_TOO_MANY_EA_WRREQS_STALL[2], TCC_WRITE[2], TCC_RW_REQ[3], TCC_TOO_MANY_EA_WRREQS_STALL[3], TCC_WRITE[3], TCC_RW_REQ[4], TCC_TOO_MANY_EA_WRREQS_STALL[4], TCC_WRITE[4], TCC_RW_REQ[5], TCC_TOO_MANY_EA_WRREQS_STALL[5], TCC_WRITE[5], TCC_RW_REQ[6], TCC_TOO_MANY_EA_WRREQS_STALL[6], TCC_WRITE[6], TCC_RW_REQ[7], TCC_TOO_MANY_EA_WRREQS_STALL[7], TCC_WRITE[7], TCC_RW_REQ[8], TCC_TOO_MANY_EA_WRREQS_STALL[8], TCC_WRITE[8], TCC_RW_REQ[9], TCC_TOO_MANY_EA_WRREQS_STALL[9], TCC_WRITE[9], TCC_RW_REQ[10], TCC_TOO_MANY_EA_WRREQS_STALL[10], TCC_WRITE[10], TCC_RW_REQ[11], TCC_TOO_MANY_EA_WRREQS_STALL[11], TCC_WRITE[11], TCC_RW_REQ[12], TCC_TOO_MANY_EA_WRREQS_STALL[12], TCC_WRITE[12], TCC_RW_REQ[13], TCC_TOO_MANY_EA_WRREQS_STALL[13], TCC_WRITE[13], TCC_RW_REQ[14], TCC_TOO_MANY_EA_WRREQS_STALL[14], TCC_WRITE[14], TCC_RW_REQ[15], TCC_TOO_MANY_EA_WRREQS_STALL[15], TCC_WRITE[15], TCC_RW_REQ[16], TCC_TOO_MANY_EA_WRREQS_STALL[16], TCC_WRITE[16], TCC_RW_REQ[17], TCC_TOO_MANY_EA_WRREQS_STALL[17], TCC_WRITE[17], TCC_RW_REQ[18], TCC_TOO_MANY_EA_WRREQS_STALL[18], TCC_WRITE[18], TCC_RW_REQ[19], TCC_TOO_MANY_EA_WRREQS_STALL[19], TCC_WRITE[19], TCC_RW_REQ[20], TCC_TOO_MANY_EA_WRREQS_STALL[20], TCC_WRITE[20], TCC_RW_REQ[21], TCC_TOO_MANY_EA_WRREQS_STALL[21], TCC_WRITE[21], TCC_RW_REQ[22], TCC_TOO_MANY_EA_WRREQS_STALL[22], TCC_WRITE[22], TCC_RW_REQ[23], TCC_TOO_MANY_EA_WRREQS_STALL[23], TCC_WRITE[23], TCC_RW_REQ[24], TCC_TOO_MANY_EA_WRREQS_STALL[24], TCC_WRITE[24], TCC_RW_REQ[25], TCC_TOO_MANY_EA_WRREQS_STALL[25], TCC_WRITE[25], TCC_RW_REQ[26], TCC_TOO_MANY_EA_WRREQS_STALL[26], TCC_WRITE[26], TCC_RW_REQ[27], TCC_TOO_MANY_EA_WRREQS_STALL[27], TCC_WRITE[27], TCC_RW_REQ[28], TCC_TOO_MANY_EA_WRREQS_STALL[28], TCC_WRITE[28], TCC_RW_REQ[29], TCC_TOO_MANY_EA_WRREQS_STALL[29], TCC_WRITE[29], TCC_RW_REQ[30], TCC_TOO_MANY_EA_WRREQS_STALL[30], TCC_WRITE[30], TCC_RW_REQ[31], TCC_TOO_MANY_EA_WRREQS_STALL[31], TCC_WRITE[31]
+Perf: 0.240176 ms, 0.00218294 TFlops, 0.274999 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[2] != ref[2]: 6.246094 != 6.253906
+Error: Incorrect results!        out[4] != ref[4]: -3.667969 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5888672 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 1.013672 != 1.007812
+max err: 0.078125, number of errors: 140, 54.6875% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173003_3888454/input0_results_240530_173003
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_16.csv' is generating
+RPL: on '240530_173004' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_10.txt'
+RPL: output dir '/tmp/rpl_data_240530_173004_3888774'
+RPL: result dir '/tmp/rpl_data_240530_173004_3888774/input0_results_240530_173004'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173004_3888774/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  1 metrics
+    TCC_EA_ATOMIC_LEVEL_sum
+Perf: 0.153536 ms, 0.00341476 TFlops, 0.43018 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[1] != ref[1]: -6.632812 != -6.621094
+Error: Incorrect results!        out[2] != ref[2]: 6.234375 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.21875 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.679688 != -3.685547
+max err: 0.0625, number of errors: 143, 55.85938% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173004_3888774/input0_results_240530_173004
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_10.csv' is generating
+RPL: on '240530_173004' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/SQ_INST_LEVEL_LDS.txt'
+RPL: output dir '/tmp/rpl_data_240530_173004_3889085'
+RPL: result dir '/tmp/rpl_data_240530_173004_3889085/input0_results_240530_173004'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173004_3889085/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  3 metrics
+    SQ_INSTS_LDS, SQ_INST_LEVEL_LDS, SQ_ACCUM_PREV_HIRES
+Perf: 0.135872 ms, 0.00385869 TFlops, 0.486105 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[1] != ref[1]: -6.609375 != -6.621094
+Error: Incorrect results!        out[3] != ref[3]: 14.23438 != 14.20312
+Error: Incorrect results!        out[4] != ref[4]: -3.691406 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5595703 != 0.5678711
+max err: 0.078125, number of errors: 135, 52.73438% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173004_3889085/input0_results_240530_173004
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/SQ_INST_LEVEL_LDS.csv' is generating
+RPL: on '240530_173005' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_11.txt'
+RPL: output dir '/tmp/rpl_data_240530_173005_3889397'
+RPL: result dir '/tmp/rpl_data_240530_173005_3889397/input0_results_240530_173005'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173005_3889397/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  128 metrics
+    TCC_ATOMIC[0], TCC_CYCLE[0], TCC_EA_ATOMIC[0], TCC_EA_ATOMIC_LEVEL[0], TCC_ATOMIC[1], TCC_CYCLE[1], TCC_EA_ATOMIC[1], TCC_EA_ATOMIC_LEVEL[1], TCC_ATOMIC[2], TCC_CYCLE[2], TCC_EA_ATOMIC[2], TCC_EA_ATOMIC_LEVEL[2], TCC_ATOMIC[3], TCC_CYCLE[3], TCC_EA_ATOMIC[3], TCC_EA_ATOMIC_LEVEL[3], TCC_ATOMIC[4], TCC_CYCLE[4], TCC_EA_ATOMIC[4], TCC_EA_ATOMIC_LEVEL[4], TCC_ATOMIC[5], TCC_CYCLE[5], TCC_EA_ATOMIC[5], TCC_EA_ATOMIC_LEVEL[5], TCC_ATOMIC[6], TCC_CYCLE[6], TCC_EA_ATOMIC[6], TCC_EA_ATOMIC_LEVEL[6], TCC_ATOMIC[7], TCC_CYCLE[7], TCC_EA_ATOMIC[7], TCC_EA_ATOMIC_LEVEL[7], TCC_ATOMIC[8], TCC_CYCLE[8], TCC_EA_ATOMIC[8], TCC_EA_ATOMIC_LEVEL[8], TCC_ATOMIC[9], TCC_CYCLE[9], TCC_EA_ATOMIC[9], TCC_EA_ATOMIC_LEVEL[9], TCC_ATOMIC[10], TCC_CYCLE[10], TCC_EA_ATOMIC[10], TCC_EA_ATOMIC_LEVEL[10], TCC_ATOMIC[11], TCC_CYCLE[11], TCC_EA_ATOMIC[11], TCC_EA_ATOMIC_LEVEL[11], TCC_ATOMIC[12], TCC_CYCLE[12], TCC_EA_ATOMIC[12], TCC_EA_ATOMIC_LEVEL[12], TCC_ATOMIC[13], TCC_CYCLE[13], TCC_EA_ATOMIC[13], TCC_EA_ATOMIC_LEVEL[13], TCC_ATOMIC[14], TCC_CYCLE[14], TCC_EA_ATOMIC[14], TCC_EA_ATOMIC_LEVEL[14], TCC_ATOMIC[15], TCC_CYCLE[15], TCC_EA_ATOMIC[15], TCC_EA_ATOMIC_LEVEL[15], TCC_ATOMIC[16], TCC_CYCLE[16], TCC_EA_ATOMIC[16], TCC_EA_ATOMIC_LEVEL[16], TCC_ATOMIC[17], TCC_CYCLE[17], TCC_EA_ATOMIC[17], TCC_EA_ATOMIC_LEVEL[17], TCC_ATOMIC[18], TCC_CYCLE[18], TCC_EA_ATOMIC[18], TCC_EA_ATOMIC_LEVEL[18], TCC_ATOMIC[19], TCC_CYCLE[19], TCC_EA_ATOMIC[19], TCC_EA_ATOMIC_LEVEL[19], TCC_ATOMIC[20], TCC_CYCLE[20], TCC_EA_ATOMIC[20], TCC_EA_ATOMIC_LEVEL[20], TCC_ATOMIC[21], TCC_CYCLE[21], TCC_EA_ATOMIC[21], TCC_EA_ATOMIC_LEVEL[21], TCC_ATOMIC[22], TCC_CYCLE[22], TCC_EA_ATOMIC[22], TCC_EA_ATOMIC_LEVEL[22], TCC_ATOMIC[23], TCC_CYCLE[23], TCC_EA_ATOMIC[23], TCC_EA_ATOMIC_LEVEL[23], TCC_ATOMIC[24], TCC_CYCLE[24], TCC_EA_ATOMIC[24], TCC_EA_ATOMIC_LEVEL[24], TCC_ATOMIC[25], TCC_CYCLE[25], TCC_EA_ATOMIC[25], TCC_EA_ATOMIC_LEVEL[25], TCC_ATOMIC[26], TCC_CYCLE[26], TCC_EA_ATOMIC[26], TCC_EA_ATOMIC_LEVEL[26], TCC_ATOMIC[27], TCC_CYCLE[27], TCC_EA_ATOMIC[27], TCC_EA_ATOMIC_LEVEL[27], TCC_ATOMIC[28], TCC_CYCLE[28], TCC_EA_ATOMIC[28], TCC_EA_ATOMIC_LEVEL[28], TCC_ATOMIC[29], TCC_CYCLE[29], TCC_EA_ATOMIC[29], TCC_EA_ATOMIC_LEVEL[29], TCC_ATOMIC[30], TCC_CYCLE[30], TCC_EA_ATOMIC[30], TCC_EA_ATOMIC_LEVEL[30], TCC_ATOMIC[31], TCC_CYCLE[31], TCC_EA_ATOMIC[31], TCC_EA_ATOMIC_LEVEL[31]
+Perf: 0.286544 ms, 0.0018297 TFlops, 0.230499 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[2] != ref[2]: 6.261719 != 6.253906
+Error: Incorrect results!        out[6] != ref[6]: 1.024414 != 1.007812
+Error: Incorrect results!        out[7] != ref[7]: -4.015625 != -4.023438
+Error: Incorrect results!        out[8] != ref[8]: 0.8481445 != 0.8544922
+max err: 0.0625, number of errors: 138, 53.90625% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173005_3889397/input0_results_240530_173005
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_11.csv' is generating
+RPL: on '240530_173005' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_12.txt'
+RPL: output dir '/tmp/rpl_data_240530_173005_3889725'
+RPL: result dir '/tmp/rpl_data_240530_173005_3889725/input0_results_240530_173005'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173005_3889725/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  128 metrics
+    TCC_EA_RDREQ[0], TCC_EA_RDREQ_32B[0], TCC_EA_RDREQ_DRAM_CREDIT_STALL[0], TCC_EA_RDREQ_GMI_CREDIT_STALL[0], TCC_EA_RDREQ[1], TCC_EA_RDREQ_32B[1], TCC_EA_RDREQ_DRAM_CREDIT_STALL[1], TCC_EA_RDREQ_GMI_CREDIT_STALL[1], TCC_EA_RDREQ[2], TCC_EA_RDREQ_32B[2], TCC_EA_RDREQ_DRAM_CREDIT_STALL[2], TCC_EA_RDREQ_GMI_CREDIT_STALL[2], TCC_EA_RDREQ[3], TCC_EA_RDREQ_32B[3], TCC_EA_RDREQ_DRAM_CREDIT_STALL[3], TCC_EA_RDREQ_GMI_CREDIT_STALL[3], TCC_EA_RDREQ[4], TCC_EA_RDREQ_32B[4], TCC_EA_RDREQ_DRAM_CREDIT_STALL[4], TCC_EA_RDREQ_GMI_CREDIT_STALL[4], TCC_EA_RDREQ[5], TCC_EA_RDREQ_32B[5], TCC_EA_RDREQ_DRAM_CREDIT_STALL[5], TCC_EA_RDREQ_GMI_CREDIT_STALL[5], TCC_EA_RDREQ[6], TCC_EA_RDREQ_32B[6], TCC_EA_RDREQ_DRAM_CREDIT_STALL[6], TCC_EA_RDREQ_GMI_CREDIT_STALL[6], TCC_EA_RDREQ[7], TCC_EA_RDREQ_32B[7], TCC_EA_RDREQ_DRAM_CREDIT_STALL[7], TCC_EA_RDREQ_GMI_CREDIT_STALL[7], TCC_EA_RDREQ[8], TCC_EA_RDREQ_32B[8], TCC_EA_RDREQ_DRAM_CREDIT_STALL[8], TCC_EA_RDREQ_GMI_CREDIT_STALL[8], TCC_EA_RDREQ[9], TCC_EA_RDREQ_32B[9], TCC_EA_RDREQ_DRAM_CREDIT_STALL[9], TCC_EA_RDREQ_GMI_CREDIT_STALL[9], TCC_EA_RDREQ[10], TCC_EA_RDREQ_32B[10], TCC_EA_RDREQ_DRAM_CREDIT_STALL[10], TCC_EA_RDREQ_GMI_CREDIT_STALL[10], TCC_EA_RDREQ[11], TCC_EA_RDREQ_32B[11], TCC_EA_RDREQ_DRAM_CREDIT_STALL[11], TCC_EA_RDREQ_GMI_CREDIT_STALL[11], TCC_EA_RDREQ[12], TCC_EA_RDREQ_32B[12], TCC_EA_RDREQ_DRAM_CREDIT_STALL[12], TCC_EA_RDREQ_GMI_CREDIT_STALL[12], TCC_EA_RDREQ[13], TCC_EA_RDREQ_32B[13], TCC_EA_RDREQ_DRAM_CREDIT_STALL[13], TCC_EA_RDREQ_GMI_CREDIT_STALL[13], TCC_EA_RDREQ[14], TCC_EA_RDREQ_32B[14], TCC_EA_RDREQ_DRAM_CREDIT_STALL[14], TCC_EA_RDREQ_GMI_CREDIT_STALL[14], TCC_EA_RDREQ[15], TCC_EA_RDREQ_32B[15], TCC_EA_RDREQ_DRAM_CREDIT_STALL[15], TCC_EA_RDREQ_GMI_CREDIT_STALL[15], TCC_EA_RDREQ[16], TCC_EA_RDREQ_32B[16], TCC_EA_RDREQ_DRAM_CREDIT_STALL[16], TCC_EA_RDREQ_GMI_CREDIT_STALL[16], TCC_EA_RDREQ[17], TCC_EA_RDREQ_32B[17], TCC_EA_RDREQ_DRAM_CREDIT_STALL[17], TCC_EA_RDREQ_GMI_CREDIT_STALL[17], TCC_EA_RDREQ[18], TCC_EA_RDREQ_32B[18], TCC_EA_RDREQ_DRAM_CREDIT_STALL[18], TCC_EA_RDREQ_GMI_CREDIT_STALL[18], TCC_EA_RDREQ[19], TCC_EA_RDREQ_32B[19], TCC_EA_RDREQ_DRAM_CREDIT_STALL[19], TCC_EA_RDREQ_GMI_CREDIT_STALL[19], TCC_EA_RDREQ[20], TCC_EA_RDREQ_32B[20], TCC_EA_RDREQ_DRAM_CREDIT_STALL[20], TCC_EA_RDREQ_GMI_CREDIT_STALL[20], TCC_EA_RDREQ[21], TCC_EA_RDREQ_32B[21], TCC_EA_RDREQ_DRAM_CREDIT_STALL[21], TCC_EA_RDREQ_GMI_CREDIT_STALL[21], TCC_EA_RDREQ[22], TCC_EA_RDREQ_32B[22], TCC_EA_RDREQ_DRAM_CREDIT_STALL[22], TCC_EA_RDREQ_GMI_CREDIT_STALL[22], TCC_EA_RDREQ[23], TCC_EA_RDREQ_32B[23], TCC_EA_RDREQ_DRAM_CREDIT_STALL[23], TCC_EA_RDREQ_GMI_CREDIT_STALL[23], TCC_EA_RDREQ[24], TCC_EA_RDREQ_32B[24], TCC_EA_RDREQ_DRAM_CREDIT_STALL[24], TCC_EA_RDREQ_GMI_CREDIT_STALL[24], TCC_EA_RDREQ[25], TCC_EA_RDREQ_32B[25], TCC_EA_RDREQ_DRAM_CREDIT_STALL[25], TCC_EA_RDREQ_GMI_CREDIT_STALL[25], TCC_EA_RDREQ[26], TCC_EA_RDREQ_32B[26], TCC_EA_RDREQ_DRAM_CREDIT_STALL[26], TCC_EA_RDREQ_GMI_CREDIT_STALL[26], TCC_EA_RDREQ[27], TCC_EA_RDREQ_32B[27], TCC_EA_RDREQ_DRAM_CREDIT_STALL[27], TCC_EA_RDREQ_GMI_CREDIT_STALL[27], TCC_EA_RDREQ[28], TCC_EA_RDREQ_32B[28], TCC_EA_RDREQ_DRAM_CREDIT_STALL[28], TCC_EA_RDREQ_GMI_CREDIT_STALL[28], TCC_EA_RDREQ[29], TCC_EA_RDREQ_32B[29], TCC_EA_RDREQ_DRAM_CREDIT_STALL[29], TCC_EA_RDREQ_GMI_CREDIT_STALL[29], TCC_EA_RDREQ[30], TCC_EA_RDREQ_32B[30], TCC_EA_RDREQ_DRAM_CREDIT_STALL[30], TCC_EA_RDREQ_GMI_CREDIT_STALL[30], TCC_EA_RDREQ[31], TCC_EA_RDREQ_32B[31], TCC_EA_RDREQ_DRAM_CREDIT_STALL[31], TCC_EA_RDREQ_GMI_CREDIT_STALL[31]
+Perf: 0.273808 ms, 0.0019148 TFlops, 0.24122 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[2] != ref[2]: 6.242188 != 6.253906
+Error: Incorrect results!        out[3] != ref[3]: 14.17188 != 14.20312
+Error: Incorrect results!        out[5] != ref[5]: 0.5595703 != 0.5678711
+max err: 0.078125, number of errors: 128, 50% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173005_3889725/input0_results_240530_173005
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_12.csv' is generating
+RPL: on '240530_173006' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_9.txt'
+RPL: output dir '/tmp/rpl_data_240530_173006_3890060'
+RPL: result dir '/tmp/rpl_data_240530_173006_3890060/input0_results_240530_173006'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173006_3890060/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  8 metrics
+    TCP_TCC_RW_READ_REQ_sum, TCP_TCC_RW_WRITE_REQ_sum, TCP_TCC_RW_ATOMIC_REQ_sum, TCP_PENDING_STALL_CYCLES_sum, TCC_EA_RDREQ_DRAM_sum, TCC_EA_WRREQ_DRAM_sum, TCC_EA_RDREQ_LEVEL_sum, TCC_EA_WRREQ_LEVEL_sum
+Perf: 0.478239 ms, 0.00109629 TFlops, 0.138107 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[1] != ref[1]: -6.613281 != -6.621094
+Error: Incorrect results!        out[5] != ref[5]: 0.5732422 != 0.5678711
+Error: Incorrect results!        out[6] != ref[6]: 0.9931641 != 1.007812
+Error: Incorrect results!        out[8] != ref[8]: 0.8457031 != 0.8544922
+max err: 0.09375, number of errors: 151, 58.98438% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173006_3890060/input0_results_240530_173006
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_9.csv' is generating
+RPL: on '240530_173006' from '/opt/rocm-5.7.1' in '/work1/sadasivan/student04/composable_kernel/build'
+RPL: profiling '""bin/example_tall_and_skinny_gemm_splitk_fp16 1 2 1 231""'
+RPL: input file '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/perfmon/pmc_perf_15.txt'
+RPL: output dir '/tmp/rpl_data_240530_173006_3890395'
+RPL: result dir '/tmp/rpl_data_240530_173006_3890395/input0_results_240530_173006'
+a_m_k: dim 2, lengths {16, 1024}, strides {1024, 1}
+b_k_n: dim 2, lengths {1024, 16}, strides {16, 1}
+c_m_n: dim 2, lengths {16, 16}, strides {16, 1}
+ROCProfiler: input from "/tmp/rpl_data_240530_173006_3890395/input0.xml"
+  gpu_index = 
+  kernel = 
+  range = 
+  128 metrics
+    TCC_HIT[0], TCC_MISS[0], TCC_READ[0], TCC_REQ[0], TCC_HIT[1], TCC_MISS[1], TCC_READ[1], TCC_REQ[1], TCC_HIT[2], TCC_MISS[2], TCC_READ[2], TCC_REQ[2], TCC_HIT[3], TCC_MISS[3], TCC_READ[3], TCC_REQ[3], TCC_HIT[4], TCC_MISS[4], TCC_READ[4], TCC_REQ[4], TCC_HIT[5], TCC_MISS[5], TCC_READ[5], TCC_REQ[5], TCC_HIT[6], TCC_MISS[6], TCC_READ[6], TCC_REQ[6], TCC_HIT[7], TCC_MISS[7], TCC_READ[7], TCC_REQ[7], TCC_HIT[8], TCC_MISS[8], TCC_READ[8], TCC_REQ[8], TCC_HIT[9], TCC_MISS[9], TCC_READ[9], TCC_REQ[9], TCC_HIT[10], TCC_MISS[10], TCC_READ[10], TCC_REQ[10], TCC_HIT[11], TCC_MISS[11], TCC_READ[11], TCC_REQ[11], TCC_HIT[12], TCC_MISS[12], TCC_READ[12], TCC_REQ[12], TCC_HIT[13], TCC_MISS[13], TCC_READ[13], TCC_REQ[13], TCC_HIT[14], TCC_MISS[14], TCC_READ[14], TCC_REQ[14], TCC_HIT[15], TCC_MISS[15], TCC_READ[15], TCC_REQ[15], TCC_HIT[16], TCC_MISS[16], TCC_READ[16], TCC_REQ[16], TCC_HIT[17], TCC_MISS[17], TCC_READ[17], TCC_REQ[17], TCC_HIT[18], TCC_MISS[18], TCC_READ[18], TCC_REQ[18], TCC_HIT[19], TCC_MISS[19], TCC_READ[19], TCC_REQ[19], TCC_HIT[20], TCC_MISS[20], TCC_READ[20], TCC_REQ[20], TCC_HIT[21], TCC_MISS[21], TCC_READ[21], TCC_REQ[21], TCC_HIT[22], TCC_MISS[22], TCC_READ[22], TCC_REQ[22], TCC_HIT[23], TCC_MISS[23], TCC_READ[23], TCC_REQ[23], TCC_HIT[24], TCC_MISS[24], TCC_READ[24], TCC_REQ[24], TCC_HIT[25], TCC_MISS[25], TCC_READ[25], TCC_REQ[25], TCC_HIT[26], TCC_MISS[26], TCC_READ[26], TCC_REQ[26], TCC_HIT[27], TCC_MISS[27], TCC_READ[27], TCC_REQ[27], TCC_HIT[28], TCC_MISS[28], TCC_READ[28], TCC_REQ[28], TCC_HIT[29], TCC_MISS[29], TCC_READ[29], TCC_REQ[29], TCC_HIT[30], TCC_MISS[30], TCC_READ[30], TCC_REQ[30], TCC_HIT[31], TCC_MISS[31], TCC_READ[31], TCC_REQ[31]
+Perf: 0.268912 ms, 0.00194966 TFlops, 0.245612 GB/s, deviceTsmmDl<16, 2, 32, 4, 2, 2, 2, 1>
+Error: Incorrect results!        out[0] != ref[0]: 23.8125 != 23.78125
+Error: Incorrect results!        out[2] != ref[2]: 6.246094 != 6.253906
+Error: Incorrect results!        out[4] != ref[4]: -3.693359 != -3.685547
+Error: Incorrect results!        out[5] != ref[5]: 0.5742188 != 0.5678711
+max err: 0.0625, number of errors: 146, 57.03125% wrong values
+
+ROCPRofiler: 15 contexts collected, output directory /tmp/rpl_data_240530_173006_3890395/input0_results_240530_173006
+File '/work1/sadasivan/student04/composable_kernel/build/workloads/my_profile_data37/mi100/pmc_perf_15.csv' is generating
+Successfully joined gpu in pmc_perf.csv
+Successfully joined grd in pmc_perf.csv
+Successfully joined wgr in pmc_perf.csv
+Successfully joined lds in pmc_perf.csv
+Successfully joined scr in pmc_perf.csv
+Successfully joined spgr in pmc_perf.csv
+Successfully joined arch_vgpr in pmc_perf.csv
+Successfully joined accum_vgpr in pmc_perf.csv
