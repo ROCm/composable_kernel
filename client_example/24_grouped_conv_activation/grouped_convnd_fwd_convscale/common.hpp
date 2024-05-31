@@ -114,9 +114,10 @@ bool run_grouped_conv_fwd_convscale(
     SimpleDeviceMem in(in_mem_size);
     SimpleDeviceMem wei(wei_mem_size);
     SimpleDeviceMem out(out_mem_size);
-    SimpleDeviceMem scale_in(sizeof(float));
-    SimpleDeviceMem scale_wei(sizeof(float));
-    SimpleDeviceMem scale_out(sizeof(float));
+
+    float scale_in;
+    float scale_wei;
+    float scale_out;
 
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_strides;
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_strides;
@@ -237,9 +238,7 @@ bool run_grouped_conv_fwd_convscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvScale{reinterpret_cast<float*>(scale_in.GetDeviceBuffer()),
-                      reinterpret_cast<float*>(scale_wei.GetDeviceBuffer()),
-                      reinterpret_cast<float*>(scale_out.GetDeviceBuffer())});
+            ConvScale{scale_in, scale_wei, scale_out});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -302,9 +301,7 @@ bool run_grouped_conv_fwd_convscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvScale{reinterpret_cast<float*>(scale_in.GetDeviceBuffer()),
-                      reinterpret_cast<float*>(scale_wei.GetDeviceBuffer()),
-                      reinterpret_cast<float*>(scale_out.GetDeviceBuffer())});
+            ConvScale{scale_in, scale_wei, scale_out});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
