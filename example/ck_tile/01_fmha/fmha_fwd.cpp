@@ -114,6 +114,9 @@ auto create_args(int argc, char* argv[])
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
+        .insert("num_splits",
+                "1",
+                "# of splits for key/value. 0 to determine actual number by heuristic")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -154,6 +157,20 @@ auto get_elimit<ck_tile::fp8_t>(std::string init_method)
         return ck_tile::make_tuple(max_rounding_point_distance, atol);
     }
 }
+
+float fmha_fwd_dispatch(fmha_fwd_traits traits,
+                        fmha_fwd_args args,
+                        const ck_tile::stream_config& config)
+{
+    if(1 < args.num_splits)
+    {
+        return fmha_fwd_splitkv(traits, args, config);
+    }
+    else
+    {
+        return fmha_fwd(traits, args, config);
+    }
+};
 
 template <typename DataType>
 bool run(const ck_tile::ArgParser& arg_parser)
@@ -260,6 +277,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
+    int num_splits = arg_parser.get_int("num_splits");
+
     int stream_warmup = arg_parser.get_int("warmup");
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
@@ -361,6 +380,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                    : std::array<ck_tile::index_t, 2>{batch, nhead})
             : std::array<ck_tile::index_t, 2>{1, 1});
 
+    ck_tile::HostTensor<LSEDataType> lse_acc_host(
+        1 < num_splits
+            ? std::array<ck_tile::index_t, 4>{num_splits, shape_batch, nhead, shape_seqlen_q}
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+
+    ck_tile::HostTensor<OaccDataType> o_acc_host(
+        1 < num_splits ? std::array<ck_tile::index_t, 5>{num_splits,
+                                                         shape_batch,
+                                                         nhead,
+                                                         shape_seqlen_q,
+                                                         hdim_v}
+                       : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
+
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
         lse ? std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q}
@@ -443,6 +475,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem lse_acc_buf(lse_acc_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem o_acc_buf(o_acc_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_buf(lse_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
@@ -553,6 +587,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
                                                            : bias_buf.GetDeviceBuffer(),
                              randval_buf.GetDeviceBuffer(),
+                             lse_acc_buf.GetDeviceBuffer(),
+                             o_acc_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
@@ -566,6 +602,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              hdim_v,
                              nhead,
                              nhead_k,
+                             num_splits,
                              scale_s,
                              scale_p,
                              scale_o,
@@ -598,7 +635,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              {drop_seed, drop_offset}};
     }();
 
-    float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
+    float ave_time = fmha_fwd_dispatch(fmha_traits, fmha_args, stream_config);
 
     if(ave_time < 0)
     {
