@@ -34,27 +34,10 @@ bool run_convnd_fwd_example(int argc, char* argv[])
         conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
     }
 
-    // sample scale values, same as host
-    float scale_in  = 0.1f;
-    float scale_wei = 0.2f;
-    float scale_out = 0.3f;
-
-    // allocate device memory for scales
-    DeviceMem scale_in_device_buf(sizeof(float));
-    DeviceMem scale_wei_device_buf(sizeof(float));
-    DeviceMem scale_out_device_buf(sizeof(float));
-
-    // move the scales to device memory
-    scale_in_device_buf.ToDevice(&scale_in);
-    scale_wei_device_buf.ToDevice(&scale_wei);
-    scale_out_device_buf.ToDevice(&scale_out);
-
+    // instantiate in and wei element ops, will
+    // instantiate out_element_op below for every iteration
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op =
-        OutElementOp{reinterpret_cast<float*>(scale_in_device_buf.GetDeviceBuffer()),
-                     reinterpret_cast<float*>(scale_wei_device_buf.GetDeviceBuffer()),
-                     reinterpret_cast<float*>(scale_out_device_buf.GetDeviceBuffer())};
 
     const auto run =
         [&](auto ndim_spatial, auto in_layout, auto wei_layout, auto ds_layout, auto out_layout) {
@@ -99,8 +82,7 @@ bool run_convnd_fwd_example(int argc, char* argv[])
                 wei_g_k_c_xs_desc,
                 out_g_n_k_wos_desc,
                 in_element_op,
-                wei_element_op,
-                out_element_op);
+                wei_element_op);
         };
 
     namespace ctc = ck::tensor_layout::convolution;
