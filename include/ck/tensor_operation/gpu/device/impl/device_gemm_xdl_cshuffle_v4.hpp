@@ -139,14 +139,14 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
                  CDataType* p_c_grid_,
-                 const std::array<const void*, NumDTensor>,
+                 const std::array<const void*, NumDTensor> p_ds_,
                  index_t M_,
                  index_t N_,
                  index_t K_,
                  index_t StrideA_,
                  index_t StrideB_,
                  index_t StrideC_,
-                 std::array<ck::index_t, NumDTensor>,
+                 std::array<ck::index_t, NumDTensor> StrideDs_,
                  index_t k_batch_,
                  bool is_reduce_)
             : GridwiseGemm::Argument(p_a_grid_,
@@ -159,10 +159,14 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
                                      StrideB_,
                                      StrideC_,
                                      k_batch_,
-                                     is_reduce_)
+                                     is_reduce_),
+              p_ds(p_ds_),
+              StrideDs(StrideDs_)
         {
         }
-        /* data */
+
+        const std::array<const void*, NumDTensor> p_ds;
+        std::array<ck::index_t, NumDTensor> StrideDs;
     };
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
@@ -247,7 +251,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
         }
         float Run(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
         {
-            auto arg = arg_; // remove const
+            auto arg = *dynamic_cast<const typename GridwiseGemm::Argument*>(&arg_);
 
             if(arg.IsReduce())
             {
@@ -277,7 +281,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
+                    ck::utility::RotatingMemWrapper<typename GridwiseGemm::Argument> rotating_mem(
                         arg,
                         stream_config.rotating_count,
                         arg.M * arg.K * sizeof(ADataType),
