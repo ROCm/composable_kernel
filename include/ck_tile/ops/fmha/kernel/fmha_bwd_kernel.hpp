@@ -1195,8 +1195,8 @@ struct FmhaBwdOGradDotOKernel
 
     CK_TILE_HOST static std::string GetName()
     {
-// sync with generate.py
-// clang-format off
+        // sync with generate.py
+        // clang-format off
         #define _SS_  std::string
         #define _TS_  std::to_string
         auto pn = [&] () {
