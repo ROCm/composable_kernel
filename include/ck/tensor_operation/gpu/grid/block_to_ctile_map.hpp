@@ -1040,7 +1040,14 @@ struct BlockToCTileMap_GemmStreamK
         }
         else
             sk_num_blocks = sk_blocks;
-
+              
+        //Here we check if StreamK is worth doing. 
+        // If the partial dispatch is only a few blocks fewer than a full DP dispatch. DP GEMM could be more efficient.
+        //Scalar we set as 0.9 but we can imagine it being more strict towards 1.0.
+        const double scalar = 0.9;
+        if (num_tiles % one_wave >= scalar * one_wave || num_tiles % one_wave == 0){
+            sk_num_blocks = 0;
+        }
         // default to regular DP GEMM if sk blocks == 0
         if(sk_num_blocks == 0 || sk_num_blocks == 0xFFFFFFFF)
         {
