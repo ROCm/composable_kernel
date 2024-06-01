@@ -452,12 +452,13 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                Block2CTileMap block_mapping,
                                void* __restrict__ p_shared_block)
     {
+        //removed padding
         uint32_t m        = M;
         uint32_t n        = N;
         uint32_t k        = K;
-        uint32_t pad_m    = (m + MPerBlock - 1) / MPerBlock * MPerBlock;
-        uint32_t pad_n    = (n + NPerBlock - 1) / NPerBlock * NPerBlock;
-        uint32_t pad_k    = (k + KPerBlock - 1) / KPerBlock * KPerBlock;
+        uint32_t pad_m    = 0; //(m + MPerBlock - 1) / MPerBlock * MPerBlock;
+        uint32_t pad_n    = 0; //(n + NPerBlock - 1) / NPerBlock * NPerBlock;
+        uint32_t pad_k    = 0; //(k + KPerBlock - 1) / KPerBlock * KPerBlock;
         uint32_t stride_a = StrideA;
         uint32_t stride_b = StrideB;
         uint32_t stride_c = StrideC;
