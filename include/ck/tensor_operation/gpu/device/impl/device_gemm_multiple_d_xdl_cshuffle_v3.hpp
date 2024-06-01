@@ -83,7 +83,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
+    using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         DsLayout,
