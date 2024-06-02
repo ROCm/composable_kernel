@@ -104,6 +104,7 @@ struct fmha_fwd_args
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
+    ck_tile::index_t nhead;
     ck_tile::index_t max_seqlen_q;
     ck_tile::index_t hdim_q;
     ck_tile::index_t hdim_v;
@@ -238,7 +239,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
     return ck_tile::make_tuple(kargs, grids);
 }
 
-#if 0
 template <typename FmhaFwdSplitKVKernel>
 auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
 {
@@ -251,6 +251,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                                    args.k_ptr,
                                                    args.v_ptr,
                                                    args.bias_ptr,
+                                                   args.rand_val_ptr,
                                                    args.lse_acc_ptr,
                                                    args.o_acc_ptr,
                                                    args.batch,
@@ -261,6 +262,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                                    args.seqlen_k_ptr,
                                                    args.hdim_q,
                                                    args.hdim_v,
+                                                   args.nhead_q,
                                                    args.nhead_q / args.nhead_k,
                                                    args.num_splits,
                                                    args.scale_s,
@@ -269,13 +271,18 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                                    args.stride_k,
                                                    args.stride_v,
                                                    args.stride_bias,
+                                                   args.stride_randval,
                                                    args.nhead_stride_q,
                                                    args.nhead_stride_k,
                                                    args.nhead_stride_v,
                                                    args.nhead_stride_bias,
+                                                   args.nhead_stride_randval,
                                                    args.window_size_left,
                                                    args.window_size_right,
-                                                   args.mask_type);
+                                                   args.mask_type,
+                                                   args.p_drop,
+                                                   args.s_randval,
+                                                   args.drop_seed_offset);
         }
         else
         { // create batch mode kernel arguments
@@ -283,6 +290,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                                    args.k_ptr,
                                                    args.v_ptr,
                                                    args.bias_ptr,
+                                                   args.rand_val_ptr,
                                                    args.lse_acc_ptr,
                                                    args.o_acc_ptr,
                                                    args.batch,
@@ -292,6 +300,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                                    args.seqlen_k,
                                                    args.hdim_q,
                                                    args.hdim_v,
+                                                   args.nhead_q,
                                                    args.nhead_q / args.nhead_k,
                                                    args.num_splits,
                                                    args.scale_s,
@@ -300,17 +309,23 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                                    args.stride_k,
                                                    args.stride_v,
                                                    args.stride_bias,
+                                                   args.stride_randval,
                                                    args.nhead_stride_q,
                                                    args.nhead_stride_k,
                                                    args.nhead_stride_v,
                                                    args.nhead_stride_bias,
+                                                   args.nhead_stride_randval,
                                                    args.batch_stride_q,
                                                    args.batch_stride_k,
                                                    args.batch_stride_v,
                                                    args.batch_stride_bias,
+                                                   args.batch_stride_randval,
                                                    args.window_size_left,
                                                    args.window_size_right,
-                                                   args.mask_type);
+                                                   args.mask_type,
+                                                   args.p_drop,
+                                                   args.s_randval,
+                                                   args.drop_seed_offset);
         }
     }();
 
@@ -319,6 +334,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
     return ck_tile::make_tuple(kargs, grids);
 }
 
+#if 0
 template <typename FmhaFwdSplitKVCombineKernel>
 auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
 {
@@ -430,7 +446,10 @@ template <typename Traits_>
 float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 
 template <typename Traits_>
-float fmha_fwd_splitkv_(const ck_tile::stream_config&, fmha_fwd_args);
+float fmha_fwd_splitkv_oneshot_(const ck_tile::stream_config&, fmha_fwd_args);
+
+template <typename Traits_>
+std::string fmha_fwd_splitkv_get_name_();
 
 // This is the public API, will be generated by script
 struct fmha_fwd_traits
@@ -448,8 +467,4 @@ struct fmha_fwd_traits
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
-inline float fmha_fwd_splitkv(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&)
-{
-    std::cout << __PRETTY_FUNCTION__ << std::endl;
-    return 0;
-}
+float fmha_fwd_splitkv(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);

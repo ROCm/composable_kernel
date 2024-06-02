@@ -35,6 +35,16 @@ struct TileFmhaTraits
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
           index_t kBlockPerCu_ = 2 /* hint to occupancy */>
+struct TileFmhaFwdSplitKVCombineTraits
+{
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+};
+
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          index_t kBlockPerCu_ = 2 /* hint to occupancy */>
 struct TileFmhaBwdOGradDotOTraits
 {
     static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;

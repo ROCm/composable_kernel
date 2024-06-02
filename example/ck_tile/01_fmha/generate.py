@@ -165,6 +165,90 @@ float fmha_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 }}
 """
 
+FMHA_FWD_SPLITKV_PIPELINE_MAP = {
+    "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
+    "qr_async" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVSAsync",
+}
+
+FMHA_FWD_SPLITKV_KERNEL_BODY="""
+using fmha_dtype_{F_idx} = {F_dtype};
+
+using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
+using fmha_block_warps_{F_idx} = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
+using fmha_warp_tile_{F_idx} = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
+
+using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
+                                      fmha_block_warps_{F_idx},
+                                      fmha_warp_tile_{F_idx},
+                                      fmha_block_warps_{F_idx},
+                                      fmha_warp_tile_{F_idx},
+                                      {F_vlayout}>;
+
+using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
+                                                    {F_skpad},
+                                                    {F_dpad},
+                                                    {F_dvpad},
+                                                    {F_bias},
+                                                    false,
+                                                    {F_lse},
+                                                    {F_dropout},
+                                                    {F_squant},
+                                                    {F_occupancy}>;
+using fmha_mask_{F_idx} = {F_mask};
+
+using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SaccDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SMPLComputeDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::BiasDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::RandValOutputDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
+    fmha_shape_{F_idx},
+    {F_mode},
+    fmha_mask_{F_idx},
+    fmha_trait_{F_idx}>;
+
+using fmha_pipeline_{F_idx} = {F_pipeline}<
+    fmha_pipeline_problem_{F_idx}>;
+
+using fmha_epilogue_{F_idx} =
+    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
+                                           typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
+                                           {F_spad}, {F_dvpad}>>;
+
+using fmha_kernel_{F_idx} =
+    ck_tile::FmhaFwdSplitKVKernel<ck_tile::FmhaFwdSplitKVTilePartitioner<fmha_shape_{F_idx}>,
+                  fmha_pipeline_{F_idx},
+                  fmha_epilogue_{F_idx}>;
+
+using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout},
+                        {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+
+#include <iostream>
+
+template<>
+float fmha_fwd_splitkv_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
+{{
+    using k_ = fmha_kernel_{F_idx};
+    auto [kargs, grids] = fmha_fwd_splitkv_create_kargs_and_grids<k_>(a);
+    constexpr dim3 blocks             = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+}}
+
+template<>
+std::string fmha_fwd_splitkv_get_name_<trait_{F_idx}>()
+{{
+    using k_ = fmha_kernel_{F_idx};
+    return k_::GetName();
+}}
+"""
+
 FMHA_FWD_API_FILENAME="fmha_fwd_api.cpp"
 FMHA_FWD_API="""
 float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config& s){{
@@ -196,11 +280,43 @@ MASK_SIMPLIFIED_CHECK_MAP = {
 FMHA_FWD_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
                 using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
-                return {F_callee}<trait_>(s, a);
+                return fmha_fwd_<trait_>(s, a);
             }}
 """
 
 FMHA_FWD_SPLITKV_API_FILENAME="fmha_fwd_splitkv_api.cpp"
+FMHA_FWD_SPLITKV_API="""
+#include <iostream>
+
+template<typename fmha_fwd_splitkv_trait_
+// , typename fmha_fwd_splitkv_combine_trait_
+>
+float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_args a)
+{{
+    if(s.log_level_ > 0)
+    std::cout << ", " << fmha_fwd_splitkv_get_name_<fmha_fwd_splitkv_trait_>()
+    // << ", " << fmha_fwd_splitkv_combine_get_name_<fmha_fwd_splitkv_combine_trait_>() 
+    << std::flush;
+
+    return ck_tile::launch_kernel(s,
+            [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_oneshot_<fmha_fwd_splitkv_trait_>(s_, a); }}
+            // , [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_combine_oneshot_<dq_dk_dv_trait_>(s_, a); }}
+    );
+}}
+
+float fmha_fwd_splitkv(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config& s){{
+    float r = -1;
+{F_dispatch}
+    return r;
+}}
+"""
+
+FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) &&
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+                using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                return fmha_fwd_splitkv_<trait_>(s, a);
+            }}
+"""
 
 def get_mask_map(mask : str):
     if mask == "generic":
@@ -386,7 +502,9 @@ class FmhaFwdApiPool:
 
     @property
     def api(self) -> str:
-        callee = "fmha_fwd_splitkv_" if self.is_splitkv else "fmha_fwd_"
+        inner_dispatch = FMHA_FWD_SPLITKV_API_INNER_DISPATCH if self.is_splitkv else FMHA_FWD_API_INNER_DISPATCH
+        fwd_api = FMHA_FWD_SPLITKV_API if self.is_splitkv else FMHA_FWD_API
+
         per_dtypes=str()
         for i, dtype in enumerate(self.pool.keys()):
             per_hdim_case=str()
@@ -395,20 +513,19 @@ class FmhaFwdApiPool:
                 inners=str()
                 for k, trait in enumerate(traits):
                     if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
+                    inners = inners + inner_dispatch.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
                                    F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout] ,
                                    F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0blen=trait.bk0blen,
-                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype],
-                                   F_callee=callee)
+                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
             if_i = 'if' if i == 0 else 'else if'
             per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
-        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch = per_dtypes)
+        return FMHA_FWD_KERNEL_HEADER + fwd_api.format(F_dispatch = per_dtypes)
 
 @dataclass
 class FmhaFwdTileSize:
@@ -528,17 +645,11 @@ class FmhaFwdSplitKVKernel:
     F_pipeline      : FmhaFwdPipeline
     mask_impl       : str
 
-    def get_tp(self) -> str:
-        if self.F_mode == 'group':
-            return 'hbs'
-        else:
-            return 'shb'
-
     @property
     def template(self) -> str:
         kernel_body = str()
         return FMHA_FWD_KERNEL_HEADER + \
-            FMHA_FWD_KERNEL_BODY.format(
+            FMHA_FWD_SPLITKV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
                 F_dtype         = DTYPE_MAP[self.F_dtype],
@@ -567,13 +678,12 @@ class FmhaFwdSplitKVKernel:
                 F_pipeline_enum = PIPELINE_ENUM_MAP[self.F_pipeline.tag],
                 F_mask          = get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
                 F_mode          = MODE_MAP[self.F_mode],
-                F_pipeline      = PIPELINE_MAP[self.F_pipeline.tag],
-                F_tile_partitioner = TILE_PARTITIONER_MAP[self.get_tp()])
+                F_pipeline      = FMHA_FWD_SPLITKV_PIPELINE_MAP[self.F_pipeline.tag])
 
     @property
     def name(self) -> str:
         # TODO: we don't encode idx here
-        return f"fmha_{self.direction}_splitkv_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_{self.get_tp()}_" + \
+        return f"fmha_{self.direction}_splitkv_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + \
                 self.F_tile.name + '_' + self.F_pipeline.name
 
     @property

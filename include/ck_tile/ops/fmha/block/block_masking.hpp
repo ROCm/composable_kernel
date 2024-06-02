@@ -299,6 +299,23 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    template <index_t TileHeight, index_t TileWidth>
+    CK_TILE_HOST_DEVICE constexpr auto GetTileRangeAlongX(index_t i_y,
+                                                          number<TileHeight> height,
+                                                          number<TileWidth> width,
+                                                          index_t i_split,
+                                                          index_t num_splits) const
+    {
+        auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
+
+        const index_t x_per_split = x_total / num_splits;
+        index_t split_start       = x_per_split * i_split;
+        index_t split_end = (i_split == num_splits - 1 ? x_total : split_start + x_per_split);
+
+        return ck_tile::make_tuple(ck_tile::max(origin_start, split_start),
+                                   ck_tile::min(origin_end, split_end));
+    }
+
     // to get the loop length along Y axis, return index:[start, end), end-start=length
     // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
     // TODO: y_end still could be negative, so end-start could be negative(need check)
