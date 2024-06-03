@@ -17,9 +17,10 @@ using BLayout  = Col;
 using CLayout  = Row;
 using D0Layout = CLayout;
 
-using AElementOp = PassThrough;
-using BElementOp = PassThrough;
-using CElementOp = PassThrough;
+using AElementOp   = PassThrough;
+using BElementOp   = PassThrough;
+using CElementOp   = PassThrough;
+using CDEElementOp = Add;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
@@ -44,6 +45,16 @@ using DeviceGemmV2Instance =
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+
+// using ReferenceGemmInstance =
+//             ck::tensor_operation::host::ReferenceGemmMultipleD<ADataType,
+//                                                                BDataType,
+//                                                                ck::Tuple<D0DataType>,
+//                                                                CDataType,
+//                                                                AccDataType,
+//                                                                AElementOp,
+//                                                                BElementOp,
+//                                                                CDEElementOp>;
 
 #include "run_gemm_splitk_reduce_multi_d_example.inc"
 

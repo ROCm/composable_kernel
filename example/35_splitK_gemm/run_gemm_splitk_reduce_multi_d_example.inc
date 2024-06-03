@@ -129,9 +129,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                 return stride;
         };
 
-    StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
-    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
-    StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
+    StrideA  = f_get_default_stride(M, K, StrideA, ALayout{});
+    StrideB  = f_get_default_stride(K, N, StrideB, BLayout{});
+    StrideC  = f_get_default_stride(M, N, StrideC, CLayout{});
     StrideD0 = f_get_default_stride(M, N, StrideD0, D0Layout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
@@ -146,14 +146,17 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
     case 1:
-        a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2,2});
+        // a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        // b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2, 2});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2, 2});
+        //d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-2, 2});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
         b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2,2});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_2<D0DataType>{-2, 2});
         break;
     case 3:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
@@ -163,7 +166,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     default:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5,0.5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
     }
 #if 0
     printf("B matrix:\n");
@@ -184,7 +187,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
-
+    std::cout << "init method: " << config.init_method << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
@@ -195,7 +198,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
     d0_m_n_device_buf.ToDevice(d0_m_n.mData.data());
 
-
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
     auto c_element_op = CElementOp{};
@@ -205,23 +207,22 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto invoker   = gemm.MakeInvoker();
     float ave_time = 0;
 
-    auto argument = gemm.MakeArgument(
-        static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-        {c_m_n_device_buf.GetDeviceBuffer()},
-        M,
-        N,
-        K,
-        StrideA,
-        StrideB,
-        StrideC,
-        {StrideD0},
-        KBatch,
-        KBatch > 1,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                      {d0_m_n_device_buf.GetDeviceBuffer()},
+                                      M,
+                                      N,
+                                      K,
+                                      StrideA,
+                                      StrideB,
+                                      StrideC,
+                                      {StrideD0},
+                                      KBatch,
+                                      KBatch > 1,
+                                      a_element_op,
+                                      b_element_op,
+                                      c_element_op);
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -244,16 +245,25 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         ref_invoker.Run(ref_argument);
 
+       
+
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
 
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        auto element_wise_op = Add{};
+        c_m_n_host_result.ForEach([&](auto& self, auto idx) {
+            // auto old = ck::type_convert<float>(self(idx));
+            element_wise_op(self(idx), self(idx), d0_m_n(idx));
+        //     std::cout << old << "\t" << ck::type_convert<float>(d0_m_n(idx)) << "\t" << old + ck::type_convert<float>(d0_m_n(idx)) << "\t"
+        //    << ck::type_convert<float>(c_m_n_host_result(idx)) << "\t" << ck::type_convert<float>(c_m_n_device_result(idx)) << "\n";
+        });
 
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_host_result,
                                      "Error: Incorrect results!",
                                      get_rtol<CDataType>(),
                                      get_atol<CDataType>());
-
     }
 
     if(config.time_kernel)

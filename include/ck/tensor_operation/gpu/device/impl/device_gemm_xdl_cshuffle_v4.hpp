@@ -19,7 +19,7 @@
 
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_threadwise_multi_d.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -170,40 +170,42 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
     };
 
     using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-    using ReduceAdd   = ck::reduce::Add;
-    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL  = 8;
-    static constexpr index_t CBlockTransferScalarPerVector_NWaveNPerXDL_ = 8;
-    using DeviceReduceInstance =
-        DeviceReduceThreadWise<CDataType,       // InDataType,
-                               GemmAccDataType, // AccDataType,
-                               CDataType,       // OutDataType,
-                               3,               // Rank
-                               1,               // NumReduceDim
-                               ReduceAdd,
-                               PassThrough,
-                               PassThrough,
-                               false, // PropagateNan,
-                               false, // OutputIndex,
-                               false,
-                               false, // HaveIndexInputIfOutputIndex
-                               64,    // BlockSize_,
-                               CBlockTransferScalarPerVector_NWaveNPerXDL,  // MThreadSliceSize_,
-                               1,                                           // KThreadSliceSize_,
-                               0,                                           // InSrcVectorDim_,
-                               CBlockTransferScalarPerVector_NWaveNPerXDL_, // InSrcVectorSize_,
-                               CBlockTransferScalarPerVector_NWaveNPerXDL   // OutDstVectorSize_
-                               >;
+    using Add         = tensor_operation::element_wise::Add;
+
+    using ReduceAdd                                                      = ck::reduce::Add;
+    using InElementwiseOperation                                         = PassThrough;
+    using OutElementwiseOperation                                        = Add;
+    
+    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<CDataType,       // InDataType,
+                                                              DsDataType,      // DsDatatype
+                                                              GemmAccDataType, // AccDataType,
+                                                              CDataType,       // OutDataType,
+                                                              3,               // Rank
+                                                              1,               // NumReduceDim
+                                                              ReduceAdd,
+                                                              InElementwiseOperation,
+                                                              OutElementwiseOperation,
+                                                              256, // BlockSize_,
+                                                              4,   // MThreadSliceSize_,
+                                                              1,   // KThreadSliceSize_,
+                                                              0,   // InSrcVectorDim_,
+                                                              1,   // InSrcVectorSize_,
+                                                              1    // OutDstVectorSize_
+                                                              >;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
         float RunReduce(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            std::array<ck::index_t, 3> in_lengths  = {arg.KBatch, arg.M, arg.N};
-            std::array<ck::index_t, 2> out_lengths = {arg.M, arg.N};
+            static constexpr index_t NumInDim  = 3;
+            static constexpr index_t NumOutDim = 2;
 
-            std::array<ck::index_t, 3> in_strides;
-            std::array<ck::index_t, 2> out_strides;
+            std::array<ck::index_t, NumInDim> in_lengths   = {arg.KBatch, arg.M, arg.N};
+            std::array<ck::index_t, NumOutDim> out_lengths = {arg.M, arg.N};
+
+            std::array<ck::index_t, NumInDim> in_strides;
+            std::array<ck::index_t, NumOutDim> out_strides;
             if constexpr(std::is_same<CLayout, ck::tensor_layout::gemm::RowMajor>::value)
             {
                 in_strides  = {arg.M * arg.N, arg.N, 1};
@@ -217,21 +219,28 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
 
             std::array<int, 1> reduce_dims{0};
 
+            std::array<std::array<index_t, NumOutDim>, NumDTensor> DsLengths;
+            std::array<std::array<index_t, NumOutDim>, NumDTensor> DsStrides;
+            for(size_t i = 0; i < NumDTensor; i++)
+            {
+                DsLengths[i] = out_lengths;
+                DsStrides[i] = out_strides;
+            }
+
             auto reduce = DeviceReduceInstance{};
 
             auto argument_ptr = reduce.MakeArgumentPointer(in_lengths,
                                                            in_strides,
+                                                           DsLengths,
+                                                           DsStrides,
                                                            out_lengths,
                                                            out_strides,
                                                            reduce_dims,
-                                                           1.0,
-                                                           0,
                                                            arg.p_workspace_,
-                                                           nullptr,
+                                                           arg.p_ds,
                                                            arg.p_c_grid,
-                                                           nullptr,
-                                                           PassThrough{},
-                                                           PassThrough{});
+                                                           InElementwiseOperation{},
+                                                           OutElementwiseOperation{});
 
             auto invoker_ptr = reduce.MakeInvokerPointer();
 

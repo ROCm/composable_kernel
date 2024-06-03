@@ -21,6 +21,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
 
 struct ProblemSizeSplitK final
 {
@@ -38,8 +39,8 @@ struct ProblemSizeSplitK final
 struct ExecutionConfig final
 {
     bool do_verification = true;
-    int init_method      = 2;
-    bool time_kernel     = false;
+    int init_method      = 1;
+    bool time_kernel     = true;
 };
 
 template <ck::index_t... Is>
@@ -49,6 +50,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Add         = ck::tensor_operation::element_wise::Add;
 
 bool parse_cmd_args(int argc,
                     char* argv[],
