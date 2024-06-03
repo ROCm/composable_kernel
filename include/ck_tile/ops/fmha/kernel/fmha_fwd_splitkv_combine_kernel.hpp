@@ -332,15 +332,15 @@ struct FmhaFwdSplitKVCombineKernel
                 make_tuple(number<1>{}, number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                 sequence<false, kPadSeqLenQ, kPadHeadDimV>{});
 
-            const index_t new_seqlen_q =
-                integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) * FmhaPipeline::kM0;
-            const index_t new_hdim_v =
-                integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1) * FmhaPipeline::kN1;
+            const index_t padded_max_seqlen_q =
+                o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<1>{}];
+            const index_t padded_hdim_v =
+                o_acc_dram_view.get_tensor_descriptor().get_lengths()[number<2>{}];
 
             return transform_tensor_view(
                 o_acc_dram_view,
-                make_tuple(make_merge_transform(make_tuple(kargs.num_splits, new_seqlen_q)),
-                           make_pass_through_transform(new_hdim_v)),
+                make_tuple(make_merge_transform(make_tuple(kargs.num_splits, padded_max_seqlen_q)),
+                           make_pass_through_transform(padded_hdim_v)),
                 make_tuple(sequence<0, 1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }();
@@ -399,6 +399,7 @@ struct FmhaFwdSplitKVCombineKernel
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
                     smem_ptr,
                     kargs.num_splits,
+                    kargs.seqlen_q,
                     kargs.max_seqlen_q);
             }
             else
@@ -408,6 +409,7 @@ struct FmhaFwdSplitKVCombineKernel
                                       lse_dram_window,
                                       smem_ptr,
                                       kargs.num_splits,
+                                      kargs.seqlen_q,
                                       kargs.max_seqlen_q);
             }
         }();
