@@ -431,13 +431,13 @@ template <typename Traits_>
 float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 
 template <typename Traits_>
-float fmha_fwd_splitkv_oneshot_(const ck_tile::stream_config&, fmha_fwd_args);
+void fmha_fwd_splitkv_oneshot_(const ck_tile::stream_config&, fmha_fwd_args);
 
 template <typename Traits_>
 std::string fmha_fwd_splitkv_get_name_();
 
 template <typename Traits_>
-float fmha_fwd_splitkv_combine_oneshot_(const ck_tile::stream_config&, fmha_fwd_args);
+void fmha_fwd_splitkv_combine_oneshot_(const ck_tile::stream_config&, fmha_fwd_args);
 
 template <typename Traits_>
 std::string fmha_fwd_splitkv_combine_get_name_();
