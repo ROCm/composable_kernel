@@ -30,6 +30,7 @@ foreach(gpu IN LISTS GPU_TARGETS)
       # Elu
       add_example_executable(example_convnd_fwd_xdl_elu_fp16 convnd_fwd_xdl_elu_fp16.cpp)
       add_example_dependencies(example_convnd_activ_unary_xdl example_convnd_fwd_xdl_elu_fp16)
+      #Swish
    set(target 1)
  endif()
 endforeach()
