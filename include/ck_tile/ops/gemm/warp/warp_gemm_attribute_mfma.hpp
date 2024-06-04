@@ -483,8 +483,8 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
         ext_vector_t<BDataType, vector_traits<typename Impl::BVecType>::vector_size * kKIter>;
     using CVecType = typename Impl::CVecType;
 
-    static constexpr index_t kM      = Impl::kN;
-    static constexpr index_t kN      = Impl::kM;
+    static constexpr index_t kM      = Impl::kM;
+    static constexpr index_t kN      = Impl::kN;
     static constexpr index_t kK      = Impl::kK * kKIter;
     static constexpr index_t SFactor = SFactor_; // group how many CM1 together
 
