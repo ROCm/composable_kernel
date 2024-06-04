@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -189,55 +189,55 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
-        return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
+        return std::make_tuple(Block2CTileMapDefault::CalculateGridSize(M, N), 1, KBatch);
     }
 
-    __host__ static auto CalculateMPadded(index_t M)
+    __host__ __device__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);
     }
 
-    __host__ static auto CalculateNPadded(index_t N)
+    __host__ __device__ static auto CalculateNPadded(index_t N)
     {
         return math::integer_least_multiple(N, NPerBlock);
     }
 
-    __host__ static auto CalculateKPadded(index_t K)
+    __host__ __device__ static auto CalculateKPadded(index_t K)
     {
         return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
 
-    __host__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * (KPerBlock / AK1Value);
     }
 
-    __host__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * (KPerBlock / BK1Value);
     }
 
-    __host__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * KPerBlock;
     }
 
-    __host__ static auto CalculateKRead(index_t K, index_t K_Batch = 1)
+    __host__ __device__ static auto CalculateKRead(index_t K, index_t K_Batch = 1)
     {
         constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
         auto K_t                = K_Batch * KReadVec;
         return (K + K_t - 1) / K_t * KReadVec;
     }
 
-    __host__ static auto CalculateMBlock(index_t M)
+    __host__ __device__ static auto CalculateMBlock(index_t M)
     {
         return math::integer_divide_ceil(M, MPerBlock);
     }
 
-    __host__ static auto CalculateNBlock(index_t N)
+    __host__ __device__ static auto CalculateNBlock(index_t N)
     {
         return math::integer_divide_ceil(N, NPerBlock);
     }
@@ -520,14 +520,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     struct Problem
     {
-        __host__ Problem(index_t M_,
-                         index_t N_,
-                         index_t K_,
-                         index_t StrideA_,
-                         index_t StrideB_,
-                         std::array<index_t, NumDTensor> StrideDs_,
-                         index_t StrideC_,
-                         index_t KBatch_)
+        __host__ __device__ Problem(index_t M_,
+                                    index_t N_,
+                                    index_t K_,
+                                    index_t StrideA_,
+                                    index_t StrideB_,
+                                    std::array<index_t, NumDTensor> StrideDs_,
+                                    index_t StrideC_,
+                                    index_t KBatch_)
             : M{M_},
               N{N_},
               K{K_},
@@ -1180,14 +1180,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         return true;
     }
 
-    __host__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
+    __host__ __device__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
 
         return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
     }
 
-    __host__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
+    __host__ __device__ static constexpr TailNumber CalculateKBlockLoopTailNum(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
 
@@ -1210,7 +1210,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
-    using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
+    using Block2CTileMapDefault = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
+    // using OffsetedLocalBlock2ETileMap = OffsettedBlockToCTileMap2<Block2CTileMap>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
     template <bool HasMainKBlockLoop,
@@ -1225,6 +1226,35 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
+    {
+        const auto block_2_ctile_map = Block2CTileMapDefault{problem.M, problem.N, 4};
+        Run<Block2CTileMapDefault, HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            p_a_grid,
+            p_b_grid,
+            p_ds_grid,
+            p_c_grid,
+            p_shared,
+            problem,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            block_2_ctile_map);
+    }
+
+    template <typename Block2CTileMap,
+              bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              TailNumber TailNum = TailNumber::Odd>
+    __device__ static void Run(const ADataType* p_a_grid,
+                               const BDataType* p_b_grid,
+                               DsGridPointer& p_ds_grid,
+                               CDataType* p_c_grid,
+                               void* p_shared,
+                               const Problem& problem,
+                               AElementwiseOperation a_element_op,
+                               BElementwiseOperation b_element_op,
+                               CElementwiseOperation c_element_op,
+                               const Block2CTileMap& block_2_ctile_map)
     {
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
@@ -1245,7 +1275,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
+        // const auto block_2_ctile_map = OffsetedLocalBlock2ETileMap(Block2CTileMap{problem.M,
+        // problem.N, 4}, group_offset, tile_offset); const auto block_2_ctile_map =
+        // Block2CTileMap{problem.M, problem.N, 4};
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
@@ -1654,6 +1686,38 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
+        // divide block work by [M, N]
+        const auto block_2_ctile_map = Block2CTileMapDefault{problem.M, problem.N, 4};
+        Run_2Lds<Block2CTileMapDefault, HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            p_a_grid,
+            p_b_grid,
+            p_ds_grid,
+            p_c_grid,
+            p_shared_0,
+            p_shared_1,
+            problem,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            block_2_ctile_map);
+    }
+
+    template <typename Block2CTileMap,
+              bool HasMainKBlockLoop,
+              InMemoryDataOperationEnum CGlobalMemoryDataOperation,
+              TailNumber TailNum = TailNumber::Odd>
+    __device__ static void Run_2Lds(const ADataType* p_a_grid,
+                                    const BDataType* p_b_grid,
+                                    DsGridPointer& p_ds_grid,
+                                    CDataType* p_c_grid,
+                                    void* p_shared_0,
+                                    void* p_shared_1,
+                                    const Problem& problem,
+                                    AElementwiseOperation a_element_op,
+                                    BElementwiseOperation b_element_op,
+                                    CElementwiseOperation c_element_op,
+                                    const Block2CTileMap& block_2_ctile_map)
+    {
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
         const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
@@ -1671,9 +1735,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
-        // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{problem.M, problem.N, 4};
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
