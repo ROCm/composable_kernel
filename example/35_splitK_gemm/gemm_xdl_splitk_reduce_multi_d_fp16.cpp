@@ -5,12 +5,12 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v4.hpp"
 
-using ADataType        = ck::bhalf_t;
-using BDataType        = ck::bhalf_t;
+using ADataType        = ck::half_t;
+using BDataType        = ck::half_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::bhalf_t;
-using CDataType        = ck::bhalf_t;
-using D0DataType       = ck::bhalf_t;
+using CShuffleDataType = ck::half_t;
+using CDataType        = ck::half_t;
+using D0DataType       = ck::half_t;
 using DsDataType       = ck::Tuple<D0DataType>;
 
 using ALayout  = Row;
