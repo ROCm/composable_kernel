@@ -101,7 +101,7 @@ __global__ void
     index_t gemm_tile_id_end   = grid_size_grp;
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               typename GridwiseGemm::AccType,
-                              GridwiseGemm::GetMPerXdl() * GridwiseGemm::GetNPerXdl(),
+                              GridwiseGemm::GetMXdlPerWave() * GridwiseGemm::GetNXdlPerWave(),
                               GridwiseGemm::GetCThreadBufferVectorSize(),
                               true>
         results_buffer;
