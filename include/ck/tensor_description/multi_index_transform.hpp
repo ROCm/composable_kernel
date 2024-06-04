@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -1952,7 +1952,7 @@ struct Modulo
     }
 };
 
-template <typename LowLengths>
+template <typename LowLengths, bool ApplyModulo>
 struct Xor
 {
     using LowerIndex = MultiIndex<2>;
@@ -1981,8 +1981,15 @@ struct Xor
 
         idx_low(Number<0>{}) = idx_up[Number<0>{}];
 
-        idx_low(Number<1>{}) =
-            idx_up[Number<1>{}] ^ (idx_up[Number<0>{}] % up_lengths_[Number<1>{}]);
+        if constexpr(ApplyModulo)
+        {
+            idx_low(Number<1>{}) =
+                idx_up[Number<1>{}] ^ (idx_up[Number<0>{}] % up_lengths_[Number<1>{}]);
+        }
+        else
+        {
+            idx_low(Number<1>{}) = idx_up[Number<1>{}] ^ idx_up[Number<0>{}];
+        }
     }
 
     template <typename LowIdxDiff,
