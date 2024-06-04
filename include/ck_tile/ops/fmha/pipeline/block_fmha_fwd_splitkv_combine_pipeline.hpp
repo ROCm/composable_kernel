@@ -103,8 +103,12 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         auto lse_acc = load_tile(lse_acc_dram_window); // [kMaxSplits, kM0]
 
+#if !defined(TID)
+#define TID 0
+#endif
+
 #if defined(ENABLE_DEBUG_STMTS)
-#define DEBUG_STMTS if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
+#define DEBUG_STMTS if(blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0 && threadIdx.x == TID)
 #else
 #define DEBUG_STMTS if(false)
 #endif
@@ -168,6 +172,22 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 });
             });
         }
+
+#if defined(PRINT_LSE_ACCUM)
+        DEBUG_STMTS
+        {
+            printf("\n");
+            for(index_t row = 0; row < num_splits; ++row)
+            {
+                printf("[POYENC][DEVICE] lse_acc[%2d] = ", row);
+                for(index_t col = 0; col < real_seqlen_q; ++col)
+                {
+                    printf("%11.7f", lse_acc_lds_ptr[row + col * kMaxSplits]);
+                }
+                printf("\n");
+            }
+        }
+#endif
 
         // calculate row_max of lse_accum
         const auto f_max = [](auto e0, auto e1) { return ck_tile::max(e0, e1); };
@@ -369,12 +389,14 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                             get_x_indices_from_distributed_indices(o_acc_dist, distributed_indices);
 
                         const auto row = x_indices.at(number<0>{});
-                        const auto col = x_indices.at(number<1>{});
+                        
 
                         LSEDataType lse_scale = lse_acc_lds_ptr[i_split + row * kMaxSplits];
                         o_acc(distributed_indices) += lse_scale * o_tile(distributed_indices);
+                        #if 0
                         DEBUG_STMTS
                         {
+                            const auto col = x_indices.at(number<1>{});
                             printf("[POYENC][DEVICE] [%3d,%3d], o_acc(%11.7f) = lse_scale(%11.7f) "
                                    "* o_tile(%11.7f)\n",
                                    row,
@@ -383,6 +405,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                                    lse_scale,
                                    o_tile(distributed_indices));
                         }
+                        #endif
                     });
                 });
             }

@@ -103,6 +103,7 @@ struct FmhaFwdSplitKVCombineKernel
     {
         void* lse_ptr                     = nullptr;
         ck_tile::index_t nhead_stride_lse = 0;
+        ck_tile::index_t batch_stride_lse = 0;
     };
 
     struct Fp8StaticQuantKargs
@@ -110,14 +111,9 @@ struct FmhaFwdSplitKVCombineKernel
         float scale_o;
     };
 
-    struct BatchModeLSEKargs : CommonLSEKargs
-    {
-        ck_tile::index_t batch_stride_lse = 0;
-    };
-
     struct BatchModeKargs
         : CommonKargs,
-          std::conditional_t<kStoreLSE, BatchModeLSEKargs, EmptyKargs<0>>,
+          std::conditional_t<kStoreLSE, CommonLSEKargs, EmptyKargs<0>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<1>>
     {
         ck_tile::index_t batch_stride_o;
@@ -226,10 +222,12 @@ struct FmhaFwdSplitKVCombineKernel
         return kargs;
     }
 
-    __host__ static constexpr auto
-    GridSize(ck_tile::index_t batch_size_, ck_tile::index_t nhead_, ck_tile::index_t seqlen_q_)
+    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size_,
+                                            ck_tile::index_t nhead_,
+                                            ck_tile::index_t seqlen_q_,
+                                            ck_tile::index_t hdim_v_)
     {
-        return TilePartitioner::GridSize(batch_size_, nhead_, seqlen_q_);
+        return TilePartitioner::GridSize(batch_size_, nhead_, seqlen_q_, hdim_v_);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
@@ -245,9 +243,11 @@ struct FmhaFwdSplitKVCombineKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
-        const auto [i_tile_m, i_nhead, i_batch] = TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
+        const auto [i_tile_m, i_tile_n, i_nhead, i_batch] =
+            TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
 
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_lse_acc = 0;
         long_index_t batch_offset_o_acc   = 0;
@@ -259,11 +259,12 @@ struct FmhaFwdSplitKVCombineKernel
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
-            batch_offset_lse_acc = query_start;
-            batch_offset_o_acc   = query_start * kargs.hdim_v;
+            batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
+            batch_offset_o_acc = static_cast<long_index_t>(i_batch) *
+                                 (kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v);
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse = query_start;
+                batch_offset_lse = static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
             }
             batch_offset_o = query_start * kargs.row_stride_o;
 
@@ -432,7 +433,7 @@ struct FmhaFwdSplitKVCombineKernel
         auto o_dram_window =
             make_tile_window(o_dram,
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
-                             {i_m0, 0});
+                             {i_m0, i_n1});
 
         EpiloguePipeline{}(o_dram_window, o_acc_tile);
     }

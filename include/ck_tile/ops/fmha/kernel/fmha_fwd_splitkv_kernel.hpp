@@ -506,8 +506,10 @@ struct FmhaFwdSplitKVKernel
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
             }
-            batch_offset_lse_acc = query_start;
-            batch_offset_o_acc   = query_start * kargs.hdim_v;
+            batch_offset_lse_acc =
+                static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
+            batch_offset_o_acc = static_cast<long_index_t>(i_batch) *
+                                 (kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v);
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;

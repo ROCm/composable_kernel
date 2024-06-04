@@ -16,19 +16,36 @@ struct FmhaFwdSplitKVCombineTilePartitioner
     static constexpr ck_tile::index_t kN1 = BlockFmhaShape::kN0;
     // constexpr static ck_tile::index_t kBlockM = kN1 % 128 == 0 ? 4 : (kN1 % 64 == 0 ? 8 : 16);
 
-    __host__ static constexpr auto
-    GridSize(ck_tile::index_t batch_size, ck_tile::index_t nhead, ck_tile::index_t max_seqlen_q)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
+                                                ck_tile::index_t nhead_,
+                                                ck_tile::index_t seqlen_q_,
+                                                ck_tile::index_t hdim_v_)
     {
-        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, kM0), nhead, batch_size);
+        // TODO: this may need tuning
+        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kM0) *
+                        ck_tile::integer_divide_ceil(hdim_v_, kN1),
+                    nhead_,
+                    batch_size_);
     }
 
-    CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t /*hdim_v*/)
+    CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t hdim_v)
     {
-        const index_t i_tile_m = blockIdx.x;
-        const index_t i_nhead  = blockIdx.y;
-        const index_t i_batch  = blockIdx.z;
+        // const index_t num_tile_m0 = seqlen_q / kM0;
+        const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, kN1);
 
-        return ck_tile::make_tuple(i_tile_m, i_nhead, i_batch);
+        const index_t i_block = blockIdx.x;
+        const index_t i_nhead = blockIdx.y;
+        const index_t i_batch = blockIdx.z;
+
+        const auto f = [](index_t dividend, index_t divisor) {
+            index_t quotient = dividend / divisor;
+            index_t modulus  = dividend - quotient * divisor;
+            return ck_tile::make_tuple(quotient, modulus);
+        };
+
+        const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+
+        return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
     }
 };
 
