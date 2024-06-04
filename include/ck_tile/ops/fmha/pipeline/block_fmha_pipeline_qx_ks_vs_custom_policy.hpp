@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -89,13 +89,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                          std::is_same_v<typename Problem::KDataType, half_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
                               std::is_same_v<typename Problem::KDataType, bf16_t> &&
                               std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
                               std::is_same_v<typename Problem::KDataType, fp8_t> &&
@@ -212,13 +212,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                          std::is_same_v<typename Problem::KDataType, half_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return WarpGemmMfmaF16F16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
                               std::is_same_v<typename Problem::KDataType, bf16_t> &&
                               std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                return WarpGemmMfmaBf16Bf16F32M16N16K32SwizzleBTransposedCDistribution{};
+                return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
                               std::is_same_v<typename Problem::KDataType, fp8_t> &&
@@ -691,7 +691,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKV()
     {
         // TODO: assume Q is in register
         // TODO: assume K/V has same data type
@@ -700,6 +700,40 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
         return QXPolicy::template GetSmemSizeQ<Problem>() +
                single_smem_size * max(NumPrefetchK, NumPrefetchV);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        if constexpr(AsyncCopyK)
+        {
+            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
+        }
+        else
+        {
+            return ck_tile::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>());
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
+    {
+        if constexpr(Problem::kHasDropout)
+        {
+            constexpr auto gemm_0 = QXPolicy::template GetQKBlockGemm<Problem>();
+            constexpr auto config =
+                decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG                    = remove_cvref_t<decltype(config.template at<0>())>;
+            constexpr index_t MWarp     = config.template at<1>();
+            constexpr index_t kMPerStep = MWarp * WG::kM;
+            constexpr index_t kNPerStep = WG::kN;
+
+            return (kMPerStep + 1) * kNPerStep * sizeof(uint8_t);
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     template <typename Problem>

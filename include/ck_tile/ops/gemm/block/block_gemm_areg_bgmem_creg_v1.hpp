@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -28,7 +28,7 @@ struct BlockGemmARegBGmemCRegV1
 
     // use BlockGemmARegBSmemCRegV1 as the underlying block-GEMM implementation
     using BlockGemmARegBSmemCRegImpl = BlockGemmARegBSmemCRegV1<
-        BlockGemmARegBSmemCRegProblem<ADataType, BDataType, CDataType, kBlockSize, BlockGemmShape>,
+        BlockGemmProblem<ADataType, BDataType, CDataType, kBlockSize, BlockGemmShape>,
         BlockGemmARegBSmemCRegV1DefaultPolicy>;
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
