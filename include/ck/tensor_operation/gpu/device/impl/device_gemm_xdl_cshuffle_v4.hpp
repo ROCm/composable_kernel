@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <typeinfo>
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -83,6 +84,17 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
+    template <typename T,bool IsMultiD=false>
+    struct TypeTransformer{
+        using type = T;
+    };
+    
+    // template <>
+    // struct TypeTransformer<ck::bhalf_t,true>{
+    //     using type = float;
+    // };
+    
+    using ReduceType = typename TypeTransformer<CDataType,DsDataType::Size()>::type;
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     // GridwiseGemm
@@ -94,7 +106,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
         BDataType,
         GemmAccDataType,
         CShuffleDataType,
-        CDataType,
+        ReduceType,
         AElementwiseOperation,
         BElementwiseOperation,
         CElementwiseOperation,
@@ -138,7 +150,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
     {
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
-                 CDataType* p_c_grid_,
+                 ReduceType* p_c_grid_,
                  const std::array<const void*, NumDTensor> p_ds_,
                  index_t M_,
                  index_t N_,
@@ -176,9 +188,9 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
     using InElementwiseOperation                                         = PassThrough;
     using OutElementwiseOperation                                        = Add;
     
-    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<CDataType,       // InDataType,
+    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<ReduceType,       // InDataType,
                                                               DsDataType,      // DsDatatype
-                                                              GemmAccDataType, // AccDataType,
+                                                              float,           // AccDataType,
                                                               CDataType,       // OutDataType,
                                                               3,               // Rank
                                                               1,               // NumReduceDim
@@ -196,8 +208,12 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float RunReduce(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        float RunReduce(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
         {
+            auto arg = arg_;
+            if(!arg.IsReduce()){
+                arg.p_workspace_ = static_cast<void*>(arg.p_c_grid);
+            }
             static constexpr index_t NumInDim  = 3;
             static constexpr index_t NumOutDim = 2;
 
@@ -264,7 +280,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
 
             if(arg.IsReduce())
             {
-                arg.p_c_grid = static_cast<CDataType*>(arg.p_workspace_);
+                arg.p_c_grid = static_cast<ReduceType*>(arg.p_workspace_);
             }
 
             if(stream_config.log_level_ > 0)
@@ -738,7 +754,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
                 }
             }
 
-            if(arg.IsReduce())
+            if(arg.IsReduce() || NumDTensor > 0)
             {
                 // reduce c data
                 ave_time += RunReduce(arg_, stream_config);
@@ -802,7 +818,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
                              CElementwiseOperation)
     {
         return Argument{
-            p_a, p_b, p_c, p_ds, M, N, K, StrideA, StrideB, StrideC, StrideDs, KBatch, IsReduce};
+            p_a, p_b, reinterpret_cast<ReduceType*>(p_c), p_ds, M, N, K, StrideA, StrideB, StrideC, StrideDs, KBatch, IsReduce};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -828,7 +844,7 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
     {
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
-                                          static_cast<CDataType*>(p_c),
+                                          static_cast<ReduceType*>(p_c),
                                           p_ds,
                                           M,
                                           N,
@@ -897,8 +913,10 @@ struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV3<ALayout,
         auto arg = *dynamic_cast<const Argument*>(p_arg);
         if(arg.IsReduce())
         {
-            return arg.M * arg.N * arg.KBatch * sizeof(CDataType);
+            std::cout << "ReduceType: " <<  sizeof(ReduceType)  << std::endl;
+            return arg.M * arg.N * arg.KBatch * sizeof(ReduceType);
         }
+        
         return 0;
     }
 };

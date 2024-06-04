@@ -146,10 +146,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
     case 1:
-        // a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        // b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
-        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{-2, 2});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-2, 2});
+        a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        // a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
+        // b_k_n.GenerateTensorValue(GeneratorTensor_2<BDataType>{-2, 2});
         //d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-2, 2});
         d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{1});
         break;
@@ -188,6 +188,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
     std::cout << "init method: " << config.init_method << std::endl;
+    std::cout << "KBatch: " << KBatch << std::endl;
 
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
@@ -253,10 +254,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         auto element_wise_op = Add{};
         c_m_n_host_result.ForEach([&](auto& self, auto idx) {
-            // auto old = ck::type_convert<float>(self(idx));
             element_wise_op(self(idx), self(idx), d0_m_n(idx));
-        //     std::cout << old << "\t" << ck::type_convert<float>(d0_m_n(idx)) << "\t" << old + ck::type_convert<float>(d0_m_n(idx)) << "\t"
-        //    << ck::type_convert<float>(c_m_n_host_result(idx)) << "\t" << ck::type_convert<float>(c_m_n_device_result(idx)) << "\n";
         });
 
         pass &= ck::utils::check_err(c_m_n_device_result,
