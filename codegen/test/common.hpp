@@ -35,7 +35,7 @@ std::size_t GetSize(V mLens, V mStrides)
 }
 
 template <class T, typename V>
-rtc::buffer<T> generate_buffer(std::size_t n, V mLens, V mStrides, std::size_t seed = 0)
+rtc::buffer<T> generate_buffer(V mLens, V mStrides, std::size_t seed = 0)
 {
     std::size_t space = GetSize(mLens, mStrides);
     rtc::buffer<T> result(space);

@@ -12,6 +12,7 @@ using ck::host::Transform;
 
 struct Emitters
 {
+    // retrieve the hard-coded instances provided and template them> store in a map
     std::unordered_map<std::string, std::function<std::vector<std::string>()>> m;
 
     template <class T>
@@ -24,6 +25,7 @@ struct Emitters
         };
     }
 
+    // takes in an operation instance and uses it to substitute the correct values into the template
     template <class T>
     static std::string ToTuple(const T& ops)
     {
@@ -32,6 +34,7 @@ struct Emitters
         return "std::tuple<\n" + ck::host::JoinStrings(templates, ",\n") + ">";
     }
 
+    // 8join together all the strings in the map
     std::string Emit(const std::string& name) { return ck::host::JoinStrings(m.at(name)(), "\n"); }
 
     std::vector<std::string> List() const
@@ -45,12 +48,13 @@ int main(int argc, const char* argv[])
     std::string prog = argv[0];
     std::vector<std::string> args(argv + 1, argv + argc);
 
+    // Specigy problem type and problem size
     ck::host::device_gemm_multiple_d::Problem prob;
     prob.M = 1024;
     prob.N = 1024;
     prob.K = 1024;
 
-    // std::string epilogue = "";
+    // user provided fusion
     std::string prologue = "";
     std::string epilogue = R"(
 struct Epilogue
@@ -71,6 +75,7 @@ struct Epilogue
     float beta_;
 };)";
 
+    // Load in operations into the Register
     Emitters e;
     e.Register<ck::host::device_gemm_multiple_d::Operation_Xdl_CShuffle>(
         "DeviceGemmMultipleD_Xdl_CShuffle", prologue, epilogue);
@@ -92,6 +97,7 @@ struct Epilogue
         return 0;
     }
 
+    // print out all the instances for the operation that was chosen at the command line
     for(auto name : args)
         std::cout << e.Emit(name) << std::endl;
 

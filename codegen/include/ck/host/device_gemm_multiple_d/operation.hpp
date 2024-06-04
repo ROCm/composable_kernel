@@ -14,10 +14,13 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
+// defines all values need for an instance of fwd conv
 struct Operation_Xdl_CShuffle
 {
+    // returns a vector of instances, only given fusion operators: will use default problem spec
     static std::vector<std::vector<Operation_Xdl_CShuffle>>
     CreateOperations(const std::string& prologue, const std::string& epilogue);
+    // returns a vector of instances, given a problem spec and fusion operators
     static std::vector<Operation_Xdl_CShuffle>
     CreateOperations(const Problem& prob, const std::string& prologue, const std::string& epilogue);
     TensorDesc A{};
@@ -32,15 +35,18 @@ struct Operation_Xdl_CShuffle
     std::string prologue            = "";
     std::string epilogue            = "";
     std::string gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::Default";
+    // tuning parameters
     operation::TileDesc tile_desc{};
     operation::BlockTransferDesc a_block_transfer{};
     operation::BlockTransferDesc b_block_transfer{};
     operation::CShuffleDesc cshuffle{};
     operation::CBlockTransferDesc c_block_transfer{};
 
+    // functions to update fusion operators if provided
     void update_prologue(const std::string& prologue);
     void update_epilogue(const std::string& epilogue);
     /**constexpr**/ bool IsSupported(std::size_t MRaw_, std::size_t NRaw_, std::size_t KRaw_);
+    // returns a templated instance
     Solution ToSolution() const;
 };
 

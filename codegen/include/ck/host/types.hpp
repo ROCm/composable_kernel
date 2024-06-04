@@ -12,6 +12,7 @@
 namespace ck {
 namespace host {
 
+// holds the templated instance, substitues values into template from instancess
 struct Solution
 {
 
@@ -33,6 +34,7 @@ struct Solution
     std::unordered_map<std::string, std::string> template_values;
 };
 
+// supported data types
 enum class DataType
 {
     Half,
@@ -40,10 +42,9 @@ enum class DataType
     Int8,
     Int32
 };
-
 std::string ToString(DataType dt);
-auto ToType(DataType dt);
 
+// supported layouts: gemm and fwd conv
 enum class Layout
 {
     Row,
@@ -55,18 +56,15 @@ enum class Layout
     NHWGC,
     NHWGK
 };
-
 std::string ToString(Layout dl);
-auto ToLayout(Layout dl);
-Layout ToLayout(bool Trans);
+Layout ToLayout(bool Trans); // returns the layout for gemm
 
+// supported GEMM types
 enum class GemmType
 {
     Default
 };
-
 std::string ToString(GemmType gt);
-auto ToGemm(GemmType gt);
 
 struct TensorDesc
 {

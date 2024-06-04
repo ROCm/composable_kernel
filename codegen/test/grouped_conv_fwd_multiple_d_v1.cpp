@@ -39,6 +39,7 @@ ${template};
 
 TEST_CASE(test_problem_kernel)
 {
+    // set up problem specification
     ck::host::conv::Problem_Conv_Fwd prob;
     prob.NumDim = 2;
     prob.G      = 32;
@@ -52,6 +53,8 @@ TEST_CASE(test_problem_kernel)
     prob.Ho     = 28;
     prob.Wo     = 28;
     check_all<ck::half_t> check;
+
+    // user provided fusion operations
     std::string epilogue = R"(
 struct Epilogue
 {
@@ -113,17 +116,13 @@ struct Epilogue
     ck::Array<ck::index_t, 2> input_left_pads       = {1, 1};
     ck::Array<ck::index_t, 2> input_right_pads      = {1, 1};
 
-    auto get_num_elems = [](const auto& tensor_lens) {
-        return std::reduce(
-            tensor_lens.begin(), tensor_lens.end(), 1, std::multiplies<ck::index_t>{});
-    };
-
-    auto in_dev  = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
-        get_num_elems(in_lengths), in_lengths, in_strides, 0));
-    auto wei_dev = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
-        get_num_elems(wei_lengths), wei_lengths, wei_strides, 1));
-    auto out_dev = to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(
-        get_num_elems(out_lengths), out_lengths, out_strides, 2));
+    // move the data onto the device
+    auto in_dev =
+        to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(in_lengths, in_strides, 0));
+    auto wei_dev =
+        to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(wei_lengths, wei_strides, 1));
+    auto out_dev =
+        to_gpu(generate_buffer<ck::half_t, ck::Array<ck::index_t, 5>>(out_lengths, out_strides, 2));
 
     // CK Verficiation: Reference Kernel
     /**bool pass = true;
@@ -163,6 +162,7 @@ struct Epilogue
 
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
+        // substitute instance values into the template
         auto src = ck::host::InterpolateString(
             conv_compile_check,
             {{"include", prob.GetIncludeHeader()}, {"template", solution.ToTemplateString()}});
@@ -174,13 +174,14 @@ struct Epilogue
         options.kernel_name = "run_" + name;
         auto k              = rtc::compile_kernel(srcs, options);
 
+        // Grid size calculation
         auto block_size = solution.GetTemplateParameter<ck::index_t>("BlockSize");
 
-        // Grid size calculation
         auto tmp = get_launch_params(solution, out_lengths, out_strides);
 
         auto grid_size = tmp * in_lengths[1];
 
+        // launch the kernel with arguments needed for the argument pointer
         k.launch(nullptr, grid_size * block_size, block_size)(in_dev.data(),
                                                               wei_dev.data(),
                                                               out_dev.data(),
@@ -198,6 +199,9 @@ struct Epilogue
         // auto res = rtc::from_gpu(out_dev);
         // pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
         // assert(pass);
+
+        // Simple check: this checks that the output from each instance matches the output from the
+        // first instance
         CHECK(report(solution, check(rtc::from_gpu(out_dev))));
     }
 }

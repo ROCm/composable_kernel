@@ -14,10 +14,15 @@ namespace ck {
 namespace host {
 namespace conv {
 
+// defines the values needed for an instance of forward convolution and functions to return
+// (templated) instances
 struct Operation_Conv_Fwd_Xdl_Cshuffle
 {
+    // returns a vector of instances given the fusion operations, uses default values for problem
+    // spec
     static std::vector<Operation_Conv_Fwd_Xdl_Cshuffle>
     CreateOperations(const std::string& prologue, const std::string& epilogue);
+    // returns a vector of instances, provided with a problem spec and fusion operations
     static std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> CreateOperations(
         const Problem_Conv_Fwd& prob, const std::string& prologue, const std::string& epilogue);
     std::size_t NumDim;
@@ -36,14 +41,17 @@ struct Operation_Conv_Fwd_Xdl_Cshuffle
         "ck::tensor_operation::device::ConvolutionForwardSpecialization::Default";
     std::string gemm_specialization =
         "ck::tensor_operation::device::GemmSpecialization::MNKPadding";
+    // tuning parameters
     operation::TileDesc tile_desc{};
     operation::BlockTransferDesc a_block_transfer{};
     operation::BlockTransferDesc b_block_transfer{};
     operation::CShuffleDesc cshuffle{};
     operation::CBlockTransferDesc c_block_transfer{};
 
+    // functions to update fusion operations if they are provided
     void update_prologue(const std::string& prologue);
     void update_epilogue(const std::string& epilogue);
+    // returns a templated instance
     Solution ToSolution() const;
 };
 

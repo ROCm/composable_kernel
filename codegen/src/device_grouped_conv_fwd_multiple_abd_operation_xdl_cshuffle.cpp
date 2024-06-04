@@ -278,7 +278,7 @@ extern "C" __global__ void run_${name}(
 }
 )";
 
-// use hardcoded instances to substitute values into instance template
+// use hardcoded instances from vector of operations to substitute values into instance template
 Solution Operation_Conv_Fwd_Xdl_Cshuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
