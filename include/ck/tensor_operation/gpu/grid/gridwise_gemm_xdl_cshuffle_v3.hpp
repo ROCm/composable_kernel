@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,8 +34,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -48,7 +47,7 @@ __global__ void
         karg);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -63,8 +62,7 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -81,7 +79,7 @@ __global__ void
         karg);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename ALayout,
@@ -605,8 +603,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
                 a_lds_block_desc,
-                make_tuple(make_xor_transform(make_tuple(Number<MPerBlock / MLdsLayer>{},
-                                                         Number<AK0Number * MLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<MPerBlock / MLdsLayer>{}, Number<AK0Number * MLdsLayer>{})),
                            make_pass_through_transform(AK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
@@ -671,7 +669,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(
                     make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(Number<K0PerThreadWrite>{}),
-                    make_xor_transform(
+                    make_xor_with_modulo_transform(
                         make_tuple(Number<KThreadReadPerm * M1>{}, Number<kfold * M0 / mpair>{})),
                     make_pass_through_transform(Number<mpair>{}),
                     make_pass_through_transform(AK1Number)),
@@ -742,8 +740,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,
-                make_tuple(make_xor_transform(make_tuple(Number<NPerBlock / NLdsLayer>{},
-                                                         Number<BK0Number * NLdsLayer>{})),
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
                            make_pass_through_transform(BK1Number)),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
                 make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
@@ -805,7 +803,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 make_tuple(
                     make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
                     make_pass_through_transform(Number<K0PerThreadWrite>{}),
-                    make_xor_transform(
+                    make_xor_with_modulo_transform(
                         make_tuple(Number<KThreadReadPerm * N1>{}, Number<kfold * N0 / npair>{})),
                     make_pass_through_transform(Number<npair>{}),
                     make_pass_through_transform(BK1Number)),
@@ -935,7 +933,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(!(karg.M % MPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -952,7 +950,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(!(karg.N % NPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -971,7 +969,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             auto K_t = karg.KBatch * KPerBlock;
             if(!(karg.K % K_t == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
                               << karg.K << " " << __FILE__ << ":" << __LINE__
@@ -995,7 +993,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -1009,7 +1007,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -1024,7 +1022,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -1038,7 +1036,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << karg.K
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -1053,7 +1051,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << karg.N
                               << ") value is not a multiple of "
@@ -1069,7 +1067,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << karg.M
                               << ") value is not a multiple of "
@@ -1084,7 +1082,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
                           << ":" << __LINE__ << ", in function: " << __func__ << std::endl;

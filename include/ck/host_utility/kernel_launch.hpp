@@ -20,7 +20,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
                    __func__,
@@ -41,7 +41,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         }
 
         const int nrepeat = stream_config.nrepeat_;
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("Start running %d times...\n", nrepeat);
         }
@@ -95,7 +95,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
                    __func__,
@@ -117,7 +117,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         }
 
         const int nrepeat = stream_config.nrepeat_;
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             printf("Start running %d times...\n", nrepeat);
         }
