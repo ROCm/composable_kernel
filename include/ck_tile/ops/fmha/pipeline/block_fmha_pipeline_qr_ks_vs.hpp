@@ -253,6 +253,7 @@ struct BlockFmhaPipelineQRKSVS
         index_t prev_row_tile_idx = 0;
         index_t n0_step = row_tile_idx_iter.current - prev_row_tile_idx;
         move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
+        move_tile_window(bias_dram_window, {0, kN0 * n0_step});
         move_tile_window(v_dram_window, {0, kN0 * n0_step});
 
         // prefetch K tile
@@ -549,8 +550,6 @@ struct BlockFmhaPipelineQRKSVS
                        v_lds_window);
                 block_sync_lds();
             }
-
-
         } while(!row_tile_idx_iter.at_end());
 
         // store lse
