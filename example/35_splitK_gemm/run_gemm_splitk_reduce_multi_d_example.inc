@@ -207,15 +207,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                       static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
                                       {d0_m_n_device_buf.GetDeviceBuffer()},
+                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
                                       M,
                                       N,
                                       K,
                                       StrideA,
                                       StrideB,
-                                      StrideC,
                                       {StrideD0},
+                                      StrideC,
                                       KBatch,
                                       KBatch > 1,
                                       a_element_op,
@@ -243,16 +243,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         ref_invoker.Run(ref_argument);
 
-       
-
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
 
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
         auto element_wise_op = Add{};
-        c_m_n_host_result.ForEach([&](auto& self, auto idx) {
-            element_wise_op(self(idx), self(idx), d0_m_n(idx));
-        });
+        c_m_n_host_result.ForEach(
+            [&](auto& self, auto idx) { element_wise_op(self(idx), self(idx), d0_m_n(idx)); });
 
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_host_result,
