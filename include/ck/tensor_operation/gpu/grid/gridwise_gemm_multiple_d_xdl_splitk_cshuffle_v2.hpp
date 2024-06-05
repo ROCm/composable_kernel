@@ -120,9 +120,9 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         return math::integer_least_multiple(N, NPerBlock);
     }
 
-    __host__ __device__ static auto CalculateKPadded(index_t K, index_t K_Batch)
+    __host__ __device__ static auto CalculateKPadded(index_t K)
     {
-        return math::integer_least_multiple(K, KPerBlock * K_Batch);
+        return math::integer_least_multiple(K, KPerBlock);
     }
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -142,7 +142,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
     }
 
     __host__ __device__ static auto
-    MakeAGridDescriptor_AK0_M_AK1(index_t M, index_t K, index_t StrideA, index_t KBatch)
+    MakeAGridDescriptor_AK0_M_AK1(index_t M, index_t K, index_t StrideA)
     {
         const auto a_grid_desc_m_k = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -155,7 +155,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
             }
         }();
 
-        const auto KPad = CalculateKPadded(K, KBatch);
+        const auto KPad = CalculateKPadded(K);
 
         const auto a_grid_desc_m_kpad = transform_tensor_descriptor(
             a_grid_desc_m_k,
@@ -190,7 +190,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
     }
 
     __host__ __device__ static auto
-    MakeBGridDescriptor_BK0_N_BK1(index_t K, index_t N, index_t StrideB, index_t KBatch)
+    MakeBGridDescriptor_BK0_N_BK1(index_t K, index_t N, index_t StrideB)
     {
         const auto b_grid_desc_k_n = [&]() {
             if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
@@ -204,7 +204,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         }();
 
         const auto NPad = CalculateNPadded(N);
-        const auto KPad = CalculateKPadded(K, KBatch);
+        const auto KPad = CalculateKPadded(K);
 
         const auto b_grid_desc_kpad_n = transform_tensor_descriptor(
             b_grid_desc_k_n,
@@ -239,8 +239,8 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
     }
 
     private:
-    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1, 1))>;
-    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1, 1))>;
+    using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(MakeAGridDescriptor_AK0_M_AK1(1, 1, 1))>;
+    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1(1, 1, 1))>;
 
     using ABlockDesc_AK0PerB_MPerB_AK1 =
         remove_cvref_t<decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())>;
@@ -377,14 +377,41 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                   const index_t StrideE,
                   const index_t KBatch)
     {
-        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA, KBatch);
-        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB, KBatch);
+        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(M, K, StrideA);
+        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(K, N, StrideB);
         const auto e_grid_desc_m_n       = MakeEGridDescriptor_M_N<ELayout>(M, N, StrideE);
 
-        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        const auto IsMPadded = []() -> bool {
+            if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
+                return true;
+            else
+                return false;
+        };
+
+        const auto IsNPadded = []() -> bool {
+            if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
+                return true;
+            else
+                return false;
+        };
+
+        const auto IsKPadded = []() -> bool {
+            if constexpr(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
+                         GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding)
+                return true;
+            else
+                return false;
+        };
+
+        if constexpr(!IsMPadded())
         {
             if(!(M % MPerBlock == 0))
             {
@@ -398,10 +425,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
             }
         }
 
-        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        if constexpr(!IsNPadded())
         {
             if(!(N % NPerBlock == 0))
             {
@@ -416,17 +440,14 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
             }
         }
 
-        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+        if constexpr(!IsKPadded())
         {
             if(!(K % KPerBlock == 0))
             {
                 if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
                 {
-                    std::cout << "Arg K value is not a multiple of ! KBatch * KPerBlock: " << K
-                              << " " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                    std::cout << "Arg K value is not a multiple of ! KPerBlock: " << K << " "
+                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
                               << std::endl;
                 }
                 return false;
@@ -552,6 +573,9 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         }
 
         // check gridwise gemm pipeline
+        // This does not take into account that each WGP can run multiple kbatch tiles
+        // However that information is dynamic at kernel run-time.
+        // So this condition may be too restrictive.
         const auto num_k_loop =
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             (KPerBlock * KBatch);
@@ -562,8 +586,8 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
             {
                 std::cout << "The number of k loops (" << num_k_loop
                           << ") value is not supported by GridwiseGemm Pipeline."
-                          << " K0Padded: " << a_grid_desc_ak0_m_ak1.GetLength(I1) << __FILE__ << ":"
-                          << __LINE__ << ", in function: " << __func__ << std::endl;
+                          << " AK0Padded: " << a_grid_desc_ak0_m_ak1.GetLength(I0) << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
             }
             return false;
         }
@@ -870,8 +894,8 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         const auto p_b_grid = reinterpret_cast<const BDataType*>(p_b_grid_);
 
         // tensor descriptors for block/thread-wise copy
-        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(M, K, stride_a, k_batch);
-        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(K, N, stride_b, k_batch);
+        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(M, K, stride_a);
+        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(K, N, stride_b);
 
         RunGEMM(p_a_grid,
                 p_b_grid,
@@ -1242,33 +1266,11 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
             acc_load.MoveSrcSliceWindow(workspace_grid_desc_m0m1_n0n1n2, partial_acc_load_step);
         }
-        // if(is_thread_local_1d_id_idx<0, 1, 8, 39>())
-        // {
-        //     printf("[bid: %d, tid: %d], {Accumulate Partials} AccBuf v[0, 0, 0, 0, 0-3]: [%f,
-        //     %f,"
-        //             "%f, %f]\n",
-        //             static_cast<index_t>(blockIdx.x),
-        //             static_cast<index_t>(threadIdx.x),
-        //             static_cast<float>(acc_buff[Number<0>{}]),
-        //             static_cast<float>(acc_buff[Number<1>{}]),
-        //             static_cast<float>(acc_buff[Number<2>{}]),
-        //             static_cast<float>(acc_buff[Number<3>{}]));
-        //     printf("[bid: %d, tid: %d], {Accumulate Partials} AccBuf v[0, 0, 0, 1, 0-3]: [%f,
-        //     %f,"
-        //             "%f, %f]\n",
-        //             static_cast<index_t>(blockIdx.x),
-        //             static_cast<index_t>(threadIdx.x),
-        //             static_cast<float>(acc_buff[Number<8>{}]),
-        //             static_cast<float>(acc_buff[Number<9>{}]),
-        //             static_cast<float>(acc_buff[Number<10>{}]),
-        //             static_cast<float>(acc_buff[Number<11>{}]));
-        // }
     }
 
     template <typename Block2ETileMap, typename AccumulationBuffer>
     __device__ static void RunWrite(DsGridPointer p_ds_grid,
                                     EDataType* __restrict__ p_e_grid,
-                                    /* void* __restrict__ p_shared, */
                                     AccumulationBuffer& acc_buff,
                                     const index_t M,
                                     const index_t N,
@@ -1323,6 +1325,12 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         constexpr auto cluster_length_reduce = GetClusterLengthReduction_M0_N0N1();
         constexpr auto reduce_cluster_desc   = make_cluster_descriptor(cluster_length_reduce);
+
+        // TODO similar assertion
+        // static_assert(
+        //     is_same<SliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
+        //     "wrong! threads should be mapped to cover entire slicing window");
+
         static_assert(ThisThreadBlock::GetNumOfThread() >= reduce_cluster_desc.GetElementSize(),
                       "Error! ThisThreadBlock::GetNumOfThread() too small");
 
@@ -1433,24 +1441,8 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                     unpack2(cde_element_op, tie(acc_buff(acc_buf_offset + I)), src_data_refs);
                 });
 
-                // if(is_thread_local_1d_id_idx<0, 1, 8, 39>())
-                // {
-                //     printf("[bid: %d, tid: %d, m_iter: %d, n_iter: %d], {RunWrite} AuxBuf v[0-3]:
-                //     "
-                //            " [%f, %f, %f, %f]\n",
-                //             static_cast<index_t>(blockIdx.x),
-                //             static_cast<index_t>(threadIdx.x),
-                //             m_idx.value,
-                //             n_idx.value,
-                //            static_cast<float>(aux_vgpr_buf[Number<0>{}]),
-                //            static_cast<float>(aux_vgpr_buf[Number<1>{}]),
-                //            static_cast<float>(aux_vgpr_buf[Number<2>{}]),
-                //            static_cast<float>(aux_vgpr_buf[Number<3>{}]));
-                // }
-
                 e_grid_store.Run(workspace_thread_desc_m0m1_n0n1n2,
                                  make_tuple(I0, m_idx, I0, n_idx, I0),
-                                 //  aux_vgpr_buf,
                                  acc_buff,
                                  e_grid_desc_m0m1_n0n1n2,
                                  e_grid_buf);

@@ -128,21 +128,12 @@ __global__ void
         const auto StrideA = gemm_desc_ptr[group_id].StrideA;
         const auto StrideB = gemm_desc_ptr[group_id].StrideB;
 
-        // results_buffer.Clear();
         b2c_tile_map.CalculateBottomIndex(work_scheduler.tile_id_ - offset);
 
         // Iterate over K dimension for this [M,N] tile
         // still in the same GEMM && the same [M,N] tile
-        // TODO: change desc so that few K-tiles will be done in single GEMM.
-        // do
-        // {
         auto k_tiles = work_scheduler.GetNextKTiles(k_batch, b2c_tile_map.GetTileKIdx());
-        // if (blockIdx.x < 4 && ck::debug::is_thread_local_1d_id_idx<0>())
-        // {
-        //     printf("bid: %d, k_tiles: %d\n",
-        //            static_cast<index_t>(blockIdx.x),
-        //            k_tiles);
-        // }
+
         // just accumulate results in registers!
         GridwiseGemm::template RunGEMM(p_a_grid,
                                        p_b_grid,
@@ -160,8 +151,6 @@ __global__ void
                                        k_tiles);
         // Move to the last processed k-tile
         b2c_tile_map.AdvanceTileKIdx(k_tiles - 1);
-
-        // } while(work_scheduler.GetNextTile() && b2c_tile_map.GetNextKTileIdx());
 
         // if (changed group_id || next [M,N] tile)
         // With cshuffle at store partials all workgroups have to store
@@ -219,11 +208,6 @@ __global__ void
                 using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                 p_ds_grid(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
             });
-
-            // if (threadIdx.x == 0)
-            // {
-            //     p_e_grid[blockIdx.x] = 0;
-            // }
 
             GridwiseGemm::template RunWrite(p_ds_grid,
                                             p_e_grid,
@@ -766,16 +750,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             }
 
             auto preprocess = [&]() {
-                // std::cout << "[preprocess] p_flags: " << p_flags
-                //           << ", flag count: " << flag_count
-                //           << ", bytes: " << flag_count * sizeof(uint32_t)
-                //           << ", stream id: " << stream_config.stream_id_
-                //           << std::endl;
                 hip_check_error(hipMemsetAsync(
                     p_flags, 0, flag_count * sizeof(uint32_t), stream_config.stream_id_));
-                // TODO: For debug only!
-                hip_check_error(hipMemsetAsync(
-                    dev_gemm_workspace, 2, acc_workspace_size_bytes, stream_config.stream_id_));
             };
 
             return launch_and_time_kernel_with_preprocess(
@@ -966,11 +942,6 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
         size_t size_bytes =
             Block2ETileMapKSplit::GetAccWorkspaceSize(sizeof(CShuffleDataType), grid_size) +
             flag_count * sizeof(uint32_t);
-
-        std::cout << "[GetWorkspaceSize]: "
-                  << "occ_grid_size: " << occ_grid_size << ", grid_size: " << grid_size
-                  << ", tiles_per_block: " << tiles_per_block << ", flag_count: " << flag_count
-                  << ", size_bytes: " << size_bytes << std::endl;
 
         return size_bytes;
     }
