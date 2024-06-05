@@ -30,30 +30,30 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instan
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_outelementop_bf8_instances<3,
-                                                            NDHWGC,
-                                                            GKZYXC,
-                                                            ck::Tuple<>,
-                                                            NDHWGK,
-                                                            ConvFwdDefault,
-                                                            ConvScale>{});
+                                                               NDHWGC,
+                                                               GKZYXC,
+                                                               ck::Tuple<>,
+                                                               NDHWGK,
+                                                               ConvFwdDefault,
+                                                               ConvScale>{});
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_outelementop_bf8_instances<3,
-                                                            NDHWGC,
-                                                            GKZYXC,
-                                                            ck::Tuple<>,
-                                                            NDHWGK,
-                                                            ConvFwd1x1P0,
-                                                            ConvScale>{});
+                                                               NDHWGC,
+                                                               GKZYXC,
+                                                               ck::Tuple<>,
+                                                               NDHWGK,
+                                                               ConvFwd1x1P0,
+                                                               ConvScale>{});
     add_device_operation_instances(
         instances,
         device_grouped_conv_fwd_xdl_outelementop_bf8_instances<3,
-                                                            NDHWGC,
-                                                            GKZYXC,
-                                                            ck::Tuple<>,
-                                                            NDHWGK,
-                                                            ConvFwd1x1S1P0,
-                                                            ConvScale>{});
+                                                               NDHWGC,
+                                                               GKZYXC,
+                                                               ck::Tuple<>,
+                                                               NDHWGK,
+                                                               ConvFwd1x1S1P0,
+                                                               ConvScale>{});
 }
 
 } // namespace instance

@@ -76,7 +76,6 @@ using device_grouped_conv_fwd_xdl_outelementop_f8_instances = std::tuple<
     // clang-format on
     >;
 
-
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -113,7 +112,6 @@ using device_grouped_conv_fwd_xdl_outelementop_bf8_instances = std::tuple<
 #endif
     // clang-format on
     >;
-
 
 } // namespace instance
 } // namespace device

@@ -39,7 +39,6 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
                                                                 F8>>>& instances);
 #endif
 
-
 #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
 
 using BF8 = ck::bf8_t;
@@ -59,7 +58,6 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instan
                                                                 ConvScale,
                                                                 BF8>>>& instances);
 #endif
-
 
 template <ck::index_t NumDimSpatial,
           typename InLayout,
@@ -125,10 +123,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, F8> && is_same_v<AComputeType, BF8> &&
                          is_same_v<BComputeType, BF8>)
             {
-                add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instances(op_ptrs);
+                add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
+                    op_ptrs);
             }
 #endif
-
         }
         return op_ptrs;
     }
