@@ -37,7 +37,7 @@ using DDataType        = F16;
 using EDataType        = F16;
 
 using ALayout = Row;
-using BLayout = Col;
+using BLayout = Row;
 using DLayout = Row;
 using ELayout = Row;
 
@@ -141,8 +141,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl
     S<4, 64, 1>,
     S<1, 0, 2>,
     S<1, 0, 2>,
+    1,
     2,
-    8,
     8,
     1,
     1,
@@ -161,10 +161,10 @@ int main(int argc, char* argv[])
     ck::index_t N = 4096;
     ck::index_t K = 4096;
 
-    ck::index_t StrideA = 4096;
-    ck::index_t StrideB = 4096;
-    ck::index_t StrideD = 4096;
-    ck::index_t StrideE = 4096;
+    ck::index_t StrideA = K;
+    ck::index_t StrideB = N;
+    ck::index_t StrideD = N;
+    ck::index_t StrideE = N;
 
     float alpha = 1.0f;
     float beta  = 1.0f;

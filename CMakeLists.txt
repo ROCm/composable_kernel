@@ -23,8 +23,10 @@ endif()
 
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel VERSION ${version} LANGUAGES CXX)
+project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
+
+find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -110,7 +112,7 @@ message("checking which targets are supported")
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+        TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)
@@ -133,12 +135,10 @@ endif()
 
 message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
 
-set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
-
 if(GPU_TARGETS)
     message("Building CK for the following targets: ${GPU_TARGETS}")
 else()
-    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+    message("Building CK for the default targets: ${DEFAULT_GPU_TARGETS}")
 endif()
 
 if (GPU_TARGETS)
@@ -168,7 +168,10 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
    message("Adding the fno-offload-uniform-block compiler flag")
    add_compile_options(-fno-offload-uniform-block)
 endif()
-
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
+   message("Adding the enable-post-misched=0 compiler flag")
+   add_compile_options(-mllvm -enable-post-misched=0)
+endif()
 #
 # Seperate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
@@ -197,7 +200,7 @@ endif()
 
 
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_NAVI3X "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
+option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -205,10 +208,10 @@ if(USE_BITINT_EXTENSION_INT4)
     message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
-if(USE_OPT_NAVI3X)
+if(USE_OPT_GFX11)
     add_compile_options(-mcumode)
     add_compile_options(-mno-wavefrontsize64)
-    message("CK compiled with USE_OPT_NAVI3X set to ${USE_OPT_NAVI3X}")
+    message("CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
 endif()
 
 ## Threads
@@ -220,7 +223,13 @@ link_libraries(Threads::Threads)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
+## HIP
+set(CMAKE_HIP_PLATFORM amd)
+set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
+set(CMAKE_HIP_EXTENSIONS ON)
+message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

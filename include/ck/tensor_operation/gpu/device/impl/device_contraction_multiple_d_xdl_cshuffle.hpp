@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -53,8 +53,7 @@ __global__ void
                 e_grid_desc_mblock_mperblock_nblock_nperblock,
             const Block2ETileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -627,7 +626,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             arg.a_max_read_elems_ % ABlockTransferSrcScalarPerVector == 0;
         const bool valid_a_access_dim_m = ABlockTransferSrcVectorDim == 1 && arg.a_mz_consecutive_;
         const bool valid_a_access_dim_k = ABlockTransferSrcVectorDim == 2 && arg.a_kz_consecutive_;
-        const bool valid_a_access_dim   = valid_a_access_dim_m || valid_a_access_dim_k;
+        const bool valid_a_access_dim =
+            valid_a_access_dim_m || valid_a_access_dim_k || ABlockTransferSrcScalarPerVector == 1;
         if(!(valid_a_vector_size && valid_a_access_dim))
         {
             return false;
@@ -637,7 +637,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             arg.b_max_read_elems_ % BBlockTransferSrcScalarPerVector == 0;
         const bool valid_b_access_dim_n = BBlockTransferSrcVectorDim == 1 && arg.b_nz_consecutive_;
         const bool valid_b_access_dim_k = BBlockTransferSrcVectorDim == 2 && arg.b_kz_consecutive_;
-        const bool valid_b_access_dim   = valid_b_access_dim_n || valid_b_access_dim_k;
+        const bool valid_b_access_dim =
+            valid_b_access_dim_n || valid_b_access_dim_k || BBlockTransferSrcScalarPerVector == 1;
         if(!(valid_b_vector_size && valid_b_access_dim))
         {
             return false;
@@ -648,7 +649,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             const bool valid_d_vector_size =
                 arg.ds_max_read_elems_[i] % CDEBlockTransferScalarPerVector_NPerBlock == 0;
             // Vector read of Ds is always on N dimension.
-            const bool valid_d_access_dim = arg.ds_nz_consecutive_[i];
+            const bool valid_d_access_dim =
+                arg.ds_nz_consecutive_[i] || CDEBlockTransferScalarPerVector_NPerBlock == 1;
             if(!(valid_d_vector_size && valid_d_access_dim))
             {
                 valid_ds_access = false;
@@ -662,7 +664,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         const bool valid_e_vector_size =
             arg.e_max_write_elems_ % CDEBlockTransferScalarPerVector_NPerBlock == 0;
         // Vector write of E is always on N dimension.
-        const bool valid_e_access_dim = arg.e_nz_consecutive_;
+        const bool valid_e_access_dim =
+            arg.e_nz_consecutive_ || CDEBlockTransferScalarPerVector_NPerBlock == 1;
         if(!(valid_e_vector_size && valid_e_access_dim))
         {
             return false;
