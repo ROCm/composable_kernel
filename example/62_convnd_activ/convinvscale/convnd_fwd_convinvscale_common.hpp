@@ -211,10 +211,10 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-    // sample scale values, same as host
-    float scale_in  = 3.3f;
-    float scale_wei = 4.4f;
-    float scale_out = 5.5f;
+    // random scale values
+    float scale_in  = float(std::rand()) / float(RAND_MAX);
+    float scale_wei = float(std::rand()) / float(RAND_MAX);
+    float scale_out = float(std::rand()) / float(RAND_MAX);
 
     // initialize out_element_op for each iteration
     const auto out_element_op = OutElementOp{scale_in, scale_wei, scale_out};
@@ -286,14 +286,7 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        // sample scale values, same as device
-        float scale_in_host  = 3.3f;
-        float scale_wei_host = 4.4f;
-        float scale_out_host = 5.5f;
-
-        const OutElementOp out_element_op_host{scale_in_host, scale_wei_host, scale_out_host};
-
-        out_host.ForEach([&](auto&, auto idx) { out_element_op_host(out_host(idx), c(idx)); });
+        out_host.ForEach([&](auto&, auto idx) { out_element_op(out_host(idx), c(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
 
