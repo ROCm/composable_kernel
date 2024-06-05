@@ -36,9 +36,14 @@ add_executable(client_grouped_convnd_fwd_bilinear_residual_fp16
                grouped_convnd_fwd_bilinear/grouped_conv_fwd_bilinear_residual_fp16.cpp)
 target_link_libraries(client_grouped_convnd_fwd_bilinear_residual_fp16 PRIVATE composable_kernel::device_conv_operations)
 # Fwd convscale
-add_executable(client_conv3d_fwd_convscale_fp8 
+add_executable(client_conv3d_fwd_convscale_fp8
                grouped_convnd_fwd_convscale/conv3d_fwd_convscale_fp8.cpp)
 target_link_libraries(client_conv3d_fwd_convscale_fp8 PRIVATE composable_kernel::device_conv_operations)
+
+add_executable(client_conv3d_fwd_convscale_bf8
+               grouped_convnd_fwd_convscale/conv3d_fwd_convscale_bf8.cpp)
+target_link_libraries(client_conv3d_fwd_convscale_bf8 PRIVATE composable_kernel::device_conv_operations)
+
 # Bwd data bilinear
 add_executable(client_grouped_convnd_bwd_data_bilinear_residual_fp16
                grouped_convnd_bwd_data_bilinear/grouped_conv_bwd_data_bilinear_residual_fp16.cpp)

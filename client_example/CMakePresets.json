@@ -19,7 +19,7 @@
             }
         },
         {
-            "name": "gfx90a-debug",
+            "name": "client-example-debug",
             "displayName": "MI200 Debug",
             "inherits": "linux-debug",
             "generator": "Unix Makefiles",
@@ -29,16 +29,15 @@
             },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "BUILD_DEV": "ON",
                 "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
                 "GPU_TARGETS": "gfx90a",
-                "CMAKE_PREFIX_PATH": "/opt/rocm"
+                "CMAKE_PREFIX_PATH": "/dockerx/repos/composable_kernel/build/install/gfx90a-release;/opt/rocm"
             }
         },
         {
-            "name": "gfx90a-release",
+            "name": "client-example-release",
             "displayName": "MI200 Release",
-            "inherits": "gfx90a-debug",
+            "inherits": "client-example-debug",
             "generator": "Unix Makefiles",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
@@ -58,24 +57,24 @@
             "configuration": "Release"
         },
         {
-            "name": "gfx90a-debug",
+            "name": "client-example-debug",
             "displayName": "MI200 Debug Build",
-            "configurePreset": "gfx90a-debug",
+            "configurePreset": "client-example-debug",
             "description": "Development Environment for MI200 Series.",
             "inherits": [
                 "Debug"
             ],
-            "jobs": 64
+            "jobs": 32
         },
         {
-            "name": "gfx90a-release",
+            "name": "client-example-release",
             "displayName": "MI200 Release Build",
-            "configurePreset": "gfx90a-release",
+            "configurePreset": "client-example-release",
             "description": "Development Environment for MI200 Series.",
             "inherits": [
                 "Release"
             ],
-            "jobs": 128
+            "jobs": 32
         }
     ]
 }
