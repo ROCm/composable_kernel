@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -11,13 +11,13 @@ using AccDataType      = float;
 using CShuffleDataType = ck::bhalf_t;
 using CDataType        = ck::bhalf_t;
 using D0DataType       = ck::bhalf_t;
-using DsDataType       = ck::Tuple<D0DataType>;
+using DsDataType       = ck::Tuple<>;
 
 using ALayout  = Row;
 using BLayout  = Row;
 using CLayout  = Row;
 using D0Layout = Row;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<>;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;

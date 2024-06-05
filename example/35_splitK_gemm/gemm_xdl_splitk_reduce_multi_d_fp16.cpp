@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -47,16 +47,6 @@ using DeviceGemmV2Instance =
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
-
-// using ReferenceGemmInstance =
-//             ck::tensor_operation::host::ReferenceGemmMultipleD<ADataType,
-//                                                                BDataType,
-//                                                                ck::Tuple<D0DataType>,
-//                                                                CDataType,
-//                                                                AccDataType,
-//                                                                AElementOp,
-//                                                                BElementOp,
-//                                                                CDEElementOp>;
 
 #include "run_gemm_splitk_reduce_multi_d_example.inc"
 

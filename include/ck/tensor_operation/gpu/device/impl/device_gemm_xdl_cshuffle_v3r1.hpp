@@ -900,7 +900,6 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        std::cout << "CDataType: " << sizeof(CDataType) << std::endl;
         auto arg = *dynamic_cast<const Argument*>(p_arg);
         if(arg.IsReduce())
         {

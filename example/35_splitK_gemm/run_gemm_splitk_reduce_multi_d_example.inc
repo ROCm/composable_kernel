@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -201,26 +201,46 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto c_element_op = CElementOp{};
 
     // do GEMM
-    auto gemm      = DeviceGemmV2Instance{};
-    auto invoker   = gemm.MakeInvoker();
-    float ave_time = 0;
-
-    auto argument = gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-                                      {d0_m_n_device_buf.GetDeviceBuffer()},
-                                      static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-                                      M,
-                                      N,
-                                      K,
-                                      StrideA,
-                                      StrideB,
-                                      {StrideD0},
-                                      StrideC,
-                                      KBatch,
-                                      KBatch > 1,
-                                      a_element_op,
-                                      b_element_op,
-                                      c_element_op);
+    auto gemm        = DeviceGemmV2Instance{};
+    auto invoker     = gemm.MakeInvoker();
+    float ave_time   = 0;
+    auto get_argment = [&]() {
+        if constexpr(DsDataType::Size() > 0)
+            return gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                     static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                     {d0_m_n_device_buf.GetDeviceBuffer()},
+                                     static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                     M,
+                                     N,
+                                     K,
+                                     StrideA,
+                                     StrideB,
+                                     {StrideD0},
+                                     StrideC,
+                                     KBatch,
+                                     KBatch > 1,
+                                     a_element_op,
+                                     b_element_op,
+                                     c_element_op);
+        else
+            return gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+                                     static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+                                     {},
+                                     static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
+                                     M,
+                                     N,
+                                     K,
+                                     StrideA,
+                                     StrideB,
+                                     {},
+                                     StrideC,
+                                     KBatch,
+                                     KBatch > 1,
+                                     a_element_op,
+                                     b_element_op,
+                                     c_element_op);
+    };
+    auto argument = get_argment();
 
     if(!gemm.IsSupportedArgument(argument))
     {
@@ -247,9 +267,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        auto element_wise_op = Add{};
-        c_m_n_host_result.ForEach(
-            [&](auto& self, auto idx) { element_wise_op(self(idx), self(idx), d0_m_n(idx)); });
+        if constexpr(DsDataType::Size() > 0)
+        {
+            auto element_wise_op = Add{};
+            c_m_n_host_result.ForEach(
+                [&](auto& self, auto idx) { element_wise_op(self(idx), self(idx), d0_m_n(idx)); });
+        }
 
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_host_result,
