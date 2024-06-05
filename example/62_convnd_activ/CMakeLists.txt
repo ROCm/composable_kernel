@@ -1,5 +1,6 @@
 add_subdirectory(binary)
 add_subdirectory(convinvscale)
+add_subdirectory(convscale)
 add_subdirectory(multi_AB)
 add_subdirectory(unary)
 

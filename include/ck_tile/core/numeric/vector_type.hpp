@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -143,6 +143,15 @@ using int8x8_t  = int8_t __attribute((ext_vector_type(8)));
 using int8x16_t = int8_t __attribute((ext_vector_type(16)));
 using int8x32_t = int8_t __attribute((ext_vector_type(32)));
 using int8x64_t = int8_t __attribute((ext_vector_type(64)));
+
+// ui8
+// using uint8_t
+using uint8x2_t  = uint8_t __attribute((ext_vector_type(2)));
+using uint8x4_t  = uint8_t __attribute((ext_vector_type(4)));
+using uint8x8_t  = uint8_t __attribute((ext_vector_type(8)));
+using uint8x16_t = uint8_t __attribute((ext_vector_type(16)));
+using uint8x32_t = uint8_t __attribute((ext_vector_type(32)));
+using uint8x64_t = uint8_t __attribute((ext_vector_type(64)));
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 // f8
