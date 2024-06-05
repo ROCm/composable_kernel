@@ -330,7 +330,7 @@ template <index_t NDimSpatial,
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
           LoopScheduler LoopSched = make_default_loop_scheduler()>
-struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
+struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
                                              BLayout,
@@ -345,7 +345,7 @@ struct CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              CDEElementwiseOperation,
                                              ComputeDataType>
 {
-    using DeviceOp = CopyDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
+    using DeviceOp = CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
