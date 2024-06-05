@@ -861,16 +861,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 return false;
             }
         }
-        // Check is gfx9 used
-        else if(ck::is_lds_direct_load_supported())
-        {
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||
-                           is_same_v<AccDataType, int32_t> || is_same_v<AccDataType, double>))
-            {
-                return false;
-            }
-        }
-        else
+
+        if(!ck::is_xdl_supported())
         {
             return false;
         }
