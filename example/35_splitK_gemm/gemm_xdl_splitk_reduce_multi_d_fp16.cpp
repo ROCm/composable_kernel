@@ -3,7 +3,7 @@
 
 #include "common.hpp"
 
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v4.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3r1.hpp"
 
 using ADataType        = ck::half_t;
 using BDataType        = ck::half_t;
@@ -28,7 +28,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 // clang-format off
 using DeviceGemmV2Instance = 
-    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV4<
+    ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3R1<
         ALayout,   BLayout,  CLayout,   DsLayout,
         ADataType,   BDataType,  CDataType, DsDataType, AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 

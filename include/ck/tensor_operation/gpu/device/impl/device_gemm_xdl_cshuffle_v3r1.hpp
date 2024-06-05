@@ -72,17 +72,17 @@ template <typename ALayout,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA>
-struct DeviceGemm_Xdl_CShuffleV4 : public DeviceGemmV2R1<ALayout,
-                                                         BLayout,
-                                                         DsLayout,
-                                                         CLayout,
-                                                         ADataType,
-                                                         BDataType,
-                                                         DsDataType,
-                                                         CDataType,
-                                                         AElementwiseOperation,
-                                                         BElementwiseOperation,
-                                                         CElementwiseOperation>
+struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
+                                                           BLayout,
+                                                           DsLayout,
+                                                           CLayout,
+                                                           ADataType,
+                                                           BDataType,
+                                                           DsDataType,
+                                                           CDataType,
+                                                           AElementwiseOperation,
+                                                           BElementwiseOperation,
+                                                           CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
