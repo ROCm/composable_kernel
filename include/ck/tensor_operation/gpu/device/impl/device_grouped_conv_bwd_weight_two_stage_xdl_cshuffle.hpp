@@ -674,7 +674,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         clear_workspace();
                     };
 
-                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                    ave_time += ck::utility::launch_and_time_kernel_with_preprocess<false>(
                         stream_config,
                         run_flush_cache,
                         kernel,
@@ -690,7 +690,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 }
                 else
                 {
-                    ave_time = launch_and_time_kernel_with_preprocess(
+                    ave_time += launch_and_time_kernel_with_preprocess(
                         stream_config,
                         clear_workspace,
                         kernel,
