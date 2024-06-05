@@ -30,7 +30,7 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_insta
                                                                                   Empty_Tuple,
                                                                                   NDHWGK,
                                                                                   ConvFwdDefault,
-                                                                                  Interwave>{});
+                                                                                  Intrawave>{});
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
                                                                                   NDHWGC,
@@ -38,7 +38,7 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_insta
                                                                                   Empty_Tuple,
                                                                                   NDHWGK,
                                                                                   ConvFwd1x1P0,
-                                                                                  Interwave>{});
+                                                                                  Intrawave>{});
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_bf16_mem_instances<3,
                                                                                   NDHWGC,
@@ -46,7 +46,7 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_insta
                                                                                   Empty_Tuple,
                                                                                   NDHWGK,
                                                                                   ConvFwd1x1S1P0,
-                                                                                  Interwave>{});
+                                                                                  Intrawave>{});
 }
 
 } // namespace instance

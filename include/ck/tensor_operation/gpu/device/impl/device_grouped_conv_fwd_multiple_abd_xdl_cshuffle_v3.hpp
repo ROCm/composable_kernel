@@ -69,18 +69,16 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_grouped_conv_fwd_xdl_cshuffle_v3(
-        typename GridwiseGemm::Argument karg,
-        const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-        const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-        const index_t batch_count)
+        kernel_grouped_conv_fwd_xdl_cshuffle_v3(
+            typename GridwiseGemm::Argument karg,
+            const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+            const index_t batch_count)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch = __builtin_amdgcn_readfirstlane(gridDim.y / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_batch);
@@ -125,18 +123,16 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds(
-        typename GridwiseGemm::Argument karg,
-        const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-        const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-        const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-        const index_t batch_count)
+        kernel_grouped_conv_fwd_xdl_cshuffle_v3_2lds(
+            typename GridwiseGemm::Argument karg,
+            const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+            const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+                c_grid_desc_mblock_mperblock_nblock_nperblock,
+            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+            const index_t batch_count)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch = __builtin_amdgcn_readfirstlane(gridDim.y / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_batch);
@@ -270,7 +266,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     static constexpr bool isMultiABD = isMultiA || isMultiB || isMultiD;
 
     // multi ABD not supported
-    static_assert(!isMultiABD);
+    static_assert(!isMultiABD, "Multi A, Mutli B and Multi D are not supported");
 
     static constexpr index_t NumATensor = GetNumABTensors<isMultiA, ADataType>();
     static constexpr index_t NumBTensor = GetNumABTensors<isMultiB, BDataType>();
@@ -865,6 +861,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 return false;
             }
         }
+        // Check is gfx9 used
         else if(ck::is_lds_direct_load_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, float> ||

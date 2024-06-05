@@ -30,7 +30,7 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances
                                                                                  Empty_Tuple,
                                                                                  NHWGK,
                                                                                  ConvFwdDefault,
-                                                                                 Interwave>{});
+                                                                                 Intrawave>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_f16_mem_instances<2,
@@ -39,7 +39,7 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances
                                                                                  Empty_Tuple,
                                                                                  NHWGK,
                                                                                  ConvFwd1x1P0,
-                                                                                 Interwave>{});
+                                                                                 Intrawave>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_f16_mem_instances<2,
@@ -48,7 +48,7 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances
                                                                                  Empty_Tuple,
                                                                                  NHWGK,
                                                                                  ConvFwd1x1S1P0,
-                                                                                 Interwave>{});
+                                                                                 Intrawave>{});
 
     add_device_operation_instances(instances,
                                    device_grouped_conv_fwd_xdl_f16_mem_instances<2,
@@ -57,7 +57,7 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_mem_intra_instances
                                                                                  Empty_Tuple,
                                                                                  NHWGK,
                                                                                  ConvFwdOddC,
-                                                                                 Interwave>{});
+                                                                                 Intrawave>{});
 }
 
 } // namespace instance
