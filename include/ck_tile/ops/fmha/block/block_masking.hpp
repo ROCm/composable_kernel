@@ -269,6 +269,51 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    struct IndexIterator {
+        CK_TILE_HOST_DEVICE IndexIterator(index_t start_, index_t end_)
+            : start(start_), end(end_), current(start_), length(end_ - start_)
+        {
+        }
+
+        CK_TILE_HOST_DEVICE bool at_end() const { return !(current < end); }
+
+        CK_TILE_HOST_DEVICE void advance() {
+            if (!at_end()) { current++; }
+        }
+
+        const index_t start;
+        const index_t end;
+        index_t current;
+        const index_t length;
+    };
+
+    template <index_t YTile, index_t XTile>
+    CK_TILE_HOST_DEVICE constexpr auto
+    GetTileIndexIteratorAlongX(index_t i_y, number<YTile>, number<XTile>) const
+    {
+        if constexpr(!IsMasking)
+        {
+            return IndexIterator(0, integer_divide_floor(x_total, XTile));
+        }
+        else
+        {
+            // get the tile start/end range assum we loop over along X tile by tile
+            index_t x_start = [&]() {
+                index_t tmp = max(-y + i_y + 1, 0);
+                return (tmp / XTile) * XTile; // round to tile aligned
+            }();
+
+            // TODO: end could be negative, we ignore clamp here, and let caller to check
+            //      ... in which case end-start is negative
+            index_t x_end = [&]() {
+                index_t tmp = min(i_y + YTile - 1 + x, x_total);
+                return ((tmp + XTile - 1) / XTile) * XTile;
+            }();
+
+            return IndexIterator(x_start, x_end);
+        }
+    }
+
     // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
     CK_TILE_HOST_DEVICE constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
     {
@@ -320,8 +365,8 @@ struct SimplifiedGenericAttentionMask
     }
 
     private:
-    index_t y, x;
-    index_t y_total, x_total;
+    const index_t y, x;
+    const index_t y_total, x_total;
 };
 
 // TODO: prefer use this function in host code
