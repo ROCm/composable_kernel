@@ -228,11 +228,20 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
             std::array<std::array<index_t, NumOutDim>, NumDTensor> DsLengths;
             std::array<std::array<index_t, NumOutDim>, NumDTensor> DsStrides;
-            for(size_t i = 0; i < NumDTensor; i++)
-            {
+
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
                 DsLengths[i] = out_lengths;
-                DsStrides[i] = out_strides;
-            }
+
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same<DLayout, ck::tensor_layout::gemm::RowMajor>::value)
+                {
+                    DsStrides[i] = {arg.N, 1};
+                }
+                else
+                {
+                    DsStrides[i] = {1, arg.M};
+                }
+            });
 
             auto reduce = DeviceReduceInstance{};
 
