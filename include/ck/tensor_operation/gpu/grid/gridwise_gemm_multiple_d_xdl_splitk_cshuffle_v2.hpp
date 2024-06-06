@@ -415,7 +415,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(!(M % MPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M value is not a multiple of MPerBlock! M: " << M << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -429,7 +429,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(!(N % NPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N value is not a multiple of NPerBlock! N: " << N << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -444,7 +444,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(!(K % KPerBlock == 0))
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K value is not a multiple of ! KPerBlock: " << K << " "
                               << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
@@ -458,7 +458,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(K % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << K
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -472,7 +472,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(M % ABlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << M
                               << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
@@ -487,7 +487,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(N % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << N
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -501,7 +501,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(K % BBlockTransferSrcScalarPerVector != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K (" << K
                               << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
@@ -516,7 +516,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(N % CDEShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg N (" << N
                               << ") value is not a multiple of "
@@ -532,7 +532,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         {
             if(M % CDEShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-                if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg M (" << M
                               << ") value is not a multiple of "
@@ -550,7 +550,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         if(k_batch_size < KPerBlock)
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "The k-batch size (" << k_batch_size
                           << ") value is less than KPerBlock!\n"
@@ -562,7 +562,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         if(k_batch_size % KPerBlock != 0)
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "The k-batch size (" << k_batch_size
                           << ") value is not a multiple of KPerBlock!\n"
@@ -582,7 +582,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
-            if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "The number of k loops (" << num_k_loop
                           << ") value is not supported by GridwiseGemm Pipeline."

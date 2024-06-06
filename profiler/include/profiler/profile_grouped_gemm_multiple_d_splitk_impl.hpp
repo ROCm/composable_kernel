@@ -84,7 +84,7 @@ bool profile_ggemm_multid_splitk(int do_verification,
 
         c_m_n_host_results.push_back(
             Tensor<CDataType>(f_host_tensor_descriptor(Ms[i], Ns[i], StrideCs[i], CLayout{})));
-        if(ck::EnvIsEnabled(ENV(CK_LOGGING)))
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
         {
             std::cout << "group: " << i << " a_m_k[" << i << "]:" << a_m_k[i].mDesc << ", b_k_n["
                       << i << "]:" << b_k_n[i].mDesc << ", c_m_n_device_results[" << i
