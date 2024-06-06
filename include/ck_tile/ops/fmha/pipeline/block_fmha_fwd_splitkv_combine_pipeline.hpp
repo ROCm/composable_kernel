@@ -389,11 +389,10 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                             get_x_indices_from_distributed_indices(o_acc_dist, distributed_indices);
 
                         const auto row = x_indices.at(number<0>{});
-                        
 
                         LSEDataType lse_scale = lse_acc_lds_ptr[i_split + row * kMaxSplits];
                         o_acc(distributed_indices) += lse_scale * o_tile(distributed_indices);
-                        #if 0
+#if 0
                         DEBUG_STMTS
                         {
                             const auto col = x_indices.at(number<1>{});
@@ -405,7 +404,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                                    lse_scale,
                                    o_tile(distributed_indices));
                         }
-                        #endif
+#endif
                     });
                 });
             }

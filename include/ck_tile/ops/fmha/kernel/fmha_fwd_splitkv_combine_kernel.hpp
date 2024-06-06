@@ -259,12 +259,14 @@ struct FmhaFwdSplitKVCombineKernel
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
-            batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
+            batch_offset_lse_acc =
+                static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
             batch_offset_o_acc = static_cast<long_index_t>(i_batch) *
                                  (kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v);
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse = static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
+                batch_offset_lse =
+                    static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
             }
             batch_offset_o = query_start * kargs.row_stride_o;
 
