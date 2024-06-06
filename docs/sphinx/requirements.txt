@@ -16,7 +16,7 @@ beautifulsoup4==4.12.3
     # via pydata-sphinx-theme
 breathe==4.35.0
     # via rocm-docs-core
-certifi==2024.2.2
+certifi==2024.6.2
     # via requests
 cffi==1.16.0
     # via
@@ -26,7 +26,7 @@ charset-normalizer==3.3.2
     # via requests
 click==8.1.7
     # via sphinx-external-toc
-cryptography==42.0.7
+cryptography==42.0.8
     # via pyjwt
 deprecated==1.2.14
     # via pygithub
@@ -103,7 +103,7 @@ requests==2.32.3
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.2.0
+rocm-docs-core==1.4.0
     # via -r requirements.in
 six==1.16.0
     # via pybtex
@@ -151,7 +151,7 @@ sphinxcontrib-serializinghtml==1.1.10
     # via sphinx
 tomli==2.0.1
     # via sphinx
-typing-extensions==4.12.0
+typing-extensions==4.12.1
     # via
     #   pydata-sphinx-theme
     #   pygithub
