@@ -75,7 +75,7 @@ void add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_int8_instances(
 
 #ifdef CK_ENABLE_BF16
 // grouped conv2d forward, GNHWC/GKYXC/GNHWK
-void add_device_grouped_conv1d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
+void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 GNHWC,
                                                                 GKYXC,
