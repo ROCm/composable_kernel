@@ -159,16 +159,6 @@ __global__ void
         // Would be enough to keep it in registers and during AccumulatePartials
         // do CShuffle in flight with loading partials products of other peer workgroups.
         GridwiseGemm::StorePartials(p_workspace, static_cast<void*>(p_shared), results_buffer);
-
-#if 1
-        __builtin_amdgcn_sched_barrier(0);
-        // make sure all writes to gmem has finished.
-        __builtin_amdgcn_s_waitcnt(0x0f70); // s_waitcnt vmcnt(0)
-        // __builtin_amdgcn_s_waitcnt(0x0070);         // s_waitcnt vmcnt(0) lgkmcnt(0)
-        __builtin_amdgcn_s_barrier(); // s_barrier
-        // __builtin_amdgcn_sched_barrier(0x0001);  // allow all non-memory instructions to pass
-        __builtin_amdgcn_sched_barrier(0);
-#endif
         work_scheduler.FlagFinished();
 
         // The workgroup which processed first K tile accumulates results and stores to GMEM
