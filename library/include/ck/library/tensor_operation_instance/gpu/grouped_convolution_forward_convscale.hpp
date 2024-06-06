@@ -40,9 +40,6 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_instanc
 #endif
 
 #if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
-
-using BF8 = ck::bf8_t;
-
 void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,

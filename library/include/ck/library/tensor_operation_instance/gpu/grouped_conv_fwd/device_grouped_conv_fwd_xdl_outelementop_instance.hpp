@@ -15,10 +15,7 @@ namespace instance {
 
 using F32 = float;
 using F8  = ck::f8_t;
-
-#ifdef CK_ENABLE_BF8
 using BF8 = ck::bf8_t;
-#endif
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
