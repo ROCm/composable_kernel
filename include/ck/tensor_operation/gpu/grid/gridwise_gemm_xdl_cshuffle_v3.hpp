@@ -541,12 +541,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
         }
 
-        __host__ __device__ inline bool IsReduce() const
+        __host__ __device__ inline bool IsReduceAdd() const
         {
             return (Problem::KBatch > 1) && is_reduce;
         }
 
-        __host__ __device__ inline bool IsAtomic() const
+        __host__ __device__ inline bool IsAtomicAdd() const
         {
             return (Problem::KBatch > 1) && (!is_reduce);
         }
@@ -589,7 +589,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
 
-            if(karg.IsReduce())
+            if(karg.IsReduceAdd())
             {
                 c_reduce_offset = blockIdx.z * karg.M * karg.N;
             }
@@ -1102,7 +1102,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
         {
-            if(!karg.IsReduce())
+            if(!karg.IsReduceAdd())
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {

@@ -200,7 +200,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         float RunReduce(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
         {
             auto arg = arg_;
-            if(!arg.IsReduce())
+            if(!arg.IsReduceAdd())
             {
                 arg.p_workspace_ = static_cast<void*>(arg.p_c_grid);
             }
@@ -269,7 +269,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         {
             auto arg = *dynamic_cast<const typename GridwiseGemm::Argument*>(&arg_);
 
-            if(arg.IsReduce())
+            if(arg.IsReduceAdd())
             {
                 arg.p_c_grid = static_cast<CDataType*>(arg.p_workspace_);
             }
@@ -312,7 +312,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                         // clear c mem
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
-                            if(arg.IsAtomic())
+                            if(arg.IsAtomicAdd())
                                 hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                                  0,
                                                                  arg.M * arg.N * sizeof(CDataType),
@@ -333,7 +333,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 {
                     if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                     {
-                        if(arg.IsAtomic())
+                        if(arg.IsAtomicAdd())
                             hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                              0,
                                                              arg.M * arg.N * sizeof(CDataType),
@@ -354,7 +354,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    if(arg.IsAtomic())
+                    if(arg.IsAtomicAdd())
                     {
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
@@ -379,7 +379,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
-                    if(arg.IsAtomic())
+                    if(arg.IsAtomicAdd())
                     {
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
@@ -612,7 +612,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
                 {
-                    if(arg.IsAtomic())
+                    if(arg.IsAtomicAdd())
                     {
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
@@ -664,7 +664,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 }
                 else
                 {
-                    if(arg.IsAtomic())
+                    if(arg.IsAtomicAdd())
                     {
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
@@ -721,7 +721,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
 
-                    if(arg.IsAtomic())
+                    if(arg.IsAtomicAdd())
                     {
                         if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
@@ -745,7 +745,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 }
             }
 
-            if(arg.IsReduce() || NumDTensor > 0)
+            if(arg.IsReduceAdd() || NumDTensor > 0)
             {
                 // reduce c data
                 ave_time += RunReduce(arg_, stream_config);
@@ -901,7 +901,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
         auto arg = *dynamic_cast<const Argument*>(p_arg);
-        if(arg.IsReduce())
+        if(arg.IsReduceAdd())
         {
             return arg.M * arg.N * arg.KBatch * sizeof(CDataType);
         }
