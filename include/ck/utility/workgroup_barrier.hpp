@@ -15,7 +15,6 @@ struct workgroup_barrier
     __device__ void st(uint32_t offset, uint32_t value)
     {
         __atomic_store_n(base_ptr + offset, value, __ATOMIC_RELEASE);
-        // __atomic_store_n(base_ptr + offset, value, __ATOMIC_SEQ_CST);
     }
 
     __device__ void wait_eq(uint32_t offset, uint32_t value)
