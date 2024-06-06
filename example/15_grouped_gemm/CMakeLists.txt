@@ -31,6 +31,10 @@ add_example_executable(example_grouped_gemm_multiple_d_splitk_xdl_single_kernel_
                        grouped_gemm_multiple_d_splitk_xdl_single_kernel_fp16.cpp)
 add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_multiple_d_splitk_xdl_single_kernel_fp16)
 
+add_example_executable(example_grouped_gemm_multiple_d_splitk_xdl_single_kernel_bias_fp16
+                       grouped_gemm_multiple_d_splitk_xdl_single_kernel_bias_fp16.cpp)
+add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_multiple_d_splitk_xdl_single_kernel_bias_fp16)
+
 add_example_executable(example_grouped_gemm_multiple_d_xdl_fp16 grouped_gemm_multiple_d_xdl_fp16.cpp)
 add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_multiple_d_xdl_fp16)
 
