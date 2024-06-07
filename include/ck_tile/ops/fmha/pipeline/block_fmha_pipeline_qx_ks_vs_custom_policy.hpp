@@ -991,7 +991,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
-        constexpr index_t kBlockSize = 256;
+        constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
@@ -1031,7 +1031,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccTDramTileDistribution()
     {
-        constexpr index_t kBlockSize = 256;
+        constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = max(Problem::kMaxSplits, get_warp_size());
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
