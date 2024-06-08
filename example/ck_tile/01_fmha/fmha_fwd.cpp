@@ -33,12 +33,6 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
     return os << "]";
 }
 
-#if defined(ENABLE_APP_DEBUG_STMTS)
-#define APP_DEBUG_STMTS if(true)
-#else
-#define APP_DEBUG_STMTS if(false)
-#endif
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -168,6 +162,9 @@ float fmha_fwd_dispatch(fmha_fwd_traits traits,
                         fmha_fwd_args args,
                         const ck_tile::stream_config& config)
 {
+#if defined(ALWAYS_INVOKE_SPLITKV_KERNEL)
+    return fmha_fwd_splitkv(traits, args, config);
+#else
     if(1 < args.num_splits)
     {
         return fmha_fwd_splitkv(traits, args, config);
@@ -176,6 +173,7 @@ float fmha_fwd_dispatch(fmha_fwd_traits traits,
     {
         return fmha_fwd(traits, args, config);
     }
+#endif
 };
 
 template <typename DataType>
@@ -387,20 +385,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
             : std::array<ck_tile::index_t, 2>{1, 1});
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
-        1 < num_splits ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
-                       : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+        1 <= num_splits ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
+                        : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     APP_DEBUG_STMTS
     {
         std::cout << "lse_acc_host shape: " << num_splits << ", " << batch << ", " << nhead << ", "
                   << max_seqlen_q << std::endl;
     }
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits ? std::array<ck_tile::index_t, 5>{num_splits,
-                                                         batch,
-                                                         nhead,
-                                                         max_seqlen_q,
-                                                         hdim_v}
-                       : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
+        1 <= num_splits
+            ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
+            : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
     APP_DEBUG_STMTS
     {
         std::cout << "o_acc_host shape: " << num_splits << ", " << shape_batch << ", " << nhead
@@ -709,7 +704,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 printf("[POYENC][HOST] lse_acc_host(%2d,%2d, 0) = ", i_split, wb);
                 for(int row = 0; row < real_seqlen_q; ++row)
                 {
-                    printf("%11.7f", lse_acc_host(i_split, wb, 1, row));
+                    printf(
+                        "%11.7f",
+                        // printf("[POYENC][HOST] lse_acc_host(%2d,%2d, 0): %11.7f\n", i_split, wb,
+                        lse_acc_host(i_split, wb, 0, row));
                 }
                 printf("\n");
             }
@@ -723,9 +721,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 lse_max(row) = -ck_tile::numeric<LSEDataType>::infinity();
                 for(int i_split = 0; i_split < num_splits; ++i_split)
                 {
-                    if(lse_max(row) < lse_acc_host(i_split, wb, 1, row))
+                    if(lse_max(row) < lse_acc_host(i_split, wb, 0, row))
                     {
-                        lse_max(row) = lse_acc_host(i_split, wb, 1, row);
+                        lse_max(row) = lse_acc_host(i_split, wb, 0, row);
                     }
                 }
             }
@@ -750,7 +748,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 lse_sum(row) = 0;
                 for(int i_split = 0; i_split < num_splits; ++i_split)
                 {
-                    lse_sum(row) += ck_tile::exp(lse_acc_host(i_split, wb, 1, row) -
+                    lse_sum(row) += ck_tile::exp(lse_acc_host(i_split, wb, 0, row) -
                                                  get_validated_m(lse_max(row)));
                 }
             }
@@ -786,7 +784,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             printf("[POYENC][DEVICE] lse_host: ");
             for(int row = 0; row < real_seqlen_q; ++row)
             {
-                printf("%11.7f", lse_host(wb, 1, row));
+                printf("%11.7f", lse_host(wb, 0, row));
             }
             printf("\n");
 
@@ -1016,7 +1014,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                           << "\tseqstart_k: " << seqstart_k_host << std::endl;
             }
         }
-        #if 1
+#if 1
         cur_pass = ck_tile::check_err(
             o_host_result, o_host_ref, std::string("OUT Error: Incorrect results!"), rtol, atol);
         // if (cur_pass) std::cout << "OUT pass" << std::endl;
@@ -1031,7 +1029,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             break;
         }
-        #endif
+#endif
     }
 
     std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;

@@ -8,11 +8,128 @@
 
 namespace ck_tile {
 
-using BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy =
-    BlockFmhaPipelineQXKSVSCustomPolicy</* QLoadOnce = */ true,
-                                        /* AsyncCopyK = */ false,
-                                        /* AsyncCopyV = */ false,
-                                        /* NumPrefetchK = */ 1,
-                                        /* NumPrefetchV = */ 1>;
+struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
+{
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentLSE()
+    {
+        using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
+        return 16 / sizeof(LSEDataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentOacc()
+    {
+        using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
+        return 16 / sizeof(OaccDataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
+    {
+        using ODataType = remove_cvref_t<typename Problem::ODataType>;
+        return 16 / sizeof(ODataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccDramTileDistribution()
+    {
+        using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kNPerBlock = Problem::kM0;
+        constexpr index_t kMPerBlock = Problem::kMaxSplits;
+
+        constexpr index_t NumElements = (kMPerBlock * kNPerBlock);
+
+        if constexpr(NumElements < kBlockSize)
+        {
+            static_assert(false);
+        }
+        else
+        {
+            static_assert(sizeof(LSEDataType) == 4);
+
+            constexpr index_t NPerThread = 16 / sizeof(LSEDataType); //  4
+            constexpr index_t NThreads   = kNPerBlock / NPerThread;  // 32
+            static_assert(NThreads <= kBlockSize);
+
+            constexpr index_t MThreadsPerWarp = get_warp_size() / NThreads;                  //  2
+            constexpr index_t TotalWarps      = kBlockSize / get_warp_size();                //  4
+            constexpr index_t MPerThread      = kMPerBlock / (TotalWarps * MThreadsPerWarp); //  2
+
+            static_assert(NThreads * NPerThread == kNPerBlock);
+            static_assert(MPerThread * TotalWarps * MThreadsPerWarp == kMPerBlock);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<MPerThread, TotalWarps, MThreadsPerWarp>,
+                                                 sequence<NThreads, NPerThread>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccTDramTileDistribution()
+    {
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kNPerBlock = max(Problem::kMaxSplits, get_warp_size());
+        constexpr index_t kMPerBlock = Problem::kM0;
+
+        constexpr index_t NumElements = (kMPerBlock * kNPerBlock);
+
+        static_assert(kBlockSize < NumElements);
+        if constexpr(NumElements < kBlockSize)
+        {
+            static_assert(false);
+        }
+        else
+        {
+            constexpr index_t NThreads   = get_warp_size();       // 64
+            constexpr index_t NPerThread = kNPerBlock / NThreads; // 1
+
+            constexpr index_t MThreads   = kBlockSize / NThreads; // 4
+            constexpr index_t MPerThread = kMPerBlock / MThreads; // 32
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<
+                    sequence<1>,
+                    tuple<sequence<MThreads, MPerThread>, sequence<NThreads, NPerThread>>,
+                    tuple<sequence<1>, sequence<2>>,
+                    tuple<sequence<0>, sequence<0>>,
+                    sequence<1, 2>,
+                    sequence<1, 1>>{});
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeOaccDramTileDistribution()
+    {
+        using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kNPerBlock = Problem::kN1;
+
+        constexpr index_t N1 = 16 / sizeof(OaccDataType);
+        constexpr index_t N0 = kNPerBlock / N1;
+        constexpr index_t M2 = get_warp_size() / N0;
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = kMPerBlock / (M2 * M1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<M0, M1, M2>, sequence<N0, N1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+};
 
 } // namespace ck_tile

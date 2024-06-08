@@ -7,14 +7,11 @@
 
 namespace ck_tile {
 
-template <typename BlockFmhaShape_>
+template <index_t kM0_, index_t kN1_>
 struct FmhaFwdSplitKVCombineTilePartitioner
 {
-    using BlockFmhaShape = ck_tile::remove_cvref_t<BlockFmhaShape_>;
-
-    static constexpr ck_tile::index_t kM0 = BlockFmhaShape::kM0;
-    static constexpr ck_tile::index_t kN1 = BlockFmhaShape::kN0;
-    // constexpr static ck_tile::index_t kBlockM = kN1 % 128 == 0 ? 4 : (kN1 % 64 == 0 ? 8 : 16);
+    static constexpr ck_tile::index_t kM0 = kM0_;
+    static constexpr ck_tile::index_t kN1 = kN1_;
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,

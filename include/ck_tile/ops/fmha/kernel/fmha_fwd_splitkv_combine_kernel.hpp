@@ -8,30 +8,23 @@ namespace ck_tile {
 template <typename TilePartitioner_, typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdSplitKVCombineKernel
 {
-    using TilePartitioner                         = ck_tile::remove_cvref_t<TilePartitioner_>;
-    using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
-    static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
-    static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+    using TilePartitioner                = remove_cvref_t<TilePartitioner_>;
+    using FmhaPipeline                   = remove_cvref_t<FmhaPipeline_>;
+    using EpiloguePipeline               = remove_cvref_t<EpiloguePipeline_>;
+    static constexpr index_t kBlockSize  = FmhaPipeline::kBlockSize;
+    static constexpr index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
-    static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
+    static constexpr index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
-    using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
-    using LSEDataType  = ck_tile::remove_cvref_t<typename FmhaPipeline::LSEDataType>;
+    using LSEDataType  = remove_cvref_t<typename FmhaPipeline::LSEDataType>;
     using OaccDataType = remove_cvref_t<typename FmhaPipeline::OaccDataType>;
-    using ODataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
-
-    using VLayout = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
+    using ODataType    = remove_cvref_t<typename FmhaPipeline::ODataType>;
 
     static constexpr bool kIsGroupMode      = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ       = FmhaPipeline::kPadSeqLenQ;
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
-    static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
-    static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
-    using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
-    static constexpr bool kHasMask = FmhaMask::IsMasking;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -44,11 +37,8 @@ struct FmhaFwdSplitKVCombineKernel
 
     __host__ static std::string GetName()
     {
-        // sync with generate.py
-        // clang-format off
-        using bfs = typename FmhaPipeline::BlockFmhaShape;
-        using gbr = typename bfs::Gemm0BlockWarps;
-        using gwt = typename bfs::Gemm0WarpTile;
+// sync with generate.py
+// clang-format off
         #define _SS_  std::string
         #define _TS_  std::to_string
         auto pn = [&] () {
@@ -57,16 +47,15 @@ struct FmhaFwdSplitKVCombineKernel
             if (kPadHeadDimV) n += "dv";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_fwd_splitkv_combine_d") + _TS_(bfs::kK0BlockLength) + "_" + _SS_(t2s<QDataType>::name) +
+            _SS_("fmha_fwd_splitkv_combine_d") + _TS_(FmhaPipeline::kHeadDimV) + "_" + _SS_(t2s<ODataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
-            "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
-                    _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kK0BlockLength) + "_" +
-            "r" + _TS_(gbr::at(ck_tile::number<0>{})) + "x" + _TS_(gbr::at(ck_tile::number<1>{})) + "x" + _TS_(gbr::at(ck_tile::number<2>{})) + "_" +
-            "w" + _TS_(gwt::at(ck_tile::number<0>{})) + "x" + _TS_(gwt::at(ck_tile::number<1>{})) + "x" + _TS_(gwt::at(ck_tile::number<2>{})) + "_" +
+            "b" + _TS_(FmhaPipeline::kM0) + "x" +
+                    _TS_(FmhaPipeline::kN1) +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
-            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
-            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" ) + (kDoFp8StaticQuant ? "_squant" : "" );
+            _SS_(FmhaPipeline::name) +
+            (pn.empty() ? "" : "_" + pn) +
+            (kStoreLSE ? "_lse" : "" ) + 
+            (kDoFp8StaticQuant ? "_squant" : "" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -312,7 +301,7 @@ struct FmhaFwdSplitKVCombineKernel
                 lse_acc_ptr,
                 make_tuple(kargs.num_splits, kargs.seqlen_q),
                 make_tuple(kargs.batch * kargs.nhead * kargs.max_seqlen_q, 1),
-                number<8>{},
+                number<FmhaPipeline::kAlignmentLSE>{},
                 number<1>{});
 
             return pad_tensor_view(
@@ -327,7 +316,7 @@ struct FmhaFwdSplitKVCombineKernel
                 make_tuple(kargs.num_splits, kargs.max_seqlen_q, kargs.hdim_v),
                 make_tuple(
                     kargs.batch * kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v, kargs.hdim_v, 1),
-                number<FmhaPipeline::kAlignmentO>{},
+                number<FmhaPipeline::kAlignmentOacc>{},
                 number<1>{});
 
             auto o_acc_dram_view = pad_tensor_view(
@@ -360,7 +349,7 @@ struct FmhaFwdSplitKVCombineKernel
             [&]() {
                 return make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{});
             }(),
-            {i_m0, 0});
+            {i_m0, i_n1});
 
         // LSE DRAM window
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -376,7 +365,7 @@ struct FmhaFwdSplitKVCombineKernel
                         lse_ptr,
                         make_tuple(kargs.seqlen_q),
                         make_tuple(1),
-                        number<1>{},
+                        number<FmhaPipeline::kAlignmentLSE>{},
                         number<1>{});
 
                     return pad_tensor_view(

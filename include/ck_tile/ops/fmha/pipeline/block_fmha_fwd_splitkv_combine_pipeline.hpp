@@ -15,32 +15,26 @@ struct BlockFmhaFwdSplitKVCombinePipeline
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;
 
-    using QDataType    = remove_cvref_t<typename Problem::QDataType>;
     using LSEDataType  = remove_cvref_t<typename Problem::LSEDataType>;
     using OaccDataType = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType    = remove_cvref_t<typename Problem::ODataType>;
-    using FmhaMask     = remove_cvref_t<typename Problem::FmhaMask>;
 
-    using BlockFmhaShape                = remove_cvref_t<typename Problem::BlockFmhaShape>;
-    using VLayout                       = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0            = BlockFmhaShape::kM0;
-    static constexpr index_t kN0            = BlockFmhaShape::kN0;
-    static constexpr index_t kK0            = BlockFmhaShape::kK0;
-    static constexpr index_t kN1            = BlockFmhaShape::kN1;
-    static constexpr index_t kK1            = BlockFmhaShape::kK1;
-    static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
+    static constexpr index_t kHeadDimV = Problem::kHeadDimV;
+    static constexpr index_t kM0       = Problem::kM0;
+    static constexpr index_t kN1       = Problem::kN1;
 
     static constexpr bool kIsGroupMode  = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ   = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK   = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ  = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV  = Problem::kPadHeadDimV;
-    static constexpr auto BiasEnum      = Problem::BiasEnum;
     static constexpr bool kStoreLSE     = Problem::kStoreLSE;
-    static constexpr bool kHasDropout   = Problem::kHasDropout;
     static constexpr index_t kMaxSplits = Problem::kMaxSplits;
+
+    static constexpr index_t kAlignmentLSE = Policy::template GetAlignmentLSE<Problem>();
+
+    static constexpr index_t kAlignmentOacc =
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
 
     static constexpr index_t kAlignmentO =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
@@ -50,24 +44,26 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             return Problem::kBlockPerCu;
         else
         {
-            if constexpr(kK0BlockLength <= 32)
+            if constexpr(kHeadDimV <= 32)
             {
                 return 2;
             }
-            else if constexpr(kK0BlockLength <= 64)
+            else if constexpr(kHeadDimV <= 64)
             {
                 return 3;
             }
-            else if constexpr(kK0BlockLength <= 128)
+            else if constexpr(kHeadDimV <= 128)
             {
                 return 2;
             }
-            else if constexpr(kK0BlockLength <= 256)
+            else if constexpr(kHeadDimV <= 256)
             {
                 return 1;
             }
         }
     }();
+
+    static constexpr const char* name = "unused";
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -108,7 +104,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 #endif
 
 #if defined(ENABLE_DEBUG_STMTS)
-#define DEBUG_STMTS if(blockIdx.x == 0 && blockIdx.y == 1 && blockIdx.z == 0 && threadIdx.x == TID)
+#define DEBUG_STMTS if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
 #else
 #define DEBUG_STMTS if(false)
 #endif
