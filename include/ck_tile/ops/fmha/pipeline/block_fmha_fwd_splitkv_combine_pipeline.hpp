@@ -172,11 +172,11 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 #if defined(PRINT_LSE_ACCUM)
         DEBUG_STMTS
         {
-            printf("\n");
+            printf("(%2d, %2d)\n", num_splits, kM0);
             for(index_t row = 0; row < num_splits; ++row)
             {
                 printf("[POYENC][DEVICE] lse_acc[%2d] = ", row);
-                for(index_t col = 0; col < real_seqlen_q; ++col)
+                for(index_t col = 0; col < kM0; ++col)
                 {
                     printf("%11.7f", lse_acc_lds_ptr[row + col * kMaxSplits]);
                 }
