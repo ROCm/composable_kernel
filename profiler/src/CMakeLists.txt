@@ -55,6 +55,7 @@ if(GPU_TARGETS MATCHES "gfx9")
   list(APPEND PROFILER_SOURCES profile_conv_fwd_bias_relu_add.cpp)
   list(APPEND PROFILER_SOURCES profile_conv_bwd_data.cpp)
   list(APPEND PROFILER_SOURCES profile_conv_fwd.cpp)
+  list(APPEND PROFILER_SOURCES profile_grouped_conv_fwd_outelementop.cpp)
 
 endif()
 
