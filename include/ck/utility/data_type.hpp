@@ -1022,7 +1022,7 @@ struct non_native_vector_type<T, 1>
 {
     using Native_vec_ = non_native_vector_base<T, 1>;
 
-    using d1_t = Native_vec_;
+    using d1_t = T;
     using type = d1_t;
 
     union alignas(next_pow2(1 * sizeof(T)))
