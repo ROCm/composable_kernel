@@ -1031,7 +1031,7 @@ struct non_native_vector_type<T, 1>
         StaticallyIndexedArray<d1_t, 1> d1x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
 
     __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
 
@@ -1069,7 +1069,7 @@ struct non_native_vector_type<T, 2>
         StaticallyIndexedArray<d2_t, 1> d2x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
 
     __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
 
@@ -1131,7 +1131,7 @@ struct non_native_vector_type<T, 4>
         StaticallyIndexedArray<d4_t, 1> d4x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
 
     __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
 
@@ -1389,7 +1389,7 @@ struct non_native_vector_type<T, 32>
         StaticallyIndexedArray<d32_t, 1> d32x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
 
     __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
 
@@ -1497,7 +1497,7 @@ struct non_native_vector_type<T, 64>
         StaticallyIndexedArray<d64_t, 1> d64x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
 
     __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
 
