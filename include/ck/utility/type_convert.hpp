@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -403,7 +403,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_t>(f8x2_t x)
     return __builtin_amdgcn_cvt_pk_f32_fp8(i16val, 0);
 #else
     constexpr bool negative_zero_nan = true;
-    const auto f8x2_v                = vector_type<f8_t, 2>(x);
+    const auto f8x2_v                = non_native_vector_type<f8_t, 2>(x);
     vector_type<float, 2> f32x2_v;
     f32x2_v.template AsType<float>()(Number<0>{}) =
         utils::cast_from_f8<f8_t, float, negative_zero_nan>(

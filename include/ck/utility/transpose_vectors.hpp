@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -192,10 +192,18 @@ __device__ void transpose_f8_4x4(const f8x4_t& x0,
     z2 = __builtin_amdgcn_perm(bit_cast<int32_t>(t1), bit_cast<int32_t>(t0), m1);
     z3 = __builtin_amdgcn_perm(bit_cast<int32_t>(t1), bit_cast<int32_t>(t0), m2);
 
-    y0 = bit_cast<f8x4_t>(z0);
-    y1 = bit_cast<f8x4_t>(z1);
-    y2 = bit_cast<f8x4_t>(z2);
-    y3 = bit_cast<f8x4_t>(z3);
+    // y0 = bit_cast<f8x4_t>(z0);
+    // y1 = bit_cast<f8x4_t>(z1);
+    // y2 = bit_cast<f8x4_t>(z2);
+    // y3 = bit_cast<f8x4_t>(z3);
+    std::ignore = z0;
+    std::ignore = z1;
+    std::ignore = z2;
+    std::ignore = z3;
+    std::ignore = y0;
+    std::ignore = y1;
+    std::ignore = y2;
+    std::ignore = y3;
 }
 
 template <index_t NX, index_t NY>

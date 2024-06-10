@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -375,8 +375,8 @@ struct intrin_mfma_f32_32x32x16f8f8<32, 32>
                 0,
                 0);
 #else
-        vector_type<f8_t, 8> reg_a_v(reg_a);
-        vector_type<f8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<f8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<f8_t>()[Number<k>{}]);
@@ -406,8 +406,8 @@ struct intrin_mfma_f32_16x16x32f8f8<16, 16>
             0,
             0);
 #else
-        vector_type<f8_t, 8> reg_a_v(reg_a);
-        vector_type<f8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<f8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<f8_t>()[Number<k>{}]);
@@ -438,8 +438,8 @@ struct intrin_mfma_f32_32x32x16bf8bf8<32, 32>
                 0,
                 0);
 #else
-        vector_type<bf8_t, 8> reg_a_v(reg_a);
-        vector_type<bf8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<bf8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<bf8_t>()[Number<k>{}]);
@@ -469,8 +469,8 @@ struct intrin_mfma_f32_16x16x32bf8bf8<16, 16>
             0,
             0);
 #else
-        vector_type<bf8_t, 8> reg_a_v(reg_a);
-        vector_type<bf8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<bf8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<bf8_t>()[Number<k>{}]);
@@ -501,8 +501,8 @@ struct intrin_mfma_f32_32x32x16f8bf8<32, 32>
                 0,
                 0);
 #else
-        vector_type<f8_t, 8> reg_a_v(reg_a);
-        vector_type<bf8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<f8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<f8_t>()[Number<k>{}]);
@@ -532,8 +532,8 @@ struct intrin_mfma_f32_16x16x32f8bf8<16, 16>
             0,
             0);
 #else
-        vector_type<f8_t, 8> reg_a_v(reg_a);
-        vector_type<bf8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<f8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<bf8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<f8_t>()[Number<k>{}]);
@@ -564,8 +564,8 @@ struct intrin_mfma_f32_32x32x16bf8f8<32, 32>
                 0,
                 0);
 #else
-        vector_type<bf8_t, 8> reg_a_v(reg_a);
-        vector_type<f8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<bf8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<bf8_t>()[Number<k>{}]);
@@ -595,8 +595,8 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
             0,
             0);
 #else
-        vector_type<bf8_t, 8> reg_a_v(reg_a);
-        vector_type<f8_t, 8> reg_b_v(reg_b);
+        non_native_vector_type<bf8_t, 8> reg_a_v(reg_a);
+        non_native_vector_type<f8_t, 8> reg_b_v(reg_b);
 
         static_for<0, 8, 1>{}([&](auto k) {
             float reg_a_f32 = type_convert<float>(reg_a_v.template AsType<bf8_t>()[Number<k>{}]);
