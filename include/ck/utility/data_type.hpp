@@ -1205,7 +1205,7 @@ struct non_native_vector_type<T, 8>
         StaticallyIndexedArray<d8_t, 1> d8x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{0}} {}
+    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
 
     __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
 
