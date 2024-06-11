@@ -37,8 +37,7 @@ struct FmhaFwdSplitKVCombineKernel
 
     __host__ static std::string GetName()
     {
-// sync with generate.py
-// clang-format off
+        // clang-format off
         #define _SS_  std::string
         #define _TS_  std::to_string
         auto pn = [&] () {
