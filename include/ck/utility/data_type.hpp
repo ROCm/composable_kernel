@@ -19,8 +19,18 @@ inline constexpr auto next_pow2(uint32_t x)
     return x > 1u ? (1u << (32u - __builtin_clz(x - 1u))) : x;
 }
 
+// native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, bool
+template <typename T>
+inline constexpr bool is_native_type()
+{
+    return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
+           is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
+           is_same<T, uint8_t>::value || is_same<T, _BitInt(8)>::value ||
+           is_same<T, unsigned _BitInt(8)>::value || is_same<T, bool>::value;
+}
+
 // vector_type
-template <typename T, index_t N>
+template <typename T, index_t N, typename Enable = void>
 struct vector_type;
 
 // Caution: DO NOT REMOVE
@@ -177,7 +187,7 @@ struct scalar_type<bool>
 };
 
 template <typename T>
-struct vector_type<T, 1>
+struct vector_type<T, 1, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     using type = d1_t;
@@ -211,7 +221,7 @@ struct vector_type<T, 1>
 
 int static err = 0;
 template <typename T>
-struct vector_type<T, 2>
+struct vector_type<T, 2, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -269,7 +279,7 @@ struct vector_type<T, 2>
 };
 
 template <typename T>
-struct vector_type<T, 4>
+struct vector_type<T, 4, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -339,7 +349,7 @@ struct vector_type<T, 4>
 };
 
 template <typename T>
-struct vector_type<T, 8>
+struct vector_type<T, 8, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -421,7 +431,7 @@ struct vector_type<T, 8>
 };
 
 template <typename T>
-struct vector_type<T, 16>
+struct vector_type<T, 16, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -515,7 +525,7 @@ struct vector_type<T, 16>
 };
 
 template <typename T>
-struct vector_type<T, 32>
+struct vector_type<T, 32, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -619,7 +629,7 @@ struct vector_type<T, 32>
 };
 
 template <typename T>
-struct vector_type<T, 64>
+struct vector_type<T, 64, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -735,7 +745,7 @@ struct vector_type<T, 64>
 };
 
 template <typename T>
-struct vector_type<T, 128>
+struct vector_type<T, 128, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -861,7 +871,7 @@ struct vector_type<T, 128>
 };
 
 template <typename T>
-struct vector_type<T, 256>
+struct vector_type<T, 256, typename std::enable_if_t<is_native_type<T>()>>
 {
     using d1_t = T;
     typedef T d2_t __attribute__((ext_vector_type(2)));
@@ -1013,12 +1023,9 @@ struct non_native_vector_base
     T d[N];
 };
 
-// non-native vector_type
-template <typename T, index_t N>
-struct non_native_vector_type;
-
+// non-native vector_type implementation
 template <typename T>
-struct non_native_vector_type<T, 1>
+struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 1>;
 
@@ -1031,9 +1038,9 @@ struct non_native_vector_type<T, 1>
         StaticallyIndexedArray<d1_t, 1> d1x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1053,7 +1060,7 @@ struct non_native_vector_type<T, 1>
 };
 
 template <typename T>
-struct non_native_vector_type<T, 2>
+struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 2>;
 
@@ -1069,9 +1076,9 @@ struct non_native_vector_type<T, 2>
         StaticallyIndexedArray<d2_t, 1> d2x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1113,7 +1120,7 @@ struct non_native_vector_type<T, 2>
 };
 
 template <typename T>
-struct non_native_vector_type<T, 4>
+struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 4>;
 
@@ -1131,9 +1138,9 @@ struct non_native_vector_type<T, 4>
         StaticallyIndexedArray<d4_t, 1> d4x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1185,7 +1192,7 @@ struct non_native_vector_type<T, 4>
 };
 
 template <typename T>
-struct non_native_vector_type<T, 8>
+struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 8>;
 
@@ -1205,9 +1212,9 @@ struct non_native_vector_type<T, 8>
         StaticallyIndexedArray<d8_t, 1> d8x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1269,7 +1276,7 @@ struct non_native_vector_type<T, 8>
 };
 
 template <typename T>
-struct non_native_vector_type<T, 16>
+struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 16>;
 
@@ -1291,9 +1298,9 @@ struct non_native_vector_type<T, 16>
         StaticallyIndexedArray<d16_t, 1> d16x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1365,7 +1372,7 @@ struct non_native_vector_type<T, 16>
 };
 
 template <typename T>
-struct non_native_vector_type<T, 32>
+struct vector_type<T, 32, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 32>;
 
@@ -1389,9 +1396,9 @@ struct non_native_vector_type<T, 32>
         StaticallyIndexedArray<d32_t, 1> d32x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1471,7 +1478,7 @@ struct non_native_vector_type<T, 32>
 };
 
 template <typename T>
-struct non_native_vector_type<T, 64>
+struct vector_type<T, 64, typename std::enable_if_t<!is_native_type<T>()>>
 {
     using Native_vec_ = non_native_vector_base<T, 64>;
 
@@ -1497,9 +1504,9 @@ struct non_native_vector_type<T, 64>
         StaticallyIndexedArray<d64_t, 1> d64x1_;
     } data_;
 
-    __host__ __device__ constexpr non_native_vector_type() : data_{type{}} {}
+    __host__ __device__ constexpr vector_type() : data_{type{}} {}
 
-    __host__ __device__ constexpr non_native_vector_type(type v) : data_{v} {}
+    __host__ __device__ constexpr vector_type(type v) : data_{v} {}
 
     template <typename X>
     __host__ __device__ constexpr const auto& AsType() const
@@ -1641,12 +1648,12 @@ using int8x64_t = typename vector_type<int8_t, 64>::type;
 // using f8x16_t = typename vector_type<f8_t, 16>::type;
 // using f8x32_t = typename vector_type<f8_t, 32>::type;
 // using f8x64_t = typename vector_type<f8_t, 64>::type;
-using f8x2_t  = typename non_native_vector_type<f8_t, 2>::type;
-using f8x4_t  = typename non_native_vector_type<f8_t, 4>::type;
-using f8x8_t  = typename non_native_vector_type<f8_t, 8>::type;
-using f8x16_t = typename non_native_vector_type<f8_t, 16>::type;
-using f8x32_t = typename non_native_vector_type<f8_t, 32>::type;
-using f8x64_t = typename non_native_vector_type<f8_t, 64>::type;
+using f8x2_t  = typename vector_type<f8_t, 2>::type;
+using f8x4_t  = typename vector_type<f8_t, 4>::type;
+using f8x8_t  = typename vector_type<f8_t, 8>::type;
+using f8x16_t = typename vector_type<f8_t, 16>::type;
+using f8x32_t = typename vector_type<f8_t, 32>::type;
+using f8x64_t = typename vector_type<f8_t, 64>::type;
 
 // bf8
 // using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
@@ -1655,12 +1662,12 @@ using f8x64_t = typename non_native_vector_type<f8_t, 64>::type;
 // using bf8x16_t = typename vector_type<bf8_t, 16>::type;
 // using bf8x32_t = typename vector_type<bf8_t, 32>::type;
 // using bf8x64_t = typename vector_type<bf8_t, 64>::type;
-using bf8x2_t  = typename non_native_vector_type<bf8_t, 2>::type;
-using bf8x4_t  = typename non_native_vector_type<bf8_t, 4>::type;
-using bf8x8_t  = typename non_native_vector_type<bf8_t, 8>::type;
-using bf8x16_t = typename non_native_vector_type<bf8_t, 16>::type;
-using bf8x32_t = typename non_native_vector_type<bf8_t, 32>::type;
-using bf8x64_t = typename non_native_vector_type<bf8_t, 64>::type;
+using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
+using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
+using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
+using bf8x16_t = typename vector_type<bf8_t, 16>::type;
+using bf8x32_t = typename vector_type<bf8_t, 32>::type;
+using bf8x64_t = typename vector_type<bf8_t, 64>::type;
 
 // u8
 // i8

@@ -322,8 +322,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_buf);
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
-                    non_native_vector_type<ComputeTypeA, KPack> a_thread_vec;
-                    non_native_vector_type<ComputeTypeB, KPack> b_thread_vec;
+                    vector_type<ComputeTypeA, KPack> a_thread_vec;
+                    vector_type<ComputeTypeB, KPack> b_thread_vec;
 
                     static_for<0, KPack, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<ComputeTypeA>()(i) = a_thread_buf
@@ -333,11 +333,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     });
 
                     using mfma_input_type_a =
-                        typename non_native_vector_type<ComputeTypeA,
-                                                        xdlops_gemm.K1PerXdlops>::type;
+                        typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
                     using mfma_input_type_b =
-                        typename non_native_vector_type<ComputeTypeB,
-                                                        xdlops_gemm.K1PerXdlops>::type;
+                        typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -949,8 +947,8 @@ struct BlockwiseGemmXdlops_v2
                                        b_thread_desc_,
                                        make_tuple(I0, I0, I0, I0),
                                        b_thread_buf);
-                    non_native_vector_type<FloatAB, KPack> a_thread_vec;
-                    non_native_vector_type<FloatAB, KPack> b_thread_vec;
+                    vector_type<FloatAB, KPack> a_thread_vec;
+                    vector_type<FloatAB, KPack> b_thread_vec;
 
                     static_for<0, KPack, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<FloatAB>()(i) = a_thread_buf
@@ -960,7 +958,7 @@ struct BlockwiseGemmXdlops_v2
                     });
 
                     using mfma_input_type =
-                        typename non_native_vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
+                        typename vector_type<FloatAB, xdlops_gemm.K1PerXdlops>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
