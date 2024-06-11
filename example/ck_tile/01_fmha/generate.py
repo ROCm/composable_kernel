@@ -12,8 +12,8 @@ import fnmatch
 
 DTYPE_MAP = {
     "fp16": "ck_tile::fp16_t",
-    # "bf16": "ck_tile::bf16_t",
-    # "fp8" : "ck_tile::fp8_t"
+    "bf16": "ck_tile::bf16_t",
+    "fp8" : "ck_tile::fp8_t"
 }
 
 DTYPE_BITS = {
