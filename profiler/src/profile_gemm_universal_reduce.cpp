@@ -71,12 +71,10 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
     }
 
     using F32  = float;
-    using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using I8   = int8_t;
 
     using Row = ck::tensor_layout::gemm::RowMajor;
-    using Col = ck::tensor_layout::gemm::ColumnMajor;
 
     using DsDataType = ck::Tuple<>;
     using DsLayout   = ck::Tuple<>;
@@ -101,14 +99,14 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
-        bool pass = ck::profiler::profile_gemm_universal_impl<ADataType,
+        bool pass = ck::profiler::profile_gemm_universal_reduce_impl<ADataType,
                                                               BDataType,
-                                                              DsDataType{},
+                                                              DsDataType,
                                                               AccDataType,
                                                               CDataType,
                                                               ALayout,
                                                               BLayout,
-                                                              DsLayout{},
+                                                              DsLayout,
                                                               CLayout>(
             do_verification,
             init_method,

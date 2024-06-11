@@ -17,26 +17,29 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using DsLayout = ck::Tuple<>;
+using DsDataType = ck::Tuple<>;
+
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
 void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
-        DeviceGemmV2R1<Row, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceGemmV2R1<Row, Row, DsLayout, Row, BF16, I8, DsDataType, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_kpadding_instances(
     std::vector<std::unique_ptr<
-        DeviceGemmV2R1<Row, Row, Row, BF16, I8, BF16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceGemmV2R1<Row, Row, DsLayout, Row, BF16, I8, DsDataType, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
 #ifdef CK_ENABLE_BF16
 void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
-        DeviceGemmV2R1<Row, Row, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceGemmV2R1<Row, Row, DsLayout, Row, BF16, BF16, DsDataType, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_kpadding_instances(
     std::vector<std::unique_ptr<
-        DeviceGemmV2R1<Row, Row, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
+        DeviceGemmV2R1<Row, Row, DsLayout, Row, BF16, BF16, DsDataType, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 
 #endif
@@ -86,23 +89,8 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                               is_same_v<CLayout, Row>)
             {
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_mnpadding_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_mnkpadding_instances(
-                    op_ptrs);
-
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
-                    op_ptrs);
-
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_default_instances(op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_kpadding_instances(
-                    op_ptrs);
-                add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
-                    op_ptrs);
+                add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_default_instances(op_ptrs);
+                add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
             }
         }
 #endif
