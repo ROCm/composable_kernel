@@ -511,7 +511,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", mask:" << mask << ", v:" << vlayout;
     if(1 < num_splits)
     {
-        std::cout << ", num_splits: " << num_splits;
+        std::cout << ", num_splits:" << num_splits;
     }
     std::cout << std::flush;
 
