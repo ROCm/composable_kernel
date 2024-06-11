@@ -897,7 +897,6 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(direction : str, dtype : s
         }
         elif dtype == 'fp8' or dtype == 'bf8':
             return {
-                 '32'  : FmhaFwdSplitKVCombineTileSize(128, 32, -1),
                  '64'  : FmhaFwdSplitKVCombineTileSize(128, 64, -1),
                  '128' : FmhaFwdSplitKVCombineTileSize(128, 128, -1),
                  '256' : FmhaFwdSplitKVCombineTileSize(128, 256, -1),
