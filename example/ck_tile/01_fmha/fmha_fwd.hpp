@@ -142,12 +142,6 @@ struct fmha_fwd_args
     std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
 
-#if defined(ENABLE_APP_DEBUG_STMTS)
-#define APP_DEBUG_STMTS if(true)
-#else
-#define APP_DEBUG_STMTS if(false)
-#endif
-
 template <typename FmhaKernel>
 auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
 {
@@ -338,12 +332,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
     dim3 grids = FmhaFwdSplitKVKernel::GridSize(
         args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v, args.num_splits);
 
-    APP_DEBUG_STMTS
-    {
-        std::cout << "splitkv grid size: " << grids.x << ", " << grids.y << ", " << grids.z
-                  << std::endl;
-    }
-
     return ck_tile::make_tuple(kargs, grids);
 }
 
@@ -393,12 +381,6 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
 
     dim3 grids = FmhaFwdSplitKVCombineKernel::GridSize(
         args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
-
-    APP_DEBUG_STMTS
-    {
-        std::cout << "splitkv-combine grid size: " << grids.x << ", " << grids.y << ", " << grids.z
-                  << std::endl;
-    }
 
     return ck_tile::make_tuple(kargs, grids);
 }
