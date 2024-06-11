@@ -145,13 +145,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                const SAccElementFunction& s_acc_element_func,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
+               index_t num_splits,
+               index_t i_split,
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               BlockDropout& dropout,
-               index_t i_split,
-               index_t num_splits) const
+               BlockDropout& dropout) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -730,13 +730,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
                LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp,  // M0*1 tile
+               index_t num_splits,
+               index_t i_split,
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               BlockDropout& dropout,
-               index_t i_split,
-               index_t num_splits) const
+               BlockDropout& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -752,13 +752,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                           identity{},
                           identity{},
                           identity{},
+                          num_splits,
+                          i_split,
                           mask,
                           position_encoding,
                           scale_s,
                           smem_ptr,
-                          dropout,
-                          i_split,
-                          num_splits);
+                          dropout);
     }
 };
 

@@ -865,13 +865,13 @@ struct FmhaFwdSplitKVKernel
                                       identity{},            // s_acc_element_func
                                       scales{kargs.scale_p}, // p_compute_element_func
                                       identity{},            // o_acc_element_func
+                                      kargs.num_splits,
+                                      i_split_,
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
                                       smem_ptr,
-                                      dropout,
-                                      i_split_,
-                                      kargs.num_splits);
+                                      dropout);
             }
             else
             {
@@ -881,13 +881,13 @@ struct FmhaFwdSplitKVKernel
                                       bias_dram_window,
                                       randval_dram_window,
                                       lse_acc_dram_window,
+                                      kargs.num_splits,
+                                      i_split_,
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
                                       smem_ptr,
-                                      dropout,
-                                      i_split_,
-                                      kargs.num_splits);
+                                      dropout);
             }
         }();
 
