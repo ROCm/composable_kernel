@@ -10,7 +10,6 @@
 #include "mask.hpp"
 #include "bias.hpp"
 #include <type_traits>
-#include <iostream>
 
 template <typename DataType>
 struct FmhaFwdTypeConfig;
