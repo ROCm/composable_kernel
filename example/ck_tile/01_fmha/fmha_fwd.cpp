@@ -557,6 +557,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
         const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
+        const ck_tile::index_t stride_o_acc   = hdim_v;
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
@@ -571,6 +572,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_lse_acc = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_o_acc   = (max_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
@@ -579,7 +582,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_o_acc   = (nhead * max_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
+        // setup split_stride_* arguments (only used in split-kv kernel)
+        const ck_tile::index_t split_stride_lse_acc = (batch * nhead * max_seqlen_q);
+        const ck_tile::index_t split_stride_o_acc   = (batch * nhead * max_seqlen_q * hdim_v);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
@@ -613,6 +621,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
                                                            : stride_bias,
                              stride_randval,
+                             stride_o_acc,
                              stride_o,
                              nhead_stride_q,
                              nhead_stride_k,
@@ -620,6 +629,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              nhead_stride_bias,
                              nhead_stride_randval,
                              nhead_stride_lse,
+                             nhead_stride_lse_acc,
+                             nhead_stride_o_acc,
                              nhead_stride_o,
                              batch_stride_q,
                              batch_stride_k,
@@ -627,7 +638,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_bias,
                              batch_stride_randval,
                              batch_stride_lse,
+                             batch_stride_lse_acc,
+                             batch_stride_o_acc,
                              batch_stride_o,
+                             split_stride_lse_acc,
+                             split_stride_o_acc,
                              mask.left,
                              mask.right,
                              static_cast<ck_tile::index_t>(mask.type),

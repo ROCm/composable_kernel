@@ -118,6 +118,7 @@ struct fmha_fwd_args
     ck_tile::index_t stride_v;
     ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
     ck_tile::index_t stride_randval;
+    ck_tile::index_t stride_o_acc;
     ck_tile::index_t stride_o;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
@@ -125,6 +126,8 @@ struct fmha_fwd_args
     ck_tile::index_t nhead_stride_bias;
     ck_tile::index_t nhead_stride_randval;
     ck_tile::index_t nhead_stride_lse;
+    ck_tile::index_t nhead_stride_lse_acc;
+    ck_tile::index_t nhead_stride_o_acc;
     ck_tile::index_t nhead_stride_o;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
@@ -132,7 +135,11 @@ struct fmha_fwd_args
     ck_tile::index_t batch_stride_bias;
     ck_tile::index_t batch_stride_randval;
     ck_tile::index_t batch_stride_lse;
+    ck_tile::index_t batch_stride_lse_acc;
+    ck_tile::index_t batch_stride_o_acc;
     ck_tile::index_t batch_stride_o;
+    ck_tile::index_t split_stride_lse_acc;
+    ck_tile::index_t split_stride_o_acc;
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
@@ -271,11 +278,18 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.stride_v,
                                      args.stride_bias,
                                      args.stride_randval,
+                                     args.stride_o_acc,
                                      args.nhead_stride_q,
                                      args.nhead_stride_k,
                                      args.nhead_stride_v,
                                      args.nhead_stride_bias,
                                      args.nhead_stride_randval,
+                                     args.nhead_stride_lse_acc,
+                                     args.nhead_stride_o_acc,
+                                     args.batch_stride_lse_acc,
+                                     args.batch_stride_o_acc,
+                                     args.split_stride_lse_acc,
+                                     args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
                                      args.mask_type,
@@ -309,16 +323,23 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.stride_v,
                                      args.stride_bias,
                                      args.stride_randval,
+                                     args.stride_o_acc,
                                      args.nhead_stride_q,
                                      args.nhead_stride_k,
                                      args.nhead_stride_v,
                                      args.nhead_stride_bias,
                                      args.nhead_stride_randval,
+                                     args.nhead_stride_lse_acc,
+                                     args.nhead_stride_o_acc,
                                      args.batch_stride_q,
                                      args.batch_stride_k,
                                      args.batch_stride_v,
                                      args.batch_stride_bias,
                                      args.batch_stride_randval,
+                                     args.batch_stride_lse_acc,
+                                     args.batch_stride_o_acc,
+                                     args.split_stride_lse_acc,
+                                     args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
                                      args.mask_type,

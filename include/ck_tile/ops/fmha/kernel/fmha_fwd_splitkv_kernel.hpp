@@ -129,10 +129,19 @@ struct FmhaFwdSplitKVKernel
         ck_tile::index_t stride_q;
         ck_tile::index_t stride_k;
         ck_tile::index_t stride_v;
+        ck_tile::index_t stride_o_acc;
 
         ck_tile::index_t nhead_stride_q;
         ck_tile::index_t nhead_stride_k;
         ck_tile::index_t nhead_stride_v;
+        ck_tile::index_t nhead_stride_lse_acc;
+        ck_tile::index_t nhead_stride_o_acc;
+
+        ck_tile::index_t batch_stride_lse_acc;
+        ck_tile::index_t batch_stride_o_acc;
+
+        ck_tile::index_t split_stride_lse_acc;
+        ck_tile::index_t split_stride_o_acc;
     };
 
     struct CommonBiasKargs
@@ -254,16 +263,23 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t stride_v,
               ck_tile::index_t stride_bias,
               ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_o_acc,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_lse_acc,
+              ck_tile::index_t nhead_stride_o_acc,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
               ck_tile::index_t batch_stride_bias,
               ck_tile::index_t batch_stride_randval,
+              ck_tile::index_t batch_stride_lse_acc,
+              ck_tile::index_t batch_stride_o_acc,
+              ck_tile::index_t split_stride_lse_acc,
+              ck_tile::index_t split_stride_o_acc,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
@@ -294,13 +310,20 @@ struct FmhaFwdSplitKVKernel
                      stride_q,
                      stride_k,
                      stride_v,
+                     stride_o_acc,
                      nhead_stride_q,
                      nhead_stride_k,
-                     nhead_stride_v}, // args for common karg
-                    {},               // placeholder for bias
-                    {},               // placeholder for mask
-                    {},               // placeholder for fp8_static_quant args
-                    {},               // placeholder for dropout
+                     nhead_stride_v,
+                     nhead_stride_lse_acc,
+                     nhead_stride_o_acc,
+                     batch_stride_lse_acc,
+                     batch_stride_o_acc,
+                     split_stride_lse_acc,
+                     split_stride_o_acc}, // args for common karg
+                    {},                   // placeholder for bias
+                    {},                   // placeholder for mask
+                    {},                   // placeholder for fp8_static_quant args
+                    {},                   // placeholder for dropout
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v};
@@ -367,11 +390,18 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t stride_v,
               ck_tile::index_t stride_bias,
               ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_o_acc,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_lse_acc,
+              ck_tile::index_t nhead_stride_o_acc,
+              ck_tile::index_t batch_stride_lse_acc,
+              ck_tile::index_t batch_stride_o_acc,
+              ck_tile::index_t split_stride_lse_acc,
+              ck_tile::index_t split_stride_o_acc,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
@@ -402,13 +432,20 @@ struct FmhaFwdSplitKVKernel
                      stride_q,
                      stride_k,
                      stride_v,
+                     stride_o_acc,
                      nhead_stride_q,
                      nhead_stride_k,
-                     nhead_stride_v}, // args for common karg
-                    {},               // placeholder for bias
-                    {},               // placeholder for mask
-                    {},               // placeholder for fp8_static_quant args
-                    {},               // placeholder for dropout
+                     nhead_stride_v,
+                     nhead_stride_lse_acc,
+                     nhead_stride_o_acc,
+                     batch_stride_lse_acc,
+                     batch_stride_o_acc,
+                     split_stride_lse_acc,
+                     split_stride_o_acc}, // args for common karg
+                    {},                   // placeholder for bias
+                    {},                   // placeholder for mask
+                    {},                   // placeholder for fp8_static_quant args
+                    {},                   // placeholder for dropout
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -479,8 +516,10 @@ struct FmhaFwdSplitKVKernel
         long_index_t batch_offset_v       = 0;
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_randval = 0;
-        long_index_t batch_offset_lse_acc = 0;
-        long_index_t batch_offset_o_acc   = 0;
+        const long_index_t batch_offset_lse_acc =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
+        const long_index_t batch_offset_o_acc =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
 
         if constexpr(kIsGroupMode)
         {
@@ -506,10 +545,6 @@ struct FmhaFwdSplitKVKernel
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
             }
-            batch_offset_lse_acc =
-                static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
-            batch_offset_o_acc = static_cast<long_index_t>(i_batch) *
-                                 (kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v);
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
@@ -546,10 +581,6 @@ struct FmhaFwdSplitKVKernel
                 batch_offset_randval =
                     static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
             }
-            batch_offset_lse_acc =
-                static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
-            batch_offset_o_acc = static_cast<long_index_t>(i_batch) *
-                                 (kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v);
         }
 
         // for simplicity, batch stride we just modify the pointer
@@ -564,11 +595,9 @@ struct FmhaFwdSplitKVKernel
             reinterpret_cast<const VDataType*>(kargs.v_ptr) +
             static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v +
             batch_offset_v;
-        OaccDataType* o_acc_ptr =
-            reinterpret_cast<OaccDataType*>(kargs.o_acc_ptr) +
-            static_cast<long_index_t>(i_nhead) * (kargs.max_seqlen_q * kargs.hdim_v) +
-            batch_offset_o_acc +
-            i_split * (kargs.batch * kargs.nhead * kargs.max_seqlen_q * kargs.hdim_v);
+        OaccDataType* o_acc_ptr = reinterpret_cast<OaccDataType*>(kargs.o_acc_ptr) +
+                                  static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o_acc +
+                                  batch_offset_o_acc + i_split * kargs.split_stride_o_acc;
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
@@ -698,10 +727,10 @@ struct FmhaFwdSplitKVKernel
         // lse acc
         auto lse_acc_dram_window = [&, i_nhead_ = i_nhead, i_split_ = i_split]() {
             constexpr auto lse_acc_dram_window_lengths = make_tuple(number<FmhaPipeline::kM0>{});
-            LSEDataType* lse_acc_ptr = reinterpret_cast<LSEDataType*>(kargs.lse_acc_ptr) +
-                                       static_cast<long_index_t>(i_nhead_) * (kargs.max_seqlen_q) +
-                                       batch_offset_lse_acc +
-                                       i_split_ * (kargs.batch * kargs.nhead * kargs.max_seqlen_q);
+            LSEDataType* lse_acc_ptr =
+                reinterpret_cast<LSEDataType*>(kargs.lse_acc_ptr) +
+                static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_lse_acc +
+                batch_offset_lse_acc + i_split_ * kargs.split_stride_lse_acc;
 
             const auto lse_acc_dram = [&]() {
                 const auto lse_acc_dram_naive =
