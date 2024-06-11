@@ -1001,7 +1001,7 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> Lis
                 pipelines.append(Pipeline('unused', spad, dvpad, lse, squant))
         elif dtype in ['fp8', 'bf8']:
             # no need lse kernels
-            pipelines.append(Pipeline('unused', 'f', 'f', False, squant))
+            pipelines.append(Pipeline('unused', 'f', 'f', 'f', squant))
         else:
             assert False
         return pipelines
