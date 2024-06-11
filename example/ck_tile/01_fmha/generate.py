@@ -1634,12 +1634,11 @@ def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optio
 
     output_dir.mkdir(parents=True, exist_ok=True)
     if direction == 'fwd':
-        """
         api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
         for kernel in kernels:
             write_single_fwd_kernel(kernel, output_dir)
         write_fwd_api(api_pool, output_dir)
-        """
+
         # write split-kv blobs
         kernels = get_fwd_splitkv_combine_blobs(kernel_filter, receipt)
         for kernel in kernels:
@@ -1663,12 +1662,11 @@ def list_blobs(output_file : Optional[str], direction : str, kernel_filter : Opt
     file_path = Path(output_file)
     with file_path.open('a') as f:
         if direction == 'fwd':
-            """
             _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
             f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
-            """
+
             # get split-kv blobs
             kernels = get_fwd_splitkv_combine_blobs(kernel_filter, receipt)
             for kernel in kernels:
