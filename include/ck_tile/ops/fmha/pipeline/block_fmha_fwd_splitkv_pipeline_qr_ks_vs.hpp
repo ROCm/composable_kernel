@@ -562,7 +562,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         };
 
-        while(++i_total_loops < num_total_loop - 1)
+        while(i_total_loops++ < num_total_loop - 1)
         {
             loop_body(std::false_type{});
         }
