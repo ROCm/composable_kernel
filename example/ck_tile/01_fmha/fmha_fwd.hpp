@@ -374,9 +374,16 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
                                      args.hdim_v,
                                      args.num_splits,
                                      args.scale_o,
+                                     args.stride_o_acc,
                                      args.stride_o,
+                                     args.nhead_stride_lse_acc,
+                                     args.nhead_stride_o_acc,
                                      args.nhead_stride_lse,
-                                     args.nhead_stride_o);
+                                     args.nhead_stride_o,
+                                     args.batch_stride_lse_acc,
+                                     args.batch_stride_o_acc,
+                                     args.split_stride_lse_acc,
+                                     args.split_stride_o_acc);
         }
         else
         { // create batch mode kernel arguments
@@ -391,11 +398,18 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
                                      args.hdim_v,
                                      args.num_splits,
                                      args.scale_o,
+                                     args.stride_o_acc,
                                      args.stride_o,
+                                     args.nhead_stride_lse_acc,
+                                     args.nhead_stride_o_acc,
                                      args.nhead_stride_lse,
                                      args.nhead_stride_o,
+                                     args.batch_stride_lse_acc,
+                                     args.batch_stride_o_acc,
                                      args.batch_stride_lse,
-                                     args.batch_stride_o);
+                                     args.batch_stride_o,
+                                     args.split_stride_lse_acc,
+                                     args.split_stride_o_acc);
         }
     }();
 

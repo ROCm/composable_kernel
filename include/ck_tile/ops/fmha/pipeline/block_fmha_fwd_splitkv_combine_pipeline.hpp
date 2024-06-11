@@ -82,8 +82,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                LSEDramBlockWindowTmp& lse_dram_window_tmp,
                const LSEElementFunction& lse_element_func,
                const OaccElementFunction& o_acc_element_func,
-               void* smem_ptr,
                index_t num_splits,
+               void* smem_ptr,
                index_t real_seqlen_q,
                index_t max_seqlen_q) const
     {
@@ -311,8 +311,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
     CK_TILE_HOST_DEVICE auto operator()(const LSEaccDramBlockWindow& lse_acc_dram_block_window,
                                         const OaccDramBlockWindow& o_acc_dram_block_window,
                                         LSEDramBlockWindow& lse_dram_block_window,
-                                        void* smem_ptr,
                                         index_t num_splits,
+                                        void* smem_ptr,
                                         index_t real_seqlen_q,
                                         index_t max_seqlen_q) const
     {
@@ -321,8 +321,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                           lse_dram_block_window,
                           identity{},
                           identity{},
-                          smem_ptr,
                           num_splits,
+                          smem_ptr,
                           real_seqlen_q,
                           max_seqlen_q);
     }
