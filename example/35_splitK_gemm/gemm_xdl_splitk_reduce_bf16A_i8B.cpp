@@ -28,8 +28,8 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 // clang-format off
 using DeviceGemmV2Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3R1<
-        ALayout,   BLayout,  CLayout,   DsLayout,
-        ADataType,   BDataType,  CDataType, DsDataType, AccDataType,  CShuffleDataType, 
+        ALayout,   BLayout,   DsLayout,  CLayout,
+        ADataType,   BDataType, DsDataType,  CDataType, AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
         256,   
         128,  128,  64,
