@@ -247,7 +247,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin = q_dram_window.get_window_origin();
 
-        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}));
         index_t seqlen_k_start = row_tile_idx_iter.start;
         index_t seqlen_k_end = row_tile_idx_iter.end;
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
@@ -427,9 +427,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
+                                                           k_origin.at(number<0>{}));
 
                 if(need_perpixel_check)
                 {

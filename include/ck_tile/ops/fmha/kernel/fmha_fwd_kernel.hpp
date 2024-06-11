@@ -83,7 +83,7 @@ struct FmhaFwdKernel
             "w" + _TS_(gwt::at(ck_tile::number<0>{})) + "x" + _TS_(gwt::at(ck_tile::number<1>{})) + "x" + _TS_(gwt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
-            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
+            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kStoreLSE ? "_lse" : "" ) + (kDoFp8StaticQuant ? "_squant" : "" );
         #undef _SS_
         #undef _TS_
@@ -673,9 +673,11 @@ struct FmhaFwdKernel
                     kargs.window_size_right,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
+                    FmhaPipeline::kM0,
+                    FmhaPipeline::kN0,
                     kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
             else
-                return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
+                return FmhaMask{kargs.seqlen_q, kargs.seqlen_k, FmhaPipeline::kM0, FmhaPipeline::kN0};
         }();
 
         // WA i_batch capture structure binding before c++20

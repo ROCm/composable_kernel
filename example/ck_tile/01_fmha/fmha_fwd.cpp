@@ -656,6 +656,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
+                        fmha_traits::kM0,
+                        fmha_traits::kN0,
                         static_cast<ck_tile::GenericAttentionMaskEnum>(mask.type));
                 }
                 else
@@ -693,14 +695,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(mask.type == mask_enum::no_mask)
         {
             ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
+                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k, fmha_traits::kM0, fmha_traits::kN0});
         }
         else if(mask.type == mask_enum::window_generic)
         {
             ck_tile::reference_batched_masking<SaccDataType>(
                 s_host_ref,
                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                    mask.left, mask.right, real_seqlen_q, real_seqlen_k));
+                    mask.left, mask.right, real_seqlen_q, real_seqlen_k), fmha_traits::kM0, fmha_traits::kN0);
         }
         else
         {
@@ -714,6 +716,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
+                        fmha_traits::kM0,
+                        fmha_traits::kN0,
                         mask.type == mask_enum::mask_top_left));
             else
                 ck_tile::reference_batched_masking<SaccDataType>(
@@ -723,6 +727,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
+                        fmha_traits::kM0,
+                        fmha_traits::kN0,
                         mask.type == mask_enum::mask_top_left));
         }
         if(lse)
