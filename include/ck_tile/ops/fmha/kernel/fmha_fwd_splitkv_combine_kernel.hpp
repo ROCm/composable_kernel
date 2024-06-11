@@ -421,9 +421,9 @@ struct FmhaFwdSplitKVCombineKernel
                     identity{},                                          // lse_element_func
                     composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
                     kargs.num_splits,
-                    smem_ptr,
                     kargs.seqlen_q,
-                    kargs.max_seqlen_q);
+                    kargs.max_seqlen_q,
+                    smem_ptr);
             }
             else
             {
@@ -431,9 +431,9 @@ struct FmhaFwdSplitKVCombineKernel
                                       o_acc_dram_window,
                                       lse_dram_window,
                                       kargs.num_splits,
-                                      smem_ptr,
                                       kargs.seqlen_q,
-                                      kargs.max_seqlen_q);
+                                      kargs.max_seqlen_q,
+                                      smem_ptr);
             }
         }();
 
