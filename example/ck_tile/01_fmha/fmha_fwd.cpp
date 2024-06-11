@@ -508,8 +508,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                       : (std::string("(") + std::to_string(seqlen_kpads[0]) + ")"))
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
               << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
-              << ", mask:" << mask << ", v:" << vlayout << ", num_splits: " << num_splits
-              << std::flush;
+              << ", mask:" << mask << ", v:" << vlayout;
+    if(1 < num_splits)
+    {
+        std::cout << ", num_splits: " << num_splits;
+    }
+    std::cout << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
