@@ -82,20 +82,16 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                const LSEElementFunction& lse_element_func,
                const OaccElementFunction& o_acc_element_func,
                index_t num_splits,
-               index_t seqlen_q,
                index_t max_seqlen_q,
                void* smem_ptr) const
     {
         // LSEacc tile in LDS
         LSEDataType* lse_acc_lds_ptr =
             static_cast<LSEDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
-#if 0
-        auto lse_acc_lds           = make_tensor_view<address_space_enum::lds>(
+        auto lse_acc_lds_for_write = make_tensor_view<address_space_enum::lds>(
             lse_acc_lds_ptr, Policy::template MakeLSEaccLdsBlockDescriptor<Problem>());
-        auto lse_acc_lds_window =
-            make_tile_window(lse_acc_lds, make_tuple(number<kM0>{}, number<kMaxSplits>{}), {0, 0});
-#endif
-
+        auto lse_acc_lds_write_window = make_tile_window(
+            lse_acc_lds_for_write, make_tuple(number<kMaxSplits>{}, number<kM0>{}), {0, 0});
         auto lse_acc_lds_ms_m0_for_write = Policy::template MakeLSEaccLdsBlockDescriptor<Problem>();
 
         auto lse_acc_dist = Policy::template MakeLSEaccDramTileDistribution<Problem>();
@@ -105,38 +101,9 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                              lse_acc_dram_block_window_tmp.get_window_origin(),
                              lse_acc_dist);
 
-        auto lse_acc = load_tile(lse_acc_dram_window); // [kMaxSplits, kM0]
-
         // copy lse_acc to LDS
-        {
-            using DataType               = LSEDataType;
-            using StaticTileDistribution = decltype(lse_acc_dist);
-
-            constexpr auto out_spans =
-                static_distributed_tensor<DataType,
-                                          StaticTileDistribution>::get_distributed_spans();
-            sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(out_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto distributed_indices = make_tuple(idx0, idx1);
-                    const auto x_indices               = get_x_indices_from_distributed_indices(
-                        StaticTileDistribution{}, distributed_indices);
-
-                    const auto row = x_indices.at(number<0>{});
-                    const auto col = x_indices.at(number<1>{});
-
-                    auto offset =
-                        lse_acc_lds_ms_m0_for_write.calculate_offset(make_tuple(row, col));
-                    if(row < num_splits && col < seqlen_q)
-                    {
-                        lse_acc_lds_ptr[offset] = lse_acc(distributed_indices);
-                    }
-                    else
-                    {
-                        lse_acc_lds_ptr[offset] = -numeric<LSEDataType>::infinity();
-                    }
-                });
-            });
-        }
+        auto lse_acc = load_tile(lse_acc_dram_window);
+        store_tile(lse_acc_lds_write_window, lse_acc);
         block_sync_lds();
 
         auto lse_accum_dist = Policy::template MakeLSEaccTDramTileDistribution<Problem>();
@@ -341,7 +308,6 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                           identity{},
                           identity{},
                           num_splits,
-                          seqlen_q,
                           max_seqlen_q,
                           smem_ptr);
     }
