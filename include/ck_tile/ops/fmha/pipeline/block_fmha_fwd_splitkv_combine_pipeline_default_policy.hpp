@@ -32,6 +32,13 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return sizeof(typename Problem::LSEDataType) *
+               MakeLSEaccLdsBlockDescriptor<Problem>().get_element_space_size();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccDramTileDistribution()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
@@ -71,6 +78,33 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
                                            sequence<1, 2>,
                                            sequence<0, 1>>{});
         }
+    }
+
+    // 3d + padding
+    // [kMaxSplits x kM0]
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsBlockDescriptor()
+    {
+        using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
+
+        constexpr index_t kMPerBlock = Problem::kMaxSplits;
+        constexpr index_t kNPerBlock = Problem::kM0;
+        constexpr index_t NPack      = 16 / sizeof(LSEDataType);
+
+        constexpr auto lse_acc_lds_block_desc_0 = make_naive_tensor_descriptor(
+            make_tuple(number<kNPerBlock / NPack>{}, number<kMPerBlock>{}, number<NPack>{}),
+            make_tuple(number<(kMPerBlock + 1) * NPack>{}, number<NPack>{}, number<1>{}),
+            number<8>{},
+            number<1>{});
+
+        constexpr auto lse_acc_lds_block_desc = transform_tensor_descriptor(
+            lse_acc_lds_block_desc_0,
+            make_tuple(make_pass_through_transform(kMPerBlock),
+                       make_merge_transform(make_tuple(kNPerBlock / NPack, NPack))),
+            make_tuple(sequence<1>{}, sequence<0, 2>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+
+        return lse_acc_lds_block_desc;
     }
 
     template <typename Problem>
