@@ -115,9 +115,9 @@ bool run_grouped_conv_fwd_convscale(
     SimpleDeviceMem wei(wei_mem_size);
     SimpleDeviceMem out(out_mem_size);
 
-    float scale_in;
-    float scale_wei;
-    float scale_out;
+    float scale_in  = float(std::rand()) / float(RAND_MAX);
+    float scale_wei = float(std::rand()) / float(RAND_MAX);
+    float scale_out = float(std::rand()) / float(RAND_MAX);
 
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_strides;
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_strides;
