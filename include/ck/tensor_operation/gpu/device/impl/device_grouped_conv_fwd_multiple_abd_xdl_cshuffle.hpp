@@ -69,7 +69,7 @@ template <typename GridwiseGemm,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
           typename Block2ETileMap,
-          typename ComputePtrOffsetOfBatch,
+          typename ComputePtrOffset,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
@@ -85,7 +85,7 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CDEElementwiseOperation cde_element_op,
-            const index_t batch_count,
+            const index_t groups_count,
             const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
             const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -93,18 +93,22 @@ __global__ void
             const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                 e_grid_desc_mblock_mperblock_nblock_nperblock_,
             const Block2ETileMap block_2_ctile_map,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+            const ComputePtrOffset compute_ptr_offset_of_groups,
+            const ComputePtrOffset compute_ptr_offset_of_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
-    // offset base pointer for each work-group
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
-    const auto& ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+    // offset base pointer for each work-group
+    const index_t num_blocks_per_batch = __builtin_amdgcn_readfirstlane(gridDim.y / groups_count);
+    const index_t& num_blocks_per_n    = groups_count;
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_batch);
+    const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_n);
+
+    const long_index_t e_batch_offset = compute_ptr_offset_of_groups.GetEPtrOffset(g_idx);
+    const auto& ds_batch_offset       = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
+
+    const long_index_t e_n_offset = compute_ptr_offset_of_n.GetEPtrOffset(n_idx);
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -121,13 +125,15 @@ __global__ void
         AsPointer p_as_grid_grp;
         BsPointer p_bs_grid_grp;
 
-        const auto& as_batch_offset = compute_ptr_offset_of_batch.GetAsPtrOffset(g_idx);
+        const auto& as_batch_offset = compute_ptr_offset_of_groups.GetAsPtrOffset(g_idx);
+
+        const auto& as_n_offset = compute_ptr_offset_of_n.GetAsPtrOffset(n_idx);
 
         static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
         static_for<0, NumATensor, 1>{}(
-            [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i]; });
+            [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i] + as_n_offset[i]; });
 
-        const auto& bs_batch_offset = compute_ptr_offset_of_batch.GetBsPtrOffset(g_idx);
+        const auto& bs_batch_offset = compute_ptr_offset_of_groups.GetBsPtrOffset(g_idx);
 
         static constexpr index_t NumBTensor = BGridDesc_BK0_N_BK1::Size();
         static_for<0, NumBTensor, 1>{}(
@@ -137,7 +143,7 @@ __global__ void
             p_as_grid_grp,
             p_bs_grid_grp,
             p_ds_grid_grp,
-            p_e_grid + e_batch_offset,
+            p_e_grid + e_batch_offset + e_n_offset,
             p_shared,
             a_element_op,
             b_element_op,
@@ -150,16 +156,16 @@ __global__ void
     }
     else
     {
-        const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-        const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+        const long_index_t a_batch_offset = compute_ptr_offset_of_groups.GetAPtrOffset(g_idx);
+        const long_index_t b_batch_offset = compute_ptr_offset_of_groups.GetBPtrOffset(g_idx);
+
+        const long_index_t a_n_offset = compute_ptr_offset_of_n.GetAPtrOffset(n_idx);
 
         GridwiseGemm::template Run<HasMainKBlockLoop>(
-            p_as_grid + a_batch_offset,
+            p_as_grid + a_batch_offset + a_n_offset,
             p_bs_grid + b_batch_offset,
             p_ds_grid_grp,
-            p_e_grid + e_batch_offset,
+            p_e_grid + e_batch_offset + e_n_offset,
             p_shared,
             a_element_op,
             b_element_op,
@@ -175,7 +181,7 @@ __global__ void
     ignore = p_bs_grid;
     ignore = p_ds_grid;
     ignore = p_e_grid;
-    ignore = batch_count;
+    ignore = groups_count;
     ignore = a_grid_desc_k0_m_k1;
     ignore = b_grid_desc_k0_n_k1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -183,7 +189,8 @@ __global__ void
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = cde_element_op;
-    ignore = compute_ptr_offset_of_batch;
+    ignore = compute_ptr_offset_of_groups;
+    ignore = compute_ptr_offset_of_n;
     ignore = block_2_ctile_map;
 #endif
 }
@@ -309,7 +316,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                             const std::array<index_t, NDimSpatial>& conv_filter_strides,
                             const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                             const std::array<index_t, NDimSpatial>& input_left_pads,
-                            const std::array<index_t, NDimSpatial>& input_right_pads)
+                            const std::array<index_t, NDimSpatial>& input_right_pads,
+                            const index_t Conv_N)
     {
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
@@ -321,7 +329,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                                                         conv_filter_strides,
                                                                         conv_filter_dilations,
                                                                         input_left_pads,
-                                                                        input_right_pads);
+                                                                        input_right_pads,
+                                                                        Conv_N);
 
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
@@ -347,11 +356,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     template <typename ELay>
     static auto
     MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
+                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                            const index_t Conv_N)
     {
         const auto out_gemmmraw_gemmnraw_desc =
-            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(e_g_n_k_wos_lengths,
-                                                                        e_g_n_k_wos_strides);
+            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(
+                e_g_n_k_wos_lengths, e_g_n_k_wos_strides, Conv_N);
 
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
@@ -363,24 +373,25 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     // Pass e_g_n_k_wos_lengths for logical broadcast.
     static auto MakeDsGridDescriptor_M_N(
         const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
+        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
+        const index_t Conv_N)
     {
         return generate_tuple(
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(e_g_n_k_wos_lengths,
-                                                                  ds_g_n_k_wos_strides[i]);
+                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
+                    e_g_n_k_wos_lengths, ds_g_n_k_wos_strides[i], Conv_N);
             },
             Number<NumDTensor>{});
     }
 
     // desc for problem definition
     using AGridDesc_M_K  = remove_cvref_t<decltype(MakeAGridDescriptor_M_K<ALayout>(
-        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
+        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, 1))>;
     using BGridDesc_N_K  = remove_cvref_t<decltype(MakeBGridDescriptor_N_K<BLayout>({}, {}))>;
-    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
-    using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
+    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, 1))>;
+    using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}, 1))>;
 
     // If we are using multiAB and one of the template datatype parameters is not a tuple, convert
     // it to it
@@ -468,6 +479,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
               num_group_{a_g_n_c_wis_lengths[0]},
+              conv_N_per_block_{
+                  conv_to_gemm_transformer.template GetSplitedNSize<ADataType, EDataType>(
+                      a_g_n_c_wis_lengths,
+                      a_g_n_c_wis_strides,
+                      e_g_n_k_wos_lengths,
+                      e_g_n_k_wos_strides)},
               a_grid_desc_m_k_{DeviceOp::MakeAGridDescriptor_M_K<ALayout>(a_g_n_c_wis_lengths,
                                                                           a_g_n_c_wis_strides,
                                                                           b_g_k_c_xs_lengths,
@@ -477,12 +494,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                                                           conv_filter_strides,
                                                                           conv_filter_dilations,
                                                                           input_left_pads,
-                                                                          input_right_pads)},
+                                                                          input_right_pads,
+                                                                          conv_N_per_block_)},
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K<BLayout>(b_g_k_c_xs_lengths,
                                                                           b_g_k_c_xs_strides)},
               ds_grid_desc_m_n_{},
-              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
-                                                                          e_g_n_k_wos_strides)},
+              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(
+                  e_g_n_k_wos_lengths, e_g_n_k_wos_strides, conv_N_per_block_)},
               a_grid_desc_ak0_m_ak1_{
                   GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
@@ -490,7 +508,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
               block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
-              compute_ptr_offset_of_batch_{},
+              compute_ptr_offset_of_groups_{},
+              compute_ptr_offset_of_n_{},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
@@ -511,8 +530,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             if constexpr(isMultiA || isMultiB)
             {
                 static_for<0, NumATensor, 1>{}([&](auto i) {
-                    // Init compute_ptr_offset_of_batch_ for multiple AB
-                    compute_ptr_offset_of_batch_.BatchStrideA_(i) = a_g_n_c_wis_strides[0];
+                    // Init compute_ptr_offset_of_groups_ for multiple AB
+                    compute_ptr_offset_of_groups_.BatchStrideA_(i) = a_g_n_c_wis_strides[0];
+                    compute_ptr_offset_of_n_.BatchStrideA_(i) =
+                        a_g_n_c_wis_strides[1] * conv_N_per_block_;
 
                     // Use GemmADataType/GemmBDataType to iterate over tuple (even if passed data
                     // type is not tuple)
@@ -532,8 +553,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     }
                 });
                 static_for<0, NumBTensor, 1>{}([&](auto i) {
-                    // Init compute_ptr_offset_of_batch_ for multiple AB
-                    compute_ptr_offset_of_batch_.BatchStrideB_(i) = b_g_k_c_xs_strides[0];
+                    // Init compute_ptr_offset_of_groups_ for multiple AB
+                    compute_ptr_offset_of_groups_.BatchStrideB_(i) = b_g_k_c_xs_strides[0];
 
                     using DataType = remove_cvref_t<tuple_element_t<i.value, GemmBDataType>>;
                     // It is possible that one of the AB is a pointer and one is a tuple.
@@ -553,8 +574,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
-                compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_c_wis_strides[0];
-                compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_k_c_xs_strides[0];
+                compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides[0];
+                compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides[0];
+                compute_ptr_offset_of_n_.BatchStrideA_ = a_g_n_c_wis_strides[1] * conv_N_per_block_;
 
                 // p_as and p_bs are pointers
                 p_as_grid_(I0) = static_cast<const ADataType*>(p_as);
@@ -570,13 +592,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
 
                 // D batch stride
-                compute_ptr_offset_of_batch_.BatchStrideDs_(i) = ds_g_n_k_wos_strides[i][0];
+                compute_ptr_offset_of_groups_.BatchStrideDs_(i) = ds_g_n_k_wos_strides[i][0];
+                compute_ptr_offset_of_n_.BatchStrideDs_(i) =
+                    ds_g_n_k_wos_strides[i][1] * conv_N_per_block_;
 
                 // D desc
                 ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
-                    e_g_n_k_wos_lengths, ds_g_n_k_wos_strides[i]);
+                    e_g_n_k_wos_lengths, ds_g_n_k_wos_strides[i], conv_N_per_block_);
             });
-            compute_ptr_offset_of_batch_.BatchStrideE_ = e_g_n_k_wos_strides[0];
+            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides[0];
+            compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides[1] * conv_N_per_block_;
 
             // populate desc for Ds/E
             if constexpr(isMultiA || isMultiB)
@@ -638,6 +663,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         // tensor descriptors for problem definiton
         index_t num_group_;
+        index_t conv_N_per_block_;
+
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
@@ -655,7 +682,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         // for computing batch offset
         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>
-            compute_ptr_offset_of_batch_;
+            compute_ptr_offset_of_groups_;
+        ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor> compute_ptr_offset_of_n_;
 
         // element-wise op
         AElementwiseOperation a_element_op_;
@@ -689,8 +717,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 arg.Print();
             }
 
-            const index_t grid_size =
-                arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_) * arg.num_group_;
+            const index_t num_workgroups_per_Conv_N =
+                arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
+
+            const index_t gdx = arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
+            const index_t gdy = arg.num_group_ * num_workgroups_per_Conv_N;
+            const index_t gdz = 1;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -728,7 +760,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     return launch_and_time_kernel(
                         stream_config,
                         kernel,
-                        dim3(grid_size),
+                        dim3(gdx, gdy, gdz),
                         dim3(BlockSize),
                         0,
                         arg.p_as_grid_,
@@ -744,7 +776,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.block_2_etile_map_,
-                        arg.compute_ptr_offset_of_batch_);
+                        arg.compute_ptr_offset_of_groups_,
+                        arg.compute_ptr_offset_of_n_);
                 }
                 else
                 {
@@ -770,7 +803,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     return launch_and_time_kernel(
                         stream_config,
                         kernel,
-                        dim3(grid_size),
+                        dim3(gdx, gdy, gdz),
                         dim3(BlockSize),
                         0,
                         arg.p_as_grid_.At(I0), // Pass just A descriptor instead of tuple
@@ -786,7 +819,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.block_2_etile_map_,
-                        arg.compute_ptr_offset_of_batch_);
+                        arg.compute_ptr_offset_of_groups_,
+                        arg.compute_ptr_offset_of_n_);
                 }
             };
 

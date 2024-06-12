@@ -1,6 +1,6 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,6 +20,71 @@ struct TransformConvFwdToGemm
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
+    static long_index_t
+    calculate_element_space_size_impl(const std::array<index_t, NDimSpatial + 3>& lengths,
+                                      const std::array<index_t, NDimSpatial + 3>& strides,
+                                      index_t i)
+    {
+        long_index_t acc = 1;
+        for(; i < (NDimSpatial + 3 - 1); i++)
+        {
+            acc +=
+                static_cast<long_index_t>(lengths[i] - I1) * static_cast<long_index_t>(strides[i]);
+        }
+
+        return acc;
+    }
+
+    template <typename ADataType, typename CDataType>
+    static index_t GetSplitedNSize(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                                   const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                                   const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
+                                   const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+    {
+        const long_index_t a_element_space_size =
+            calculate_element_space_size_impl(a_g_n_c_wis_lengths, a_g_n_c_wis_strides, I1);
+        const long_index_t c_element_space_size =
+            calculate_element_space_size_impl(c_g_n_k_wos_lengths, c_g_n_k_wos_strides, I1);
+        const long_index_t element_space_size = math::max(a_element_space_size * sizeof(ADataType),
+                                                          c_element_space_size * sizeof(CDataType));
+        constexpr long_index_t TwoGB          = (long_index_t{1} << 31);
+
+        const index_t N = a_g_n_c_wis_lengths[I1];
+
+        if(element_space_size > TwoGB)
+        {
+            // Minimum divisor of N to not exceed 2GB
+            const auto divisor = math::integer_divide_ceil(element_space_size, TwoGB);
+
+            if(divisor <= static_cast<double>(N))
+            {
+                // Find least divisor of N larger than element_space_size / TwoGB
+                // Iterate up to sqrt(N). There are no divisors above this value.
+                for(index_t least_divisor = divisor; least_divisor * least_divisor <= N;
+                    least_divisor++)
+                {
+                    if(N % least_divisor == 0)
+                    {
+                        return N / least_divisor;
+                    }
+                }
+                // Not found, process one Convolution N per block
+                return 1;
+            }
+            else
+            {
+                // Not possible to support even after split N.
+                // Too large tensor.
+                return N;
+            }
+        }
+        else
+        {
+            // Split N is not needed.
+            return N;
+        }
+    }
+
     // TODO: implement ck::tensor_layout::convolution that describe packed/strided dimemsion as
     // properties
     template <typename ALayout,
@@ -38,9 +103,9 @@ struct TransformConvFwdToGemm
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads)
+                        const std::array<index_t, NDimSpatial>& input_right_pads,
+                        const index_t N)
     {
-        const index_t N = a_g_n_c_wis_lengths[1];
         const index_t C = a_g_n_c_wis_lengths[2];
 
         const index_t Wi = a_g_n_c_wis_lengths[3];
@@ -151,9 +216,10 @@ struct TransformConvFwdToGemm
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads)
+                        const std::array<index_t, NDimSpatial>& input_right_pads,
+                        const index_t N)
+
     {
-        const index_t N = a_g_n_c_wis_lengths[1];
         const index_t C = a_g_n_c_wis_lengths[2];
 
         const index_t Hi = a_g_n_c_wis_lengths[3];
@@ -276,13 +342,14 @@ struct TransformConvFwdToGemm
                         const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
                         const std::array<index_t, NDimSpatial + 3>& /* b_g_k_c_xs_strides */,
                         const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides */,
+                        const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides*/,
                         const std::array<index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<index_t, NDimSpatial>& input_left_pads,
-                        const std::array<index_t, NDimSpatial>& input_right_pads)
+                        const std::array<index_t, NDimSpatial>& input_right_pads,
+                        const index_t N)
+
     {
-        const index_t N = a_g_n_c_wis_lengths[1];
         const index_t C = a_g_n_c_wis_lengths[2];
 
         const index_t Di = a_g_n_c_wis_lengths[3];
@@ -478,9 +545,9 @@ struct TransformConvFwdToGemm
                                       bool>::type = false>
     static auto
     MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                        const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides */)
+                        const std::array<index_t, NDimSpatial + 3>& /* c_g_n_k_wos_strides */,
+                        const index_t N)
     {
-        const index_t N = c_g_n_k_wos_lengths[1];
         const index_t K = c_g_n_k_wos_lengths[2];
 
         const index_t NHoWo =
@@ -502,9 +569,9 @@ struct TransformConvFwdToGemm
                                     is_same_v<CLayout, tensor_layout::convolution::NDHWGK>,
                                 bool>::type = false>
     static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides,
+                                    const index_t N)
     {
-        const index_t N = c_g_n_k_wos_lengths[1];
         const index_t K = c_g_n_k_wos_lengths[2];
 
         const auto KStride     = I1;
@@ -525,9 +592,9 @@ struct TransformConvFwdToGemm
               typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::G_K>,
                                       bool>::type = false>
     static auto MakeCDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_lengths,
-                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides)
+                                    const std::array<index_t, NDimSpatial + 3>& c_g_n_k_wos_strides,
+                                    const index_t N)
     {
-        const index_t N       = c_g_n_k_wos_lengths[1];
         const index_t K       = c_g_n_k_wos_lengths[2];
         const index_t KStride = c_g_n_k_wos_strides[2];
 
