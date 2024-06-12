@@ -32,7 +32,7 @@ TEST(Custom_bool, Test)
     ASSERT_EQ(sizeof(vector_type<custom_bool_t, 64>), 64);
 }
 
-TEST(Custom_int8_t, Test)
+TEST(Custom_int8, Test)
 {
     struct custom_int8_t
     {
@@ -54,7 +54,7 @@ TEST(Custom_int8_t, Test)
     ASSERT_EQ(sizeof(vector_type<custom_int8_t, 64>), 64);
 }
 
-TEST(Custom_uint8_t, Test)
+TEST(Custom_uint8, Test)
 {
     struct custom_uint8_t
     {
