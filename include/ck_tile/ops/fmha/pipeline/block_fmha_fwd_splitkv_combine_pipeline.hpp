@@ -113,7 +113,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         block_sync_lds();
 
         auto lse_accum = make_static_distributed_tensor<LSEDataType>(
-            Policy::template MakeLSEaccTDramTileDistribution<Problem>());
+            Policy::template MakeLSEaccRegTileDistribution<Problem>());
 
         // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, max(kMaxSplits, warp_size)])
         // this will extend the distributed tensor width so that each thread in wave have data to

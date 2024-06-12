@@ -48,36 +48,24 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::kM0;
         constexpr index_t kMPerBlock = Problem::kMaxSplits;
 
-        constexpr index_t NumElements = (kMPerBlock * kNPerBlock);
+        constexpr index_t NPerThread = 16 / sizeof(LSEDataType);
+        constexpr index_t NThreads   = kNPerBlock / NPerThread;
 
-        if constexpr(NumElements < kBlockSize)
-        {
-            static_assert(false);
-        }
-        else
-        {
-            static_assert(sizeof(LSEDataType) == 4);
+        constexpr index_t MThreadsPerWarp = get_warp_size() / NThreads;
+        constexpr index_t TotalWarps      = kBlockSize / get_warp_size();
+        constexpr index_t MPerThread      = kMPerBlock / (TotalWarps * MThreadsPerWarp);
 
-            constexpr index_t NPerThread = 16 / sizeof(LSEDataType); //  4
-            constexpr index_t NThreads   = kNPerBlock / NPerThread;  // 32
-            static_assert(NThreads <= kBlockSize);
+        static_assert(NThreads * NPerThread == kNPerBlock);
+        static_assert(MPerThread * TotalWarps * MThreadsPerWarp == kMPerBlock);
 
-            constexpr index_t MThreadsPerWarp = get_warp_size() / NThreads;                  //  2
-            constexpr index_t TotalWarps      = kBlockSize / get_warp_size();                //  4
-            constexpr index_t MPerThread      = kMPerBlock / (TotalWarps * MThreadsPerWarp); //  2
-
-            static_assert(NThreads * NPerThread == kNPerBlock);
-            static_assert(MPerThread * TotalWarps * MThreadsPerWarp == kMPerBlock);
-
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<MPerThread, TotalWarps, MThreadsPerWarp>,
-                                                 sequence<NThreads, NPerThread>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<MPerThread, TotalWarps, MThreadsPerWarp>,
+                                             sequence<NThreads, NPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     // 3d + padding, [kMaxSplits, kM0]
@@ -133,37 +121,30 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccTDramTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccRegTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = max(Problem::kMaxSplits, get_warp_size());
         constexpr index_t kMPerBlock = Problem::kM0;
 
-        constexpr index_t NumElements = (kMPerBlock * kNPerBlock);
+        constexpr index_t NThreads   = get_warp_size();
+        constexpr index_t NPerThread = kNPerBlock / NThreads;
 
-        static_assert(kBlockSize < NumElements);
-        if constexpr(NumElements < kBlockSize)
-        {
-            static_assert(false);
-        }
-        else
-        {
-            constexpr index_t NThreads   = get_warp_size();       // 64
-            constexpr index_t NPerThread = kNPerBlock / NThreads; // 1
+        constexpr index_t MThreads   = kBlockSize / NThreads;
+        constexpr index_t MPerThread = kMPerBlock / MThreads;
 
-            constexpr index_t MThreads   = kBlockSize / NThreads; // 4
-            constexpr index_t MPerThread = kMPerBlock / MThreads; // 32
+        static_assert(NThreads * NPerThread == kNPerBlock);
+        static_assert(MThreads * MPerThread == kMPerBlock);
 
-            return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<1>,
-                    tuple<sequence<MThreads, MPerThread>, sequence<NThreads, NPerThread>>,
-                    tuple<sequence<1>, sequence<2>>,
-                    tuple<sequence<0>, sequence<0>>,
-                    sequence<1, 2>,
-                    sequence<1, 1>>{});
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<1>,
+                tuple<sequence<MThreads, MPerThread>, sequence<NThreads, NPerThread>>,
+                tuple<sequence<1>, sequence<2>>,
+                tuple<sequence<0>, sequence<0>>,
+                sequence<1, 2>,
+                sequence<1, 1>>{});
     }
 
     template <typename Problem>
