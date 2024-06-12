@@ -333,8 +333,7 @@ struct FmhaFwdSplitKVCombineKernel
                 lse_acc_ptr,
                 make_tuple(kargs.num_splits, kargs.seqlen_q),
                 make_tuple(kargs.split_stride_lse_acc, 1),
-                -numeric<LSEDataType>::infinity(),
-                number<8>{},
+                number<FmhaPipeline::kAlignmentLSEacc>{},
                 number<1>{});
 
             return pad_tensor_view(
@@ -397,7 +396,7 @@ struct FmhaFwdSplitKVCombineKernel
                         lse_ptr,
                         make_tuple(kargs.seqlen_q),
                         make_tuple(1),
-                        number<1>{},
+                        number<FmhaPipeline::kAlignmentLSE>{},
                         number<1>{});
 
                     return pad_tensor_view(

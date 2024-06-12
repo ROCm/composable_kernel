@@ -31,7 +31,9 @@ struct BlockFmhaFwdSplitKVCombinePipeline
     static constexpr bool kStoreLSE     = Problem::kStoreLSE;
     static constexpr index_t kMaxSplits = Problem::kMaxSplits;
 
-    static constexpr index_t kAlignmentLSE = Policy::template GetAlignmentLSE<Problem>();
+    static constexpr index_t kAlignmentLSE =
+        kPadSeqLenQ ? 1 : Policy::template GetAlignmentLSE<Problem>();
+    static constexpr index_t kAlignmentLSEacc = kAlignmentLSE;
 
     static constexpr index_t kAlignmentOacc =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOacc<Problem>();
