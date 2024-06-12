@@ -87,21 +87,13 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                index_t max_seqlen_q,
                void* smem_ptr) const
     {
-        // LSEacc tile in LDS
+        // lse_acc tile in LDS
         LSEDataType* lse_acc_lds_ptr =
             static_cast<LSEDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
         auto lse_acc_lds_for_write = make_tensor_view<address_space_enum::lds>(
             lse_acc_lds_ptr, Policy::template MakeLSEaccLdsBlockDescriptor<Problem>());
-#if 0
-        auto lse_acc_lds_for_read = make_tensor_view<address_space_enum::lds>(
-            lse_acc_lds_ptr, Policy::template MakeLSEaccTLdsBlockDescriptor<Problem>());
-#endif
         auto lse_acc_lds_write_window = make_tile_window(
             lse_acc_lds_for_write, make_tuple(number<kMaxSplits>{}, number<kM0>{}), {0, 0});
-#if 0
-        auto lse_acc_lds_read_window = make_tile_window(
-            lse_acc_lds_for_read, make_tuple(number<kM0>{}, number<kMaxSplits>{}), {0, 0});
-#endif
         auto lse_acc_lds_m0_ms_for_read = Policy::template MakeLSEaccTLdsBlockDescriptor<Problem>();
 
         auto lse_acc_dist = Policy::template MakeLSEaccDramTileDistribution<Problem>();
@@ -110,8 +102,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                              lse_acc_dram_block_window_tmp.get_window_lengths(),
                              lse_acc_dram_block_window_tmp.get_window_origin(),
                              lse_acc_dist);
-
-        // use LDS to transpose lse_accum from [kMaxSplits, kM0] to [kM0, kMaxSplits]
+        
+        // copy lse_acc tile (shape=[kMaxSplits, kM0]) to LDS (shape=[kMaxSplits, kM0]).
         auto lse_acc_tile = load_tile(lse_acc_dram_window);
         store_tile(lse_acc_lds_write_window, lse_acc_tile);
         block_sync_lds();
@@ -119,7 +111,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto lse_accum = make_static_distributed_tensor<LSEDataType>(
             Policy::template MakeLSEaccTDramTileDistribution<Problem>());
 
-        // copy LDS to lse_accum (transpose)
+        // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, max(kMaxSplits, warp_size)])
+        // this will extend the distributed tensor width so that each thread in wave have data to reduce.
         {
             constexpr auto out_spans = decltype(lse_accum)::get_distributed_spans();
             sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
@@ -128,11 +121,10 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                     const auto x_indices   = get_x_indices_from_distributed_indices(
                         lse_accum.get_tile_distribution(), i_j_idx);
 
-                    const auto row = x_indices.at(number<0>{});
-
+                    const auto col = x_indices.at(number<1>{});
                     if(col < num_splits)
                     {
-                        const auto col = x_indices.at(number<1>{});
+                        const auto row = x_indices.at(number<0>{});
 
                         auto offset = lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
                         lse_accum(i_j_idx) = lse_acc_lds_ptr[offset];
@@ -145,7 +137,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             });
         }
 
-        // calculate row_max of lse_accum
+        // compute the logsumexp of the LSE along the split dimension.
         const auto f_max = [](auto e0, auto e1) { return ck_tile::max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
@@ -158,6 +150,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                                                               : raw_m;
         };
 
+        // store the scales exp(lse - lse_logsum) in shared memory.
         decltype(lse_accum) lse_exp;
         clear_tile(lse_exp);
         {
@@ -206,7 +199,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             });
         }
 
-        // write lse scales into LDS
+        // store the lse scales in shared memory.
         {
             constexpr auto out_spans = decltype(lse_sum)::get_distributed_spans();
             sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
