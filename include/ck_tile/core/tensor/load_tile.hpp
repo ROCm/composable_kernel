@@ -31,22 +31,6 @@ CK_TILE_DEVICE auto load_tile(const tile_window_with_static_distribution<BottomT
     return tile_window.load(bool_constant<oob_conditional_check>{});
 }
 
-template <typename BottomTensorView_,
-          typename WindowLengths_,
-          typename TileDistribution_,
-          bool oob_conditional_check = true>
-CK_TILE_DEVICE auto
-load_tile(const tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window,
-          TileDistribution_ tile_dist,
-          bool_constant<oob_conditional_check> = {})
-{
-    auto tile_window_with_dist = make_tile_window(tile_window.get_bottom_tensor_view(),
-                                                  tile_window.get_window_lengths(),
-                                                  tile_window.get_window_origin(),
-                                                  tile_dist);
-    return load_tile(tile_window_with_dist, bool_constant<oob_conditional_check>{});
-}
-
 template <typename T,
           typename BottomTensorView_,
           typename WindowLengths_,
