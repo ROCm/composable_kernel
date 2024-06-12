@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn.hpp"
+#include "device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -26,7 +26,7 @@ void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_v2_mnkpadding_insta
 {
     add_device_operation_instances(
         instances,
-        device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_mem_instances<Interwave, GemmMNKPadding>{});
+        device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_instances<Interwave, GemmMNKPadding>{});
 }
 
 } // namespace instance
