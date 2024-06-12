@@ -88,20 +88,21 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                void* smem_ptr) const
     {
         // lse_acc tile in LDS
-        LSEDataType* lse_acc_lds_ptr =
+        LSEDataType* lse_acc_lds =
             static_cast<LSEDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
-        auto lse_acc_lds_for_write = make_tensor_view<address_space_enum::lds>(
-            lse_acc_lds_ptr, Policy::template MakeLSEaccLdsBlockDescriptor<Problem>());
-        auto lse_acc_lds_write_window = make_tile_window(
-            lse_acc_lds_for_write, make_tuple(number<kMaxSplits>{}, number<kM0>{}), {0, 0});
-        auto lse_acc_lds_m0_ms_for_read = Policy::template MakeLSEaccTLdsBlockDescriptor<Problem>();
 
-        auto lse_acc_dist = Policy::template MakeLSEaccDramTileDistribution<Problem>();
+        auto lse_acc_lds_write_window = [&]() {
+            auto view = make_tensor_view<address_space_enum::lds>(
+                lse_acc_lds, Policy::template MakeLSEaccLdsStoreBlockDescriptor<Problem>());
+            return make_tile_window(view, make_tuple(number<kMaxSplits>{}, number<kM0>{}), {0, 0});
+        }();
+        auto lse_acc_lds_desc_m0_ms = Policy::template MakeLSEaccLdsBlockDescriptor<Problem>();
+
         auto lse_acc_dram_window =
             make_tile_window(lse_acc_dram_block_window_tmp.get_bottom_tensor_view(),
                              lse_acc_dram_block_window_tmp.get_window_lengths(),
                              lse_acc_dram_block_window_tmp.get_window_origin(),
-                             lse_acc_dist);
+                             Policy::template MakeLSEaccDramTileDistribution<Problem>());
 
         // copy lse_acc tile (shape=[kMaxSplits, kM0]) to LDS (shape=[kMaxSplits, kM0]).
         auto lse_acc_tile = load_tile(lse_acc_dram_window);
@@ -115,9 +116,9 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         // this will extend the distributed tensor width so that each thread in wave have data to
         // reduce.
         {
-            constexpr auto out_spans = decltype(lse_accum)::get_distributed_spans();
-            sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(out_spans[number<1>{}], [&](auto idx1) {
+            constexpr auto spans = decltype(lse_accum)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
                     const auto x_indices   = get_x_indices_from_distributed_indices(
                         lse_accum.get_tile_distribution(), i_j_idx);
@@ -127,9 +128,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                     {
                         const auto row = x_indices.at(number<0>{});
 
-                        auto offset =
-                            lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
-                        lse_accum(i_j_idx) = lse_acc_lds_ptr[offset];
+                        auto offset = lse_acc_lds_desc_m0_ms.calculate_offset(make_tuple(row, col));
+                        lse_accum(i_j_idx) = lse_acc_lds[offset];
                     }
                     else
                     {
@@ -153,12 +153,11 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         };
 
         decltype(lse_accum) lse_exp;
-        clear_tile(lse_exp);
         {
-            constexpr auto p_spans = decltype(lse_exp)::get_distributed_spans();
-            sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+            constexpr auto spans = decltype(lse_exp)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-                sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                     lse_exp(i_j_idx) =
@@ -173,8 +172,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         decltype(lse_max) lse_logsum;
         {
-            constexpr auto out_spans = decltype(lse_logsum)::get_distributed_spans();
-            sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
+            constexpr auto spans = decltype(lse_logsum)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 
                 if(lse_sum(i_idx) == 0.f || lse_sum(i_idx) != lse_sum(i_idx))
@@ -191,28 +190,32 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
         // store the lse scales in shared memory.
         {
-            constexpr auto out_spans = decltype(lse_sum)::get_distributed_spans();
-            sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
+            constexpr auto spans = decltype(lse_accum)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-                const auto x_indices =
-                    get_x_indices_from_distributed_indices(lse_sum.get_tile_distribution(), i_idx);
+                sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                const auto row = x_indices.at(number<0>{});
+                    const auto x_indices = get_x_indices_from_distributed_indices(
+                        lse_accum.get_tile_distribution(), i_j_idx);
 
-                for(index_t col = 0; col < num_splits; ++col)
-                {
-                    auto offset = lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
-                    lse_acc_lds_ptr[offset] =
-                        ck_tile::exp(lse_acc_lds_ptr[offset] - lse_logsum(i_idx));
-                }
+                    const auto col = x_indices.at(number<1>{});
+                    if(col < num_splits)
+                    {
+                        const auto row = x_indices.at(number<0>{});
+
+                        auto offset = lse_acc_lds_desc_m0_ms.calculate_offset(make_tuple(row, col));
+                        lse_acc_lds[offset] = ck_tile::exp(lse_accum(i_j_idx) - lse_logsum(i_idx));
+                    }
+                });
             });
         }
         block_sync_lds();
 
         if constexpr(kStoreLSE)
         {
-            constexpr auto out_spans = decltype(lse_logsum)::get_distributed_spans();
-            sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
+            constexpr auto spans = decltype(lse_logsum)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 
                 if(lse_logsum(i_idx) == numeric<LSEDataType>::infinity())
@@ -239,9 +242,9 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         {
             auto o_tile = load_tile(o_acc_dram_window);
             {
-                constexpr auto out_spans = decltype(o_acc)::get_distributed_spans();
-                sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(out_spans[number<1>{}], [&](auto idx1) {
+                constexpr auto spans = decltype(o_acc)::get_distributed_spans();
+                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
                         const auto x_indices   = get_x_indices_from_distributed_indices(
                             o_acc.get_tile_distribution(), i_j_idx);
@@ -249,9 +252,9 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                         const auto row = x_indices.at(number<0>{});
 
                         auto offset =
-                            lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, i_split));
+                            lse_acc_lds_desc_m0_ms.calculate_offset(make_tuple(row, i_split));
 
-                        const LSEDataType lse_scale = lse_acc_lds_ptr[offset];
+                        const LSEDataType lse_scale = lse_acc_lds[offset];
                         o_acc(i_j_idx) += lse_scale * o_tile(i_j_idx);
                     });
                 });

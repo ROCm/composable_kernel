@@ -82,7 +82,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
 
     // 3d + padding, [kMaxSplits, kM0]
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsStoreBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
@@ -108,7 +108,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
 
     // 3d + padding, [kM0, kMaxSplits]
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccTLdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEaccLdsBlockDescriptor()
     {
         using LSEDataType = remove_cvref_t<typename Problem::LSEDataType>;
 
