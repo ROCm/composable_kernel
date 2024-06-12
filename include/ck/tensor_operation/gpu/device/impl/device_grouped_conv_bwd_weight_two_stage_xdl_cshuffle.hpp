@@ -1262,7 +1262,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                           arg.Conv_G_;
 
                 std::array<index_t, I1> in_out_batch_strides = {
-                    arg.compute_ptr_offset_of_batch_.BatchStrideC_};
+                    static_cast<index_t>(arg.compute_ptr_offset_of_batch_.BatchStrideC_)};
 
                 const auto kernel = kernel_batched_elementwise<GridwiseElementwise,
                                                                ck::Tuple<CElementwiseGridDesc_M_N>,

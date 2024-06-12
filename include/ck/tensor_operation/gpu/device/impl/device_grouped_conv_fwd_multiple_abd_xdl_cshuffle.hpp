@@ -69,7 +69,8 @@ template <typename GridwiseGemm,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
           typename Block2ETileMap,
-          typename ComputePtrOffset,
+          typename ComputePtrOffsetOfG,
+          typename ComputePtrOffsetOfN,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
@@ -93,8 +94,8 @@ __global__ void
             const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                 e_grid_desc_mblock_mperblock_nblock_nperblock_,
             const Block2ETileMap block_2_ctile_map,
-            const ComputePtrOffset compute_ptr_offset_of_groups,
-            const ComputePtrOffset compute_ptr_offset_of_n)
+            const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
+            const ComputePtrOffsetOfN compute_ptr_offset_of_n)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -127,11 +128,24 @@ __global__ void
 
         const auto& as_batch_offset = compute_ptr_offset_of_groups.GetAsPtrOffset(g_idx);
 
-        const auto& as_n_offset = compute_ptr_offset_of_n.GetAsPtrOffset(n_idx);
+        // compute_ptr_offset_of_n_ not need BatchStrideB so
+        // in case of MultiA is false but isMultiB is true
+        // BatchStrideA_ is not tuple.
+        if constexpr(isMultiA)
+        {
+            const auto& as_n_offset = compute_ptr_offset_of_n.GetAsPtrOffset(n_idx);
 
-        static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
-        static_for<0, NumATensor, 1>{}(
-            [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i] + as_n_offset[i]; });
+            static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i] + as_n_offset[i];
+            });
+        }
+        else
+        {
+            const long_index_t a_n_offset = compute_ptr_offset_of_n.GetAPtrOffset(n_idx);
+            static_for<0, 1, 1>{}(
+                [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i] + a_n_offset; });
+        }
 
         const auto& bs_batch_offset = compute_ptr_offset_of_groups.GetBsPtrOffset(g_idx);
 
@@ -532,8 +546,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 static_for<0, NumATensor, 1>{}([&](auto i) {
                     // Init compute_ptr_offset_of_groups_ for multiple AB
                     compute_ptr_offset_of_groups_.BatchStrideA_(i) = a_g_n_c_wis_strides[0];
-                    compute_ptr_offset_of_n_.BatchStrideA_(i) =
-                        a_g_n_c_wis_strides[1] * conv_N_per_block_;
 
                     // Use GemmADataType/GemmBDataType to iterate over tuple (even if passed data
                     // type is not tuple)
@@ -545,11 +557,18 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     {
                         // p_as is tuple
                         p_as_grid_(i) = static_cast<const DataType*>(p_as[i.value]);
+                        // compute_ptr_offset_of_n_ not need BatchStrideB so
+                        // in case of MultiA is false but isMultiB is true
+                        // BatchStrideA_ is not tuple.
+                        compute_ptr_offset_of_n_.BatchStrideA_(i) =
+                            a_g_n_c_wis_strides[1] * conv_N_per_block_;
                     }
                     else
                     {
                         // if MultiB and not MultiA then p_as is single pointer
                         p_as_grid_(i) = static_cast<const DataType*>(p_as);
+                        compute_ptr_offset_of_n_.BatchStrideA_ =
+                            a_g_n_c_wis_strides[1] * conv_N_per_block_;
                     }
                 });
                 static_for<0, NumBTensor, 1>{}([&](auto i) {
@@ -753,6 +772,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
+                        ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
@@ -796,6 +816,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
+                        ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
