@@ -12,7 +12,7 @@ using ck::host::Transform;
 
 struct Emitters
 {
-    // retrieve the hard-coded instances provided and template them> store in a map
+    // retrieve the hard-coded instances provided, template them, and then store them in a map
     std::unordered_map<std::string, std::function<std::vector<std::string>()>> m;
 
     template <class T>
@@ -34,7 +34,7 @@ struct Emitters
         return "std::tuple<\n" + ck::host::JoinStrings(templates, ",\n") + ">";
     }
 
-    // 8join together all the strings in the map
+    // Join together all the strings in the map
     std::string Emit(const std::string& name) { return ck::host::JoinStrings(m.at(name)(), "\n"); }
 
     std::vector<std::string> List() const
@@ -48,7 +48,7 @@ int main(int argc, const char* argv[])
     std::string prog = argv[0];
     std::vector<std::string> args(argv + 1, argv + argc);
 
-    // Specigy problem type and problem size
+    // Specify problem type and problem size
     ck::host::device_gemm_multiple_d::Problem prob;
     prob.M = 1024;
     prob.N = 1024;

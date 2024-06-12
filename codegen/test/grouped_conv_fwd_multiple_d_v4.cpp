@@ -201,7 +201,7 @@ struct Epilogue
         // assert(pass);
 
         // Simple check: this checks that the output from each instance matches the output from the
-        // 3first instance
+        // first instance
         CHECK(report(solution, check(rtc::from_gpu(out_dev))));
     }
 }

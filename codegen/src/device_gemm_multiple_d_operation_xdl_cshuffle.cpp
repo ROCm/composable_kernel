@@ -58,7 +58,7 @@ void Operation_Xdl_CShuffle::update_epilogue(const std::string& epilogue)
     }
 }
 
-// accounts for all prssible combinations of Row/Col major
+// accounts for all possible combinations of Row/Col major
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
 // Hard-code tuning parameters in modularized fashion, string them together into a vector of
@@ -264,7 +264,7 @@ static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
     "${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, "
     "${CDEBlockTransferScalarPerVector_NPerBlock}>";
 
-// use hardcoded instances from vwctor of operations to substitute values into instance template
+// use hardcoded instances from vector of operations to substitute values into instance template
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
