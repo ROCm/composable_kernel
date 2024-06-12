@@ -252,14 +252,17 @@ std::string fmha_fwd_splitkv_get_name_<trait_{F_idx}>()
 FMHA_FWD_SPLITKV_COMBINE_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
-using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdSplitKVCombineTraits<{F_spad},
+namespace {{
+template <ck_tile::index_t kLogMaxSplits>
+struct kernel_runner {{
+using fmha_trait = ck_tile::TileFmhaFwdSplitKVCombineTraits<{F_spad},
                                                     {F_dvpad},
                                                     {F_lse},
                                                     {F_squant},
-                                                    16,
+                                                    kLogMaxSplits,
                                                     {F_occupancy}>;
 
-using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaSplitKVCombinePipelineProblem<
+using fmha_pipeline_problem = ck_tile::BlockFmhaSplitKVCombinePipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
@@ -267,20 +270,31 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaSplitKVCombinePipelinePr
     {F_bm0}, 
     {F_bn1},
     {F_mode},
-    fmha_trait_{F_idx}>;
+    fmha_trait>;
 
-using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaFwdSplitKVCombinePipeline<
-    fmha_pipeline_problem_{F_idx}>;
+using fmha_pipeline = ck_tile::BlockFmhaFwdSplitKVCombinePipeline<
+    fmha_pipeline_problem>;
 
-using fmha_epilogue_{F_idx} =
+using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel_{F_idx} =
+using fmha_kernel =
     ck_tile::FmhaFwdSplitKVCombineKernel<ck_tile::FmhaFwdSplitKVCombineTilePartitioner<{F_bm0}, {F_bn1}>,
-                  fmha_pipeline_{F_idx},
-                  fmha_epilogue_{F_idx}>;
+                  fmha_pipeline,
+                  fmha_epilogue>;
+
+static void run(const ck_tile::stream_config& s, fmha_fwd_args a)
+{{
+    using k_ = fmha_kernel;
+    auto [kargs, grids] = fmha_fwd_splitkv_combine_create_kargs_and_grids<k_>(a);
+    constexpr dim3 blocks             = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+}}
+}};
+}}
 
 using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn1},
                         {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
@@ -290,17 +304,21 @@ using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_m
 template<>
 void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
-    using k_ = fmha_kernel_{F_idx};
-    auto [kargs, grids] = fmha_fwd_splitkv_combine_create_kargs_and_grids<k_>(a);
-    constexpr dim3 blocks             = k_::BlockSize();
-    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+    if (a.num_splits <= 8) {{
+        kernel_runner<3>::run(s, a);
+    }} else if (a.num_splits <= 16) {{
+        kernel_runner<4>::run(s, a);
+    }} else if (a.num_splits <= 32) {{
+        kernel_runner<5>::run(s, a);
+    }} else if (a.num_splits <= 64) {{
+        kernel_runner<6>::run(s, a);
+    }}
 }}
 
 template<>
 std::string fmha_fwd_splitkv_combine_get_name_<trait_{F_idx}>()
 {{
-    using k_ = fmha_kernel_{F_idx};
+    using k_ = kernel_runner<6>::fmha_kernel; /// FIXME: choose real kernel type
     return k_::GetName();
 }}
 """
