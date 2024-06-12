@@ -256,7 +256,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdSplitKVCombineTraits<{F_spad},
                                                     {F_dvpad},
                                                     {F_lse},
                                                     {F_squant},
-                                                    16,
+                                                    64,
                                                     {F_occupancy}>;
 
 using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaSplitKVCombinePipelineProblem<
