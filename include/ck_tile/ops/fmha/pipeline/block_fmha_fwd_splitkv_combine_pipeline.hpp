@@ -88,15 +88,18 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                void* smem_ptr) const
     {
         // lse_acc tile in LDS
-        LSEDataType* lse_acc_lds =
+        LSEDataType* lse_acc_lds_ptr =
             static_cast<LSEDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));
+        auto lse_acc_lds = [=, lds_desc = Policy::template MakeLSEaccLdsBlockDescriptor<Problem>()](
+                               index_t row, index_t col) -> LSEDataType& {
+            return lse_acc_lds_ptr[lds_desc.calculate_offset(make_tuple(row, col))];
+        };
 
         auto lse_acc_lds_write_window = [&]() {
             auto view = make_tensor_view<address_space_enum::lds>(
-                lse_acc_lds, Policy::template MakeLSEaccLdsStoreBlockDescriptor<Problem>());
+                lse_acc_lds_ptr, Policy::template MakeLSEaccLdsStoreBlockDescriptor<Problem>());
             return make_tile_window(view, make_tuple(number<kMaxSplits>{}, number<kM0>{}), {0, 0});
         }();
-        auto lse_acc_lds_desc_m0_ms = Policy::template MakeLSEaccLdsBlockDescriptor<Problem>();
 
         auto lse_acc_dram_window =
             make_tile_window(lse_acc_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -128,8 +131,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                     {
                         const auto row = x_indices.at(number<0>{});
 
-                        auto offset = lse_acc_lds_desc_m0_ms.calculate_offset(make_tuple(row, col));
-                        lse_accum(i_j_idx) = lse_acc_lds[offset];
+                        lse_accum(i_j_idx) = lse_acc_lds(row, col);
                     }
                     else
                     {
@@ -204,8 +206,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                     {
                         const auto row = x_indices.at(number<0>{});
 
-                        auto offset = lse_acc_lds_desc_m0_ms.calculate_offset(make_tuple(row, col));
-                        lse_acc_lds[offset] = ck_tile::exp(lse_accum(i_j_idx) - lse_logsum(i_idx));
+                        lse_acc_lds(row, col) =
+                            ck_tile::exp(lse_accum(i_j_idx) - lse_logsum(i_idx));
                     }
                 });
             });
@@ -233,7 +235,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                              o_acc_dram_block_window_tmp.get_window_lengths(),
                              o_acc_dram_block_window_tmp.get_window_origin(),
                              o_acc_dist);
-        auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist); // Pcompute{j}
+        auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist);
         clear_tile(o_acc);
 
         const index_t padded_max_seqlen_q = integer_divide_ceil(max_seqlen_q, kM0) * kM0;
@@ -251,10 +253,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
                         const auto row = x_indices.at(number<0>{});
 
-                        auto offset =
-                            lse_acc_lds_desc_m0_ms.calculate_offset(make_tuple(row, i_split));
-
-                        const LSEDataType lse_scale = lse_acc_lds[offset];
+                        const LSEDataType lse_scale = lse_acc_lds(row, i_split);
                         o_acc(i_j_idx) += lse_scale * o_tile(i_j_idx);
                     });
                 });
