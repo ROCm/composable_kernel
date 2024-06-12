@@ -48,7 +48,6 @@ using DeviceGemmV2Instance =
 using ReferenceGemmInstance = ck::tensor_operation::host::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
-
 #include "run_gemm_splitk_reduce_multi_d_example.inc"
 
 int main(int argc, char* argv[]) { return !run_gemm_splitk_example(argc, argv); }
