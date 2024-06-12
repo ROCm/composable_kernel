@@ -13,9 +13,9 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using I8  = int8_t;
+using I8   = int8_t;
 using BF16 = bhalf_t;
-using F32 = float;
+using F32  = float;
 
 using Row = tensor_layout::gemm::RowMajor;
 using Col = tensor_layout::gemm::ColumnMajor;
@@ -25,7 +25,7 @@ using S = Sequence<Is...>;
 
 using PassThrough = element_wise::PassThrough;
 
-using DsLayout = ck::Tuple<>;
+using DsLayout   = ck::Tuple<>;
 using DsDataType = ck::Tuple<>;
 
 static constexpr auto GemmDefault    = GemmSpecialization::Default;

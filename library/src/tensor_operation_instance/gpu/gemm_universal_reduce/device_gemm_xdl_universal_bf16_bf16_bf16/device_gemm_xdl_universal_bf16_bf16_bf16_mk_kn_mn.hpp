@@ -24,7 +24,7 @@ using S = Sequence<Is...>;
 
 using PassThrough = element_wise::PassThrough;
 
-using DsLayout = ck::Tuple<>;
+using DsLayout   = ck::Tuple<>;
 using DsDataType = ck::Tuple<>;
 
 static constexpr auto GemmDefault    = GemmSpecialization::Default;

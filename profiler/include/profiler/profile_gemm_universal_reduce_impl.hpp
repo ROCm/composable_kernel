@@ -34,19 +34,19 @@ template <typename ADataType,
           typename DsLayout,
           typename CLayout>
 bool profile_gemm_universal_reduce_impl(int do_verification,
-                                 int init_method,
-                                 bool do_log,
-                                 bool time_kernel,
-                                 int M,
-                                 int N,
-                                 int K,
-                                 int StrideA,
-                                 int StrideB,
-                                 int StrideC,
-                                 int KBatch,
-                                 int n_warmup,
-                                 int n_iter,
-                                 uint64_t rotating = 0)
+                                        int init_method,
+                                        bool do_log,
+                                        bool time_kernel,
+                                        int M,
+                                        int N,
+                                        int K,
+                                        int StrideA,
+                                        int StrideB,
+                                        int StrideC,
+                                        int KBatch,
+                                        int n_warmup,
+                                        int n_iter,
+                                        uint64_t rotating = 0)
 {
     bool pass = true;
 
@@ -108,16 +108,16 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
     b_device_buf.ToDevice(b_k_n.mData.data());
 
     using DeviceOp = ck::tensor_operation::device::DeviceGemmV2R1<ALayout,
-                                                                BLayout,
-                                                                DsLayout,
-                                                                CLayout,
-                                                                ADataType,
-                                                                BDataType,
-                                                                DsDataType,
-                                                                CDataType,
-                                                                AElementOp,
-                                                                BElementOp,
-                                                                CElementOp>;
+                                                                  BLayout,
+                                                                  DsLayout,
+                                                                  CLayout,
+                                                                  ADataType,
+                                                                  BDataType,
+                                                                  DsDataType,
+                                                                  CDataType,
+                                                                  AElementOp,
+                                                                  BElementOp,
+                                                                  CElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<

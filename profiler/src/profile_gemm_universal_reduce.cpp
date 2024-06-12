@@ -100,14 +100,14 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
         const int DefaultStrideC = ck::is_same_v<CLayout, Row> ? N : M;
 
         bool pass = ck::profiler::profile_gemm_universal_reduce_impl<ADataType,
-                                                              BDataType,
-                                                              DsDataType,
-                                                              AccDataType,
-                                                              CDataType,
-                                                              ALayout,
-                                                              BLayout,
-                                                              DsLayout,
-                                                              CLayout>(
+                                                                     BDataType,
+                                                                     DsDataType,
+                                                                     AccDataType,
+                                                                     CDataType,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     DsLayout,
+                                                                     CLayout>(
             do_verification,
             init_method,
             do_log,
@@ -128,7 +128,7 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
 
     if(data_type == GemmDataType::BF16_I8_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
-        return profile(BF16{}, I8{},  F32{}, BF16{}, Row{}, Row{}, Row{});
+        return profile(BF16{}, I8{}, F32{}, BF16{}, Row{}, Row{}, Row{});
     }
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
