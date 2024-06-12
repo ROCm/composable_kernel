@@ -127,14 +127,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
 
                     auto offset =
                         lse_acc_lds_ms_m0_for_write.calculate_offset(make_tuple(col, row));
-                    if(col < num_splits)
-                    {
-                        lse_accum(distributed_indices) = lse_acc_lds_ptr[offset];
-                    }
-                    else
-                    {
-                        lse_accum(distributed_indices) = -numeric<LSEDataType>::infinity();
-                    }
+                    lse_accum(distributed_indices) = lse_acc_lds_ptr[offset];
                 });
             });
         }
@@ -298,7 +291,6 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                                         const OaccDramBlockWindow& o_acc_dram_block_window,
                                         LSEDramBlockWindow& lse_dram_block_window,
                                         index_t num_splits,
-                                        index_t seqlen_q,
                                         index_t max_seqlen_q,
                                         void* smem_ptr) const
     {
