@@ -425,6 +425,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
 
+    // legalize num_splits according to other options
     if(num_splits < 1)
     {
         num_splits = override_num_splits_if_necessary(
@@ -432,7 +433,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     if(128 < num_splits)
     {
-        std::cerr << "num_splits greater than 128 is not supported" << std : endl;
+        std::cerr << "num_splits greater than 128 is not supported" << std::endl;
         return false;
     }
 
