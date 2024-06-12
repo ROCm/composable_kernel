@@ -580,7 +580,6 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-
         if(!ck::is_xdl_supported())
         {
             return false;
