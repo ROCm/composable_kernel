@@ -45,7 +45,8 @@ struct TileFmhaFwdSplitKVCombineTraits
     static constexpr bool kStoreLSE         = kStoreLSE_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
 
-    static constexpr index_t kMaxSplits  = kMaxSplits_;
+    static constexpr index_t kMaxSplits = kMaxSplits_;
+    static_assert(kMaxSplits <= get_warp_size() || kMaxSplits % get_warp_size() == 0);
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
