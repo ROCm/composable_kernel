@@ -116,10 +116,6 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         store_tile(lse_acc_lds_write_window, lse_acc_tile);
         block_sync_lds();
 
-#if 0
-        auto lse_accum = load_tile(lse_acc_lds_read_window,
-                                   Policy::template MakeLSEaccTDramTileDistribution<Problem>());
-#else
         auto lse_accum = make_static_distributed_tensor<LSEDataType>(
             Policy::template MakeLSEaccTDramTileDistribution<Problem>());
 
@@ -133,11 +129,12 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                         lse_accum.get_tile_distribution(), i_j_idx);
 
                     const auto row = x_indices.at(number<0>{});
-                    const auto col = x_indices.at(number<1>{});
 
-                    auto offset = lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
                     if(col < num_splits)
                     {
+                        const auto col = x_indices.at(number<1>{});
+
+                        auto offset = lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
                         lse_accum(i_j_idx) = lse_acc_lds_ptr[offset];
                     }
                     else
@@ -147,7 +144,6 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 });
             });
         }
-#endif
 
         // calculate row_max of lse_accum
         const auto f_max = [](auto e0, auto e1) { return ck_tile::max(e0, e1); };
