@@ -137,8 +137,7 @@ struct BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        static_assert(0 < Problem::kMaxSplits && Problem::kMaxSplits % get_warp_size() == 0);
-        constexpr index_t kNPerBlock = Problem::kMaxSplits;
+        constexpr index_t kNPerBlock = max(Problem::kMaxSplits, get_warp_size());
         constexpr index_t kMPerBlock = Problem::kM0;
 
         constexpr index_t NumElements = (kMPerBlock * kNPerBlock);
