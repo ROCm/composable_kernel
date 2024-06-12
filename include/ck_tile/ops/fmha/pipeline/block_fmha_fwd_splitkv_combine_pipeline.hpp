@@ -102,7 +102,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                              lse_acc_dram_block_window_tmp.get_window_lengths(),
                              lse_acc_dram_block_window_tmp.get_window_origin(),
                              lse_acc_dist);
-        
+
         // copy lse_acc tile (shape=[kMaxSplits, kM0]) to LDS (shape=[kMaxSplits, kM0]).
         auto lse_acc_tile = load_tile(lse_acc_dram_window);
         store_tile(lse_acc_lds_write_window, lse_acc_tile);
@@ -112,7 +112,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             Policy::template MakeLSEaccTDramTileDistribution<Problem>());
 
         // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, max(kMaxSplits, warp_size)])
-        // this will extend the distributed tensor width so that each thread in wave have data to reduce.
+        // this will extend the distributed tensor width so that each thread in wave have data to
+        // reduce.
         {
             constexpr auto out_spans = decltype(lse_accum)::get_distributed_spans();
             sweep_tile_span(out_spans[number<0>{}], [&](auto idx0) {
@@ -126,7 +127,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                     {
                         const auto row = x_indices.at(number<0>{});
 
-                        auto offset = lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
+                        auto offset =
+                            lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
                         lse_accum(i_j_idx) = lse_acc_lds_ptr[offset];
                     }
                     else
@@ -150,7 +152,6 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                                                               : raw_m;
         };
 
-        // store the scales exp(lse - lse_logsum) in shared memory.
         decltype(lse_accum) lse_exp;
         clear_tile(lse_exp);
         {
@@ -159,23 +160,12 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 constexpr auto i_idx = make_tuple(idx0);
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    const auto x_indices   = get_x_indices_from_distributed_indices(
-                        lse_exp.get_tile_distribution(), i_j_idx);
 
-                    const auto row = x_indices.at(number<0>{});
-                    const auto col = x_indices.at(number<1>{});
-
-                    auto offset = lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, col));
-                    if(col < num_splits)
-                    {
-                        // from shared memory
-                        lse_exp(i_j_idx) =
-                            ck_tile::exp(lse_acc_lds_ptr[offset] - get_validated_m(lse_max(i_idx)));
-                    }
+                    lse_exp(i_j_idx) =
+                        ck_tile::exp(lse_accum(i_j_idx) - get_validated_m(lse_max(i_idx)));
                 });
             });
         }
-        __syncthreads();
 
         auto lse_sum = block_tile_reduce<LSEDataType>(
             lse_exp, sequence<1>{}, f_sum, type_convert<LSEDataType>(0));
@@ -261,7 +251,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                         auto offset =
                             lse_acc_lds_m0_ms_for_read.calculate_offset(make_tuple(row, i_split));
 
-                        LSEDataType lse_scale = lse_acc_lds_ptr[offset];
+                        const LSEDataType lse_scale = lse_acc_lds_ptr[offset];
                         o_acc(i_j_idx) += lse_scale * o_tile(i_j_idx);
                     });
                 });
