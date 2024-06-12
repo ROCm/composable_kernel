@@ -431,9 +431,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_splits = override_num_splits_if_necessary(
             batch, nhead, max_seqlen_q, hdim_v, p_drop, num_splits);
     }
-    if(128 < num_splits)
+    if(64 < num_splits)
     {
-        std::cerr << "num_splits greater than 128 is not supported" << std::endl;
+        std::cerr << "num_splits greater than 64 is not supported" << std::endl;
         return false;
     }
 
