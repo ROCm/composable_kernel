@@ -1000,14 +1000,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
             lse_host_result.ForEach(
                 [&](auto& self, auto idx) { self(idx) = lse_host(wb, idx[0], idx[1]); });
 
-            bool lse_pass = ck_tile::check_err(lse_host_result,
-                                               lse_host_ref,
-                                               "LSE Error: Incorrect results!",
-                                               rtol,
-                                               atol,
-                                               /* allow_infinity_ref = */ true);
+            cur_pass = ck_tile::check_err(lse_host_result,
+                                          lse_host_ref,
+                                          "LSE Error: Incorrect results!",
+                                          rtol,
+                                          atol,
+                                          /* allow_infinity_ref = */ true);
 
-            pass &= lse_pass;
+            pass &= cur_pass;
             if(!cur_pass)
             {
                 std::cerr << "LSE mismatch found at batch: " << wb << std::endl
