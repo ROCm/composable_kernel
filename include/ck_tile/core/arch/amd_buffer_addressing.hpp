@@ -605,8 +605,6 @@ CK_TILE_DEVICE void insert_dummy_dep_per_dword<32>(array<float, 32>& b)
                          "v"(b.get(number<24>{})), "v"(b.get(number<25>{})), "v"(b.get(number<26>{})), "v"(b.get(number<27>{})),
                          "v"(b.get(number<28>{})), "v"(b.get(number<29>{})), "v"(b.get(number<30>{})), "v"(b.get(number<31>{})) : "memory");
 }
-
-
 #endif
 CK_TILE_DEVICE void insert_dummy_dep() {}
 
