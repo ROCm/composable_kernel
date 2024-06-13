@@ -26,7 +26,7 @@ struct TransformConvFwdToGemm
                                       index_t i)
     {
         long_index_t acc = 1;
-        for(; i < (NDimSpatial + 3 - 1); i++)
+        for(; i < (NDimSpatial + 3); i++)
         {
             acc +=
                 static_cast<long_index_t>(lengths[i] - I1) * static_cast<long_index_t>(strides[i]);
