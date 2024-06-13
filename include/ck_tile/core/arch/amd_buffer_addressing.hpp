@@ -552,8 +552,9 @@ namespace impl{
 template<index_t N>
 CK_TILE_DEVICE void insert_dummy_dep_per_dword(array<float, N>& b)
 {
-    static_for<0, b.size(), 1>{}([&](auto i){
-        asm volatile(" " : : "v"(b.get(i)) : "memory");
+    constexpr auto kSize = remove_cvref_t<decltype(b)>::size(); 
+    static_for<0, kSize, 1>{}([&](auto i){
+        asm volatile(" " : : "v"(b.get(number<i>{})) : "memory");
     });
 }
 #if 1
@@ -603,29 +604,6 @@ CK_TILE_DEVICE void insert_dummy_dep_per_dword<32>(array<float, 32>& b)
                          "v"(b.get(number<20>{})), "v"(b.get(number<21>{})), "v"(b.get(number<22>{})), "v"(b.get(number<23>{})),
                          "v"(b.get(number<24>{})), "v"(b.get(number<25>{})), "v"(b.get(number<26>{})), "v"(b.get(number<27>{})),
                          "v"(b.get(number<28>{})), "v"(b.get(number<29>{})), "v"(b.get(number<30>{})), "v"(b.get(number<31>{})) : "memory");
-}
-
-template<>
-CK_TILE_DEVICE void insert_dummy_dep_per_dword<64>(array<float, 64>& b)
-{
-    asm volatile(" " : : "v"(b.get(number<0>{})), "v"(b.get(number<1>{})), "v"(b.get(number<2>{})), "v"(b.get(number<3>{})),
-                         "v"(b.get(number<4>{})), "v"(b.get(number<5>{})), "v"(b.get(number<6>{})), "v"(b.get(number<7>{})),
-                         "v"(b.get(number<8>{})), "v"(b.get(number<9>{})), "v"(b.get(number<10>{})), "v"(b.get(number<11>{})),
-                         "v"(b.get(number<12>{})), "v"(b.get(number<13>{})), "v"(b.get(number<14>{})), "v"(b.get(number<15>{})),
-                         "v"(b.get(number<16>{})), "v"(b.get(number<17>{})), "v"(b.get(number<18>{})), "v"(b.get(number<19>{})),
-                         "v"(b.get(number<20>{})), "v"(b.get(number<21>{})), "v"(b.get(number<22>{})), "v"(b.get(number<23>{})),
-                         "v"(b.get(number<24>{})), "v"(b.get(number<25>{})), "v"(b.get(number<26>{})), "v"(b.get(number<27>{})),
-                         "v"(b.get(number<28>{})), "v"(b.get(number<29>{})), "v"(b.get(number<30>{})), "v"(b.get(number<31>{})) : "memory");
-
-    asm volatile(" " : : "v"(b.get(number<32+0>{})), "v"(b.get(number<32+1>{})), "v"(b.get(number<32+2>{})), "v"(b.get(number<32+3>{})),
-                         "v"(b.get(number<32+4>{})), "v"(b.get(number<32+5>{})), "v"(b.get(number<32+6>{})), "v"(b.get(number<32+7>{})),
-                         "v"(b.get(number<32+8>{})), "v"(b.get(number<32+9>{})), "v"(b.get(number<32+10>{})), "v"(b.get(number<32+11>{})),
-                         "v"(b.get(number<32+12>{})), "v"(b.get(number<32+13>{})), "v"(b.get(number<32+14>{})), "v"(b.get(number<32+15>{})),
-                         "v"(b.get(number<32+16>{})), "v"(b.get(number<32+17>{})), "v"(b.get(number<32+18>{})), "v"(b.get(number<32+19>{})),
-                         "v"(b.get(number<32+20>{})), "v"(b.get(number<32+21>{})), "v"(b.get(number<32+22>{})), "v"(b.get(number<32+23>{})),
-                         "v"(b.get(number<32+24>{})), "v"(b.get(number<32+25>{})), "v"(b.get(number<32+26>{})), "v"(b.get(number<32+27>{})),
-                         "v"(b.get(number<32+28>{})), "v"(b.get(number<32+29>{})), "v"(b.get(number<32+30>{})), "v"(b.get(number<32+31>{})) : "memory");
-
 }
 
 
