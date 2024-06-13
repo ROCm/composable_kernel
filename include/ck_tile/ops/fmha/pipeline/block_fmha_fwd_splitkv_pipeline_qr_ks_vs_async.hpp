@@ -324,25 +324,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
 
         static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
-#if defined(ENABLE_DEBUG_STMTS)
-        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0)
-        {
-            printf("[POYENC][DEVICE] num_total_loop: %2d\n", num_total_loop);
-            printf("[POYENC][DEVICE] seqlen_k_start: %2d, seqlen_k_end: %2d\n",
-                   seqlen_k_start,
-                   seqlen_k_end);
-        }
-#endif
         // main loop
-        auto loop_body = [&, seqlen_k_start_ = seqlen_k_start, seqlen_k_end_ = seqlen_k_end](
-                             auto is_last_iteration) {
-#if defined(ENABLE_DEBUG_STMTS)
-            if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0)
-            {
-                printf("[POYENC][DEVICE] is_last_iteration: %d\n",
-                       static_cast<int>(is_last_iteration));
-            }
-#endif
+        do
+        {
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
             if constexpr(k0_loops > 1)
@@ -442,12 +426,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
             }
             move_tile_window(bias_dram_window, {0, kN0});
 
-            if constexpr(is_last_iteration)
+            /// TODO: only check in last iteration without increasing code size
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                     const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                    return seqlen_k_end_ <= col;
+                    return seqlen_k_end <= col;
                 });
             }
 
@@ -601,7 +585,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr,
-                    seqlen_k_start_ + i_total_loops * kN0,
+                    seqlen_k_start + i_total_loops * kN0,
                     p_compute,
                     randval_dram_window);
             }
@@ -680,13 +664,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{})) * kN1, 0>{},
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{}) + 1) * kN1, kK1>{}));
             }
-        };
-
-        while(i_total_loops < num_total_loop - 1)
-        {
-            loop_body(std::false_type{});
-        }
-        loop_body(std::true_type{});
+        } while(i_total_loops < num_total_loop);
 
         // store lse acc
         if constexpr(kStoreLSE)

@@ -266,9 +266,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
-
-        auto loop_body = [&, seqlen_k_start_ = seqlen_k_start, seqlen_k_end_ = seqlen_k_end](
-                             auto is_last_iteration) {
+        do
+        {
             // STAGE 1, QK gemm
             auto k_dram_window = make_tile_window(
                 k_dram_block_window.get_bottom_tensor_view(),
@@ -381,12 +380,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
             move_tile_window(bias_dram_window, {0, kN0});
 
-            if constexpr(is_last_iteration)
+            /// TODO: only check in last iteration without increasing code size
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                     const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                    return seqlen_k_end_ <= col;
+                    return seqlen_k_end <= col;
                 });
             }
 
@@ -500,10 +499,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             if constexpr(kHasDropout)
             {
                 dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    smem_ptr,
-                    seqlen_k_start_ + i_total_loops * kN0,
-                    p_compute,
-                    randval_dram_window);
+                    smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
 
             block_sync_lds();
@@ -564,13 +560,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                        v_lds_window);
                 block_sync_lds();
             }
-        };
-
-        while(i_total_loops++ < num_total_loop - 1)
-        {
-            loop_body(std::false_type{});
-        }
-        loop_body(std::true_type{});
+        } while(++i_total_loops < num_total_loop);
 
         if constexpr(kStoreLSE)
         {
