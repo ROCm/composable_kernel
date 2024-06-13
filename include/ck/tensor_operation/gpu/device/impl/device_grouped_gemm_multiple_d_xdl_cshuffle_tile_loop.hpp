@@ -472,52 +472,6 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
     using DeviceOp                      = DeviceGroupedGemmMultipleDXdlCShuffleTileLoop;
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    // using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
-    //     ADataType,
-    //     BDataType,
-    //     ComputeDataType,
-    //     AccDataType,
-    //     CShuffleDataType,
-    //     DsDataType,
-    //     EDataType,
-    //     AElementwiseOperation,
-    //     BElementwiseOperation,
-    //     CDEElementwiseOperation,
-    //     InMemoryDataOperationEnum::Set,
-    //     NumGemmKPrefetchStage,
-    //     BlockSize,
-    //     MPerBlock,
-    //     NPerBlock,
-    //     KPerBlock,
-    //     AK1,
-    //     BK1,
-    //     MPerXDL,
-    //     NPerXDL,
-    //     MXdlPerWave,
-    //     NXdlPerWave,
-    //     ABlockTransferThreadClusterLengths_AK0_M_AK1,
-    //     ABlockTransferThreadClusterArrangeOrder,
-    //     ABlockTransferSrcAccessOrder,
-    //     ABlockTransferSrcVectorDim,
-    //     ABlockTransferSrcScalarPerVector,
-    //     ABlockTransferDstScalarPerVector_AK1,
-    //     false, // AThreadTransferSrcResetCoordinateAfterRun,
-    //     ABlockLdsExtraM,
-    //     BBlockTransferThreadClusterLengths_BK0_N_BK1,
-    //     BBlockTransferThreadClusterArrangeOrder,
-    //     BBlockTransferSrcAccessOrder,
-    //     BBlockTransferSrcVectorDim,
-    //     BBlockTransferSrcScalarPerVector,
-    //     BBlockTransferDstScalarPerVector_BK1,
-    //     false, // BThreadTransferSrcResetCoordinateAfterRun,
-    //     BBlockLdsExtraN,
-    //     CShuffleMXdlPerWavePerShuffle,
-    //     CShuffleNXdlPerWavePerShuffle,
-    //     CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-    //     CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-    //     LoopSched,
-    //     PipelineVer>;
-
     using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
         ALayout,
         BLayout,
@@ -569,8 +523,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         ComputeTypeB>;
 
     using KernelArguments = GroupedGemmTileLoopKernelArguments<NumDTensor>;
-    // using Block2ETileMap              = BlockToCTileMap_N00_M0_N01Adapt<MPerBlock, NPerBlock>;
-    using Block2ETileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
+    using Block2ETileMap  = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     using OffsettedLocalBlock2ETileMap = OffsettedBlockToCTileMap2<Block2ETileMap>;
 
     // Argument
@@ -595,36 +548,15 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
               cde_element_op_{cde_element_op},
               tile_count_{0}
         {
-            // constexpr int kbatch = 1;
-            // gridwise_args_.reserve(group_count_);
             for(const auto& desc : gemm_descs)
             {
                 const auto M            = desc.M_;
                 const auto N            = desc.N_;
                 const auto b2c_tile_map = Block2ETileMap(M, N);
                 tile_count_ += b2c_tile_map.CalculateGridSize(M, N);
-
-                // gridwise_args_.push_back(
-                //     desc.p_a_grid,
-                //     desc.p_b_grid,
-                //     desc.p_ds_grid,
-                //     desc.p_e_grid,
-                //     desc.M,
-                //     desc.N,
-                //     desc.K,
-                //     desc.StrideA,
-                //     desc.StrideB,
-                //     desc.StrideDs,
-                //     desc.StrideE,
-                //     kbatch,
-                //     a_element_op,
-                //     b_element_op,
-                //     cde_element_op
-                // );
             }
         }
 
-        // std::vector<GridwiseGemm::Argument> gridwise_args_;
         index_t group_count_;
         const void* p_dev_gemm_args_;
         int occupancy_num_blocks_;
@@ -798,77 +730,51 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         return true;
     }
 
-    static bool IsSupportedArgument([[maybe_unused]] const Argument& arg)
+    static bool IsSupportedArgument(const Argument& arg)
     {
         if(!ck::is_xdl_supported())
         {
             return false;
         }
 
-        return true;
-        // return GridwiseGemm::CheckValidity(arg);
+        bool supported = true;
 
-        // using DsGridDescMN = remove_cvref_t<
-        //     decltype(GridwiseGemm::template MakeDsGridDescriptor_M_N<DsLayout, GemmSpec>(
-        //         {}, {}, {}))>;
+        constexpr index_t k_batch = 1;
+        for(index_t i = 0; i < arg.group_count_; ++i)
+        {
+            std::array<const void*, NumDTensor> placeholder_p_ds_grid{};
+            std::array<index_t, NumDTensor> stride_Ds;
+            std::copy_n(arg.gemm_descs_[i].stride_Ds_.begin(), NumDTensor, stride_Ds.begin());
+            using GridArg = typename GridwiseGemm::Argument;
+            GridArg gridwise_arg(nullptr,               // p_a_grid,
+                                 nullptr,               // p_b_grid,
+                                 placeholder_p_ds_grid, // p_ds_grid,
+                                 nullptr,               // p_e_grid  ,
+                                 arg.gemm_descs_[i].M_,
+                                 arg.gemm_descs_[i].N_,
+                                 arg.gemm_descs_[i].K_,
+                                 arg.gemm_descs_[i].stride_A_,
+                                 arg.gemm_descs_[i].stride_B_,
+                                 stride_Ds,
+                                 arg.gemm_descs_[i].stride_C_,
+                                 k_batch,
+                                 arg.a_element_op_,
+                                 arg.b_element_op_,
+                                 arg.cde_element_op_);
 
-        // bool supported = true;
+            if((arg.gemm_descs_[i].K_ % AK1 != 0 || arg.gemm_descs_[i].K_ % BK1 != 0) &&
+               !(GemmSpec == GemmSpecialization::MKPadding ||
+                 GemmSpec == GemmSpecialization::NKPadding ||
+                 GemmSpec == GemmSpecialization::MNKPadding ||
+                 GemmSpec == GemmSpecialization::KPadding))
+            {
+                return false;
+            }
 
-        // for(const auto& gdesc : arg.gemm_descs_)
-        // {
-        //     const auto M = gdesc.M_;
-        //     const auto N = gdesc.N_;
-        //     const auto K = gdesc.K_;
+            supported = supported && GridwiseGemm::CheckValidity(gridwise_arg);
+        }
 
-        //     const auto StrideA   = gdesc.stride_A_;
-        //     const auto StrideB   = gdesc.stride_B_;
-        //     const auto StrideE   = gdesc.stride_C_;
-        //     const auto& StrideDs = gdesc.stride_Ds_;
-
-        //     // If M dimension is unknown at launch time then validate just NK.
-        //     // If N or K dim is zero (or unknown) then the vector loads responsibility lies on
-        //     // the user.
-        //     if(N * K == 0)
-        //         continue;
-
-        //     const auto a_grid_desc_mk =
-        //         GridwiseGemm::template MakeAGridDescriptor_M_K<ALayout, GemmSpec>(M, K, StrideA);
-        //     const auto b_grid_desc_nk =
-        //         GridwiseGemm::template MakeBGridDescriptor_N_K<BLayout, GemmSpec>(K, N, StrideB);
-        //     const auto e_grid_desc_mn =
-        //         GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
-
-        //     DsGridDescMN ds_grid_desc_mn;
-        //     static_for<0, NumDTensor, 1>{}([&](auto j) {
-        //         using DLayout = remove_cvref_t<tuple_element_t<j.value, DsLayout>>;
-        //         ds_grid_desc_mn(j) =
-        //             GridwiseGemm::template MakeEGridDescriptor_M_N<DLayout, GemmSpec>(
-        //                 M, N, StrideDs[j]);
-        //     });
-
-        //     const auto b2c_tile_map = Block2ETileMap(M, N);
-
-        //     if(!(GridwiseGemm::template CheckValidity(a_grid_desc_mk,
-        //                                               b_grid_desc_nk,
-        //                                               ds_grid_desc_mn,
-        //                                               e_grid_desc_mn,
-        //                                               b2c_tile_map) &&
-        //          GridwiseGemm::template CheckTensorTransfersValidity<ALayout, BLayout, ELayout>(
-        //              M, N, K)))
-        //     {
-        //         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-        //         {
-        //             std::cout << "The provided GEMM problem size (M,N,K) [" << M << "," << N <<
-        //             ","
-        //                       << K << "] are not supported by current template parameters!"
-        //                       << " In " << __FILE__ << ":" << __LINE__
-        //                       << ", in function: " << __func__;
-        //         }
-        //         supported = false;
-        //     }
-        // }
-
-        // return supported;
+        return supported;
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
