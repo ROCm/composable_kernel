@@ -215,25 +215,22 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         // check early exit if masked and no work to do.
-        if constexpr(FmhaMask::IsMasking)
+        if(num_total_loop <= 0)
         {
-            if(num_total_loop <= 0)
+            if constexpr(kStoreLSE)
             {
-                if constexpr(kStoreLSE)
-                {
-                    auto lse_acc =
-                        make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+                auto lse_acc =
+                    make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                    store_tile(lse_acc_dram_window_tmp,
-                               tile_elementwise_in(lse_acc_element_func, lse_acc));
-                }
-
-                // Note: here occ are all cleard, return it
-                // Note: q loaded but no fence, ignore it.
-                return o_acc;
+                store_tile(lse_acc_dram_window_tmp,
+                           tile_elementwise_in(lse_acc_element_func, lse_acc));
             }
+
+            // Note: here occ are all cleard, return it
+            // Note: q loaded but no fence, ignore it.
+            return o_acc;
         }
 
         auto k_dram_block_window =

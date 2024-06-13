@@ -258,29 +258,26 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
 
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
-        // check early exit
-        if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
+        // check early exit if masked and no work to do.
+        if(num_total_loop <= 0)
         {
-            if(num_total_loop <= 0)
+            if constexpr(kStoreLSE)
             {
-                if constexpr(kStoreLSE)
-                {
-                    auto lse_acc =
-                        make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+                auto lse_acc =
+                    make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                    store_tile(lse_acc_dram_window_tmp,
-                               tile_elementwise_in(lse_acc_element_func, lse_acc));
-                }
-                buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
-                                      // otherwise will have compute error(maybe compiler bug?)
-
-                // Note: here occ are all cleard, return it
-                return o_acc;
+                store_tile(lse_acc_dram_window_tmp,
+                           tile_elementwise_in(lse_acc_element_func, lse_acc));
             }
-            __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
+            buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
+                                  // otherwise will have compute error(maybe compiler bug?)
+
+            // Note: here occ are all cleard, return it
+            return o_acc;
         }
+        __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
 
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
