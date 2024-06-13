@@ -45,7 +45,8 @@ struct WarpMergeWelford
         constexpr index_t idim_p_lane = NDimP - 1;
 
         const auto ps_idx = make_array<index_t>(get_warp_id(), get_lane_id());
-        const auto rs_idx = mean_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
+        const auto rs_idx =
+            mean_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
 
         constexpr index_t thread_buf_size = MeanDistributedTensor_::get_thread_buffer_size();
         static_assert(thread_buf_size == VarDistributedTensor_::get_thread_buffer_size());
