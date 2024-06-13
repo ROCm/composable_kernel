@@ -402,6 +402,17 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NHWGC> &&
                      is_same_v<WeiLayout, GKYXC> && is_same_v<OutLayout, NHWGK>)
         {
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
+                         is_same_v<BComputeType, half_t>)
+            {
+                add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_f16_1x1p0_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_f16_1x1s1p0_instances(op_ptrs);
+                add_device_grouped_conv2d_fwd_wmma_nhwgc_gkyxc_nhwgk_f16_oddc_instances(op_ptrs);
+            }
+#endif
 #ifdef CK_ENABLE_INT8
             if constexpr(is_same_v<InDataType, int8_t> && is_same_v<WeiDataType, int8_t> &&
                          is_same_v<OutDataType, int8_t> && is_same_v<AComputeType, int8_t> &&

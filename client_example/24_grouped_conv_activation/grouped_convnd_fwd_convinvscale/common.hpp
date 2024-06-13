@@ -10,12 +10,12 @@
 #include <vector>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using ConvScale   = ck::tensor_operation::element_wise::ConvScale;
+using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
+using ConvInvscale = ck::tensor_operation::element_wise::ConvInvscale;
 
 struct SimpleDeviceMem
 {
@@ -102,7 +102,7 @@ template <ck::index_t NumDimSpatial,
           ck::index_t NumNonSpatialDim = 3,
           typename AComputeType        = InDataType,
           typename BComputeType        = AComputeType>
-bool run_grouped_conv_fwd_convscale(
+bool run_grouped_conv_fwd_convinvscale(
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> in_lengths,
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> wei_lengths,
     std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> out_lengths)
@@ -198,7 +198,7 @@ bool run_grouped_conv_fwd_convscale(
                                                                                    OutDataType,
                                                                                    PassThrough,
                                                                                    PassThrough,
-                                                                                   ConvScale,
+                                                                                   ConvInvscale,
                                                                                    AComputeType,
                                                                                    BComputeType>;
     // get device op instances
@@ -238,7 +238,7 @@ bool run_grouped_conv_fwd_convscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvScale{scale_in, scale_wei, scale_out});
+            ConvInvscale{scale_in, scale_wei, scale_out});
 
         auto invoker_ptr    = op_ptr->MakeInvokerPointer();
         std::string op_name = op_ptr->GetTypeString();
@@ -301,7 +301,7 @@ bool run_grouped_conv_fwd_convscale(
             input_right_pads,
             PassThrough{},
             PassThrough{},
-            ConvScale{scale_in, scale_wei, scale_out});
+            ConvInvscale{scale_in, scale_wei, scale_out});
 
         auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
