@@ -54,6 +54,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimQ = true; // support multiple of vector(like 8x)
     static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum     = Problem::BiasEnum;
+    static constexpr bool kStoreLSE    = true;  // always store LSE (acc)
     static constexpr bool kHasDropout  = false; // ignore this flag
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -262,14 +263,16 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
         {
             if(num_total_loop <= 0)
             {
-                auto lse_acc =
-                    make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+                if constexpr(kStoreLSE)
+                {
+                    auto lse_acc =
+                        make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                store_tile(lse_acc_dram_window_tmp,
-                           tile_elementwise_in(lse_acc_element_func, lse_acc));
-
+                    store_tile(lse_acc_dram_window_tmp,
+                               tile_elementwise_in(lse_acc_element_func, lse_acc));
+                }
                 buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
                                       // otherwise will have compute error(maybe compiler bug?)
 
@@ -321,9 +324,25 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
 
         static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
+#if defined(ENABLE_DEBUG_STMTS)
+        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0)
+        {
+            printf("[POYENC][DEVICE] num_total_loop: %2d\n", num_total_loop);
+            printf("[POYENC][DEVICE] seqlen_k_start: %2d, seqlen_k_end: %2d\n",
+                   seqlen_k_start,
+                   seqlen_k_end);
+        }
+#endif
         // main loop
         auto loop_body = [&, seqlen_k_start_ = seqlen_k_start, seqlen_k_end_ = seqlen_k_end](
                              auto is_last_iteration) {
+#if defined(ENABLE_DEBUG_STMTS)
+            if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0)
+            {
+                printf("[POYENC][DEVICE] is_last_iteration: %d\n",
+                       static_cast<int>(is_last_iteration));
+            }
+#endif
             // STAGE 1, QK gemm
             clear_tile(s_acc); // initialize C
             if constexpr(k0_loops > 1)
@@ -670,27 +689,30 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
         loop_body(std::true_type{});
 
         // store lse acc
-        auto lse_acc = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+        if constexpr(kStoreLSE)
+        {
+            auto lse_acc = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-        constexpr auto lse_acc_spans = decltype(lse_acc)::get_distributed_spans();
-        sweep_tile_span(lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
-            constexpr auto i_idx = make_tuple(idx0);
+            constexpr auto lse_acc_spans = decltype(lse_acc)::get_distributed_spans();
+            sweep_tile_span(lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                         BiasEnum == BlockAttentionBiasEnum::ALIBI)
-            {
-                lse_acc(i_idx) = m_[i_idx] * R_LOG2E + log(l_[i_idx]);
-            }
-            else
-            {
-                lse_acc(i_idx) = m_[i_idx] * scale_s * R_LOG2E + log(l_[i_idx]);
-            }
+                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                             BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                {
+                    lse_acc(i_idx) = m_[i_idx] * R_LOG2E + log(l_[i_idx]);
+                }
+                else
+                {
+                    lse_acc(i_idx) = m_[i_idx] * scale_s * R_LOG2E + log(l_[i_idx]);
+                }
 #else
                 lse_acc(i_idx) = m_[i_idx] + log(l_[i_idx]);
 #endif
-        });
+            });
 
-        store_tile(lse_acc_dram_window_tmp, tile_elementwise_in(lse_acc_element_func, lse_acc));
+            store_tile(lse_acc_dram_window_tmp, tile_elementwise_in(lse_acc_element_func, lse_acc));
+        }
 
         // finally, O
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
