@@ -254,7 +254,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin                       = q_dram_window.get_window_origin();
         const auto [seqlen_k_start, seqlen_k_end] = mask.GetTileRangeAlongX(
-            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, i_split, num_splits);
+            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
 
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 

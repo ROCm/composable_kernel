@@ -303,8 +303,8 @@ struct SimplifiedGenericAttentionMask
     CK_TILE_HOST_DEVICE constexpr auto GetTileRangeAlongX(index_t i_y,
                                                           number<TileHeight> height,
                                                           number<TileWidth> width,
-                                                          index_t i_split,
-                                                          index_t num_splits) const
+                                                          index_t num_splits,
+                                                          index_t i_split) const
     {
         auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
 
