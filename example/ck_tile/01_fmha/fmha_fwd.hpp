@@ -74,11 +74,32 @@ struct FmhaFwdTypeConfig<ck_tile::bf8_t>
     using ODataType           = ck_tile::bf8_t;
 };
 
-struct FmhaMasks
-{
-    using NoMask      = ck_tile::GenericAttentionMask<false>;
-    using GenericMask = ck_tile::GenericAttentionMask<true, true>;
-    using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
+// struct FmhaMasks
+// {
+//     using NoMask      = ck_tile::GenericAttentionMask<false>;
+//     using GenericMask = ck_tile::GenericAttentionMask<true, true>;
+//     using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
+// };
+
+struct FmhaMasks {
+    template <ck_tile::index_t y_tile = 1, ck_tile::index_t x_tile = 1>
+    using NoMask = ck_tile::GenericAttentionMask<ck_tile::DiagonalMask<y_tile, x_tile, true>,  // FIXME: Had to throw in a dummy type here, should be unused since IsMasking=false
+                                                y_tile,
+                                                x_tile,
+                                                false,
+                                                false>;
+
+    template <ck_tile::index_t y_tile, ck_tile::index_t x_tile>
+    using GenericDiagonalMask = ck_tile::GenericAttentionMask<ck_tile::DiagonalMask<y_tile, x_tile, true>,
+                                                     y_tile,
+                                                     x_tile,
+                                                     false>;
+
+    template <ck_tile::index_t y_tile, ck_tile::index_t x_tile>
+    using CausalMask = ck_tile::GenericAttentionMask<ck_tile::DiagonalMask<y_tile, x_tile, false>,
+                                            y_tile,
+                                            x_tile,
+                                            false>;
 };
 
 // runtime args, some will passed to karg, some will used to compute grids/blocks

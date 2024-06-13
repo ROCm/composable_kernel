@@ -134,7 +134,7 @@ CK_TILE_HOST_DEVICE auto make_alibi_from_lr_mask(DataType slope,
                                                  index_t window_right_size,
                                                  index_t y_total,
                                                  index_t x_total,
-                                                 GenericAttentionMaskEnum mask_enum)
+                                                 AttentionMaskEnum mask_enum)
 {
     // assume mask_enum will never be NO_MASK, since if we do not have mask, it's
     // totally OK to use constexpr

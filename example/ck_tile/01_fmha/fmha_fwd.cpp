@@ -656,9 +656,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
-                        fmha_traits::kM0,
-                        fmha_traits::kN0,
-                        static_cast<ck_tile::GenericAttentionMaskEnum>(mask.type));
+                        static_cast<ck_tile::AttentionMaskEnum>(mask.type));
                 }
                 else
                 {
@@ -694,15 +692,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(mask.type == mask_enum::no_mask)
         {
+            // FIXME: Tile size doesn't matter here because reference_batched_masking only calls mask.ElementwiseMask(), but we have no way of getting the tile size in this part of the code
+            typename FmhaMasks::NoMask<>::mask_def_t mask_def(0, 0);  // FIXME: This is bug prone. Need a better way of defining a mask def for non-masks (IsMasking=false)
             ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k, fmha_traits::kM0, fmha_traits::kN0});
+                s_host_ref, FmhaMasks::NoMask<>(mask_def, real_seqlen_q, real_seqlen_k));
         }
         else if(mask.type == mask_enum::window_generic)
         {
             ck_tile::reference_batched_masking<SaccDataType>(
                 s_host_ref,
-                ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                    mask.left, mask.right, real_seqlen_q, real_seqlen_k), fmha_traits::kM0, fmha_traits::kN0);
+                ck_tile::make_diagonal_attention_mask_from_lr_window<FmhaMasks::GenericDiagonalMask<1, 1>>(
+                    mask.left, mask.right, real_seqlen_q, real_seqlen_k));
         }
         else
         {
@@ -711,24 +711,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if(mask.left < 0)
                 ck_tile::reference_batched_masking<SaccDataType>(
                     s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+                    ck_tile::make_diagonal_attention_mask_from_lr_window<FmhaMasks::CausalMask<1, 1>>(
                         mask.left,
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
-                        fmha_traits::kM0,
-                        fmha_traits::kN0,
                         mask.type == mask_enum::mask_top_left));
             else
                 ck_tile::reference_batched_masking<SaccDataType>(
                     s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                    ck_tile::make_diagonal_attention_mask_from_lr_window<FmhaMasks::FmhaMasks::GenericDiagonalMask<1, 1>>(
                         mask.left,
                         mask.right,
                         real_seqlen_q,
                         real_seqlen_k,
-                        fmha_traits::kM0,
-                        fmha_traits::kN0,
                         mask.type == mask_enum::mask_top_left));
         }
         if(lse)

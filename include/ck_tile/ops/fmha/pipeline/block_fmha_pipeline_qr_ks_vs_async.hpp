@@ -435,7 +435,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col);
+                            return !mask.ElementwiseMask(row, col);
                         });
                 }
             }

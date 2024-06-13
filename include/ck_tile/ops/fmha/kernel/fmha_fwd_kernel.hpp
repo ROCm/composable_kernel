@@ -150,7 +150,7 @@ struct FmhaFwdKernel
     {
         // ck_tile::index_t window_size_left, window_size_right;
         ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::GenericAttentionMaskEnum mask_type;
+        ck_tile::AttentionMaskEnum mask_type;
     };
 
     struct FmhaFwdFp8StaticQuantKargs
@@ -289,7 +289,7 @@ struct FmhaFwdKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+            kargs.mask_type         = static_cast<ck_tile::AttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
@@ -383,7 +383,7 @@ struct FmhaFwdKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+            kargs.mask_type         = static_cast<ck_tile::AttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
         {
@@ -667,17 +667,17 @@ struct FmhaFwdKernel
         }();
 
         FmhaMask mask = [&]() {
-            if constexpr(kHasMask)
-                return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
+            if constexpr(kHasMask) {
+                return ck_tile::make_diagonal_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
-                    FmhaPipeline::kM0,
-                    FmhaPipeline::kN0,
-                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
-            else
-                return FmhaMask{kargs.seqlen_q, kargs.seqlen_k, FmhaPipeline::kM0, FmhaPipeline::kN0};
+                    kargs.mask_type == AttentionMaskEnum::MASK_FROM_TOP_LEFT);
+            } else {
+                typename FmhaMask::mask_def_t mask_def(0, 0);  // FIXME: This is bug prone. Need a better way of defining a mask def for non-masks (IsMasking=false)
+                return FmhaMask(mask_def, kargs.seqlen_q, kargs.seqlen_k);
+            }
         }();
 
         // WA i_batch capture structure binding before c++20
