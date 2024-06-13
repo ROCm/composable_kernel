@@ -3,4 +3,4 @@ include_directories(AFTER
 )
 
 add_subdirectory(01_fmha)
-add_subdirectory(02_layernorm2d_fwd)
+add_subdirectory(02_layernorm2d)

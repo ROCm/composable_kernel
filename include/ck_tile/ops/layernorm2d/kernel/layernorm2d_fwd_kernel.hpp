@@ -5,8 +5,8 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/reduce/thread/thread_welford.hpp"
-#include "ck_tile/ops/reduce/warp/warp_welford.hpp"
+#include "ck_tile/ops/welford/thread/thread_welford.hpp"
+#include "ck_tile/ops/welford/warp/warp_welford.hpp"
 
 namespace ck_tile {
 
