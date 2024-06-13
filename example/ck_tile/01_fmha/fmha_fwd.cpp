@@ -229,7 +229,7 @@ int override_num_splits_if_necessary(
     }
 
     // tile size should match the generate.py
-    const int kM0 = 128;
+    const int kM0 = 64;
     const int kN1 = hdim_v;
 
     const int num_m_blocks = ck_tile::integer_divide_ceil(max_seqlen_q, kM0);
@@ -431,9 +431,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_splits = override_num_splits_if_necessary(
             batch, nhead, max_seqlen_q, hdim_v, p_drop, num_splits);
     }
-    if(64 < num_splits)
+    if(128 < num_splits)
     {
-        std::cerr << "num_splits greater than 64 is not supported" << std::endl;
+        std::cerr << "num_splits greater than 128 is not supported" << std::endl;
         return false;
     }
 
