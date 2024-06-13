@@ -10,7 +10,9 @@
             "installDir": "${sourceDir}/build/install/${presetName}",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_CXX_COMPILER_LAUNCHER": "sccache",
+                "CMAKE_C_COMPILER_LAUNCHER": "sccache"
             },
             "condition": {
                 "type": "equals",
