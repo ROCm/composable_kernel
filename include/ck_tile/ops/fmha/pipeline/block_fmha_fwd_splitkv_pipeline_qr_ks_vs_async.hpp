@@ -54,7 +54,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimQ = true; // support multiple of vector(like 8x)
     static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    static constexpr bool kHasDropout  = false; // ignore this flag
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this

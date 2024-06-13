@@ -936,9 +936,10 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl, is_splitkv 
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
         squant = 't' if dtype == 'fp8' else 'f'
+        dropout_options = ["f"] if is_splitkv else ["t", "f"] # splitkv kernel donot support dropout
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for mask, bias, lse, dropout in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"]):
+            for mask, bias, lse, dropout in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], dropout_options):
                 if hdim == 256:
                 # if True:
                     pipelines.append(Pipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))

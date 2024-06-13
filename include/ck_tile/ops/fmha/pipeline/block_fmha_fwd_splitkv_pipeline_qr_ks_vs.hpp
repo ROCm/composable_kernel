@@ -49,7 +49,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    static constexpr bool kHasDropout  = false; // ignore this flag
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
