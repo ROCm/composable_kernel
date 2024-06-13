@@ -961,6 +961,52 @@ struct Elu
     const float alpha_;
 };
 
+struct ConvInvscale
+{
+    __host__ __device__ ConvInvscale(float scale_in  = 1.f,
+                                     float scale_wei = 1.f,
+                                     float scale_out = 1.f)
+        : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
+    {
+    }
+
+    template <typename E, typename C>
+    __host__ __device__ void operator()(E& e, const C& c) const;
+
+    template <>
+    __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
+    {
+        e = type_convert<f8_t>(c / scale_in_ / scale_wei_ / scale_out_);
+    };
+
+    float scale_in_;
+    float scale_wei_;
+    float scale_out_;
+};
+
+struct ConvScale
+{
+    __host__ __device__ ConvScale(float scale_in  = 1.f,
+                                  float scale_wei = 1.f,
+                                  float scale_out = 1.f)
+        : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
+    {
+    }
+
+    template <typename E, typename C>
+    __host__ __device__ void operator()(E& e, const C& c) const;
+
+    template <>
+    __host__ __device__ void operator()<f8_t, float>(f8_t& e, const float& c) const
+    {
+        e = type_convert<f8_t>(c * scale_in_ * scale_wei_ * scale_out_);
+    };
+
+    float scale_in_;
+    float scale_wei_;
+    float scale_out_;
+};
+
 // support fastconvert of int8 to fp16
 
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>

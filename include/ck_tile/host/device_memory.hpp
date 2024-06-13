@@ -27,7 +27,14 @@ struct DeviceMem
     DeviceMem() : mpDeviceBuf(nullptr), mMemSize(0) {}
     DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
     {
-        HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+        if(mMemSize != 0)
+        {
+            HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+        }
+        else
+        {
+            mpDeviceBuf = nullptr;
+        }
     }
     void Realloc(std::size_t mem_size)
     {
@@ -36,7 +43,14 @@ struct DeviceMem
             HIP_CHECK_ERROR(hipFree(mpDeviceBuf));
         }
         mMemSize = mem_size;
-        HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+        if(mMemSize != 0)
+        {
+            HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
+        }
+        else
+        {
+            mpDeviceBuf = nullptr;
+        }
     }
     void* GetDeviceBuffer() const { return mpDeviceBuf; }
     std::size_t GetBufferSize() const { return mMemSize; }
@@ -47,15 +61,18 @@ struct DeviceMem
             HIP_CHECK_ERROR(
                 hipMemcpy(mpDeviceBuf, const_cast<void*>(p), mMemSize, hipMemcpyHostToDevice));
         }
-        else
-        {
-            throw std::runtime_error("ToDevice with an empty pointer");
-        }
+        // else
+        // {
+        //     throw std::runtime_error("ToDevice with an empty pointer");
+        // }
     }
     void ToDevice(const void* p, const std::size_t cpySize) const
     {
-        HIP_CHECK_ERROR(
-            hipMemcpy(mpDeviceBuf, const_cast<void*>(p), cpySize, hipMemcpyHostToDevice));
+        if(mpDeviceBuf)
+        {
+            HIP_CHECK_ERROR(
+                hipMemcpy(mpDeviceBuf, const_cast<void*>(p), cpySize, hipMemcpyHostToDevice));
+        }
     }
     void FromDevice(void* p) const
     {
@@ -63,14 +80,17 @@ struct DeviceMem
         {
             HIP_CHECK_ERROR(hipMemcpy(p, mpDeviceBuf, mMemSize, hipMemcpyDeviceToHost));
         }
-        else
-        {
-            throw std::runtime_error("FromDevice with an empty pointer");
-        }
+        // else
+        // {
+        //     throw std::runtime_error("FromDevice with an empty pointer");
+        // }
     }
     void FromDevice(void* p, const std::size_t cpySize) const
     {
-        HIP_CHECK_ERROR(hipMemcpy(p, mpDeviceBuf, cpySize, hipMemcpyDeviceToHost));
+        if(mpDeviceBuf)
+        {
+            HIP_CHECK_ERROR(hipMemcpy(p, mpDeviceBuf, cpySize, hipMemcpyDeviceToHost));
+        }
     }
     void SetZero() const
     {
@@ -82,13 +102,16 @@ struct DeviceMem
     template <typename T>
     void SetValue(T x) const
     {
-        if(mMemSize % sizeof(T) != 0)
+        if(mpDeviceBuf)
         {
-            throw std::runtime_error("wrong! not entire DeviceMem will be set");
-        }
+            if(mMemSize % sizeof(T) != 0)
+            {
+                throw std::runtime_error("wrong! not entire DeviceMem will be set");
+            }
 
-        // TODO: call a gpu kernel to set the value (?)
-        set_buffer_value<T><<<1, 1024>>>(static_cast<T*>(mpDeviceBuf), x, mMemSize / sizeof(T));
+            // TODO: call a gpu kernel to set the value (?)
+            set_buffer_value<T><<<1, 1024>>>(static_cast<T*>(mpDeviceBuf), x, mMemSize / sizeof(T));
+        }
     }
     ~DeviceMem()
     {
