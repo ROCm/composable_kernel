@@ -383,10 +383,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             /// TODO: only check in last iteration without increasing code size
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
-                set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                    const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                    return seqlen_k_end <= col;
-                });
+                set_tile_if(s_acc,
+                            -numeric<SMPLComputeDataType>::infinity(),
+                            [&, seqlen_k_end_ = seqlen_k_end](auto tile_idx) {
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return seqlen_k_end_ <= col;
+                            });
             }
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
