@@ -211,13 +211,11 @@ struct BlockFmhaPipelineQRKSVS
 
         auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}));
         index_t seqlen_k_start = row_tile_idx_iter.start;
-        index_t seqlen_k_end = row_tile_idx_iter.end;
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking)
         {
-            if(num_total_loop <= 0)
+            if(row_tile_idx_iter.at_end()) // Iterator will initialize to end if row is empty
             {
                 if constexpr(kStoreLSE)
                 {

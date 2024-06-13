@@ -255,7 +255,6 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}));
         index_t seqlen_k_start = row_tile_idx_iter.start;
-        index_t seqlen_k_end = row_tile_idx_iter.end;
 
         // check early exit
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
