@@ -293,6 +293,14 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
+            if(arg.IsReduceAdd())
+            {
+                if(arg.p_workspace_ == nullptr)
+                {
+                    throw std::runtime_error("using redue , but empty workspace!");
+                }
+            }
+
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.KBatch);
 
