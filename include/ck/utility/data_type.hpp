@@ -19,14 +19,14 @@ inline constexpr auto next_pow2(uint32_t x)
     return x > 1u ? (1u << (32u - __builtin_clz(x - 1u))) : x;
 }
 
-// native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, bool
+// native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, f8_t, bf8_t, bool
 template <typename T>
 inline constexpr bool is_native_type()
 {
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value || is_same<T, int8_t>::value ||
-           is_same<T, uint8_t>::value || is_same<T, _BitInt(8)>::value ||
-           is_same<T, unsigned _BitInt(8)>::value || is_same<T, bool>::value;
+           is_same<T, uint8_t>::value || is_same<T, f8_t>::value || is_same<T, bf8_t>::value ||
+           is_same<T, bool>::value;
 }
 
 // vector_type
@@ -1642,12 +1642,6 @@ using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
 // f8
-// using f8x2_t  = typename vector_type<f8_t, 2>::type;
-// using f8x4_t  = typename vector_type<f8_t, 4>::type;
-// using f8x8_t  = typename vector_type<f8_t, 8>::type;
-// using f8x16_t = typename vector_type<f8_t, 16>::type;
-// using f8x32_t = typename vector_type<f8_t, 32>::type;
-// using f8x64_t = typename vector_type<f8_t, 64>::type;
 using f8x2_t  = typename vector_type<f8_t, 2>::type;
 using f8x4_t  = typename vector_type<f8_t, 4>::type;
 using f8x8_t  = typename vector_type<f8_t, 8>::type;
@@ -1656,12 +1650,6 @@ using f8x32_t = typename vector_type<f8_t, 32>::type;
 using f8x64_t = typename vector_type<f8_t, 64>::type;
 
 // bf8
-// using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
-// using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
-// using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
-// using bf8x16_t = typename vector_type<bf8_t, 16>::type;
-// using bf8x32_t = typename vector_type<bf8_t, 32>::type;
-// using bf8x64_t = typename vector_type<bf8_t, 64>::type;
 using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
 using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
 using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
@@ -1670,7 +1658,6 @@ using bf8x32_t = typename vector_type<bf8_t, 32>::type;
 using bf8x64_t = typename vector_type<bf8_t, 64>::type;
 
 // u8
-// i8
 using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
 using uint8x4_t  = typename vector_type<uint8_t, 4>::type;
 using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
