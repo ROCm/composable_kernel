@@ -1,3 +1,5 @@
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "profiler/profile_grouped_conv_fwd_outelementop_impl.hpp"
 
 #include "ck/utility/data_type.hpp"
@@ -69,7 +71,7 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
     const bool time_kernel     = std::stoi(argv[8]);
     const int num_dim_spatial  = std::stoi(argv[9]);
 
-    // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial + 1 argv[0]
+    // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial + 1 for argv[0]
     if(argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
     {
         print_helper_msg();
@@ -78,35 +80,36 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
 
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
 
-    using F32  = float;
-    using INT8 = int8_t;
-    using F8   = ck::f8_t;
-    using BF8  = ck::bf8_t;
+    using F8  = ck::f8_t;
+    using BF8 = ck::bf8_t;
 
     // TODO: What are these layouts? How they are mapped to the layouts in ConvLayout?
-    using GNWC   = ck::tensor_layout::convolution::GNWC;
-    using GNHWC  = ck::tensor_layout::convolution::GNHWC;
-    using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
+    // using GNWC   = ck::tensor_layout::convolution::GNWC;
+    // using GNHWC  = ck::tensor_layout::convolution::GNHWC;
+    // using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
 
-    using GKXC   = ck::tensor_layout::convolution::GKXC;
-    using GKYXC  = ck::tensor_layout::convolution::GKYXC;
+    // using GKXC   = ck::tensor_layout::convolution::GKXC;
+    // using GKYXC  = ck::tensor_layout::convolution::GKYXC;
     using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
 
-    using GNWK   = ck::tensor_layout::convolution::GNWK;
-    using GNHWK  = ck::tensor_layout::convolution::GNHWK;
-    using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
+    // using GNWK   = ck::tensor_layout::convolution::GNWK;
+    // using GNHWK  = ck::tensor_layout::convolution::GNHWK;
+    // using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
 
-    //
-    using NWGC   = ck::tensor_layout::convolution::NWGC;
-    using NHWGC  = ck::tensor_layout::convolution::NHWGC;
+    // //
+    // using NWGC   = ck::tensor_layout::convolution::NWGC;
+    // using NHWGC  = ck::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
 
-    using NWGK   = ck::tensor_layout::convolution::NWGK;
-    using NHWGK  = ck::tensor_layout::convolution::NHWGK;
+    // using NWGK   = ck::tensor_layout::convolution::NWGK;
+    // using NHWGK  = ck::tensor_layout::convolution::NHWGK;
     using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
-    constexpr auto I1 = ck::Number<1>{};
-    constexpr auto I2 = ck::Number<2>{};
+    using ConvScale    = ck::tensor_operation::element_wise::ConvScale;
+    using ConvInvScale = ck::tensor_operation::element_wise::ConvInvscale;
+
+    // constexpr auto I1 = ck::Number<1>{};
+    // constexpr auto I2 = ck::Number<2>{};
     constexpr auto I3 = ck::Number<3>{};
 
     auto profile = [&](auto num_dim_spatial_tmp,
@@ -148,6 +151,90 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
 
         return pass ? 0 : 1;
     };
+
+    if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    {
+        if(op == OutElementOp::ConvScale)
+        {
+            if(data_type == ConvDataType::F8_F8_F8)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F8{}, F8{}, F8{}, ConvScale{}, F8{}, F8{});
+            }
+            else if(data_type == ConvDataType::BF8_BF8_F8)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               BF8{},
+                               BF8{},
+                               F8{},
+                               ConvScale{},
+                               BF8{},
+                               BF8{});
+            }
+            else if(data_type == ConvDataType::F8_BF8_F8)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F8{}, BF8{}, F8{}, ConvScale{}, F8{}, BF8{});
+            }
+            else if(data_type == ConvDataType::BF8_F8_F8)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF8{}, F8{}, F8{}, ConvScale{}, BF8{}, F8{});
+            }
+        }
+        else if(op == OutElementOp::ConvInvScale)
+        {
+            if(data_type == ConvDataType::F8_F8_F8)
+            {
+                return profile(
+                    I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F8{}, F8{}, F8{}, ConvInvScale{}, F8{}, F8{});
+            }
+            else if(data_type == ConvDataType::BF8_BF8_F8)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               BF8{},
+                               BF8{},
+                               F8{},
+                               ConvInvScale{},
+                               BF8{},
+                               BF8{});
+            }
+            else if(data_type == ConvDataType::F8_BF8_F8)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               F8{},
+                               BF8{},
+                               F8{},
+                               ConvInvScale{},
+                               F8{},
+                               BF8{});
+            }
+            else if(data_type == ConvDataType::BF8_F8_F8)
+            {
+                return profile(I3,
+                               NDHWGC{},
+                               GKZYXC{},
+                               NDHWGK{},
+                               BF8{},
+                               F8{},
+                               F8{},
+                               ConvInvScale{},
+                               BF8{},
+                               F8{});
+            }
+        }
+    }
+
+    std::cout << "this data_type & layout is not implemented" << std::endl;
 
     return 1;
 }
