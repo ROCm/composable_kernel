@@ -490,7 +490,7 @@ struct BlockFmhaPipelineQRKSVS
             if constexpr(kHasDropout)
             {
                 dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
+                    smem_ptr, seqlen_k_start + row_tile_idx_iter.current * kN0, p_compute, randval_dram_window);
             }
 
             block_sync_lds();

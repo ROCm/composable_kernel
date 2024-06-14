@@ -576,7 +576,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr,
-                    seqlen_k_start + i_total_loops * kN0,
+                    seqlen_k_start + row_tile_idx_iter.current * kN0,
                     p_compute,
                     randval_dram_window);
             }
