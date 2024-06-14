@@ -12,12 +12,20 @@
 enum struct GemmMatrixLayout
 {
     MK_KN_MN, // 0
+    MK_NK_MN, // 1
+    KM_KN_MN, // 2
+    KM_NK_MN, // 3
 };
 
 enum struct GemmDataType
 {
-    BF16_BF16_BF16, // 0
-    BF16_I8_BF16,   // 1
+    F32_F32_F32,    // 0
+    F16_F16_F16,    // 1
+    BF16_BF16_BF16, // 2
+    INT8_INT8_INT8, // 3
+    F8_F16_F16,     // 4
+    BF16_I8_BF16,   // 5
+    F16_F16_F16_F8, // 6
 };
 
 #define OP_NAME "gemm_universal_reduce"
@@ -28,7 +36,8 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
     if(argc != 15 && argc != 18)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
-        printf("arg2: data type (0: bf16; 1: f16@i8)\n");
+        printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@i8; 6: f16, "
+               "comp f8)\n");
         printf("arg3: matrix layout (0: A[m, k] * B[k, n] = C[m, n];\n");
         printf("arg4: verification (0: no; 1: yes)\n");
         printf("arg5: initialization (0: no init; 1: integer value; 2: decimal value)\n");

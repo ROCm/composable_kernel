@@ -83,6 +83,18 @@ void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_v2_kpadding_instanc
                                                PassThrough,
                                                PassThrough,
                                                PassThrough>>>& instances);
+void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_mnpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               BF16,
+                                               I8,
+                                               DsDataType,
+                                               BF16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
 void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
                                                Row,
@@ -147,6 +159,18 @@ void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_default_instan
                                                PassThrough,
                                                PassThrough>>>& instances);
 void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               BF16,
+                                               BF16,
+                                               DsDataType,
+                                               BF16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
                                                Row,
                                                DsLayout,
@@ -226,6 +250,8 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
                 add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_v2_kpadding_instances(
                     op_ptrs);
+                add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_mnpadding_instances(
+                    op_ptrs);
                 add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
                     op_ptrs);
             }
@@ -247,6 +273,8 @@ struct DeviceOperationInstanceFactory<
                 add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_default_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_kpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_comp_mnpadding_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
                     op_ptrs);
