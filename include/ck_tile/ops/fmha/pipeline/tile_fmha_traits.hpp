@@ -54,6 +54,7 @@ struct TileFmhaFwdSplitKVTraits : TileFmhaTraits<kPadSeqLenQ,
                                                  kDoFp8StaticQuant,
                                                  kBlockPerCu>
 {
+    // determine if some split (length) is not divisible by tile size
     static constexpr bool kHasUnevenSplits = kHasUnevenSplits_;
 };
 
