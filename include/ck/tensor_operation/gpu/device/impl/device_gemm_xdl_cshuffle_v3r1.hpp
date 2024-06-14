@@ -297,7 +297,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             {
                 if(arg.p_workspace_ == nullptr)
                 {
-                    throw std::runtime_error("using redue , but empty workspace!");
+                    throw std::runtime_error("using reduce , but empty workspace!");
                 }
             }
 
