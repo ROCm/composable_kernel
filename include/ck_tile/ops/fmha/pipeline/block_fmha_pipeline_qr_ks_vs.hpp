@@ -260,8 +260,8 @@ struct BlockFmhaPipelineQRKSVS
         index_t prev_row_tile_idx = 0;
         index_t n0_step = row_tile_idx_iter.current - prev_row_tile_idx;
         move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
-        move_tile_window(bias_dram_window, {0, kN0 * n0_step});
         move_tile_window(v_dram_window, {0, kN0 * n0_step});
+        move_tile_window(bias_dram_window, {0, kN0 * n0_step});
 
         // prefetch K tile
         constexpr index_t k0_loops = kK0BlockLength / kK0;
@@ -381,8 +381,6 @@ struct BlockFmhaPipelineQRKSVS
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
             }
-
-            move_tile_window(bias_dram_window, {0, kN0 * n0_step});
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -552,6 +550,7 @@ struct BlockFmhaPipelineQRKSVS
             // move K and V tile windows
             move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
             move_tile_window(v_dram_window, {0, kN0 * (n0_step - 1)});  // -1 we've already looped through current tile for KV gemm
+            move_tile_window(bias_dram_window, {0, kN0 * n0_step});
 
             // tail
             {
