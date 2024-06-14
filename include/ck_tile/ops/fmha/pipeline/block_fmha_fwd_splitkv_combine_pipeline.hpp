@@ -8,6 +8,30 @@
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
+namespace detail {
+template <index_t N>
+struct log2;
+
+template <>
+struct log2<16> : std::integral_constant<index_t, 4>
+{
+};
+
+template <>
+struct log2<32> : std::integral_constant<index_t, 5>
+{
+};
+
+template <>
+struct log2<64> : std::integral_constant<index_t, 6>
+{
+};
+
+template <>
+struct log2<128> : std::integral_constant<index_t, 7>
+{
+};
+} // namespace detail
 
 template <typename Problem_, typename Policy_ = BlockFmhaFwdSplitKVCombinePipelineDefaultPolicy>
 struct BlockFmhaFwdSplitKVCombinePipeline
@@ -56,11 +80,13 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             }
             else if constexpr(kHeadDimV <= 128)
             {
-                return 2;
+                constexpr std::array<int, 4> occupancy{4, 3, 2, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 4];
             }
             else if constexpr(kHeadDimV <= 256)
             {
-                return 1;
+                constexpr std::array<int, 4> occupancy{2, 2, 2, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 4];
             }
         }
     }();
