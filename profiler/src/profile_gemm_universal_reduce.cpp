@@ -79,6 +79,7 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
     }
 
     using F32  = float;
+    using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using I8   = int8_t;
 
@@ -141,6 +142,10 @@ int profile_gemm_universal_reduce(int argc, char* argv[])
     else if(data_type == GemmDataType::BF16_BF16_BF16 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(BF16{}, BF16{}, F32{}, BF16{}, Row{}, Row{}, Row{});
+    }
+    else if(data_type == GemmDataType::F16_F16_F16 && layout == GemmMatrixLayout::MK_KN_MN)
+    {
+        return profile(F16{}, F16{}, F32{}, F16{}, Row{}, Row{}, Row{});
     }
     else
     {
