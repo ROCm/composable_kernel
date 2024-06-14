@@ -49,13 +49,14 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
     static_assert(Problem::kPadSeqLenQ == true && Problem::kPadHeadDimQ == true &&
                   Problem::kPadHeadDimV == true);
-    static constexpr bool kPadSeqLenQ  = true;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = true; // support multiple of vector(like 8x)
-    static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
-    static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kStoreLSE    = true;  // always store LSE (acc)
-    static constexpr bool kHasDropout  = false; // ignore this flag
+    static constexpr bool kPadSeqLenQ      = true;
+    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ     = true; // support multiple of vector(like 8x)
+    static constexpr bool kPadHeadDimV     = true; // support multiple of vector(like 8x)
+    static constexpr auto BiasEnum         = Problem::BiasEnum;
+    static constexpr bool kStoreLSE        = true;  // always store LSE (acc)
+    static constexpr bool kHasDropout      = false; // ignore this flag
+    static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -259,25 +260,28 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         // check early exit if masked and no work to do.
-        if(num_total_loop <= 0)
+        if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
         {
-            if constexpr(kStoreLSE)
+            if(num_total_loop <= 0)
             {
-                auto lse_acc =
-                    make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+                if constexpr(kStoreLSE)
+                {
+                    auto lse_acc =
+                        make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                store_tile(lse_acc_dram_window_tmp,
-                           tile_elementwise_in(lse_acc_element_func, lse_acc));
+                    store_tile(lse_acc_dram_window_tmp,
+                               tile_elementwise_in(lse_acc_element_func, lse_acc));
+                }
+                buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
+                                      // otherwise will have compute error(maybe compiler bug?)
+
+                // Note: here occ are all cleard, return it
+                return o_acc;
             }
-            buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
-                                  // otherwise will have compute error(maybe compiler bug?)
-
-            // Note: here occ are all cleard, return it
-            return o_acc;
+            __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
         }
-        __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
 
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -424,6 +428,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
             move_tile_window(bias_dram_window, {0, kN0});
 
             /// TODO: only check in last iteration without increasing code size
+            if constexpr(kHasUnevenSplits)
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 set_tile_if(s_acc,

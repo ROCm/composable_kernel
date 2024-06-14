@@ -43,14 +43,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     static constexpr index_t kK1            = BlockFmhaShape::kK1;
     static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kStoreLSE    = true;  // always store LSE (acc)
-    static constexpr bool kHasDropout  = false; // ignore this flag
+    static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
+    static constexpr auto BiasEnum         = Problem::BiasEnum;
+    static constexpr bool kStoreLSE        = true;  // always store LSE (acc)
+    static constexpr bool kHasDropout      = false; // ignore this flag
+    static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -215,22 +216,25 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         // check early exit if masked and no work to do.
-        if(num_total_loop <= 0)
+        if constexpr(FmhaMask::IsMasking || kHasUnevenSplits)
         {
-            if constexpr(kStoreLSE)
+            if(num_total_loop <= 0)
             {
-                auto lse_acc =
-                    make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
+                if constexpr(kStoreLSE)
+                {
+                    auto lse_acc =
+                        make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                store_tile(lse_acc_dram_window_tmp,
-                           tile_elementwise_in(lse_acc_element_func, lse_acc));
+                    store_tile(lse_acc_dram_window_tmp,
+                               tile_elementwise_in(lse_acc_element_func, lse_acc));
+                }
+
+                // Note: here occ are all cleard, return it
+                // Note: q loaded but no fence, ignore it.
+                return o_acc;
             }
-
-            // Note: here occ are all cleard, return it
-            // Note: q loaded but no fence, ignore it.
-            return o_acc;
         }
 
         auto k_dram_block_window =
@@ -378,6 +382,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             move_tile_window(bias_dram_window, {0, kN0});
 
             /// TODO: only check in last iteration without increasing code size
+            if constexpr(kHasUnevenSplits)
             {
                 const auto k_origin = k_dram_block_window.get_window_origin();
                 set_tile_if(s_acc,

@@ -172,31 +172,35 @@ FMHA_FWD_SPLITKV_PIPELINE_MAP = {
 
 FMHA_FWD_SPLITKV_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
-
-using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
-using fmha_block_warps_{F_idx} = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
-using fmha_warp_tile_{F_idx} = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
-
-using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
-                                      fmha_block_warps_{F_idx},
-                                      fmha_warp_tile_{F_idx},
-                                      fmha_block_warps_{F_idx},
-                                      fmha_warp_tile_{F_idx},
-                                      {F_vlayout}>;
-
-using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
-                                                    {F_skpad},
-                                                    {F_dpad},
-                                                    {F_dvpad},
-                                                    {F_bias},
-                                                    false,
-                                                    {F_lse},
-                                                    {F_dropout},
-                                                    {F_squant},
-                                                    {F_occupancy}>;
 using fmha_mask_{F_idx} = {F_mask};
 
-using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
+namespace {{
+template <bool kHasUnevenSplits>
+struct kernel_runner {{
+using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
+using fmha_block_warps = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
+using fmha_warp_tile = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
+
+using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
+                                          fmha_block_warps,
+                                          fmha_warp_tile,
+                                          fmha_block_warps,
+                                          fmha_warp_tile,
+                                          {F_vlayout}>;
+
+using fmha_trait = ck_tile::TileFmhaFwdSplitKVTraits<{F_spad},
+                                                     {F_skpad},
+                                                     {F_dpad},
+                                                     {F_dvpad},
+                                                     {F_bias},
+                                                     false,
+                                                     {F_lse},
+                                                     {F_dropout},
+                                                     {F_squant},
+                                                     kHasUnevenSplits,
+                                                     {F_occupancy}>;
+
+using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
@@ -208,25 +212,36 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
-    fmha_shape_{F_idx},
+    fmha_shape,
     {F_mode},
     fmha_mask_{F_idx},
-    fmha_trait_{F_idx}>;
+    fmha_trait>;
 
-using fmha_pipeline_{F_idx} = {F_pipeline}<
-    fmha_pipeline_problem_{F_idx}>;
+using fmha_pipeline = {F_pipeline}<
+    fmha_pipeline_problem>;
 
-using fmha_epilogue_{F_idx} =
+using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdSplitKVKernel<ck_tile::FmhaFwdSplitKVTilePartitioner<fmha_shape_{F_idx}>,
-                  fmha_pipeline_{F_idx},
-                  fmha_epilogue_{F_idx}>;
+using fmha_kernel =
+    ck_tile::FmhaFwdSplitKVKernel<ck_tile::FmhaFwdSplitKVTilePartitioner<fmha_shape>,
+                  fmha_pipeline,
+                  fmha_epilogue>;
 
-using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout},
+static void run(const ck_tile::stream_config& s, fmha_fwd_args a)
+{{
+    using k_ = fmha_kernel;
+    auto [kargs, grids] = fmha_fwd_splitkv_create_kargs_and_grids<k_>(a);
+    constexpr dim3 blocks             = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+}}
+}};
+}}
+
+using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout},
                         {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 #include <iostream>
@@ -234,17 +249,21 @@ using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F
 template<>
 void fmha_fwd_splitkv_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
-    using k_ = fmha_kernel_{F_idx};
-    auto [kargs, grids] = fmha_fwd_splitkv_create_kargs_and_grids<k_>(a);
-    constexpr dim3 blocks             = k_::BlockSize();
-    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+    if constexpr({F_mode} == false) {{ // batch mode
+        if (a.seqlen_k % a.num_splits == 0) {{
+            kernel_runner<false>::run(s, a);
+        }} else {{
+            kernel_runner<true>::run(s, a);
+        }}
+    }} else {{
+        kernel_runner<true>::run(s, a);
+    }}
 }}
 
 template<>
 std::string fmha_fwd_splitkv_get_name_<trait_{F_idx}>()
 {{
-    using k_ = fmha_kernel_{F_idx};
+    using k_ = kernel_runner<true>::fmha_kernel; /// FIXME: choose real kernel type
     return k_::GetName();
 }}
 """
