@@ -250,7 +250,7 @@ template<>
 void fmha_fwd_splitkv_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
     if constexpr({F_mode} == false) {{ // batch mode
-        if (a.seqlen_k % a.num_splits == 0) {{
+        if (a.seqlen_k % (a.num_splits * {F_bn0}) == 0) {{
             kernel_runner<false>::run(s, a);
         }} else {{
             kernel_runner<true>::run(s, a);
