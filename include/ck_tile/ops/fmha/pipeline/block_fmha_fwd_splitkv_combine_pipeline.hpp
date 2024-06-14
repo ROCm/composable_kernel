@@ -72,15 +72,12 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         {
             if constexpr(kHeadDimV <= 32)
             {
-                return 2;
-            }
-            else if constexpr(kHeadDimV <= 64)
-            {
-                return 3;
+                constexpr std::array<int, 4> occupancy{3, 3, 3, 1};
+                return occupancy[detail::log2<kMaxSplits>::value - 4];
             }
             else if constexpr(kHeadDimV <= 128)
             {
-                constexpr std::array<int, 4> occupancy{4, 3, 2, 1};
+                constexpr std::array<int, 4> occupancy{3, 3, 2, 1};
                 return occupancy[detail::log2<kMaxSplits>::value - 4];
             }
             else if constexpr(kHeadDimV <= 256)
