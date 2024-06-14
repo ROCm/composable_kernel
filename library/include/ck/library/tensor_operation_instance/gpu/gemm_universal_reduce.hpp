@@ -20,6 +20,138 @@ namespace instance {
 using DsLayout   = ck::Tuple<>;
 using DsDataType = ck::Tuple<>;
 
+#ifdef CK_ENABLE_FP16
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+
+void add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+#endif
+
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
 void add_device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
@@ -233,6 +365,37 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#ifdef CK_ENABLE_FP16
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
+                     is_same_v<CDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<CLayout, Row>)
+            {
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_default_instances(op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_comp_mnkpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_kpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v1_mnkpadding_instances(
+                    op_ptrs);
+
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_default_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_kpadding_instances(
+                    op_ptrs);
+                add_device_gemm_xdl_universal_f16_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
+                    op_ptrs);
+            }
+        }
+#endif
 
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, int8_t> &&
