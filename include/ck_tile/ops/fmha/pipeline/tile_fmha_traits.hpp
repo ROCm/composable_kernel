@@ -32,6 +32,31 @@ struct TileFmhaTraits
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
 };
 
+template <bool kPadSeqLenQ /* padding for seqlen_q */,
+          bool kPadSeqLenK /* padding for seqlen_k */,
+          bool kPadHeadDimQ /* paddding for hdim_q */,
+          bool kPadHeadDimV /* paddding for hdim_v */,
+          BlockAttentionBiasEnum BiasEnum,
+          bool kHasBiasGrad,
+          bool kStoreLSE,
+          bool kHasDropout,
+          bool kDoFp8StaticQuant,
+          bool kHasUnevenSplits_ = true,
+          index_t kBlockPerCu    = -1 /* overwrite occupancy if not -1 */>
+struct TileFmhaFwdSplitKVTraits : TileFmhaTraits<kPadSeqLenQ,
+                                                 kPadSeqLenK,
+                                                 kPadHeadDimQ,
+                                                 kPadHeadDimV,
+                                                 BiasEnum,
+                                                 kHasBiasGrad,
+                                                 kStoreLSE,
+                                                 kHasDropout,
+                                                 kDoFp8StaticQuant,
+                                                 kBlockPerCu>
+{
+    static constexpr bool kHasUnevenSplits = kHasUnevenSplits_;
+};
+
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
           bool kStoreLSE_,

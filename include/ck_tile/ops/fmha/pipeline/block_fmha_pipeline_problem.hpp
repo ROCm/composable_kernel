@@ -54,6 +54,40 @@ struct BlockFmhaPipelineProblem
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
+template <typename QDataType,
+          typename KDataType,
+          typename VDataType,
+          typename SaccDataType,
+          typename SMPLComputeDataType,
+          typename BiasDataType,
+          typename RandValOutputDataType,
+          typename LSEDataType,
+          typename PDataType,
+          typename OaccDataType,
+          typename ODataType,
+          typename BlockFmhaShape,
+          bool kIsGroupMode,
+          typename FmhaMask,
+          typename Traits>
+struct BlockFmhaFwdSplitKVPipelineProblem : BlockFmhaPipelineProblem<QDataType,
+                                                                     KDataType,
+                                                                     VDataType,
+                                                                     SaccDataType,
+                                                                     SMPLComputeDataType,
+                                                                     BiasDataType,
+                                                                     RandValOutputDataType,
+                                                                     LSEDataType,
+                                                                     PDataType,
+                                                                     OaccDataType,
+                                                                     ODataType,
+                                                                     BlockFmhaShape,
+                                                                     kIsGroupMode,
+                                                                     FmhaMask,
+                                                                     Traits>
+{
+    static constexpr bool kHasUnevenSplits = kIsGroupMode || Traits::kHasUnevenSplits;
+};
+
 template <typename LSEDataType_,
           typename OaccDataType_,
           typename ODataType_,
