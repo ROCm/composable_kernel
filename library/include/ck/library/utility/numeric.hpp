@@ -8,7 +8,7 @@
 
 namespace ck {
 template <typename T, typename ForwardIterator, typename Size, typename BinaryOperation>
-__host__ __device__ auto accumulate_n(ForwardIterator first, Size count, T init, BinaryOperation op)
+auto accumulate_n(ForwardIterator first, Size count, T init, BinaryOperation op)
     -> decltype(std::accumulate(first, std::next(first, count), init, op))
 {
     return std::accumulate(first, std::next(first, count), init, op);

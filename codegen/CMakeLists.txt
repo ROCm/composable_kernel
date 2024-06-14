@@ -31,14 +31,13 @@ include_directories(BEFORE
 list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
-	${CK_ROOT}/include/ck/*.hpp ${CK_ROOT}/library/include/ck/library/utility/*.hpp)
+	${CK_ROOT}/include/ck/*.hpp)
 message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 message(STATUS "RELATIVE: ${CK_ROOT}/include")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # TODO: Use object library
-#message(STATUS "SOURCES: ${SOURCES}")
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
 
