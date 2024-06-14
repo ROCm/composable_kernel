@@ -69,6 +69,8 @@ using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK>
                                        std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<int8_t, NDHWGC, GKZYXC, NDHWGK>>;
 
+using KernelTypes2dLargeCases = ::testing::Types<std::tuple<float, NHWGC, GKYXC, NHWGK>>;
+
 template <typename Tuple>
 class TestGroupedConvndFwd1d : public TestGroupedConvndFwd<Tuple>
 {
@@ -84,9 +86,15 @@ class TestGroupedConvndFwd3d : public TestGroupedConvndFwd<Tuple>
 {
 };
 
+template <typename Tuple>
+class TestGroupedConvndFwd2dLargeCases : public TestGroupedConvndFwd<Tuple>
+{
+};
+
 TYPED_TEST_SUITE(TestGroupedConvndFwd1d, KernelTypes1d);
 TYPED_TEST_SUITE(TestGroupedConvndFwd2d, KernelTypes2d);
 TYPED_TEST_SUITE(TestGroupedConvndFwd3d, KernelTypes3d);
+TYPED_TEST_SUITE(TestGroupedConvndFwd2dLargeCases, KernelTypes2dLargeCases);
 
 TYPED_TEST(TestGroupedConvndFwd1d, Test1D)
 {
@@ -130,4 +138,12 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
     this->conv_params.push_back(
         {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->template Run<3>();
+}
+
+TYPED_TEST(TestGroupedConvndFwd2dLargeCases, Test2DLargeCases)
+{
+    // Case larger than 2GB
+    this->conv_params.push_back(
+        {2, 1, 64, 4, 192, {2, 2}, {224, 224}, {224, 224}, {0, 0}, {0, 0}, {0, 0}});
+    this->template Run<2>();
 }
