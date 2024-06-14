@@ -54,6 +54,22 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instan
                                                                 PassThrough,
                                                                 ConvScale,
                                                                 BF8>>>& instances);
+
+void add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                F8,
+                                                                BF8,
+                                                                ck::Tuple<>,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ConvScale,
+                                                                F8,
+                                                                BF8>>>& instances);
 #endif
 
 template <ck::index_t NumDimSpatial,
@@ -121,6 +137,14 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<BComputeType, BF8>)
             {
                 add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
+                    op_ptrs);
+            }
+
+            if constexpr(is_same_v<InDataType, f8_t> && is_same_v<WeiDataType, bf8_t> &&
+                         is_same_v<OutDataType, f8_t> && is_same_v<AComputeType, f8_t> &&
+                         is_same_v<BComputeType, bf8_t>)
+            {
+                add_device_grouped_conv3d_fwd_xdl_convscale_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
                     op_ptrs);
             }
 #endif
