@@ -185,7 +185,7 @@ struct FmhaBwdDQDKDVKernel
     struct FmhaBwdMaskKargs
     {
         ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::GenericAttentionMaskEnum mask_type;
+        ck_tile::AttentionMaskEnum mask_type;
     };
 
     struct FmhaBwdCommonDropoutKargs
@@ -378,7 +378,7 @@ struct FmhaBwdDQDKDVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+            kargs.mask_type         = static_cast<ck_tile::AttentionMaskEnum>(mask_type);
         }
 
         if constexpr(kHasDropout)
@@ -501,7 +501,7 @@ struct FmhaBwdDQDKDVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
-            kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
+            kargs.mask_type         = static_cast<ck_tile::AttentionMaskEnum>(mask_type);
         }
         if constexpr(kHasDropout)
         {
@@ -1092,12 +1092,12 @@ struct FmhaBwdDQDKDVKernel
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
-                return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
+                return ck_tile::make_diagonal_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
-                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
+                    kargs.mask_type == AttentionMaskEnum::MASK_FROM_TOP_LEFT);
             else
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
@@ -1197,7 +1197,7 @@ struct FmhaBwdOGradDotOKernel
     {
         // sync with generate.py
         // clang-format off
-        
+
         #define _SS_  std::string
         #define _TS_  std::to_string
         auto pn = [&] () {

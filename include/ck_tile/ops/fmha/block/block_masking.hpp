@@ -150,6 +150,14 @@ struct GenericAttentionMask
     }
 
     CK_TILE_HOST_DEVICE constexpr auto
+    GetTileIndexIteratorAlongY(index_t i_x_tile) const
+    {
+        auto tile_col_pred = [i_x_tile, this](index_t i_y_tile){ return TileMask(i_y_tile, i_x_tile); };
+        return IndexIterator<decltype(tile_col_pred)>(0, y_tile_total, tile_col_pred);
+    }
+
+
+    CK_TILE_HOST_DEVICE constexpr auto
     IsEdgeTile(index_t i_y_tile, index_t i_x_tile) const
     {
         if constexpr (!IsMasking || IsTileMask) {  // No edge tiles in tile mask
