@@ -3,7 +3,6 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-//#include "ck/tensor_operation/operator_transform/codegen_transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include <fstream>
@@ -82,8 +81,7 @@ auto pad(ck::index_t mpb,
         a.MPerTile_ = mpb;
         a.NPerTile_ = npb;
         a.KPerTile_ = kpb;
-        auto res    = ck::tensor_operation::device::Padder();
-        auto tmp    = res.grid_desc(a, conv);
+        auto tmp    = grid_desc(a, conv);
         return tmp;
     }
     throw std::runtime_error("Incorrect template parameters, check gemm spec");

@@ -13,5 +13,4 @@ auto accumulate_n(ForwardIterator first, Size count, T init, BinaryOperation op)
 {
     return std::accumulate(first, std::next(first, count), init, op);
 }
-
 } // namespace ck

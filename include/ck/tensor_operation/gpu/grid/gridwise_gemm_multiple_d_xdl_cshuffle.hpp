@@ -892,6 +892,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
                 // make sure it's safe to read from LDS
                 block_sync_lds();
+
                 // each block copy its data from LDS to global
                 cde_block_copy_lds_and_global.Run(
                     c_ds_desc_refs,
