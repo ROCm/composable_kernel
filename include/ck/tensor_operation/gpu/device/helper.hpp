@@ -31,7 +31,7 @@ ck::tensor_operation::device::GemmSpecialization gemm_type(std::string type)
     {
         return ck::tensor_operation::device::GemmSpecialization::Default;
     }
-    else if(type == "ck::tensor_operation::device::GemmSpecialization::MNKPadding")
+    if(type == "ck::tensor_operation::device::GemmSpecialization::MNKPadding")
     {
         return ck::tensor_operation::device::GemmSpecialization::MNKPadding;
     }
@@ -45,16 +45,16 @@ ck::tensor_operation::device::ConvolutionForwardSpecialization conv_type(std::st
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
     }
-    else if(type == "ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0")
+    if(type == "ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0")
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0;
     }
-    else if(type ==
-            "ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0")
+    if(type ==
+       "ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0")
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
     }
-    else if(type == "ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC")
+    if(type == "ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC")
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
     }
@@ -106,8 +106,8 @@ auto transform_conv(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 2 &&
-            spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
+    if(num_dim == 2 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             2,
@@ -117,8 +117,8 @@ auto transform_conv(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 2 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
-                                        Filter1x1Stride1Pad0)
+    if(num_dim == 2 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             2,
@@ -128,8 +128,7 @@ auto transform_conv(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 2 &&
-            spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
+    if(num_dim == 2 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             2,
@@ -158,8 +157,8 @@ auto transform_conv_3d(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 3 &&
-            spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
+    if(num_dim == 3 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             3,
@@ -169,8 +168,8 @@ auto transform_conv_3d(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 3 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
-                                        Filter1x1Stride1Pad0)
+    if(num_dim == 3 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             3,
@@ -180,8 +179,7 @@ auto transform_conv_3d(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 3 &&
-            spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
+    if(num_dim == 3 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             3,
@@ -210,8 +208,8 @@ auto transform_conv_1d(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 1 &&
-            spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
+    if(num_dim == 1 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             1,
@@ -221,8 +219,8 @@ auto transform_conv_1d(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 1 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::
-                                        Filter1x1Stride1Pad0)
+    if(num_dim == 1 &&
+       spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             1,
@@ -232,8 +230,7 @@ auto transform_conv_1d(ck::index_t num_dim,
         auto res = ck::tensor_operation::TransformConv();
         return res.transform_func(out_lengths, out_strides, conv_fwd);
     }
-    else if(num_dim == 1 &&
-            spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
+    if(num_dim == 1 && spec == ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC)
     {
         ck::tensor_operation::TransformConvFwdToGemm<
             1,
@@ -254,47 +251,47 @@ auto block_2_etile(ck::index_t m_per_block, ck::index_t n_per_block, CGridDesc_M
         auto b2e = ck::BlockToCTileMap_M00_N0_M01Adapt<32, 64, CGridDesc_M_N>(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 32 && n_per_block == 128)
+    if(m_per_block == 32 && n_per_block == 128)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<32, 128, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 64 && n_per_block == 32)
+    if(m_per_block == 64 && n_per_block == 32)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<64, 32, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 64 && n_per_block == 64)
+    if(m_per_block == 64 && n_per_block == 64)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<64, 64, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 64 && n_per_block == 128)
+    if(m_per_block == 64 && n_per_block == 128)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<64, 128, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 128 && n_per_block == 32)
+    if(m_per_block == 128 && n_per_block == 32)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<128, 32, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 128 && n_per_block == 64)
+    if(m_per_block == 128 && n_per_block == 64)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<128, 64, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 128 && n_per_block == 128)
+    if(m_per_block == 128 && n_per_block == 128)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<128, 128, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 128 && n_per_block == 256)
+    if(m_per_block == 128 && n_per_block == 256)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<128, 256, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
     }
-    else if(m_per_block == 256 && n_per_block == 128)
+    if(m_per_block == 256 && n_per_block == 128)
     {
         ck::BlockToCTileMap_M00_N0_M01Adapt<256, 128, CGridDesc_M_N> b2e(matrix_padder);
         return b2e.CalculateGridSize(matrix_padder);
