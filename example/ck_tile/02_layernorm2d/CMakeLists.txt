@@ -1,2 +1,2 @@
-add_example_executable(tile_example_layernorm2d_fwd layernorm2d_fwd.cpp)
+add_example_executable(tile_example_layernorm2d_fwd EXCLUDE_FROM_ALL layernorm2d_fwd.cpp)
 target_compile_options(tile_example_layernorm2d_fwd PRIVATE -DSAVE_MEAN_INV_STD)
