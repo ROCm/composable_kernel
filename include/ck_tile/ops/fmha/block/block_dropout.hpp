@@ -8,6 +8,20 @@
 
 namespace ck_tile {
 
+struct NullBlockDropout
+{
+    template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
+    __host__ __device__ static constexpr auto
+    MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
+                          index_t seqlen_qk_start)
+    {
+        (void)randval_dram_block_window_tmp;
+        (void)seqlen_qk_start;
+
+        return make_null_tile_window(make_tuple(number<0>{}, number<0>{}));
+    }
+};
+
 struct BlockDropout
 {
     CK_TILE_HOST_DEVICE BlockDropout(index_t i_batch,
@@ -228,8 +242,8 @@ struct BlockDropout
                         constexpr auto p_idx = ck_tile::make_tuple(p_idx0, p_idx1);
                         constexpr auto r_idx = ck_tile::make_tuple(idx0, idx1);
                         p_compute(p_idx)     = randval[r_idx] <= p_undrop_in_uint8_t
-                                                   ? p_compute[p_idx] * rp_undrop
-                                                   : PComputeDataType(0);
+                                               ? p_compute[p_idx] * rp_undrop
+                                               : PComputeDataType(0);
                     });
                 });
                 // save to Global
@@ -297,8 +311,8 @@ struct BlockDropout
                         constexpr auto p_idx1 = tile_distributed_index<i_n0>{};
                         constexpr auto p_idx  = ck_tile::make_tuple(p_idx0, p_idx1);
                         p_compute(p_idx)      = randval[r_idx] <= p_undrop_in_uint8_t
-                                                    ? p_compute[p_idx]
-                                                    : -p_compute[p_idx];
+                                               ? p_compute[p_idx]
+                                               : -p_compute[p_idx];
                     });
                 });
                 // save to Global
