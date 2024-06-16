@@ -209,6 +209,42 @@ struct BlockDropout
                              MakeRandValLdsShuffleTileDistribution<BlockGemm>());
 
         const int start_m0_idx = randval_dram_window.get_window_origin().at(number<0>{});
+        if(is_store_randval)
+        {
+            static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
+                static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
+                    int block_row_start = (start_m0_idx / WG::kM) + (i_m0 * MWarp) + get_warp_id();
+                    int block_col_start = (start_n0_idx / WG::kN) + i_n0;
+                    uint2 rowcol        = make_uint2(block_row_start, block_col_start);
+
+                    // generate random number
+                    uint8_t random_uint8_t[16];
+                    ph.get_random_16x8(random_uint8_t,
+                                       reinterpret_cast<unsigned long long&>(rowcol));
+
+                    constexpr auto randval_dist_generated_spans =
+                        decltype(randval_dist_generated)::get_distributed_spans();
+                    int i_random_idx = 0;
+                    sweep_tile_span(randval_dist_generated_spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(randval_dist_generated_spans[number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx          = ck_tile::make_tuple(idx0, idx1);
+                            randval_dist_generated(i_j_idx) = random_uint8_t[i_random_idx++];
+                        });
+                    });
+                    // save to LDS
+                    store_tile(randval_lds_window, randval_dist_generated);
+                    block_sync_lds();
+                    // read from LDS to register
+                    auto randval = load_tile(randval_lds_read_window);
+                    // save to Global
+                    const auto randval_store = cast_tile<RandValOutputDataType>(randval);
+                    store_tile(randval_dram_window, randval_store);
+                    move_tile_window(randval_dram_window, {0, kNPerStep});
+                });
+                move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
+            });
+            move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
+        };
         static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
             static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
                 int block_row_start = (start_m0_idx / WG::kM) + (i_m0 * MWarp) + get_warp_id();
@@ -246,23 +282,8 @@ struct BlockDropout
                                                : PComputeDataType(0);
                     });
                 });
-                // save to Global
-                if(is_store_randval)
-                {
-                    const auto randval_store = cast_tile<RandValOutputDataType>(randval);
-                    store_tile(randval_dram_window, randval_store);
-                    move_tile_window(randval_dram_window, {0, kNPerStep});
-                }
             });
-            if(is_store_randval)
-            {
-                move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
-            }
         });
-        if(is_store_randval)
-        {
-            move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
-        }
     }
 
     template <typename BlockGemm,
