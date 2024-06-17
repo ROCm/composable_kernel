@@ -98,6 +98,8 @@ struct StaticTensorTupleOfVectorBuffer
     static constexpr index_t num_of_vector_ =
         math::integer_divide_ceil(element_space_size_, ScalarPerVector);
 
+    static constexpr index_t vector_size = ScalarPerVector;
+
     using V = vector_type<S, ScalarPerVector>;
 
     __host__ __device__ constexpr StaticTensorTupleOfVectorBuffer()

@@ -10,9 +10,9 @@
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d.hpp"
+#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_ab_scale.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_multi_d.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_v3_multi_d_ab_scale.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
@@ -68,22 +68,23 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB>
-struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
-                                                                     BLayout,
-                                                                     DsLayout,
-                                                                     CLayout,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     DsDataType,
-                                                                     CDataType,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     CElementwiseOperation>
+struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
+    : public DeviceGemmMultipleD_ABScale<ALayout,
+                                         BLayout,
+                                         DsLayout,
+                                         CLayout,
+                                         ADataType,
+                                         BDataType,
+                                         DsDataType,
+                                         CDataType,
+                                         AElementwiseOperation,
+                                         BElementwiseOperation,
+                                         CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
+    using GridwiseGemm = GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         DsLayout,
@@ -176,6 +177,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
 
+#if 0
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -374,6 +376,38 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                     }
                 }
             }
+#endif
+
+            if(has_main_k_block_loop)
+            {
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        true,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy>;
+                        Run(kernel);
+                    }
+                }
+            }
+            else
+            {
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                {
+                    {
+                        const auto kernel =
+                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                                        false,
+                                                        InMemoryDataOperationEnum::Set,
+                                                        minimum_occupancy>;
+                        Run(kernel);
+                    }
+                }
+            }
 
             return ave_time;
         }
@@ -420,17 +454,43 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                              const void* p_b,
                              std::array<const void*, NumDTensor> p_ds,
                              void* p_c,
-                             index_t M,
-                             index_t N,
-                             index_t K,
-                             index_t StrideA,
-                             index_t StrideB,
-                             std::array<index_t, NumDTensor> StrideDs,
-                             index_t StrideC,
+                             const index_t M,
+                             const index_t N,
+                             const index_t K,
+                             const index_t StrideA,
+                             const index_t StrideB,
+                             const std::array<index_t, NumDTensor> StrideDs,
+                             const index_t StrideC,
+                             const void* p_a_scale,
+                             const void* p_b_scale,
+                             const index_t Scale_Block_M,
+                             const index_t Scale_Block_N,
+                             const index_t Scale_Block_K,
+                             const index_t Scale_Stride_AM,
+                             const index_t Scale_Stride_AK,
+                             const index_t Scale_Stride_BN,
+                             const index_t Scale_Stride_BK,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
+
+#if 0
+        const index_t Scale_Block_M   = 0;
+        const index_t Scale_Block_N   = 0;
+        const index_t Scale_Block_K   = 0;
+        const index_t Scale_Stride_AM = 0;
+        const index_t Scale_Stride_AK = 0;
+        const index_t Scale_Stride_BN = 0;
+        const index_t Scale_Stride_BK = 0;
+
+        const void* p_a_scale = nullptr;
+        const void* p_b_scale = nullptr;
+#endif
+
+        using AScaleDataType = float;
+        using BScaleDataType = float;
+
         return Argument{static_cast<const ADataType*>(p_a),
                         static_cast<const BDataType*>(p_b),
                         p_ds,
@@ -442,6 +502,15 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                         StrideB,
                         StrideDs,
                         StrideC,
+                        static_cast<const AScaleDataType*>(p_a_scale),
+                        static_cast<const BScaleDataType*>(p_b_scale),
+                        Scale_Block_M,
+                        Scale_Block_N,
+                        Scale_Block_K,
+                        Scale_Stride_AM,
+                        Scale_Stride_AK,
+                        Scale_Stride_BN,
+                        Scale_Stride_BK,
                         1,
                         a_element_op,
                         b_element_op,
@@ -451,21 +520,48 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
     static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
-    std::unique_ptr<BaseArgument> MakeArgumentPointer(const void* p_a,
-                                                      const void* p_b,
-                                                      std::array<const void*, NumDTensor> p_ds,
-                                                      void* p_c,
-                                                      index_t M,
-                                                      index_t N,
-                                                      index_t K,
-                                                      index_t StrideA,
-                                                      index_t StrideB,
-                                                      std::array<ck::index_t, NumDTensor> StrideDs,
-                                                      index_t StrideC,
-                                                      AElementwiseOperation a_element_op,
-                                                      BElementwiseOperation b_element_op,
-                                                      CElementwiseOperation c_element_op) override
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        std::array<const void*, NumDTensor> p_ds,
+                        void* p_c,
+                        const index_t M,
+                        const index_t N,
+                        const index_t K,
+                        const index_t StrideA,
+                        const index_t StrideB,
+                        const std::array<ck::index_t, NumDTensor> StrideDs,
+                        const index_t StrideC,
+                        const void* p_a_scale,
+                        const void* p_b_scale,
+                        const index_t Scale_Block_M,
+                        const index_t Scale_Block_N,
+                        const index_t Scale_Block_K,
+                        const index_t Scale_Stride_AM,
+                        const index_t Scale_Stride_AK,
+                        const index_t Scale_Stride_BN,
+                        const index_t Scale_Stride_BK,
+                        AElementwiseOperation a_element_op,
+                        BElementwiseOperation b_element_op,
+                        CElementwiseOperation c_element_op) override
     {
+
+#if 0
+        const index_t Scale_Block_M   = 0;
+        const index_t Scale_Block_N   = 0;
+        const index_t Scale_Block_K   = 0;
+        const index_t Scale_Stride_AM = 0;
+        const index_t Scale_Stride_AK = 0;
+        const index_t Scale_Stride_BN = 0;
+        const index_t Scale_Stride_BK = 0;
+
+        const void* p_a_scale = nullptr;
+        const void* p_b_scale = nullptr;
+#endif
+
+        using AScaleDataType = float;
+        using BScaleDataType = float;
+
         return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
                                           static_cast<const BDataType*>(p_b),
                                           p_ds,
@@ -477,6 +573,15 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                                           StrideB,
                                           StrideDs,
                                           StrideC,
+                                          static_cast<const AScaleDataType*>(p_a_scale),
+                                          static_cast<const BScaleDataType*>(p_b_scale),
+                                          Scale_Block_M,
+                                          Scale_Block_N,
+                                          Scale_Block_K,
+                                          Scale_Stride_AM,
+                                          Scale_Stride_AK,
+                                          Scale_Stride_BN,
+                                          Scale_Stride_BK,
                                           1,
                                           a_element_op,
                                           b_element_op,
