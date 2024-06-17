@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -552,8 +552,9 @@ namespace impl{
 template<index_t N>
 CK_TILE_DEVICE void insert_dummy_dep_per_dword(array<float, N>& b)
 {
-    static_for<0, b.size(), 1>{}([&](auto i){
-        asm volatile(" " : : "v"(b.get(i)) : "memory");
+    constexpr auto kSize = remove_cvref_t<decltype(b)>::size(); 
+    static_for<0, kSize, 1>{}([&](auto i){
+        asm volatile(" " : : "v"(b.get(number<i>{})) : "memory");
     });
 }
 #if 1
@@ -782,6 +783,28 @@ llvm_amdgcn_raw_buffer_store_i32(int32_t vdata,
                                  index_t voffset,
                                  index_t soffset,
                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i32");
+
+// buffer store ui16
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_ui16(uint16_t vdata,
+                                  int32x4_t rsrc,
+                                  index_t voffset,
+                                  index_t soffset,
+                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.i16");
+
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_ui16x2(uint16x2_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i16");
+
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_ui16x4(uint16x4_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i16");
 
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
@@ -1353,7 +1376,10 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (std::is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, uint16_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
     if constexpr(std::is_same<T, float>::value) // fp32
@@ -1492,6 +1518,49 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
                 static_cast<index_t>(coherence));
         }
     }
+    else if constexpr(std::is_same<T, uint16_t>::value)
+    {
+        if constexpr(N == 1)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16(bit_cast<uint16_t>(src_thread_data),
+                                              dst_wave_buffer_resource,
+                                              dst_thread_addr_offset,
+                                              dst_wave_addr_offset,
+                                              static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 2)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16x2(bit_cast<uint16x2_t>(src_thread_data),
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 4)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16x4(bit_cast<uint16x4_t>(src_thread_data),
+                                                dst_wave_buffer_resource,
+                                                dst_thread_addr_offset,
+                                                dst_wave_addr_offset,
+                                                static_cast<index_t>(coherence));
+        }
+        else if constexpr(N == 8)
+        {
+            llvm_amdgcn_raw_buffer_store_ui16x4(
+                src_thread_data.template get_as<uint16x4_t>()[number<0>{}],
+                dst_wave_buffer_resource,
+                dst_thread_addr_offset,
+                dst_wave_addr_offset,
+                static_cast<index_t>(coherence));
+
+            llvm_amdgcn_raw_buffer_store_ui16x4(
+                src_thread_data.template get_as<uint16x4_t>()[number<1>{}],
+                dst_wave_buffer_resource,
+                dst_thread_addr_offset,
+                dst_wave_addr_offset + 4 * sizeof(uint16_t),
+                static_cast<index_t>(coherence));
+        }
+    }
     else
     {
         using r_t = thread_buffer<int8_t, sizeof(T) * N>;
@@ -1609,7 +1678,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
     {
         if constexpr(N == 2)
         {
-            llvm_amdgcn_raw_buffer_atomic_add_fp16x2(bit_cast<fp16_t>(src_thread_data),
+            llvm_amdgcn_raw_buffer_atomic_add_fp16x2(bit_cast<fp16x2_t>(src_thread_data),
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,
