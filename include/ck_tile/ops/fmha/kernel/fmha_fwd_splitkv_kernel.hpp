@@ -110,7 +110,6 @@ struct FmhaFwdSplitKVKernel
         void* o_acc_ptr;
 
         ck_tile::index_t batch;
-        ck_tile::index_t nhead;
         ck_tile::index_t max_seqlen_q;
 
         ck_tile::index_t seqlen_q;
@@ -247,7 +246,6 @@ struct FmhaFwdSplitKVKernel
               void* lse_acc_ptr,
               void* o_acc_ptr,
               ck_tile::index_t batch,
-              ck_tile::index_t nhead,
               ck_tile::index_t max_seqlen_q,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k,
@@ -293,7 +291,6 @@ struct FmhaFwdSplitKVKernel
                      lse_acc_ptr,
                      o_acc_ptr,
                      batch,
-                     nhead,
                      max_seqlen_q,
                      seqlen_q,
                      seqlen_k,
@@ -373,7 +370,6 @@ struct FmhaFwdSplitKVKernel
               void* lse_acc_ptr,
               void* o_acc_ptr,
               ck_tile::index_t batch,
-              ck_tile::index_t nhead,
               ck_tile::index_t max_seqlen_q,
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
@@ -415,7 +411,6 @@ struct FmhaFwdSplitKVKernel
                      lse_acc_ptr,
                      o_acc_ptr,
                      batch,
-                     nhead,
                      max_seqlen_q,
                      -1, // seqlen will be updated by another pointer
                      -1, //

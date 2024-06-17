@@ -78,7 +78,6 @@ struct FmhaFwdSplitKVCombineKernel
         void* o_ptr;
 
         ck_tile::index_t batch;
-        ck_tile::index_t nhead;
         ck_tile::index_t max_seqlen_q;
 
         ck_tile::index_t seqlen_q;
@@ -136,7 +135,6 @@ struct FmhaFwdSplitKVCombineKernel
               void* lse_ptr,
               void* o_ptr,
               ck_tile::index_t batch,
-              ck_tile::index_t nhead,
               ck_tile::index_t max_seqlen_q,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t hdim_v,
@@ -159,7 +157,6 @@ struct FmhaFwdSplitKVCombineKernel
                      o_acc_ptr,
                      o_ptr,
                      batch,
-                     nhead,
                      max_seqlen_q,
                      seqlen_q,
                      hdim_v,
@@ -198,7 +195,6 @@ struct FmhaFwdSplitKVCombineKernel
               void* lse_ptr,
               void* o_ptr,
               ck_tile::index_t batch,
-              ck_tile::index_t nhead,
               ck_tile::index_t max_seqlen_q,
               const void* seqstart_q_ptr,
               ck_tile::index_t hdim_v,
@@ -212,6 +208,7 @@ struct FmhaFwdSplitKVCombineKernel
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t batch_stride_lse_acc,
               ck_tile::index_t batch_stride_o_acc,
+              ck_tile::index_t batch_stride_lse,
               ck_tile::index_t split_stride_lse_acc,
               ck_tile::index_t split_stride_o_acc)
     {
@@ -219,7 +216,6 @@ struct FmhaFwdSplitKVCombineKernel
                      o_acc_ptr,
                      o_ptr,
                      batch,
-                     nhead,
                      max_seqlen_q,
                      -1, // seqlen will be updated by another pointer
                      hdim_v,
@@ -241,6 +237,7 @@ struct FmhaFwdSplitKVCombineKernel
         {
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
+            kargs.batch_stride_lse = batch_stride_lse;
         }
         if constexpr(kDoFp8StaticQuant)
         {
@@ -284,16 +281,16 @@ struct FmhaFwdSplitKVCombineKernel
         long_index_t batch_offset_lse = 0;
         long_index_t batch_offset_o   = 0;
 
+        if constexpr(kStoreLSE)
+        {
+            batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
+        }
+
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
-            if constexpr(kStoreLSE)
-            {
-                batch_offset_lse =
-                    static_cast<long_index_t>(i_batch) * (kargs.nhead * kargs.max_seqlen_q);
-            }
             batch_offset_o = query_start * kargs.row_stride_o;
 
             // get real # queries & # keys under group mode
@@ -309,10 +306,6 @@ struct FmhaFwdSplitKVCombineKernel
         }
         else
         {
-            if constexpr(kStoreLSE)
-            {
-                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
-            }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
 

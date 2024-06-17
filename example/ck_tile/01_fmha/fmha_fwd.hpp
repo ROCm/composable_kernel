@@ -103,7 +103,6 @@ struct fmha_fwd_args
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
-    ck_tile::index_t nhead;
     ck_tile::index_t max_seqlen_q;
     ck_tile::index_t hdim_q;
     ck_tile::index_t hdim_v;
@@ -261,7 +260,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.lse_acc_ptr,
                                      args.o_acc_ptr,
                                      args.batch,
-                                     args.nhead,
                                      args.max_seqlen_q,
                                      args.seqstart_q_ptr,
                                      args.seqstart_k_ptr,
@@ -307,7 +305,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.lse_acc_ptr,
                                      args.o_acc_ptr,
                                      args.batch,
-                                     args.nhead,
                                      args.max_seqlen_q,
                                      args.seqlen_q,
                                      args.seqlen_k,
@@ -368,7 +365,6 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
                                      args.lse_ptr,
                                      args.o_ptr,
                                      args.batch,
-                                     args.nhead,
                                      args.max_seqlen_q,
                                      args.seqstart_q_ptr,
                                      args.hdim_v,
@@ -382,6 +378,7 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
                                      args.nhead_stride_o,
                                      args.batch_stride_lse_acc,
                                      args.batch_stride_o_acc,
+                                     args.batch_stride_lse,
                                      args.split_stride_lse_acc,
                                      args.split_stride_o_acc);
         }
@@ -392,7 +389,6 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
                                      args.lse_ptr,
                                      args.o_ptr,
                                      args.batch,
-                                     args.nhead,
                                      args.max_seqlen_q,
                                      args.seqlen_q,
                                      args.hdim_v,

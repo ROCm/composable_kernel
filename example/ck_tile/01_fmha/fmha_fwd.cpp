@@ -703,7 +703,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              shape_seqlen_q,
                              shape_seqlen_k,
                              batch,
-                             nhead,
                              max_seqlen_q,
                              hdim_q,
                              hdim_v,
