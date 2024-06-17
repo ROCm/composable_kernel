@@ -54,7 +54,16 @@ auto CalculateMaxRead(const std::vector<index_t>& lengths, const std::vector<ind
     if(strides[NumDim1 - 1] == 1 && strides[NumDim1 + NumDim2 - 1] == 1)
     {
         // MZ or KZ are ones
-        if(strides[0] == 1)
+        bool dims1_are_ones = true;
+        for(index_t dim_idx = 0; dim_idx < NumDim1; dim_idx++)
+        {
+            if(lengths[dim_idx] != 1)
+            {
+                dims1_are_ones = false;
+            }
+        }
+
+        if(dims1_are_ones)
         {
             begin_idx     = NumDim1;
             end_idx       = NumDim1 + NumDim2 - 1;
