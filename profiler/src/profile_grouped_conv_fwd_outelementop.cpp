@@ -1,5 +1,4 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "profiler/profile_grouped_conv_fwd_outelementop_impl.hpp"
 
 #include "ck/utility/data_type.hpp"
@@ -83,7 +82,7 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
     using F8  = ck::f8_t;
     using BF8 = ck::bf8_t;
 
-    // TODO: What are these layouts? How they are mapped to the layouts in ConvLayout?
+    // TODO: Do we need to support profiling of any extra layouts?
     // using GNWC   = ck::tensor_layout::convolution::GNWC;
     // using GNHWC  = ck::tensor_layout::convolution::GNHWC;
     // using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
