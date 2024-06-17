@@ -278,8 +278,8 @@ struct BlockDropout
                         constexpr auto p_idx = ck_tile::make_tuple(p_idx0, p_idx1);
                         constexpr auto r_idx = ck_tile::make_tuple(idx0, idx1);
                         p_compute(p_idx)     = randval[r_idx] <= p_undrop_in_uint8_t
-                                               ? p_compute[p_idx] * rp_undrop
-                                               : PComputeDataType(0);
+                                                   ? p_compute[p_idx] * rp_undrop
+                                                   : PComputeDataType(0);
                     });
                 });
             });
@@ -332,8 +332,8 @@ struct BlockDropout
                         constexpr auto p_idx1 = tile_distributed_index<i_n0>{};
                         constexpr auto p_idx  = ck_tile::make_tuple(p_idx0, p_idx1);
                         p_compute(p_idx)      = randval[r_idx] <= p_undrop_in_uint8_t
-                                               ? p_compute[p_idx]
-                                               : -p_compute[p_idx];
+                                                    ? p_compute[p_idx]
+                                                    : -p_compute[p_idx];
                     });
                 });
                 // save to Global
