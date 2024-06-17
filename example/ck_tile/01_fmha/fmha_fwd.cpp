@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_fwd.hpp"
 #include "ck_tile/host.hpp"
@@ -110,6 +110,9 @@ auto create_args(int argc, char* argv[])
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
+        .insert("p_drop", "0", "0~1 probability of dropout")
+        .insert("drop_seed", "1", "seed for random number generator")
+        .insert("drop_offset", "0", "offset for random number generator")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
@@ -128,26 +131,11 @@ auto get_elimit(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<ck_tile::bf16_t>(std::string init_method)
+auto get_elimit<ck_tile::bf16_t>(std::string /*init_method*/)
 {
-    if(init_method == "ui" || init_method == "ni")
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck_tile::make_tuple(rtol, atol);
-    }
-    else if(init_method == "nf")
-    {
-        double rtol = 1e-2;
-        double atol = 1e-2;
-        return ck_tile::make_tuple(rtol, atol);
-    }
-    else
-    {
-        double rtol = 3e-3;
-        double atol = 3e-3;
-        return ck_tile::make_tuple(rtol, atol);
-    }
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    return ck_tile::make_tuple(rtol, atol);
 }
 
 template <>
@@ -250,6 +238,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
     mask_info mask = mask_info::decode(
         arg_parser.get_str("mask"), seqlen_qs[0], seqlen_ks[0]); // TODO: we don't need x/y anymore
 
+    float p_drop         = arg_parser.get_float("p_drop");
+    uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
+    uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    if(p_drop < 0.0f || p_drop > 1.0f)
+    {
+        std::cerr << "The value of p_drop should be 0~1" << std::endl;
+        return false;
+    }
+
+    bool s_randval = false;
+    if(p_drop > 0.0f && do_validation)
+    {
+        s_randval = true;
+    }
+
     std::string init_method      = arg_parser.get_str("init");
     std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
     if(*seed == 0)
@@ -274,21 +277,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using TypeConfig = FmhaFwdTypeConfig<DataType>;
 
-    using QDataType           = typename TypeConfig::QDataType;
-    using KDataType           = typename TypeConfig::KDataType;
-    using VDataType           = typename TypeConfig::VDataType;
-    using BiasDataType        = typename TypeConfig::BiasDataType;
-    using LSEDataType         = typename TypeConfig::LSEDataType;
-    using SaccDataType        = typename TypeConfig::SaccDataType;
-    using SMPLComputeDataType = typename TypeConfig::SMPLComputeDataType;
-    using PDataType           = typename TypeConfig::PDataType;
-    using OaccDataType        = typename TypeConfig::OaccDataType;
-    using ODataType           = typename TypeConfig::ODataType;
+    using QDataType             = typename TypeConfig::QDataType;
+    using KDataType             = typename TypeConfig::KDataType;
+    using VDataType             = typename TypeConfig::VDataType;
+    using BiasDataType          = typename TypeConfig::BiasDataType;
+    using RandValOutputDataType = typename TypeConfig::RandValOutputDataType;
+    using LSEDataType           = typename TypeConfig::LSEDataType;
+    using SaccDataType          = typename TypeConfig::SaccDataType;
+    using SMPLComputeDataType   = typename TypeConfig::SMPLComputeDataType;
+    using PDataType             = typename TypeConfig::PDataType;
+    using OaccDataType          = typename TypeConfig::OaccDataType;
+    using ODataType             = typename TypeConfig::ODataType;
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
+    auto max_seqlen_k = std::numeric_limits<int32_t>::min();
     {
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
@@ -298,6 +303,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if(max_seqlen_q < real_seqlen_q)
             {
                 max_seqlen_q = real_seqlen_q;
+            }
+
+            if(max_seqlen_k < real_seqlen_k)
+            {
+                max_seqlen_k = real_seqlen_k;
             }
 
             flop += nhead * (static_cast<std::size_t>(2) * real_seqlen_q * real_seqlen_k * hdim_q +
@@ -353,11 +363,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // self define lse data layout as [shape_batch, nhead, shape_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
-        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
+        lse ? std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<ODataType> o_host(
         get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
+
+    ck_tile::HostTensor<RandValOutputDataType> randval_host(
+        p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
+                   : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
     if(init_method == "ui" || init_method == "0")
     {
@@ -434,6 +448,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_buf(seqlen_kpads[0] < 0 ? 0 : seqlen_ks.size() * sizeof(int32_t));
+    ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
@@ -463,8 +478,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << (seqlen_kpads[0] < 0 ? ""
                                       : (std::string("(") + std::to_string(seqlen_kpads[0]) + ")"))
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
-              << ", lse:" << lse << ", squant:" << squant << ", mask:" << mask << ", v:" << vlayout
-              << std::flush;
+              << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
+              << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
@@ -474,6 +489,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        mask.type,
                                        bias.type,
                                        lse,
+                                       p_drop > 0.0f,
                                        squant};
 
     auto p_compute_element_func = [&]() {
@@ -505,8 +521,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             else
                 return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
         }();
-        const ck_tile::index_t stride_bias = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
-        const ck_tile::index_t stride_o    = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
+        const ck_tile::index_t stride_randval = (max_seqlen_k);
+        const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck_tile::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
@@ -518,21 +535,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse = (shape_seqlen_q * 1);
-        const ck_tile::index_t nhead_stride_o   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t nhead_stride_lse     = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
-        const ck_tile::index_t batch_stride_q    = (nhead * shape_seqlen_q * hdim_q);
-        const ck_tile::index_t batch_stride_k    = (nhead_k * shape_seqlen_k * hdim_q);
-        const ck_tile::index_t batch_stride_v    = (nhead_k * hdim_v * shape_seqlen_k);
-        const ck_tile::index_t batch_stride_bias = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
-        const ck_tile::index_t batch_stride_lse  = (nhead * shape_seqlen_q * 1);
-        const ck_tile::index_t batch_stride_o    = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
+        const ck_tile::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
+        const ck_tile::index_t batch_stride_v       = (nhead_k * hdim_v * shape_seqlen_k);
+        const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
+        const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
+        const ck_tile::index_t batch_stride_lse     = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
                              bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
                                                            : bias_buf.GetDeviceBuffer(),
+                             randval_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
@@ -554,22 +574,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_v,
                              bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
                                                            : stride_bias,
+                             stride_randval,
                              stride_o,
                              nhead_stride_q,
                              nhead_stride_k,
                              nhead_stride_v,
                              nhead_stride_bias,
+                             nhead_stride_randval,
                              nhead_stride_lse,
                              nhead_stride_o,
                              batch_stride_q,
                              batch_stride_k,
                              batch_stride_v,
                              batch_stride_bias,
+                             batch_stride_randval,
                              batch_stride_lse,
                              batch_stride_o,
                              mask.left,
                              mask.right,
-                             static_cast<ck_tile::index_t>(mask.type)};
+                             static_cast<ck_tile::index_t>(mask.type),
+                             p_drop,
+                             s_randval,
+                             {drop_seed, drop_offset}};
     }();
 
     float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
@@ -596,6 +622,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
+    randval_buf.FromDevice(randval_host.data());
+    float p_undrop = 1.0 - p_drop;
+    uint8_t p_undrop_in_uint8_t =
+        uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+    float rp_undrop = 1.0 / p_undrop;
 
     bool pass = true;
 
@@ -771,6 +802,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 s_host_ref, p_host_ref, p_compute_element_func);
         }
 
+        if(p_drop > 0)
+        {
+            ck_tile::HostTensor<RandValOutputDataType> randval_host_ref(
+                {nhead, real_seqlen_q, real_seqlen_k});
+            randval_host_ref.ForEach([&](auto& self, auto idx) {
+                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
+            });
+            ck_tile::reference_batched_dropout(
+                p_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
+        }
+
         ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
             p_host_ref,
             v_host_ref,
@@ -804,9 +846,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(lse)
         {
             ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-            lse_host_result.ForEach([&](auto& self, auto idx) {
-                self(idx) = lse_host(b, idx[0], idx[1] + query_offset);
-            });
+            lse_host_result.ForEach(
+                [&](auto& self, auto idx) { self(idx) = lse_host(wb, idx[0], idx[1]); });
 
             bool lse_pass = ck_tile::check_err(lse_host_result,
                                                lse_host_ref,

@@ -59,12 +59,9 @@ __global__ void
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumBatchToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+    const long_index_t a_batch_offset = compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+    const long_index_t b_batch_offset = compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+    const long_index_t e_batch_offset = compute_ptr_offset_of_batch.GetEPtrOffset(g_idx);
 
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -116,12 +113,9 @@ __global__ void
     const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumBatchToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+    const long_index_t a_batch_offset = compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+    const long_index_t b_batch_offset = compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+    const long_index_t e_batch_offset = compute_ptr_offset_of_batch.GetEPtrOffset(g_idx);
 
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
@@ -674,7 +668,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         clear_workspace();
                     };
 
-                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                    ave_time += ck::utility::launch_and_time_kernel_with_preprocess<false>(
                         stream_config,
                         run_flush_cache,
                         kernel,
@@ -690,7 +684,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 }
                 else
                 {
-                    ave_time = launch_and_time_kernel_with_preprocess(
+                    ave_time += launch_and_time_kernel_with_preprocess(
                         stream_config,
                         clear_workspace,
                         kernel,
@@ -1268,7 +1262,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                           arg.Conv_G_;
 
                 std::array<index_t, I1> in_out_batch_strides = {
-                    arg.compute_ptr_offset_of_batch_.BatchStrideC_};
+                    static_cast<index_t>(arg.compute_ptr_offset_of_batch_.BatchStrideC_)};
 
                 const auto kernel = kernel_batched_elementwise<GridwiseElementwise,
                                                                ck::Tuple<CElementwiseGridDesc_M_N>,
