@@ -1211,8 +1211,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
     using Block2CTileMapDefault = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
-    // using OffsetedLocalBlock2ETileMap = OffsettedBlockToCTileMap2<Block2CTileMap>;
-    // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -1273,11 +1271,6 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
-        // divide block work by [M, N]
-        // const auto block_2_ctile_map = OffsetedLocalBlock2ETileMap(Block2CTileMap{problem.M,
-        // problem.N, 4}, group_offset, tile_offset); const auto block_2_ctile_map =
-        // Block2CTileMap{problem.M, problem.N, 4};
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
