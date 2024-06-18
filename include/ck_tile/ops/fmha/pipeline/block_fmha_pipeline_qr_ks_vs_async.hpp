@@ -580,8 +580,14 @@ struct BlockFmhaPipelineQRKSVSAsync
                     randval_dram_window);
             }
 
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+            const auto p = [&]() {
+                if constexpr(std::is_same_v<PDataType, fp16_t>)
+                    return impl::cast_tile_pk_fp16_fp32<PDataType>(
+                        tile_elementwise_in(p_compute_element_func, p_compute));
+                else
+                    return cast_tile<PDataType>(
+                        tile_elementwise_in(p_compute_element_func, p_compute));
+            }();
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
