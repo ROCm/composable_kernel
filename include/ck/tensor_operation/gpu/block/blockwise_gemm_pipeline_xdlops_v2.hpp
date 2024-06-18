@@ -153,12 +153,12 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Intrawave,
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = PrefetchStages;
 
-    __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
+    __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
+    __host__ __device__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         if(num_loop % PrefetchStages == 1)
         {
@@ -646,12 +646,12 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = PrefetchStages;
 
-    __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
+    __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
+    __host__ __device__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         if(num_loop % PrefetchStages == 1)
         {
