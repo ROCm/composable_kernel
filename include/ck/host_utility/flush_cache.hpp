@@ -78,8 +78,15 @@ struct RotatingMemWrapper
             // free device mem
             for(size_t i = 1; i < rotating_count; i++)
             {
-                hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
-                hip_check_error(hipFree(const_cast<void*>(p_b_grids[i])));
+                try
+                {
+                    hip_check_error(hipFree(const_cast<void*>(p_a_grids[i])));
+                    hip_check_error(hipFree(const_cast<void*>(p_b_grids[i])));
+                }
+                catch(std::runtime_error& re)
+                {
+                    std::cerr << re.what() << std::endl;
+                }
             }
         }
     }
