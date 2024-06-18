@@ -12,5 +12,4 @@ add_instance_library(device_softmax_instance
     device_softmax_f32_f32_instance_rank4_reduce1.cpp
     device_softmax_f32_f32_instance_rank4_reduce2.cpp
     device_softmax_f32_f32_instance_rank4_reduce3.cpp
-    device_softmax_f32_f32_instance_rank4_reduce4.cpp
-)
+    device_softmax_f32_f32_instance_rank4_reduce4.cpp)

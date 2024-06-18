@@ -20,25 +20,31 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-#if DEBUG_LOG
-        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
-               __func__,
-               grid_dim.x,
-               grid_dim.y,
-               grid_dim.z,
-               block_dim.x,
-               block_dim.y,
-               block_dim.z);
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
+                   __func__,
+                   grid_dim.x,
+                   grid_dim.y,
+                   grid_dim.z,
+                   block_dim.x,
+                   block_dim.y,
+                   block_dim.z);
 
-        printf("Warm up 1 time\n");
-#endif
+            printf("Warm up %d times\n", stream_config.cold_niters_);
+        }
         // warm up
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        for(int i = 0; i < stream_config.cold_niters_; ++i)
+        {
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
+        }
 
-        const int nrepeat = 10;
-#if DEBUG_LOG
-        printf("Start running %d times...\n", nrepeat);
-#endif
+        const int nrepeat = stream_config.nrepeat_;
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("Start running %d times...\n", nrepeat);
+        }
         hipEvent_t start, stop;
 
         hip_check_error(hipEventCreate(&start));
@@ -50,6 +56,7 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
         for(int i = 0; i < nrepeat; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
         }
 
         hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
@@ -64,11 +71,13 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
     else
     {
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+    hip_check_error(hipGetLastError());
 
     return 0;
 #endif
@@ -86,26 +95,32 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
 #if CK_TIME_KERNEL
     if(stream_config.time_kernel_)
     {
-#if DEBUG_LOG
-        printf("%s: grid_dim {%d, %d, %d}, block_dim {%d, %d, %d} \n",
-               __func__,
-               grid_dim.x,
-               grid_dim.y,
-               grid_dim.z,
-               block_dim.x,
-               block_dim.y,
-               block_dim.z);
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("%s: grid_dim {%u, %u, %u}, block_dim {%u, %u, %u} \n",
+                   __func__,
+                   grid_dim.x,
+                   grid_dim.y,
+                   grid_dim.z,
+                   block_dim.x,
+                   block_dim.y,
+                   block_dim.z);
 
-        printf("Warm up 1 time\n");
-#endif
+            printf("Warm up %d times\n", stream_config.cold_niters_);
+        }
         // warm up
         preprocess();
-        kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        for(int i = 0; i < stream_config.cold_niters_; ++i)
+        {
+            kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
+        }
 
-        const int nrepeat = 10;
-#if DEBUG_LOG
-        printf("Start running %d times...\n", nrepeat);
-#endif
+        const int nrepeat = stream_config.nrepeat_;
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("Start running %d times...\n", nrepeat);
+        }
         hipEvent_t start, stop;
 
         hip_check_error(hipEventCreate(&start));
@@ -118,6 +133,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         {
             preprocess();
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+            hip_check_error(hipGetLastError());
         }
 
         hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
@@ -133,11 +149,13 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     {
         preprocess();
         kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+        hip_check_error(hipGetLastError());
 
         return 0;
     }
 #else
     kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
+    hip_check_error(hipGetLastError());
 
     return 0;
 #endif

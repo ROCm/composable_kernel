@@ -71,7 +71,7 @@ int profile_batched_gemm_multi_d(int argc, char* argv[])
     const int BatchCount = std::stoi(argv[17]);
 
     using F16 = ck::half_t;
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
     using INT8 = int8_t;
 #endif
 
@@ -165,7 +165,7 @@ int profile_batched_gemm_multi_d(int argc, char* argv[])
     {
         return profile(F16{}, F16{}, F16{}, Col{}, Col{}, Row{});
     }
-#ifdef __int8__
+#ifdef CK_ENABLE_INT8
     else if(data_type == GemmDataType::INT8_INT8_INT8 && layout == GemmMatrixLayout::MK_KN_MN)
     {
         return profile(INT8{}, INT8{}, INT8{}, Row{}, Row{}, Row{});

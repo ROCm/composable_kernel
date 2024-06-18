@@ -22,38 +22,56 @@ static constexpr auto WindowRank = 3;
 
 static constexpr auto MaxOp = ck::ReduceTensorOp::MAX;
 static constexpr auto AvgOp = ck::ReduceTensorOp::AVG;
-
+#ifdef CK_ENABLE_FP16
 // FP16
 void add_device_pool3d_fwd_ndhwc_f16_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, MaxOp, false>>>&);
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, MaxOp, false>>>&);
 
 void add_device_pool3d_fwd_ndhwc_f16_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, AvgOp, false>>>&);
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, AvgOp, false>>>&);
 
 // FP16 - return index
 void add_device_pool3d_fwd_ndhwc_index_f16_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, MaxOp, true>>>&);
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+#endif
+#ifdef CK_ENABLE_BF16
+// BF16
+void add_device_pool3d_fwd_ndhwc_bf16_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, BF16, BF16, I32, NDHWC, NDHWC, MaxOp, false>>>&);
 
+void add_device_pool3d_fwd_ndhwc_bf16_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, BF16, BF16, I32, NDHWC, NDHWC, AvgOp, false>>>&);
+
+// BF16 - return index
+void add_device_pool3d_fwd_ndhwc_index_bf16_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, BF16, BF16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+#endif
+#ifdef CK_ENABLE_FP32
 // FP32
 void add_device_pool3d_fwd_ndhwc_f32_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, MaxOp, false>>>&);
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NDHWC, NDHWC, MaxOp, false>>>&);
 
 void add_device_pool3d_fwd_ndhwc_f32_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, AvgOp, false>>>&);
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NDHWC, NDHWC, AvgOp, false>>>&);
 
 // FP32 - return index
 void add_device_pool3d_fwd_ndhwc_index_f32_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, MaxOp, true>>>&);
-
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+#endif
 template <typename InDataType,
           typename OutDataType,
           typename IndexDataType,
+          typename InLayout,
+          typename OutLayout,
           ck::ReduceTensorOp ReduceOpId,
           bool OutputIndex>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFwd<InOutRank,
@@ -61,6 +79,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                                                                                   InDataType,
                                                                                   OutDataType,
                                                                                   IndexDataType,
+                                                                                  InLayout,
+                                                                                  OutLayout,
                                                                                   ReduceOpId,
                                                                                   OutputIndex>>
 {
@@ -69,36 +89,58 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                                    InDataType,
                                    OutDataType,
                                    IndexDataType,
+                                   InLayout,
+                                   OutLayout,
                                    ReduceOpId,
                                    OutputIndex>;
 
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-
-        if constexpr(is_same_v<InDataType, F16> && is_same_v<OutDataType, F16> &&
-                     is_same_v<IndexDataType, I32>)
+        if constexpr(is_same_v<InLayout, NDHWC> && is_same_v<OutLayout, NDHWC>)
         {
-            if constexpr(OutputIndex && ReduceOpId == MaxOp)
+#ifdef CK_ENABLE_FP16
+            if constexpr(is_same_v<InDataType, F16> && is_same_v<OutDataType, F16> &&
+                         is_same_v<IndexDataType, I32>)
             {
-                add_device_pool3d_fwd_ndhwc_index_f16_instances(op_ptrs);
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_f16_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_f16_instances(op_ptrs);
+                }
             }
-            else
+#endif
+#ifdef CK_ENABLE_BF16
+            else if constexpr(is_same_v<InDataType, BF16> && is_same_v<OutDataType, BF16> &&
+                              is_same_v<IndexDataType, I32>)
             {
-                add_device_pool3d_fwd_ndhwc_f16_instances(op_ptrs);
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_bf16_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_bf16_instances(op_ptrs);
+                }
             }
-        }
-        else if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
-                          is_same_v<IndexDataType, I32>)
-        {
-            if constexpr(OutputIndex && ReduceOpId == MaxOp)
+#endif
+#ifdef CK_ENABLE_FP32
+            else if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
+                              is_same_v<IndexDataType, I32>)
             {
-                add_device_pool3d_fwd_ndhwc_index_f32_instances(op_ptrs);
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_f32_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_f32_instances(op_ptrs);
+                }
             }
-            else
-            {
-                add_device_pool3d_fwd_ndhwc_f32_instances(op_ptrs);
-            }
+#endif
         }
 
         return op_ptrs;

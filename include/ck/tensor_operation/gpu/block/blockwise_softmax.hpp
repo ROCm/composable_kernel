@@ -35,8 +35,8 @@ struct BlockwiseSoftmax
     static constexpr index_t MRepeat = ThreadSliceDesc_M_K{}.GetLength(I0);
     static constexpr index_t KRepeat = ThreadSliceDesc_M_K{}.GetLength(I1);
 
-    using ThreadSliceDesc_M = decltype(
-        make_naive_tensor_descriptor_packed(make_tuple(ThreadSliceDesc_M_K{}.GetLength(I0))));
+    using ThreadSliceDesc_M = decltype(make_naive_tensor_descriptor_packed(
+        make_tuple(ThreadSliceDesc_M_K{}.GetLength(I0))));
 
     using ThreadwiseMaxReduce = typename conditional<
         IgnoreNaN,

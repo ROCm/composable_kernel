@@ -44,7 +44,7 @@ __global__ void
             const CElementwiseOperation c_element_op)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();
@@ -735,12 +735,12 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
 
             // Check vector load/store requirement
-            const auto a_stride_lowest = ABlockTransferSrcVectorDim == 2
-                                             ? device_arg.a_mz_kz_strides_[1]
-                                             : device_arg.a_mz_kz_strides_[0];
-            const auto b_stride_lowest = BBlockTransferSrcVectorDim == 2
-                                             ? device_arg.b_nz_kz_strides_[1]
-                                             : device_arg.b_nz_kz_strides_[0];
+            const auto a_stride_lowest  = ABlockTransferSrcVectorDim == 2
+                                              ? device_arg.a_mz_kz_strides_[1]
+                                              : device_arg.a_mz_kz_strides_[0];
+            const auto b_stride_lowest  = BBlockTransferSrcVectorDim == 2
+                                              ? device_arg.b_nz_kz_strides_[1]
+                                              : device_arg.b_nz_kz_strides_[0];
             const auto b1_stride_lowest = B1BlockTransferSrcVectorDim == 2
                                               ? device_arg.b1_nz_kz_strides_[1]
                                               : device_arg.b1_nz_kz_strides_[0];

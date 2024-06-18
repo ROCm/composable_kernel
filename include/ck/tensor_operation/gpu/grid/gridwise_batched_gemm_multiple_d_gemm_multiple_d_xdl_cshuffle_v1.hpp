@@ -116,7 +116,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemm0KPrefetchStage>;
+    using GridwiseGemmPipe = GridwiseGemmPipeline_v1<NumGemm0KPrefetchStage, true, true>;
 
     // ck::Tuple<const D0DataType1*, const D0DataType2*, ...>
     static constexpr auto MakeD0sGridPointer()
@@ -446,14 +446,17 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             e1_grid_desc_m_n);
     }
 
-    using E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-        MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(E1GridDesc_M_N{}))>;
+    using E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            E1GridDesc_M_N{}))>;
 
-    using D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 = remove_cvref_t<decltype(
-        MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(D0sGridDesc_M_N{}))>;
+    using D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5 =
+        remove_cvref_t<decltype(MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+            D0sGridDesc_M_N{}))>;
 
-    using D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<decltype(
-        MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(D1sGridDesc_M_N{}))>;
+    using D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock =
+        remove_cvref_t<decltype(MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            D1sGridDesc_M_N{}))>;
 
     using DefaultBlock2E1TileMap =
         remove_cvref_t<decltype(MakeDefaultBlock2E1TileMap(E1GridDesc_M_N{}))>;
@@ -877,7 +880,12 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             Gemm1KPack,
             false,      // TransposeC
             Gemm1KPack, // AMmaKStride
-            Gemm1KPack * XdlopsGemm<A0B0B1DataType, Gemm0MPerXdl, Gemm0NPerXdl, Gemm1KPack, false>{}
+            Gemm1KPack * XdlopsGemm<A0B0B1DataType,
+                                    Gemm0MPerXdl,
+                                    Gemm0NPerXdl,
+                                    Gemm1KPack,
+                                    A0B0B1DataType,
+                                    false>{}
                              .K0PerXdlops>{                         // BMmaKStride
                                            make_tuple(0, 0, 0, 0)}; // A_origin
 

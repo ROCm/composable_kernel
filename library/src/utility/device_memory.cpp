@@ -37,6 +37,11 @@ void DeviceMem::ToDevice(const void* p) const
     }
 }
 
+void DeviceMem::ToDevice(const void* p, const std::size_t cpySize) const
+{
+    hip_check_error(hipMemcpy(mpDeviceBuf, const_cast<void*>(p), cpySize, hipMemcpyHostToDevice));
+}
+
 void DeviceMem::FromDevice(void* p) const
 {
     if(mpDeviceBuf)
@@ -47,6 +52,11 @@ void DeviceMem::FromDevice(void* p) const
     {
         throw std::runtime_error("FromDevice with an empty pointer");
     }
+}
+
+void DeviceMem::FromDevice(void* p, const std::size_t cpySize) const
+{
+    hip_check_error(hipMemcpy(p, mpDeviceBuf, cpySize, hipMemcpyDeviceToHost));
 }
 
 void DeviceMem::SetZero() const

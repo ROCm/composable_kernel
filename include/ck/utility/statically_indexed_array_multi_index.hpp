@@ -5,6 +5,7 @@
 #define CK_STATICALLY_INDEXED_ARRAY_MULTI_INDEX_HPP
 
 #include "common_header.hpp"
+#include "ck/utility/math_v2.hpp"
 
 namespace ck {
 

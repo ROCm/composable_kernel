@@ -3,7 +3,7 @@ repos:
     hooks:
     -   id: clang-format
         name: clang-format
-        entry: clang-format-10 -i --style=file
+        entry: clang-format-12 -i --style=file
         language: system
         types_or: [c++, inc]
     -   id: copyright-year-checker

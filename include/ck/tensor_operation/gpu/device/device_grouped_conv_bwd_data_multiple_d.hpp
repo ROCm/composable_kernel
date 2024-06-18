@@ -29,7 +29,9 @@ template <ck::index_t NDimSpatial,
           typename EDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
-          typename CDEElementwiseOperation>
+          typename CDEElementwiseOperation,
+          typename AComputeType = ADataType,
+          typename BComputeType = AComputeType>
 struct DeviceGroupedConvBwdDataMultipleD : public BaseOperator
 {
     static constexpr index_t NumDTensor = DsDataType::Size();

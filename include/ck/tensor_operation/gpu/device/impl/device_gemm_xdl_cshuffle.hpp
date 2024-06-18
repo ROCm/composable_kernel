@@ -65,7 +65,9 @@ template <typename ALayout,
           typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched     = make_default_loop_scheduler(),
-          PipelineVersion PipelineVer = PipelineVersion::v1>
+          PipelineVersion PipelineVer = PipelineVersion::v1,
+          typename ComputeTypeA       = CDataType,
+          typename ComputeTypeB       = ComputeTypeA>
 struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
                                                    BLayout,
                                                    CLayout,
@@ -87,7 +89,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         ALayout,
         BLayout,
         CLayout,
-        ADataType, // TODO: distinguish A/B datatype
+        ADataType,
+        BDataType,
         GemmAccDataType,
         CShuffleDataType,
         CDataType,
@@ -128,7 +131,9 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
-        PipelineVer>;
+        PipelineVer,
+        ComputeTypeA,
+        ComputeTypeB>;
 
     using Argument = typename GridwiseGemm::Argument;
 
@@ -273,6 +278,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
         // clang-format off
         str << "DeviceGemm_Xdl_CShuffle"
             << "<"
+            << getGemmSpecializationString(GemmSpec) << ", "
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
@@ -291,7 +297,7 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             << " LoopScheduler: "
             << LoopSchedToString[LoopSched] << ", "
             << "PipelineVersion: "
-            << PipelineVersionToString[PipelineVer];;
+            << PipelineVersionToString[PipelineVer];
         // clang-format on
 
         return str.str();

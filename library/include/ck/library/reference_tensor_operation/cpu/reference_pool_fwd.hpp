@@ -39,6 +39,7 @@ struct ReferencePoolingFwd : public device::BaseOperator
                  Tensor<IndexDataType>& out_indices,
                  const std::vector<ck::index_t>& window_spatial_lengths,
                  const std::vector<ck::index_t>& window_strides,
+                 const std::vector<ck::index_t>& window_dilations,
                  const std::vector<ck::index_t>& in_left_pads,
                  const std::vector<ck::index_t>& /*in_right_pads*/)
             : in_(in),
@@ -46,6 +47,7 @@ struct ReferencePoolingFwd : public device::BaseOperator
               out_indices_(out_indices),
               window_spatial_lengths_(window_spatial_lengths),
               window_strides_(window_strides),
+              window_dilations_(window_dilations),
               in_left_pads_(in_left_pads),
               reduceLength_(1)
         {
@@ -58,6 +60,7 @@ struct ReferencePoolingFwd : public device::BaseOperator
         Tensor<IndexDataType>& out_indices_;
         const std::vector<ck::index_t>& window_spatial_lengths_;
         const std::vector<ck::index_t>& window_strides_;
+        const std::vector<ck::index_t>& window_dilations_;
         const std::vector<ck::index_t>& in_left_pads_;
         int reduceLength_;
     };
@@ -85,14 +88,17 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
                     for(ck::index_t z = 0; z < arg.window_spatial_lengths_[0]; ++z)
                     {
-                        ck::index_t di = do_ * arg.window_strides_[0] + z - arg.in_left_pads_[0];
+                        ck::index_t di = do_ * arg.window_strides_[0] +
+                                         z * arg.window_dilations_[0] - arg.in_left_pads_[0];
                         for(ck::index_t y = 0; y < arg.window_spatial_lengths_[1]; ++y)
                         {
-                            ck::index_t hi = ho * arg.window_strides_[1] + y - arg.in_left_pads_[1];
+                            ck::index_t hi = ho * arg.window_strides_[1] +
+                                             y * arg.window_dilations_[1] - arg.in_left_pads_[1];
                             for(ck::index_t x = 0; x < arg.window_spatial_lengths_[2]; ++x)
                             {
-                                ck::index_t wi =
-                                    wo * arg.window_strides_[2] + x - arg.in_left_pads_[2];
+                                ck::index_t wi = wo * arg.window_strides_[2] +
+                                                 x * arg.window_dilations_[2] -
+                                                 arg.in_left_pads_[2];
                                 if(di >= 0 &&
                                    di < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[2]) &&
                                    hi >= 0 &&
@@ -136,14 +142,17 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
                     for(ck::index_t z = 0; z < arg.window_spatial_lengths_[0]; ++z)
                     {
-                        ck::index_t di = do_ * arg.window_strides_[0] + z - arg.in_left_pads_[0];
+                        ck::index_t di = do_ * arg.window_strides_[0] +
+                                         z * arg.window_dilations_[0] - arg.in_left_pads_[0];
                         for(ck::index_t y = 0; y < arg.window_spatial_lengths_[1]; ++y)
                         {
-                            ck::index_t hi = ho * arg.window_strides_[1] + y - arg.in_left_pads_[1];
+                            ck::index_t hi = ho * arg.window_strides_[1] +
+                                             y * arg.window_dilations_[1] - arg.in_left_pads_[1];
                             for(ck::index_t x = 0; x < arg.window_spatial_lengths_[2]; ++x)
                             {
-                                ck::index_t wi =
-                                    wo * arg.window_strides_[2] + x - arg.in_left_pads_[2];
+                                ck::index_t wi = wo * arg.window_strides_[2] +
+                                                 x * arg.window_dilations_[2] -
+                                                 arg.in_left_pads_[2];
                                 if(di >= 0 &&
                                    di < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[2]) &&
                                    hi >= 0 &&
@@ -202,10 +211,12 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
                     for(ck::index_t y = 0; y < arg.window_spatial_lengths_[0]; ++y)
                     {
-                        ck::index_t hi = ho * arg.window_strides_[0] + y - arg.in_left_pads_[0];
+                        ck::index_t hi = ho * arg.window_strides_[0] +
+                                         y * arg.window_dilations_[0] - arg.in_left_pads_[0];
                         for(ck::index_t x = 0; x < arg.window_spatial_lengths_[1]; ++x)
                         {
-                            ck::index_t wi = wo * arg.window_strides_[1] + x - arg.in_left_pads_[1];
+                            ck::index_t wi = wo * arg.window_strides_[1] +
+                                             x * arg.window_dilations_[1] - arg.in_left_pads_[1];
                             if(hi >= 0 &&
                                hi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[2]) &&
                                wi >= 0 &&
@@ -245,10 +256,12 @@ struct ReferencePoolingFwd : public device::BaseOperator
 
                     for(ck::index_t y = 0; y < arg.window_spatial_lengths_[0]; ++y)
                     {
-                        ck::index_t hi = ho * arg.window_strides_[0] + y - arg.in_left_pads_[0];
+                        ck::index_t hi = ho * arg.window_strides_[0] +
+                                         y * arg.window_dilations_[0] - arg.in_left_pads_[0];
                         for(ck::index_t x = 0; x < arg.window_spatial_lengths_[1]; ++x)
                         {
-                            ck::index_t wi = wo * arg.window_strides_[1] + x - arg.in_left_pads_[1];
+                            ck::index_t wi = wo * arg.window_strides_[1] +
+                                             x * arg.window_dilations_[1] - arg.in_left_pads_[1];
                             if(hi >= 0 &&
                                hi < static_cast<ck::index_t>(arg.in_.mDesc.GetLengths()[2]) &&
                                wi >= 0 &&
@@ -308,6 +321,7 @@ struct ReferencePoolingFwd : public device::BaseOperator
                              Tensor<IndexDataType>& out_indices,
                              const std::vector<ck::index_t>& window_spatial_lengths,
                              const std::vector<ck::index_t>& window_strides,
+                             const std::vector<ck::index_t>& window_dilations,
                              const std::vector<ck::index_t>& in_left_pads,
                              const std::vector<ck::index_t>& in_right_pads)
     {
@@ -316,6 +330,7 @@ struct ReferencePoolingFwd : public device::BaseOperator
                         out_indices,
                         window_spatial_lengths,
                         window_strides,
+                        window_dilations,
                         in_left_pads,
                         in_right_pads};
     }

@@ -34,18 +34,20 @@ int main(int argc, char* argv[])
     bool time_kernel;
 
     // Pool shape
-    ck::index_t N               = 128;
-    ck::index_t C               = 192;
-    ck::index_t Y               = 3;
-    ck::index_t X               = 3;
-    ck::index_t Hi              = 71;
-    ck::index_t Wi              = 71;
-    ck::index_t window_stride_h = 2;
-    ck::index_t window_stride_w = 2;
-    ck::index_t in_left_pad_h   = 1;
-    ck::index_t in_left_pad_w   = 1;
-    ck::index_t in_right_pad_h  = 1;
-    ck::index_t in_right_pad_w  = 1;
+    ck::index_t N                 = 128;
+    ck::index_t C                 = 192;
+    ck::index_t Y                 = 3;
+    ck::index_t X                 = 3;
+    ck::index_t Hi                = 71;
+    ck::index_t Wi                = 71;
+    ck::index_t window_stride_h   = 2;
+    ck::index_t window_stride_w   = 2;
+    ck::index_t window_dilation_h = 1;
+    ck::index_t window_dilation_w = 1;
+    ck::index_t in_left_pad_h     = 1;
+    ck::index_t in_left_pad_w     = 1;
+    ck::index_t in_right_pad_h    = 1;
+    ck::index_t in_right_pad_w    = 1;
 
     if(argc == 1)
     {
@@ -59,31 +61,33 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = static_cast<bool>(std::stoi(argv[3]));
     }
-    else if(argc == 16)
+    else if(argc == 18)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = static_cast<bool>(std::stoi(argv[3]));
 
-        N               = std::stoi(argv[4]);
-        C               = std::stoi(argv[5]);
-        Y               = std::stoi(argv[6]);
-        X               = std::stoi(argv[7]);
-        Hi              = std::stoi(argv[8]);
-        Wi              = std::stoi(argv[9]);
-        window_stride_h = std::stoi(argv[10]);
-        window_stride_w = std::stoi(argv[11]);
-        in_left_pad_h   = std::stoi(argv[12]);
-        in_left_pad_w   = std::stoi(argv[13]);
-        in_right_pad_h  = std::stoi(argv[14]);
-        in_right_pad_w  = std::stoi(argv[15]);
+        N                 = std::stoi(argv[4]);
+        C                 = std::stoi(argv[5]);
+        Y                 = std::stoi(argv[6]);
+        X                 = std::stoi(argv[7]);
+        Hi                = std::stoi(argv[8]);
+        Wi                = std::stoi(argv[9]);
+        window_stride_h   = std::stoi(argv[10]);
+        window_stride_w   = std::stoi(argv[11]);
+        window_dilation_h = std::stoi(argv[12]);
+        window_dilation_w = std::stoi(argv[13]);
+        in_left_pad_h     = std::stoi(argv[14]);
+        in_left_pad_w     = std::stoi(argv[15]);
+        in_right_pad_h    = std::stoi(argv[16]);
+        in_right_pad_w    = std::stoi(argv[17]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, LeftPy, LeftPx, RightPy, "
+        printf("arg4 to 15: N, C, Y, X, Hi, Wi, Sy, Sx, Dy, Dx, LeftPy, LeftPx, RightPy, "
                "RightPx\n");
         exit(0);
     }
@@ -107,6 +111,8 @@ int main(int argc, char* argv[])
                                        Wi,
                                        window_stride_h,
                                        window_stride_w,
+                                       window_dilation_h,
+                                       window_dilation_w,
                                        in_left_pad_h,
                                        in_left_pad_w,
                                        in_right_pad_h,

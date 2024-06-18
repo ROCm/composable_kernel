@@ -11,7 +11,7 @@ run_and_check() {
 }
 
 echo "I: Installing tools required for pre-commit checks..."
-run_and_check apt install clang-format-10
+run_and_check apt install clang-format-12
 
 echo "I: Installing pre-commit itself..."
 run_and_check pip3 install pre-commit

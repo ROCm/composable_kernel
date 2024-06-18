@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,7 @@
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/number.hpp"
 #include "profiler/profile_grouped_gemm_impl.hpp"
+#include "profiler/profile_grouped_gemm_two_stage_impl.hpp"
 
 namespace ck {
 namespace test {
@@ -63,7 +64,9 @@ class TestGroupedGemm : public testing::TestWithParam<int>
              const std::vector<int>& StrideAs,
              const std::vector<int>& StrideBs,
              const std::vector<int>& StrideCs,
-             int kbatch = 1)
+             int kbatch   = 1,
+             int n_warmup = 1,
+             int n_iter   = 10)
     {
         bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
                                                             BDataType,
@@ -71,8 +74,71 @@ class TestGroupedGemm : public testing::TestWithParam<int>
                                                             float,
                                                             ALayout,
                                                             BLayout,
-                                                            ELayout>(
-            verify_, init_method_, log_, bench_, Ms, Ns, Ks, StrideAs, StrideBs, StrideCs, kbatch);
+                                                            ELayout>(verify_,
+                                                                     init_method_,
+                                                                     log_,
+                                                                     bench_,
+                                                                     Ms,
+                                                                     Ns,
+                                                                     Ks,
+                                                                     StrideAs,
+                                                                     StrideBs,
+                                                                     StrideCs,
+                                                                     kbatch,
+                                                                     n_warmup,
+                                                                     n_iter);
+        EXPECT_TRUE(pass);
+    }
+};
+
+template <typename Tuple>
+class TestGroupedGemmTwoStage : public testing::TestWithParam<int>
+{
+    protected:
+    using ALayout   = std::tuple_element_t<0, Tuple>;
+    using BLayout   = std::tuple_element_t<1, Tuple>;
+    using ELayout   = std::tuple_element_t<2, Tuple>;
+    using ADataType = std::tuple_element_t<3, Tuple>;
+    using BDataType = std::tuple_element_t<4, Tuple>;
+    using EDataType = std::tuple_element_t<5, Tuple>;
+
+    public:
+    static constexpr bool verify_     = true;
+    static constexpr int init_method_ = 1; // decimal value initialization
+    static constexpr bool log_        = false;
+    static constexpr bool bench_      = false; // measure kernel performance
+
+    void SetUp() override {}
+
+    void Run(const std::vector<int>& Ms,
+             const std::vector<int>& Ns,
+             const std::vector<int>& Ks,
+             const std::vector<int>& StrideAs,
+             const std::vector<int>& StrideBs,
+             const std::vector<int>& StrideCs,
+             int kbatch   = 1,
+             int n_warmup = 1,
+             int n_iter   = 10)
+    {
+        bool pass = ck::profiler::profile_grouped_gemm_two_stage_impl<ADataType,
+                                                                      BDataType,
+                                                                      EDataType,
+                                                                      float,
+                                                                      ALayout,
+                                                                      BLayout,
+                                                                      ELayout>(verify_,
+                                                                               init_method_,
+                                                                               log_,
+                                                                               bench_,
+                                                                               Ms,
+                                                                               Ns,
+                                                                               Ks,
+                                                                               StrideAs,
+                                                                               StrideBs,
+                                                                               StrideCs,
+                                                                               kbatch,
+                                                                               n_warmup,
+                                                                               n_iter);
         EXPECT_TRUE(pass);
     }
 };
@@ -147,14 +213,14 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             32,
             4,
             2,
-            S<1, 4, 32, 1>,
+            S<1, 4, 16, 1>,
             ABlockTransferThreadClusterArrageOrder,
             ABlockTransferSrcAccessOrder,
             ABlockTransferSrcVectorDim::value,
             ABlockTransferSrcScalarPerVector,
             ABlockTransferDstScalarPerVector_K1::value,
             ABlockLdsAddExtraM::value,
-            S<1, 4, 32, 1>,
+            S<1, 4, 16, 1>,
             BBlockTransferThreadClusterArrageOrder,
             BBlockTransferSrcAccessOrder,
             BBlockTransferSrcVectorDim::value,

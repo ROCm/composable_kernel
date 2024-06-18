@@ -11,12 +11,12 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
-
+#ifdef CK_ENABLE_INT8
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
-
+#ifdef DL_KERNELS
 // Layout(A, B, C) = [Col, Row, Row]
 void add_device_gemm_quantization_dl_c_shuffle_i8_i8_i8_km_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
@@ -76,7 +76,7 @@ void add_device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(
                                                     PassThrough,
                                                     Activation_Mul_Clamp<PassThrough>>>>&
         instances);
-
+#endif
 // Layout(A, B, C) = [Col, Row, Row]
 void add_device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Col,
@@ -181,7 +181,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
                 {
+#ifdef DL_KERNELS
                     add_device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(op_ptrs);
+#endif
                     add_device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_kn_mn_instances(op_ptrs);
                 }
             }
@@ -190,7 +192,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
                 {
+#ifdef DL_KERNELS
                     add_device_gemm_quantization_dl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(op_ptrs);
+#endif
                     add_device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_mk_nk_mn_instances(op_ptrs);
                 }
             }
@@ -199,7 +203,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
                 {
+#ifdef DL_KERNELS
                     add_device_gemm_quantization_dl_c_shuffle_i8_i8_i8_km_kn_mn_instances(op_ptrs);
+#endif
                     add_device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_km_kn_mn_instances(op_ptrs);
                 }
             }
@@ -208,7 +214,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             {
                 if constexpr(is_same_v<Activation, PassThrough>)
                 {
+#ifdef DL_KERNELS
                     add_device_gemm_quantization_dl_c_shuffle_i8_i8_i8_km_nk_mn_instances(op_ptrs);
+#endif
                     add_device_gemm_quantization_xdl_c_shuffle_i8_i8_i8_km_nk_mn_instances(op_ptrs);
                 }
             }
@@ -222,3 +230,4 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#endif

@@ -16,59 +16,46 @@ enum class f8_rounding_mode
     stochastic
 };
 
+__host__ inline int clz(uint32_t x) { return __builtin_clz(x); }
+__device__ inline int clz(uint32_t x) { return __clz(x); }
+
 } // namespace ck
 
 namespace ck::utils {
 
 namespace {
 
-template <typename T, bool negative_zero_nan, bool clip, bool stoch>
-__host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
+template <typename X, typename Y, bool negative_zero_nan, bool clip, bool stoch>
+__host__ __device__ Y run_cast_to_f8(X x, uint32_t rng)
 {
-    // check data type
-    constexpr bool is_half  = std::is_same<T, half_t>::value;
-    constexpr bool is_float = std::is_same<T, float>::value;
+    // fp8/bf8 exponent/mantissa layout
+    constexpr int out_exp  = NumericUtils<Y>::exp;
+    constexpr int out_mant = NumericUtils<Y>::mant;
 
-    // fp8 exponent/mantissa layout
-    constexpr int f8_exp  = 4;
-    constexpr int f8_mant = 3;
+    // original type exponent/mantissa layout
+    constexpr int in_exp  = NumericUtils<X>::exp;
+    constexpr int in_mant = NumericUtils<X>::mant;
 
-    // resulting type exponent/mantissa layout
-    constexpr int type_exp  = is_half ? 5 : 8;
-    constexpr int type_mant = is_half ? 10 : 23;
-
-    int exponent;
+    int exponent, bias;
     uint32_t head, mantissa, sign;
     // nan code is same for float and half
-    constexpr uint8_t nan_code  = 0x80;
-    constexpr uint32_t nan_mask = is_half ? 0x7C00 : 0x7F800000;
+    constexpr Y nan_code        = 0x80;
+    constexpr uint32_t nan_mask = NumericUtils<X>::nan_mask;
 
     // convert to bitwise
-    typedef typename std::conditional<std::is_same<T, half_t>::value, uint16_t, uint32_t>::type
-        T_bitwise;
+    using T_bitwise     = typename NumericUtils<X>::bitwise_type;
     T_bitwise x_bitwise = *(reinterpret_cast<T_bitwise*>(&x));
 
     // unpack the input, depends on datatype
-    if constexpr(is_float)
-    {
-        head     = x_bitwise & 0xFF800000;
-        mantissa = x_bitwise & 0x7FFFFF;
-        exponent = (head >> type_mant) & 0xFF;
-        sign     = head >> (type_exp + type_mant);
-    }
-    else if constexpr(is_half)
-    {
-        head     = x_bitwise & 0xFC00;
-        mantissa = x_bitwise & 0x3FF;
-        exponent = (head >> type_mant) & 0x1F;
-        sign     = head >> (type_exp + type_mant);
-    }
+    head     = x_bitwise & NumericUtils<X>::head_mask;
+    mantissa = x_bitwise & NumericUtils<X>::mant_mask;
+    exponent = (head >> in_mant) & NumericUtils<X>::exp_mask;
+    sign     = head >> (in_exp + in_mant);
+    bias     = NumericUtils<X>::bias;
 
-    uint32_t signed_inf   = (sign << (type_exp + type_mant)) + (((1 << type_exp) - 1) << type_mant);
-    uint32_t drop_mask    = (1 << (type_mant - f8_mant)) - 1;
-    constexpr int max_exp = (1 << f8_exp) - (negative_zero_nan ? 1 : 2);
-    constexpr int exp_low_cutoff =
-        (1 << (type_exp - 1)) - (1 << (f8_exp - 1)) + 1 - (negative_zero_nan ? 1 : 0);
+    uint32_t signed_inf   = (sign << (in_exp + in_mant)) + (((1 << in_exp) - 1) << in_mant);
+    uint32_t drop_mask    = (1 << (in_mant - out_mant)) - 1;
+    constexpr int max_exp = (1 << out_exp) - (negative_zero_nan ? 1 : 2);
 
     if constexpr(negative_zero_nan)
     {
@@ -85,39 +72,103 @@ __host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
     if(x_bitwise == 0)
         return 0;
 
-    exponent -= exp_low_cutoff - 1;
-    if(exponent <= 0)
-        drop_mask = (1 << (type_mant - f8_mant + 1 - exponent)) - 1;
-    mantissa += 1 << type_mant;
-    // apply random number if needed
-    mantissa += (stoch ? rng : mantissa) & drop_mask;
-    if(mantissa >= (2 << type_mant))
-    {
-        mantissa >>= 1;
-        exponent++;
-    }
-    mantissa >>= (type_mant - f8_mant);
+    // First need to check if it is normal or denorm as there is a difference of implict 1
+    // Then need to adjust the exponent to align with the F8 exponent, in the meanwhile, shift
+    // The mantissa. Then for stochastic rounding, add rng to mantissa and truncate. And for
+    // RNE, no need to add rng. Then probably need to check whether there is carry and adjust
+    // exponent and mantissa again3
 
-    // check negative exponent
-    if(exponent <= 0)
-    {
-        if(x_bitwise == 0)
-            return 0;
-        else
+    // For IEEE bias mode, the bias is 2^(k-1)-1 where k is the width of exponent bits
+    const int out_bias                  = (1 << (out_exp - 1)) - 1 + (negative_zero_nan ? 1 : 0);
+    const int out_denormal_act_exponent = 1 - out_bias; // actual exponent of f8 denormal
+    // act_exponent is the actual exponent of fp32/fp16 (after subtracting bias)
+    // out_exponent is the converted f8 exponent with bias encoding
+    // exponent_diff is the diff between fp32/fp16 exponent and f8 exponent,
+    // the difference needs to be adjusted and mantissa shifted
+    int act_exponent, out_exponent, exponent_diff;
+
+    if(exponent == 0)
+    { // fp32/fp16 is in denormal.
+        /* fp32 denormal is below 2^-127 so it is usually not a concern here, we mostly concern fp16
+here. In this case, f8 is usually in denormal. But there could be exceptions. fp16 denormal has
+exponent bias 15 while bf8 with NANOO has exponent bias 16. It means that there are some numbers in
+fp16 denormal but they are bf8 (NANOO) normals - smallest bf8 (NANOO) normal is 2^-15. fp16 numbers
+where exponent==0 (actual exponent -14) and highest bit of mantissa is 1 are bf8 (NANOO) normal.
+In this case, the fp16 mantissa should be shift left by 1 */
+        act_exponent  = exponent - bias + 1;
+        exponent_diff = out_denormal_act_exponent -
+                        act_exponent; // actual exponent is exponent-bias+1 as it is denormal
+    }
+    else
+    { // fp32/fp16 is normal with implicit 1
+        act_exponent = exponent - bias;
+        if(act_exponent <= out_denormal_act_exponent)
         {
-            // subnormal range; represented by a subnormal float8 (exponent 0)
-            // and involves loss of accuracy
-            mantissa >>= 1 - exponent;
-            exponent = 0;
+            /* This is the case where fp32/fp16 is normal but it is in f8 denormal range.
+   For example fp8 nanoo mode, denormal exponent is -7, but if the fp32/fp16
+   actual exponent is -7, it is actually larger due to the implict 1,
+   Therefore it needs to be adjust to -6 and mantissa shift right by 1.
+   So for fp32/fp16, exponent -8 is the cut point to convert to fp8 nanoo */
+            exponent_diff = out_denormal_act_exponent - act_exponent;
+        }
+        else
+        { // both fp32/fp16 and f8 are in normal range
+            exponent_diff =
+                0; // exponent_diff=0 does not mean there is no difference for this case,
+            // act_exponent could be larger. Just that it does not need shift mantissa
+        }
+        mantissa += (1 << in_mant); // Add the implicit 1 into mantissa
+    }
+
+    bool midpoint = (mantissa & ((1 << (in_mant - out_mant + exponent_diff)) - 1)) ==
+                    (1 << (in_mant - out_mant + exponent_diff - 1));
+    /* This part is a bit tricky. The judgment of whether it is a tie needs to be done before we
+ shift right as shift right could rip off some residual part and make something not midpoint look
+ like midpoint. For example, the fp16 number 0x1002 (0 00100 0000000010), it is larger than
+ midpoint, but after shift right by 4 bits, it would look like midpoint. */
+
+    if(exponent_diff > 0)
+        mantissa >>= exponent_diff;
+    else if(exponent_diff == -1)
+        mantissa <<= -exponent_diff;
+    bool implicit_one = mantissa & (1 << in_mant);
+    // if there is no implict 1, it  means the f8 is denormal and need to adjust to denorm exponent
+    out_exponent =
+        (act_exponent + exponent_diff) /*actual f8 exponent*/ + out_bias - (implicit_one ? 0 : 1);
+
+    // Now we have the exponent and mantissa adjusted
+    bool odd =
+        mantissa &
+        (1 << (in_mant - out_mant)); // if the least significant bit that is not truncated is 1
+    mantissa += (stoch ? rng : (midpoint ? (odd ? mantissa : mantissa - 1) : mantissa)) & drop_mask;
+
+    // Now we deal with overflow
+    if(out_exponent == 0)
+    {
+        if((1 << in_mant) & mantissa)
+        {
+            out_exponent = 1; // denormal overflow to become normal, promote exponent
+            // No need to make 1 implicit now as it will be addressed later
         }
     }
-    // above range: quantize to maximum possible float of the same sign
-    else if(exponent > max_exp)
+    else
+    {
+        if((1 << (in_mant + 1)) & mantissa)
+        {
+            mantissa >>= 1;
+            out_exponent++;
+            // No need to make 1 implicit now as it will be addressed later
+        }
+    }
+
+    mantissa >>= (in_mant - out_mant);
+
+    if(out_exponent > max_exp)
     {
         if(clip)
         {
-            mantissa = (1 << f8_mant) - 1;
-            exponent = max_exp;
+            mantissa     = (1 << out_mant) - 1;
+            out_exponent = max_exp;
         }
         else
         {
@@ -126,125 +177,117 @@ __host__ __device__ f8_t run_cast_to_f8(T x, uint32_t rng)
     }
 
     // check if x is 0.0 or -0.0
-    if(exponent == 0 && mantissa == 0)
-        return negative_zero_nan ? 0 : (sign << (f8_exp + f8_mant));
-    mantissa &= (1 << f8_mant) - 1;
-    return (sign << (f8_exp + f8_mant)) | (exponent << f8_mant) | mantissa;
+    if(out_exponent == 0 && mantissa == 0)
+        return negative_zero_nan ? 0 : (sign << (out_exp + out_mant));
+    mantissa &= (1 << out_mant) - 1;
+    return (sign << (out_exp + out_mant)) | (out_exponent << out_mant) | mantissa;
 }
 
-template <typename T, bool negative_zero_nan>
-__host__ __device__ T run_cast_from_f8(f8_t x)
+template <typename X, typename Y, bool negative_zero_nan>
+__host__ __device__ Y run_cast_from_f8(X x)
 {
-    // check data type
-    constexpr bool is_half  = std::is_same<T, half_t>::value;
-    constexpr bool is_float = std::is_same<T, float>::value;
-
-    // fp8 exponent/mantissa layout
-    constexpr int f8_exp  = 4;
-    constexpr int f8_mant = 3;
+    // fp8/bf8 exponent/mantissa layout
+    constexpr int in_exp  = NumericUtils<X>::exp;
+    constexpr int in_mant = NumericUtils<X>::mant;
 
     // resulting type exponent/mantissa layout
-    constexpr int type_exp  = is_half ? 5 : 8;
-    constexpr int type_mant = is_half ? 10 : 23;
+    constexpr int out_exp  = NumericUtils<Y>::exp;
+    constexpr int out_mant = NumericUtils<Y>::mant;
 
     // prepare the codes
-    constexpr uint8_t nan_code = 0x80;
-    T fInf, fNegInf, fNaN, fNeg0;
-    if constexpr(is_half)
-    {
-        constexpr uint16_t ihInf    = 0x7C00;
-        constexpr uint16_t ihNegInf = 0xFC00;
-        constexpr uint16_t ihNaN    = 0x7C01;
-        constexpr uint16_t ihNeg0   = 0x8000;
-        fInf                        = *(reinterpret_cast<const half_t*>(&ihInf));
-        fNegInf                     = *(reinterpret_cast<const half_t*>(&ihNegInf));
-        fNaN                        = *(reinterpret_cast<const half_t*>(&ihNaN));
-        fNeg0                       = *(reinterpret_cast<const half_t*>(&ihNeg0));
-    }
-    else if constexpr(is_float)
-    {
-        constexpr uint32_t ifInf    = 0x7F800000;
-        constexpr uint32_t ifNegInf = 0xFF800000;
-        constexpr uint32_t ifNaN    = 0x7F800001;
-        constexpr uint32_t ifNeg0   = 0x80000000;
-        fInf                        = *(reinterpret_cast<const float*>(&ifInf));
-        fNegInf                     = *(reinterpret_cast<const float*>(&ifNegInf));
-        fNaN                        = *(reinterpret_cast<const float*>(&ifNaN));
-        fNeg0                       = *(reinterpret_cast<const float*>(&ifNeg0));
-    }
+    constexpr X nan_code = 0x80;
+    Y Inf, NegInf, NaN, Neg0;
+    using T_bitwise = typename NumericUtils<Y>::bitwise_type;
+
+    constexpr T_bitwise Inf_bitwise    = NumericUtils<Y>::Inf;
+    constexpr T_bitwise NegInf_bitwise = NumericUtils<Y>::NegInf;
+    constexpr T_bitwise NaN_bitwise    = NumericUtils<Y>::NaN;
+    constexpr T_bitwise Neg0_bitwise   = NumericUtils<Y>::Neg0;
+
+    Inf    = *(reinterpret_cast<const Y*>(&Inf_bitwise));
+    NegInf = *(reinterpret_cast<const Y*>(&NegInf_bitwise));
+    NaN    = *(reinterpret_cast<const Y*>(&NaN_bitwise));
+    Neg0   = *(reinterpret_cast<const Y*>(&Neg0_bitwise));
+
+    // check if x is 0.0
+    if(x == 0)
+        return static_cast<Y>(0);
 
     // unpack the input
-    uint32_t sign     = x >> (f8_exp + f8_mant);
-    uint32_t mantissa = x & ((1 << f8_mant) - 1);
-    int exponent      = (x & 0x7F) >> f8_mant;
+    uint32_t sign     = x >> (in_exp + in_mant);
+    uint32_t mantissa = x & ((1 << in_mant) - 1);
+    int exponent      = (x & 0x7F) >> in_mant;
 
     constexpr int exp_low_cutoff =
-        (1 << (type_exp - 1)) - (1 << (f8_exp - 1)) + 1 - (negative_zero_nan ? 1 : 0);
-    typename std::conditional<std::is_same<T, half_t>::value, uint16_t, uint32_t>::type retval;
+        (1 << (out_exp - 1)) - (1 << (in_exp - 1)) + 1 - (negative_zero_nan ? 1 : 0);
+    T_bitwise retval;
 
     if constexpr(negative_zero_nan)
     {
         if(x == nan_code)
-            return fNaN;
+            return NaN;
     }
     else
     {
         if(x == nan_code)
-            return fNeg0;
-        if(exponent == ((1 << f8_exp) - 1))
-            return (mantissa == 0) ? (sign ? fNegInf : fInf) : fNaN;
+            return Neg0;
+        if(exponent == ((1 << in_exp) - 1))
+            return (mantissa == 0) ? (sign ? NegInf : Inf) : NaN;
+    }
+
+    if((NumericUtils<Y>::mant == 10) && (NumericUtils<X>::mant == 2) && !negative_zero_nan)
+    {
+        retval = x;
+        retval <<= 8;
+        return *(reinterpret_cast<const Y*>(&retval));
     }
 
     // subnormal input
     if(exponent == 0)
     {
         // guaranteed mantissa!=0 since cases 0x0 and 0x80 are handled above
-        int sh = 1 + __builtin_clz(mantissa) - ((1 + type_exp + type_mant) - f8_mant);
+        int sh = 1 + clz(mantissa) - (32 - in_mant);
         mantissa <<= sh;
-        mantissa &= ((1 << f8_mant) - 1);
         exponent += 1 - sh;
+        mantissa &= ((1 << in_mant) - 1);
     }
     exponent += exp_low_cutoff - 1;
-    mantissa <<= type_mant - f8_mant;
+    mantissa <<= out_mant - in_mant;
 
     // subnormal output (occurs when T=half, we=5, negative_zero_nan=true)
     if(exponent <= 0)
     {
-        mantissa |= 1 << type_mant;
+        mantissa |= 1 << out_mant;
         mantissa >>= 1 - exponent;
         exponent = 0;
     }
 
-    retval = (sign << (type_exp + type_mant)) | (exponent << type_mant) | mantissa;
-    return *(reinterpret_cast<const T*>(&retval));
+    retval = (sign << (out_exp + out_mant)) | (exponent << out_mant) | mantissa;
+    return *(reinterpret_cast<const Y*>(&retval));
 }
 
 } // namespace
 
-template <typename T, bool negative_zero_nan, bool clip, bool stoch>
-__host__ __device__ f8_t cast_to_f8(T x, uint32_t rng)
+template <typename X, typename Y, bool negative_zero_nan, bool clip, bool stoch>
+__host__ __device__ Y cast_to_f8(X x, uint32_t rng)
 {
-    // check datatype
-    constexpr bool is_half  = std::is_same<T, half_t>::value;
-    constexpr bool is_float = std::is_same<T, float>::value;
-    static_assert(is_half || is_float, "Only half and float can be casted to f8.");
+    // check datatypes
+    constexpr bool is_half  = std::is_same<X, half_t>::value;
+    constexpr bool is_float = std::is_same<X, float>::value;
+    static_assert(is_half || is_float, "Only half and float can be casted.");
 
-    return run_cast_to_f8<T, negative_zero_nan, clip, stoch>(x, rng);
+    return run_cast_to_f8<X, Y, negative_zero_nan, clip, stoch>(x, rng);
 }
 
-template <typename T, bool negative_zero_nan>
-__host__ __device__ T cast_from_f8(f8_t x)
+template <typename X, typename Y, bool negative_zero_nan>
+__host__ __device__ Y cast_from_f8(X x)
 {
     // check datatype
-    constexpr bool is_half  = std::is_same<T, half_t>::value;
-    constexpr bool is_float = std::is_same<T, float>::value;
+    constexpr bool is_half  = std::is_same<Y, half_t>::value;
+    constexpr bool is_float = std::is_same<Y, float>::value;
     static_assert(is_half || is_float, "only half and float are supported.");
 
-    // check if x is 0.0
-    if(x == 0)
-        return static_cast<T>(0);
-
-    return run_cast_from_f8<T, negative_zero_nan>(x);
+    return run_cast_from_f8<X, Y, negative_zero_nan>(x);
 }
 
 } // namespace ck::utils

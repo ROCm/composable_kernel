@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,7 +33,9 @@ template <ck::index_t NDimSpatial,
           typename OutLayout,
           typename InDataType,
           typename WeiDataType,
-          typename OutDataType>
+          typename OutDataType,
+          typename ComputeTypeA = InDataType,
+          typename ComputeTypeB = ComputeTypeA>
 bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                           int init_method,
                                           bool do_log,
@@ -106,7 +108,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  out_element_op,
+                                                  {},
+                                                  {},
+                                                  {});
 
         ref_invoker.Run(ref_argument);
     }
@@ -120,7 +125,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                                               OutDataType,
                                                                               InElementOp,
                                                                               WeiElementOp,
-                                                                              OutElementOp>;
+                                                                              OutElementOp,
+                                                                              ComputeTypeA,
+                                                                              ComputeTypeB>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -136,10 +143,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     // profile device Conv instances
     bool all_pass = true;
 
-    std::array<ck::index_t, NDimSpatial> input_spatial_lengths{};
-    std::array<ck::index_t, NDimSpatial> filter_spatial_lengths{};
-    std::array<ck::index_t, NDimSpatial> output_spatial_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> input_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> filter_lengths{};
+    std::array<ck::index_t, NDimSpatial + 3> output_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> input_strides{};
+    std::array<ck::index_t, NDimSpatial + 3> weights_strides{};
     std::array<ck::index_t, NDimSpatial + 3> output_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
     std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
@@ -148,10 +156,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
     auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
 
-    range_copy(conv_param.input_spatial_lengths_, begin(input_spatial_lengths));
-    range_copy(conv_param.filter_spatial_lengths_, begin(filter_spatial_lengths));
-    range_copy(conv_param.output_spatial_lengths_, begin(output_spatial_lengths));
+    range_copy(in_g_n_c_wis_desc.GetLengths(), begin(input_lengths));
     range_copy(in_g_n_c_wis_desc.GetStrides(), begin(input_strides));
+    range_copy(wei_g_k_c_xs_desc.GetLengths(), begin(filter_lengths));
+    range_copy(wei_g_k_c_xs_desc.GetStrides(), begin(weights_strides));
+    range_copy(out_g_n_k_wos_desc.GetLengths(), begin(output_lengths));
     range_copy(out_g_n_k_wos_desc.GetStrides(), begin(output_strides));
     range_copy(conv_param.conv_filter_strides_, begin(conv_filter_strides));
     range_copy(conv_param.conv_filter_dilations_, begin(conv_filter_dilations));
@@ -164,14 +173,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
                                         static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
                                         static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                        conv_param.G_,
-                                        conv_param.N_,
-                                        conv_param.K_,
-                                        conv_param.C_,
-                                        input_spatial_lengths,
-                                        filter_spatial_lengths,
-                                        output_spatial_lengths,
+                                        input_lengths,
                                         input_strides,
+                                        filter_lengths,
+                                        weights_strides,
+                                        output_lengths,
                                         output_strides,
                                         conv_filter_strides,
                                         conv_filter_dilations,
@@ -181,6 +187,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                         wei_element_op,
                                         out_element_op,
                                         split_k);
+
+        const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+        DeviceMem workspace_dev(workspace_sz);
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {

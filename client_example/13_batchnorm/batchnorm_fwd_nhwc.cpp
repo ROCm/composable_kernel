@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <functional>
 #include <numeric>
@@ -187,6 +187,12 @@ int main(int argc, char* argv[])
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+
+            SimpleDeviceMem workspace(workspace_sz);
+
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace.GetDeviceBuffer());
+
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }
 

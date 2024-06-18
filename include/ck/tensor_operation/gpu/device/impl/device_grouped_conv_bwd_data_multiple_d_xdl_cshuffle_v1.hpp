@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/operator_transform/transform_conv_bwd_data_to_gemm_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
@@ -23,51 +24,6 @@ namespace tensor_operation {
 namespace device {
 
 namespace {
-
-template <index_t NumDTensor>
-struct ComputePtrOffsetOfStridedBatch
-{
-    ComputePtrOffsetOfStridedBatch() = default;
-
-    ComputePtrOffsetOfStridedBatch(index_t BatchStrideA,
-                                   index_t BatchStrideB,
-                                   Array<ck::index_t, NumDTensor> BatchStrideDs,
-                                   index_t BatchStrideE)
-        : BatchStrideA_(BatchStrideA),
-          BatchStrideB_(BatchStrideB),
-          BatchStrideDs_(BatchStrideDs),
-          BatchStrideE_(BatchStrideE)
-    {
-    }
-
-    __host__ __device__ constexpr long_index_t GetAPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideA_);
-    }
-
-    __host__ __device__ constexpr long_index_t GetBPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideB_);
-    }
-
-    __host__ __device__ constexpr auto GetDsPtrOffset(index_t g_idx) const
-    {
-        Array<long_index_t, NumDTensor> ds_offset;
-        static_for<0, NumDTensor, 1>{}(
-            [&](auto i) { ds_offset(i) = g_idx * static_cast<long_index_t>(BatchStrideDs_[i]); });
-        return ds_offset;
-    }
-
-    __host__ __device__ constexpr long_index_t GetEPtrOffset(index_t g_idx) const
-    {
-        return g_idx * static_cast<long_index_t>(BatchStrideE_);
-    }
-
-    index_t BatchStrideA_;
-    index_t BatchStrideB_;
-    Array<ck::index_t, NumDTensor> BatchStrideDs_;
-    index_t BatchStrideE_;
-};
 
 /*
  * \brief Wrapper function of GridwiseGemm::Run to realize BatchedGEMM.
@@ -131,18 +87,15 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+    defined(__gfx94__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+    const long_index_t a_batch_offset = compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+    const long_index_t b_batch_offset = compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+    const long_index_t e_batch_offset = compute_ptr_offset_of_batch.GetEPtrOffset(g_idx);
 
     const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
@@ -242,7 +195,9 @@ template <index_t NDimSpatial,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched = make_default_loop_scheduler(),
+          typename AComputeType   = ADataType,
+          typename BComputeType   = AComputeType>
 struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     : public DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                ALayout,    // output image
@@ -255,9 +210,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                EDataType,  // input image
                                                AElementwiseOp,
                                                BElementwiseOp,
-                                               CDEElementwiseOp>
+                                               CDEElementwiseOp,
+                                               AComputeType,
+                                               BComputeType>
 {
-    // FIXME
+    // TODO: Extend support for more spatial dimensions.
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
 
@@ -265,7 +222,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    // TODO make A/B datatype different
+    // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
 
     static constexpr auto I0 = Number<0>{};
@@ -280,6 +237,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                       BK1,
                                       MPerBlock,
                                       NPerBlock,
+                                      KPerBlock,
                                       DoPadGemmM,
                                       DoPadGemmN>{};
 
@@ -355,7 +313,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
-        ABDataType, // TODO: distinguish A/B datatype
+        ABDataType,
+        ABDataType,
+        AComputeType,
         AccDataType,
         CShuffleDataType,
         DsDataType,
@@ -395,7 +355,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         CShuffleNXdlPerWavePerShuffle,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
-        LoopSched>;
+        LoopSched,
+        PipelineVersion::v1,
+        BComputeType>;
 
     template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
@@ -422,10 +384,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_AK0_M_AK1{}));
     using BGridDesc_N_K = decltype(transform_k0_m_k1_to_m_k(BGridDesc_BK0_N_BK1{}));
 
-    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
-        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DsGridDesc_M_N{}));
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = decltype(
-        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(EGridDesc_M_N{}));
+    using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            DsGridDesc_M_N{}));
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+        decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+            EGridDesc_M_N{}));
 
     // block-to-e-tile map
     using Block2ETileMap =
@@ -710,7 +674,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         std::vector<Block2ETileMap> block_2_etile_map_container_;
 
         // for computing batch offset
-        ComputePtrOffsetOfStridedBatch<NumDTensor> compute_ptr_offset_of_batch_;
+        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor> compute_ptr_offset_of_batch_;
 
         // element-wise op
         AElementwiseOp a_element_op_;
@@ -779,7 +743,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         Block2ETileMap,
-                        ComputePtrOffsetOfStridedBatch<NumDTensor>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>,
                         has_main_loop>;
 
                     return launch_and_time_kernel(

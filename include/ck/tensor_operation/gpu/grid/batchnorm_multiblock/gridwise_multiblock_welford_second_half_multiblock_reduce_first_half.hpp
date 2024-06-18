@@ -115,8 +115,8 @@ struct GridwiseWelfordSecondHalfReduceFirstHalf
 
     using ThreadReduceSrcDesc_M_K = decltype(make_naive_tensor_descriptor_packed(
         make_tuple(Number<MThreadSliceSize>{}, Number<KThreadSliceSize>{})));
-    using ThreadReduceSrcDesc_M_1 = decltype(
-        make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{}, Number<1>{})));
+    using ThreadReduceSrcDesc_M_1 = decltype(make_naive_tensor_descriptor_packed(
+        make_tuple(Number<MThreadSliceSize>{}, Number<1>{})));
     using ThreadReduceDstDesc_M =
         decltype(make_naive_tensor_descriptor_packed(make_tuple(Number<MThreadSliceSize>{})));
 

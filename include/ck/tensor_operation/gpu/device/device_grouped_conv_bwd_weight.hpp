@@ -20,22 +20,21 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename InElementwiseOperation,
           typename WeiElementwiseOperation,
-          typename OutElementwiseOperation>
+          typename OutElementwiseOperation,
+          typename ComputeTypeA = InDataType,
+          typename ComputeTypeB = ComputeTypeA>
 struct DeviceGroupedConvBwdWeight : public BaseOperator
 {
     virtual std::unique_ptr<BaseArgument>
     MakeArgumentPointer(const void* p_in,
                         void* p_wei,
                         const void* p_out,
-                        const ck::index_t G,
-                        const ck::index_t N,
-                        const ck::index_t K,
-                        const ck::index_t C,
-                        const std::array<ck::index_t, NDimSpatial>& input_spatial_lengths,
-                        const std::array<ck::index_t, NDimSpatial>& filter_spatial_lengths,
-                        const std::array<ck::index_t, NDimSpatial>& output_spatial_lengths,
-                        const std::array<ck::index_t, NDimSpatial + 3>& input_strides,
-                        const std::array<ck::index_t, NDimSpatial + 3>& output_strides,
+                        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths, // input
+                        const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths, // weight
+                        const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths, // output
+                        const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
                         const std::array<ck::index_t, NDimSpatial>& conv_filter_strides,
                         const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<ck::index_t, NDimSpatial>& input_left_pads,
