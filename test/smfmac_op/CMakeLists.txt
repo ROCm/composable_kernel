@@ -1,2 +1,2 @@
-add_test_executable(test_smfmac_op smfmac_op.cpp)
+add_gtest_executable(test_smfmac_op smfmac_op_xdl.cpp)
 target_link_libraries(test_smfmac_op PRIVATE utility)

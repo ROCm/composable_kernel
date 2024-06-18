@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "ck/ck.hpp"
 #pragma once
 
 namespace ck {
-// Define the common macro for gfx94x models
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
-#define __gfx94__
-#endif
 
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_smfmac_f32_16x16x32f16;
