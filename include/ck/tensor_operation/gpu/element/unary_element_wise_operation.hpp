@@ -974,7 +974,7 @@ struct Logistic
                       "Data type is not supported by this operation!");
         T casted_alpha  = type_convert<T>(alpha_);
         constexpr T one = type_convert<T>(1);
-        y               = one * casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
+        y               = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
     }
     const float alpha_;
 };
