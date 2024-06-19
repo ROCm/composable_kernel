@@ -6,6 +6,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
@@ -507,10 +508,10 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
         if constexpr(use_amd_buffer_addressing)
         {
-            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
             amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, buffer_size_);
         }
@@ -518,7 +519,7 @@ struct buffer_view<address_space_enum::global,
         {
             if(is_valid_element)
             {
-                atomic_add<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
+                atomic_add_g<remove_cvref_t<T>, t_per_x>(&p_data_[i], x);
             }
         }
     }
@@ -547,16 +548,16 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
         if constexpr(use_amd_buffer_addressing)
         {
-            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
             amd_buffer_atomic_max<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, buffer_size_);
         }
         else if(is_valid_element)
         {
-            atomic_max<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
+            atomic_max_g<remove_cvref_t<T>, t_per_x>(&p_data_[i], x);
         }
     }
 

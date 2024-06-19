@@ -6,13 +6,14 @@
 #include "ck_tile/core.hpp"
 
 namespace ck_tile {
-// Problem Description for BlockGemmARegBGmemCReg
+
+// Problem Description for BlockGemm
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           index_t kBlockSize_,
           typename BlockGemmShape_>
-struct BlockGemmARegBGmemCRegProblem
+struct BlockGemmProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
