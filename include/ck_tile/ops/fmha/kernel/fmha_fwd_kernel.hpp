@@ -744,11 +744,11 @@ struct FmhaFwdKernel
             }
         }();
 
-        auto dropout = [&]() {
+        auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
             if constexpr(kHasDropout)
             {
-                return BlockDropout{i_batch,
-                                    i_nhead,
+                return BlockDropout{i_batch_,
+                                    i_nhead_,
                                     kargs.num_head_q,
                                     kargs.drop_seed,
                                     kargs.drop_offset,
