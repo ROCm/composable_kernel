@@ -147,12 +147,12 @@ struct BlockwiseGemmXdlops_pipeline_v4<BlockGemmPipelineScheduler::Intrawave,
     static constexpr index_t GlobalBufferNum = 2;
     static constexpr index_t HotloopUnroll   = 2;
 
-    __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
+    __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
+    __host__ __device__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         if(num_loop % HotloopUnroll == 1)
         {
