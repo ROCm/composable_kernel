@@ -2109,7 +2109,8 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     asm volatile("s_mov_b32 m0, %0; \n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
-                 "s"(src_resource));
+                 "s"(src_resource)
+                 : "memory");
 #else
     // LDS pointer must be attributed with the LDS address space.
     __attribute__((address_space(3))) uint32_t* lds_ptr =
