@@ -6,7 +6,6 @@
 
 #include <iostream>
 
-// TODO: Verify Layouts
 enum struct ConvLayout
 {
     GNHWC_GKYXC_GNHWK = 0,
@@ -82,26 +81,8 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
     using F8  = ck::f8_t;
     using BF8 = ck::bf8_t;
 
-    // TODO: Do we need to support profiling of any extra layouts?
-    // using GNWC   = ck::tensor_layout::convolution::GNWC;
-    // using GNHWC  = ck::tensor_layout::convolution::GNHWC;
-    // using GNDHWC = ck::tensor_layout::convolution::GNDHWC;
-
-    // using GKXC   = ck::tensor_layout::convolution::GKXC;
-    // using GKYXC  = ck::tensor_layout::convolution::GKYXC;
     using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
-
-    // using GNWK   = ck::tensor_layout::convolution::GNWK;
-    // using GNHWK  = ck::tensor_layout::convolution::GNHWK;
-    // using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
-
-    // //
-    // using NWGC   = ck::tensor_layout::convolution::NWGC;
-    // using NHWGC  = ck::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
-
-    // using NWGK   = ck::tensor_layout::convolution::NWGK;
-    // using NHWGK  = ck::tensor_layout::convolution::NHWGK;
     using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
     using ConvScale    = ck::tensor_operation::element_wise::ConvScale;
