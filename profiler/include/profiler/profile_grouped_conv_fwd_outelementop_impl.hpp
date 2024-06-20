@@ -9,6 +9,88 @@
 namespace ck {
 namespace profiler {
 
+template <typename DataType>
+inline constexpr double get_rtol()
+{
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, double>)
+    {
+        return 1e-6;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+    {
+        return 5e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, int32_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, int8_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+    {
+        return 1e-1; // 240 and 224 are acceptable
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+    {
+        return 1.5e-1; // 57344 and 49152 are acceptable
+    }
+    else
+    {
+        return 1e-3;
+    }
+}
+
+template <typename DataType>
+inline constexpr double get_atol()
+{
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, double>)
+    {
+        return 1e-6;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+    {
+        return 5e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, int32_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, int8_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+    {
+        return 16.1; // 240 and 224 are acceptable
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+    {
+        return 8192.1; // 57344 and 49152 are acceptable
+    }
+    else
+    {
+        return 1e-3;
+    }
+}
+
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -116,6 +198,11 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
     // run reference op
     if(do_verification)
     {
+
+        std::cout << "\nVerifying algorithm against reference convolution..." << std::endl;
+        std::cout << "\tUsing (rel_tol,abs_tol) = (" << std::setprecision(7)
+                  << get_rtol<OutDataType>() << ", " << get_atol<OutDataType>() << ")" << std::endl;
+
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
@@ -136,6 +223,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                                                   wei_element_op,
                                                   PassThrough{});
 
+        c.SetZero();
         ref_invoker.Run(ref_argument);
 
         host_output.ForEach([&](auto&, auto idx) { out_element_op(host_output(idx), c(idx)); });
@@ -181,15 +269,23 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
-                pass = pass & ck::utils::check_err(device_output, host_output);
+                pass = pass & ck::utils::check_err(device_output,
+                                                   host_output,
+                                                   "Error: Device and Host results do not match!",
+                                                   get_rtol<OutDataType>(),
+                                                   get_atol<OutDataType>());
 
                 if(do_log)
                 {
-                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
-                    LogRangeAsType<float>(std::cout << "host_output  : ", host_output.mData, ",")
+                    LogRangeAsType<InDataType>(std::cout << "input : ", input.mData, ",")
                         << std::endl;
-                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
+                    LogRangeAsType<WeiDataType>(std::cout << "weight: ", weight.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<OutDataType>(
+                        std::cout << "host_output  : ", host_output.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<OutDataType>(
+                        std::cout << "device_output: ", device_output.mData, ",")
                         << std::endl;
                 }
             }
