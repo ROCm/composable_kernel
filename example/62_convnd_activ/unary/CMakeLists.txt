@@ -30,6 +30,16 @@ foreach(gpu IN LISTS GPU_TARGETS)
       # Elu
       add_example_executable(example_convnd_fwd_xdl_elu_fp16 convnd_fwd_xdl_elu_fp16.cpp)
       add_example_dependencies(example_convnd_activ_unary_xdl example_convnd_fwd_xdl_elu_fp16)
+      # Swish
+      add_example_executable(example_convnd_fwd_xdl_swish_fp16 convnd_fwd_xdl_swish_fp16.cpp)
+      add_example_dependencies(example_convnd_activ_unary_xdl example_convnd_fwd_xdl_swish_fp16)
+      # PassThrough
+      add_example_executable(example_convnd_fwd_xdl_passthrough_fp16 convnd_fwd_xdl_passthrough_fp16.cpp)
+      add_example_dependencies(example_convnd_activ_unary_xdl example_convnd_fwd_xdl_passthrough_fp16)
+      # Logistic
+      add_example_executable(example_convnd_fwd_xdl_logistic_fp16 convnd_fwd_xdl_logistic_fp16.cpp)
+      add_example_dependencies(example_convnd_activ_unary_xdl example_convnd_fwd_xdl_logistic_fp16)
+   
    set(target 1)
  endif()
 endforeach()
