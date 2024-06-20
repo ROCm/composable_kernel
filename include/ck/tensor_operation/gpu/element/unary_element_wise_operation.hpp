@@ -961,6 +961,24 @@ struct Elu
     const float alpha_;
 };
 
+struct Logistic
+{
+    Logistic(float alpha = 1.f) : alpha_(alpha){};
+
+    template <typename T>
+    __host__ __device__ void operator()(T& y, const T& x) const
+    {
+        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
+                          is_same<T, int8_t>::value,
+                      "Data type is not supported by this operation!");
+        T casted_alpha  = type_convert<T>(alpha_);
+        constexpr T one = type_convert<T>(1);
+        y               = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
+    }
+    const float alpha_;
+};
+
 struct ConvInvscale
 {
     __host__ __device__ ConvInvscale(float scale_in  = 1.f,
