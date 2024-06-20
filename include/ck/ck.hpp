@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -53,7 +53,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 // define general macros for various architectures
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__)
+    defined(__gfx942__) || defined(__gfx950__)
 #define __gfx9__
 #endif
 #if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
@@ -102,7 +102,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_USE_AMD_MFMA
 #endif
 
-#if(defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx950__))
 #define CK_USE_AMD_MFMA_BF16_1K_OP
 #endif
 
@@ -135,7 +135,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
-#if(defined(__gfx90a__) || defined(__gfx94__)) // for GPU code
+#if(defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx950__)) // for GPU code
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
 #else
 #define CK_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
