@@ -1,0 +1,1 @@
+GEN_DIR = ""    # in Cmake, have to generate files in same folder
