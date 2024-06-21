@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# generate kernel instances to speed up compilation
+
 DTYPE_MAP = {
     "fp16": "ck_tile::fp16_t",
     "bf16": "ck_tile::bf16_t",

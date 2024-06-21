@@ -4,7 +4,7 @@
 
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from codegen.cmake_config import *
 from codegen.ops import (
@@ -12,40 +12,45 @@ from codegen.ops import (
     fmha_bwd
 )
 
-def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
         output_dir = Path(output_dir) / GEN_DIR
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    if direction == 'fwd':
-        fmha_fwd.write_blobs(output_dir, kernel_filter, receipt, mask_impl)
-    else:
-        fmha_bwd.write_blobs(output_dir, kernel_filter, receipt, mask_impl)
+
+    write_blobs_iml = {
+        'fwd': fmha_fwd.write_blobs,
+        'bwd': fmha_bwd.write_blobs,
+    }
+    for api in api_list:
+        write_blobs_iml[api](output_dir, kernel_filter, receipt, mask_impl)
 
 # list all the files that will be generated
-def list_blobs(output_file : Optional[str], direction : str, kernel_filter : Optional[str], receipt, mask_impl) -> None:
+def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:
     assert output_file is not None
     file_path = Path(output_file)
 
-    if direction == 'fwd':
-        fmha_fwd.list_blobs(file_path, kernel_filter, receipt, mask_impl)
-    else:
-        fmha_bwd.list_blobs(file_path, kernel_filter, receipt, mask_impl)
+    list_blobs_iml = {
+        'fwd': fmha_fwd.list_blobs,
+        'bwd': fmha_bwd.list_blobs,
+    }
+    for api in api_list:
+        list_blobs_iml[api](file_path, kernel_filter, receipt, mask_impl)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="generate",
-        description="gen api for CK fmha kernel",
+        description="gen API for CK fmha kernel",
     )
     parser.add_argument(
-        "-d",
-        "--direction",
+        "-a",
+        "--apis",
         default='fwd',
         choices=['fwd', 'bwd'],
         required=False,
-        help="choose the direction of kernels(default: fwd)"
+        help="supply API(s) to generate (default: fwd). separated by comma."
     )
     parser.add_argument(
         "-o",
@@ -86,7 +91,8 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    api_list = args.apis.split(',')
     if args.list_blobs is not None:
-        list_blobs(args.list_blobs, args.direction, args.filter, int(args.receipt), mask_impl=args.mask)
+        list_blobs(args.list_blobs, api_list, args.filter, int(args.receipt), mask_impl=args.mask)
     else:
-        write_blobs(args.output_dir, args.direction, args.filter, int(args.receipt), mask_impl=args.mask)
+        write_blobs(args.output_dir, api_list, args.filter, int(args.receipt), mask_impl=args.mask)

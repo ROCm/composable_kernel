@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# generate kernel instances to speed up compilation
+
 import copy
 from dataclasses import dataclass
 import fnmatch
