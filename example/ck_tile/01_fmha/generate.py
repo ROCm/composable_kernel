@@ -50,7 +50,6 @@ if __name__ == "__main__":
         "-a",
         "--api",
         default='fwd',
-        choices=['fwd', 'bwd'],
         required=False,
         help="supply API(s) to generate (default: fwd). separated by comma."
     )
