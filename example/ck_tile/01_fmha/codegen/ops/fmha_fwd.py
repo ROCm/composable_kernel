@@ -299,7 +299,6 @@ class FmhaFwdTileSize:
 
 @dataclass
 class FmhaFwdKernel:
-    direction       : str
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -353,7 +352,7 @@ class FmhaFwdKernel:
     @property
     def name(self) -> str:
         # TODO: we don't encode idx here
-        return f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_{self.get_tp()}_" + \
+        return f"fmha_fwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_{self.get_tp()}_" + \
                 self.F_tile.name + '_' + self.F_pipeline.name
 
     @property
@@ -385,23 +384,20 @@ class FmhaFwdKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype(direction : str, dtype : str) -> Optional[dict]:
-    if direction == 'fwd':
-        if dtype == 'fp16' or dtype == 'bf16':
-            return {
-                 '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-                 '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-                 '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-                 '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
-            }
-        elif dtype == 'fp8' or dtype == 'bf8':
-            return {
-                '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
-                '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
-            }
-        else:
-            return None
+def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
+    if dtype == 'fp16' or dtype == 'bf16':
+        return {
+            '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
+            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+        }
+    elif dtype == 'fp8' or dtype == 'bf8':
+        return {
+            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
+            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
+            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
+        }
     else:
         return None
 
@@ -443,8 +439,8 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    for direction, dtype in itertools.product(["fwd"], DTYPE_MAP.keys()):
-        d = get_fmha_fwd_tile_dict_from_dtype(direction, dtype)
+    for dtype in DTYPE_MAP.keys():
+        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -456,8 +452,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
-                k = FmhaFwdKernel(direction=direction,
-                                  F_idx=0,
+                k = FmhaFwdKernel(F_idx=0,
                                   F_hdim=hdim,
                                   F_dtype=dtype,
                                   F_mode=mode,

@@ -308,7 +308,6 @@ class FmhaBwdDQDKDVTileSize:
 
 @dataclass
 class FmhaBwdDQDKDVKernel:
-    direction   : str
     F_idx       : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim      : int  # hdim
     F_dtype     : str  # data type
@@ -377,7 +376,7 @@ class FmhaBwdDQDKDVKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name
+        n = f"fmha_bwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name
         if pn != '' : n += f'_{pn}'
         if self.F_bias != 'no' : n += f'_{self.F_bias}'
         if self.F_dbias == 't' : n += '_dbias'
@@ -412,19 +411,16 @@ class FmhaBwdDQDKDVKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size & pipeline.
-def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(direction : str, dtype : str) -> Optional[dict]:
-    if direction == 'bwd':
-        if dtype == 'fp16' or dtype == 'bf16':
-            return {
-                '32'  : [FmhaBwdDQDKDVTileSize(128, 128, 32, 32, 32, 32, 32,  32,  32, 1, 4, 1, 4, 1, 1, 4, 1, 1, 32, 32, 16, 1),
-                         "qs_ks_vr_dos"],
-                '64'  : [FmhaBwdDQDKDVTileSize( 64, 128, 32, 32, 32, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
-                         "qs_ks_vr_dos"],
-                '128' : [FmhaBwdDQDKDVTileSize( 64, 128, 32, 32, 32, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
-                         "ks_vr"]
-            }
-        else:
-            return None
+def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
+    if dtype == 'fp16' or dtype == 'bf16':
+        return {
+            '32'  : [FmhaBwdDQDKDVTileSize(128, 128, 32, 32, 32, 32, 32,  32,  32, 1, 4, 1, 4, 1, 1, 4, 1, 1, 32, 32, 16, 1),
+                        "qs_ks_vr_dos"],
+            '64'  : [FmhaBwdDQDKDVTileSize( 64, 128, 32, 32, 32, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
+                        "qs_ks_vr_dos"],
+            '128' : [FmhaBwdDQDKDVTileSize( 64, 128, 32, 32, 32, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 1),
+                        "ks_vr"]
+        }
     else:
         return None
 
@@ -434,8 +430,8 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
-    for direction, dtype in itertools.product(["bwd"], DTYPE_MAP.keys()):
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(direction, dtype)
+    for dtype in DTYPE_MAP.keys():
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
         for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
@@ -446,7 +442,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 continue
             if ((bias == "no" or bias == "alibi") and dbias == "t"):
                 continue
-            k = FmhaBwdDQDKDVKernel(direction=direction, F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
+            k = FmhaBwdDQDKDVKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad,
                                 F_bias=bias, F_dbias=dbias, F_dropout=dropout, F_mask=mask, F_mode=mode,
                                 F_pipeline=ppl, mask_impl=mask_impl)
@@ -522,7 +518,6 @@ std::string fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_{F_idx}>()
 
 @dataclass
 class FmhaBwdOGradDotOKernel:
-    direction   : str
     F_idx       : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim      : int  # hdim
     F_dtype     : str  # data type
@@ -552,7 +547,7 @@ class FmhaBwdOGradDotOKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_{self.direction}_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_o{self.F_occupancy}"
+        n = f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
         return n
 
@@ -568,15 +563,15 @@ def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
 
     gen = list()
 
-    for direction, dtype in itertools.product(["bwd"], DTYPE_MAP.keys()):
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(direction, dtype)
+    for dtype in DTYPE_MAP.keys():
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
         if d == None:
             continue
         for hdim_str, mode, spad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"]):
             hdim = int(hdim_str)
             if (mode == "group" and spad == "f"):
                 continue
-            k = FmhaBwdOGradDotOKernel(direction=direction+"_dot_do_o", F_idx=0, F_hdim=hdim, F_dtype=dtype,
+            k = FmhaBwdOGradDotOKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype,
                                 F_spad=spad, F_dvpad=dvpad, F_mode=mode,
                                 F_occupancy=get_occupancy(dtype, hdim))
             gen.append(k)
