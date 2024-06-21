@@ -1,8 +1,9 @@
 import copy
 from dataclasses import dataclass
+import fnmatch
 import itertools
 from pathlib import Path
-from typing import List, Optional, TextIO, Tuple
+from typing import List, Optional, Tuple
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
