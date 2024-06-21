@@ -174,7 +174,7 @@ struct joinable_thread : std::thread
     {
     }
 
-    joinable_thread(joinable_thread&&)            = default;
+    joinable_thread(joinable_thread&&) = default;
     joinable_thread& operator=(joinable_thread&&) = default;
 
     ~joinable_thread()
@@ -292,7 +292,7 @@ struct Tensor
     ~Tensor() = default;
 
     Tensor& operator=(const Tensor&) = default;
-    Tensor& operator=(Tensor&&)      = default;
+    Tensor& operator=(Tensor&&) = default;
 
     template <typename FromT>
     explicit Tensor(const Tensor<FromT>& other) : Tensor(other.template CopyAsType<T>())
