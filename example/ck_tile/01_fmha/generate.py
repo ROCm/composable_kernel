@@ -45,8 +45,10 @@ if __name__ == "__main__":
         description="gen API for CK fmha kernel",
     )
     parser.add_argument(
+        "-d",
+        "--direction", # we keep 'direction' option for backward compatibility
         "-a",
-        "--apis",
+        "--api",
         default='fwd',
         choices=['fwd', 'bwd'],
         required=False,
@@ -91,7 +93,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    api_list = args.apis.split(',')
+    api_list = args.direction.split(',')
     if args.list_blobs is not None:
         list_blobs(args.list_blobs, api_list, args.filter, int(args.receipt), mask_impl=args.mask)
     else:
