@@ -342,9 +342,9 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
         run_impl(op_ptr, argument_ptr);
     }
 
-    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
-              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "Best configuration parameters:"
+              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
     return pass;
 }
 
