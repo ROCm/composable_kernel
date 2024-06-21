@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -352,10 +352,9 @@ struct BlockwiseGemmWMMA
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                            wmma_gemm.template Run(
-                                a_thread_vec.template AsType<wmma_input_type_a>(),
-                                b_thread_vec.template AsType<wmma_input_type_b>(),
-                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                            wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
+                                          b_thread_vec.template AsType<wmma_input_type_b>(),
+                                          c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         });
                     });
                 });
@@ -411,10 +410,9 @@ struct BlockwiseGemmWMMA
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                        wmma_gemm.template Run(
-                            a_thread_vec.template AsType<wmma_input_type_a>(),
-                            b_thread_vec.template AsType<wmma_input_type_b>(),
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        wmma_gemm.Run(a_thread_vec.template AsType<wmma_input_type_a>(),
+                                      b_thread_vec.template AsType<wmma_input_type_b>(),
+                                      c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
             });
