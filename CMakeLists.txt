@@ -112,7 +112,7 @@ message("checking which targets are supported")
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)

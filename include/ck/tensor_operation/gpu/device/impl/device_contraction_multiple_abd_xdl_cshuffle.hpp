@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -501,29 +501,24 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             // for sanity check of vector memory access
             for(index_t i = 0; i < NumATensor; ++i)
             {
-                as_mz_consecutive_[i] = a_ms_ks_strides[i][NumDimM - 1] == 1;
-                as_kz_consecutive_[i] = a_ms_ks_strides[i][NumDimM + NumDimK - 1] == 1;
-                as_max_read_elems_[i] =
+                tie(as_continous_dim_[i], as_max_read_elems_[i]) =
                     CalculateMaxRead<NumDimM, NumDimK>(a_ms_ks_lengths[i], a_ms_ks_strides[i]);
             }
 
             for(index_t i = 0; i < NumBTensor; ++i)
             {
-                bs_nz_consecutive_[i] = b_ns_ks_strides[i][NumDimN - 1] == 1;
-                bs_kz_consecutive_[i] = b_ns_ks_strides[i][NumDimN + NumDimK - 1] == 1;
-                bs_max_read_elems_[i] =
+                tie(bs_continous_dim_[i], bs_max_read_elems_[i]) =
                     CalculateMaxRead<NumDimN, NumDimK>(b_ns_ks_lengths[i], b_ns_ks_strides[i]);
             }
 
             for(index_t i = 0; i < NumDTensor; ++i)
             {
-                ds_nz_consecutive_[i] = d_ms_ns_strides[i][NumDimM + NumDimN - 1] == 1;
-                ds_max_read_elems_[i] =
+                tie(ds_continous_dim_[i], ds_max_read_elems_[i]) =
                     CalculateMaxRead<NumDimM, NumDimN>(d_ms_ns_lengths[i], d_ms_ns_strides[i]);
             }
 
-            e_nz_consecutive_  = e_ms_ns_stride[NumDimM + NumDimN - 1] == 1;
-            e_max_write_elems_ = CalculateMaxRead<NumDimM, NumDimN>(e_ms_ns_length, e_ms_ns_stride);
+            tie(e_continous_dim_, e_max_write_elems_) =
+                CalculateMaxRead<NumDimM, NumDimN>(e_ms_ns_length, e_ms_ns_stride);
         }
 
         // pointers
@@ -553,14 +548,11 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
 
-        // Describe whether the last part of a given dimension of A/B/D/E is consecutive
-        // in the memory or not.
-        std::array<bool, NumATensor> as_mz_consecutive_;
-        std::array<bool, NumATensor> as_kz_consecutive_;
-        std::array<bool, NumBTensor> bs_nz_consecutive_;
-        std::array<bool, NumBTensor> bs_kz_consecutive_;
-        std::array<bool, NumDTensor> ds_nz_consecutive_;
-        bool e_nz_consecutive_;
+        // Describe whether the last part of a given dimension of A/B/D/E is continues dim.
+        std::array<index_t, NumATensor> as_continous_dim_;
+        std::array<index_t, NumATensor> bs_continous_dim_;
+        std::array<index_t, NumBTensor> ds_continous_dim_;
+        index_t e_continous_dim_;
 
         std::array<index_t, NumATensor> as_max_read_elems_;
         std::array<index_t, NumBTensor> bs_max_read_elems_;
@@ -659,9 +651,9 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 const bool valid_a_vector_size =
                     arg.as_max_read_elems_[i] % ABlockTransferSrcScalarPerVector == 0;
                 const bool valid_a_access_dim_m =
-                    ABlockTransferSrcVectorDim == 1 && arg.as_mz_consecutive_[i];
+                    ABlockTransferSrcVectorDim == 1 && arg.as_continous_dim_[i] == 0;
                 const bool valid_a_access_dim_k =
-                    ABlockTransferSrcVectorDim == 2 && arg.as_kz_consecutive_[i];
+                    ABlockTransferSrcVectorDim == 2 && arg.as_continous_dim_[i] == 1;
                 const bool valid_a_access_dim = valid_a_access_dim_m || valid_a_access_dim_k;
                 if(!((valid_a_vector_size && valid_a_access_dim) ||
                      ABlockTransferSrcScalarPerVector == 1))
@@ -679,9 +671,9 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 const bool valid_b_vector_size =
                     arg.bs_max_read_elems_[i] % BBlockTransferSrcScalarPerVector == 0;
                 const bool valid_b_access_dim_n =
-                    BBlockTransferSrcVectorDim == 1 && arg.bs_nz_consecutive_[i];
+                    BBlockTransferSrcVectorDim == 1 && arg.bs_continous_dim_[i] == 0;
                 const bool valid_b_access_dim_k =
-                    BBlockTransferSrcVectorDim == 2 && arg.bs_kz_consecutive_[i];
+                    BBlockTransferSrcVectorDim == 2 && arg.bs_continous_dim_[i] == 1;
                 const bool valid_b_access_dim = valid_b_access_dim_n || valid_b_access_dim_k;
                 if(!((valid_b_vector_size && valid_b_access_dim) ||
                      BBlockTransferSrcScalarPerVector == 1))
@@ -699,7 +691,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
                 const bool valid_d_vector_size =
                     arg.ds_max_read_elems_[i] % CDEBlockTransferScalarPerVector_NPerBlock == 0;
                 // Vector read of Ds is always on N dimension.
-                const bool valid_d_access_dim = arg.ds_nz_consecutive_[i];
+                const bool valid_d_access_dim = arg.ds_continous_dim_[i] == 1;
                 if(!((valid_d_vector_size && valid_d_access_dim) ||
                      CDEBlockTransferScalarPerVector_NPerBlock == 1))
                 {
@@ -714,7 +706,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
             const bool valid_e_vector_size =
                 arg.e_max_write_elems_ % CDEBlockTransferScalarPerVector_NPerBlock == 0;
             // Vector write of E is always on N dimension.
-            const bool valid_e_access_dim = arg.e_nz_consecutive_;
+            const bool valid_e_access_dim = arg.e_continous_dim_ == 1;
             if(!((valid_e_vector_size && valid_e_access_dim) ||
                  CDEBlockTransferScalarPerVector_NPerBlock == 1))
             {
