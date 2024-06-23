@@ -3,6 +3,7 @@
 # generate kernel instances to speed up compilation
 
 import argparse
+from enum import IntEnum
 from pathlib import Path
 from typing import List, Optional
 
@@ -12,6 +13,16 @@ from codegen.ops import (
     fmha_bwd
 )
 
+
+class HandlerId(IntEnum):
+    LIST_BLOBS = 0
+    WRITE_BLOBS = 1
+
+handlers = {
+    'fwd' : (fmha_fwd.list_blobs, fmha_fwd.write_blobs),
+    'bwd' : (fmha_bwd.list_blobs, fmha_bwd.write_blobs),
+}
+
 def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
@@ -20,24 +31,18 @@ def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter :
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    write_blobs_iml = {
-        'fwd': fmha_fwd.write_blobs,
-        'bwd': fmha_bwd.write_blobs,
-    }
     for api in api_list:
-        write_blobs_iml[api](output_dir, kernel_filter, receipt, mask_impl)
+        handler = handlers[api][HandlerId.WRITE_BLOBS]
+        handler(output_dir, kernel_filter, receipt, mask_impl)
 
 # list all the files that will be generated
 def list_blobs(output_file : Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:
     assert output_file is not None
     file_path = Path(output_file)
 
-    list_blobs_iml = {
-        'fwd': fmha_fwd.list_blobs,
-        'bwd': fmha_bwd.list_blobs,
-    }
     for api in api_list:
-        list_blobs_iml[api](file_path, kernel_filter, receipt, mask_impl)
+        handler = handlers[api][HandlerId.LIST_BLOBS]
+        handler(file_path, kernel_filter, receipt, mask_impl)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
