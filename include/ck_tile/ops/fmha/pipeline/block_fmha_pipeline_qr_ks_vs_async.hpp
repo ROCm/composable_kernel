@@ -10,6 +10,8 @@
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
+#define CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE 1
+
 namespace ck_tile {
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
@@ -642,10 +644,15 @@ struct BlockFmhaPipelineQRKSVSAsync
                                      k_dram_block_window.get_window_lengths(),
                                      k_dram_block_window.get_window_origin(),
                                      Policy::template MakeKDramTileDistribution<Problem>());
-
+#if CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE
+                // Note: rocm 6.2 will have precision issue if not have barrier
+                // need further debug
+                __builtin_amdgcn_s_barrier();
+#else
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
+#endif
                 async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
                 move_tile_window(k_dram_window, {0, kK0});
             }
