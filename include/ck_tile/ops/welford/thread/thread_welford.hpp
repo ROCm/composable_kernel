@@ -14,7 +14,7 @@ struct ThreadWelford
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     template <typename T>
-    __device__ inline void Update(T& mean, T& var, T x)
+    CK_TILE_DEVICE void Update(T& mean, T& var, T x)
     {
         if(ck_tile::isnan(x))
         {
@@ -33,14 +33,14 @@ struct ThreadWelford
     // [CAUSION] - max_count_ is to deal with the padding problem
     // max_count_ is depend on caller, eg: naive and splitN welford will have different
     // calculation of max_count_
-    __device__ constexpr ThreadWelford(int max_count) : cur_count_(0), max_count_(max_count) {}
+    CK_TILE_DEVICE constexpr ThreadWelford(int max_count) : cur_count_(0), max_count_(max_count) {}
 
     template <typename XDistributedTensor_,
               typename MeanDistributedTensor_,
               typename VarDistributedTensor_>
-    __device__ void operator()(const XDistributedTensor_& x_tensor,
-                               MeanDistributedTensor_& mean_tensor,
-                               VarDistributedTensor_& var_tensor)
+    CK_TILE_DEVICE void operator()(const XDistributedTensor_& x_tensor,
+                                   MeanDistributedTensor_& mean_tensor,
+                                   VarDistributedTensor_& var_tensor)
     {
         constexpr auto I0 = number<0>{};
         constexpr auto I1 = number<1>{};
@@ -65,7 +65,7 @@ struct ThreadWelford
     }
 
     template <typename XDistributedTensor_>
-    __device__ static auto MakeInitialMeanVarDistributedTensor()
+    CK_TILE_DEVICE static auto MakeInitialMeanVarDistributedTensor()
     {
         static_assert(std::is_same_v<XDataType, typename XDistributedTensor_::DataType>, "wrong!");
 
@@ -84,7 +84,7 @@ struct ThreadWelford
     }
 
     template <typename XDistributedTensor_>
-    __device__ auto operator()(const XDistributedTensor_& x_tensor)
+    CK_TILE_DEVICE auto operator()(const XDistributedTensor_& x_tensor)
     {
         auto mean_tensor = MakeInitialMeanVarDistributedTensor<XDistributedTensor_>();
         auto var_tensor  = MakeInitialMeanVarDistributedTensor<XDistributedTensor_>();

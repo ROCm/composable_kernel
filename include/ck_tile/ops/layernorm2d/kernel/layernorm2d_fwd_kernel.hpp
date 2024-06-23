@@ -50,24 +50,24 @@ struct Layernorm2dFwd
         ck_tile::index_t N;
     };
 
-    __host__ static constexpr Kargs MakeKargs(const void* p_x,
-                                              const void* p_gamma,
-                                              const void* p_beta,
-                                              void* p_y,
-                                              void* p_mean,
-                                              void* p_invStd,
-                                              float epsilon,
-                                              ck_tile::index_t M,
-                                              ck_tile::index_t N)
+    CK_TILE_HOST static constexpr Kargs MakeKargs(const void* p_x,
+                                                  const void* p_gamma,
+                                                  const void* p_beta,
+                                                  void* p_y,
+                                                  void* p_mean,
+                                                  void* p_invStd,
+                                                  float epsilon,
+                                                  ck_tile::index_t M,
+                                                  ck_tile::index_t N)
     {
         return Kargs{p_x, p_gamma, p_beta, p_y, p_mean, p_invStd, epsilon, M, N};
     }
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t M) { return M / kMPerBlock; }
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t M) { return M / kMPerBlock; }
 
-    __host__ static constexpr auto BlockSize() { return Problem::BlockShape::kBlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::kBlockSize; }
 
-    __device__ static constexpr auto MakeXBlockTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeXBlockTileDistribution()
     {
         using S = typename Problem::BlockShape;
 
@@ -82,7 +82,7 @@ struct Layernorm2dFwd
                 sequence<2, 2>>{});
     }
 
-    __device__ static constexpr auto MakeGammaBetaBlockTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeGammaBetaBlockTileDistribution()
     {
         using S = typename Problem::BlockShape;
 
@@ -97,7 +97,7 @@ struct Layernorm2dFwd
     }
 
     template <typename Dstr>
-    __device__ static constexpr auto GetNPerThread(Dstr)
+    CK_TILE_DEVICE static constexpr auto GetNPerThread(Dstr)
     {
         constexpr auto nDstrSpan = Dstr::get_distributed_spans().template at<1>();
 
@@ -112,8 +112,8 @@ struct Layernorm2dFwd
     }
 
     template <typename DistributedTensor>
-    __device__ static auto InvSqrt(const DistributedTensor& in_dstr_tensor,
-                                   const ComputeDataType epsilon)
+    CK_TILE_DEVICE static auto InvSqrt(const DistributedTensor& in_dstr_tensor,
+                                       const ComputeDataType epsilon)
     {
         // TODO: Investigate fast inverse square root algorithm with epsilon
         constexpr auto spans = DistributedTensor::get_distributed_spans();
@@ -130,15 +130,15 @@ struct Layernorm2dFwd
     }
 
     template <bool Cond = (kHasGamma && kHasBeta)>
-    __device__ std::enable_if_t<Cond> TwoPassLayernorm2dFwd(const XDataType* p_x,
-                                                            const GammaDataType* p_gamma,
-                                                            const BetaDataType* p_beta,
-                                                            YDataType* p_y,
-                                                            MeanDataType* p_mean,
-                                                            InvStdDataType* p_invStd,
-                                                            const ComputeDataType epsilon,
-                                                            ck_tile::index_t M,
-                                                            ck_tile::index_t N) const
+    CK_TILE_DEVICE std::enable_if_t<Cond> TwoPassLayernorm2dFwd(const XDataType* p_x,
+                                                                const GammaDataType* p_gamma,
+                                                                const BetaDataType* p_beta,
+                                                                YDataType* p_y,
+                                                                MeanDataType* p_mean,
+                                                                InvStdDataType* p_invStd,
+                                                                const ComputeDataType epsilon,
+                                                                ck_tile::index_t M,
+                                                                ck_tile::index_t N) const
     {
         constexpr auto I0 = number<0>{};
         constexpr auto I1 = number<1>{};
@@ -274,7 +274,7 @@ struct Layernorm2dFwd
         }
     }
 
-    __device__ void operator()(Kargs kargs) const
+    CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         TwoPassLayernorm2dFwd(static_cast<const XDataType*>(kargs.p_x),
                               static_cast<const GammaDataType*>(kargs.p_gamma),

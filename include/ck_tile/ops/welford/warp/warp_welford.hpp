@@ -13,7 +13,7 @@ struct WarpMergeWelford
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
 
     template <typename T>
-    __device__ static inline void
+    CK_TILE_DEVICE static void
     Merge(T& mean_a, T& var_a, int& count_a, T mean_b, T var_b, int count_b)
     {
         int count            = count_a + count_b;
@@ -29,7 +29,7 @@ struct WarpMergeWelford
     }
 
     template <typename MeanDistributedTensor_, typename VarDistributedTensor_>
-    __device__ void
+    CK_TILE_DEVICE void
     operator()(MeanDistributedTensor_& mean_tensor, VarDistributedTensor_& var_tensor, int& count)
     {
         using Dstr             = typename MeanDistributedTensor_::StaticTileDistribution;
