@@ -652,7 +652,7 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1;
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1; RUN_CK_TILE_TESTS=true
                                               0 21 * * * % ROCMVERSION=6.1;hipTensor_test=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;COMPILER_COMMIT=;USE_SCCACHE=false
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false
@@ -723,6 +723,10 @@ pipeline {
             name: "RUN_CODEGEN_TESTS",
             defaultValue: true,
             description: "Run the codegen tests (default: ON)")
+        booleanParam(
+            name: "RUN_CK_TILE_TESTS",
+            defaultValue: true,
+            description: "Run the ck_tile tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -825,6 +829,38 @@ pipeline {
                                            -D CMAKE_BUILD_TYPE=Release \
                                            -D GPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j check"""
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run CK_TILE Tests")
+        {
+            parallel
+            {
+                stage("Run CK_TILE Tests on gfx9")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                    }
+                    options { retry(2) }
+                    agent{ label rocmnode("gfx90a") || label rocmnode("gfx942")}
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ rm -rf build && mkdir build && cd build && \
+                                           cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                           -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+                                           -D CMAKE_BUILD_TYPE=Release \
+                                           -D GPU_TARGETS="gfx90a;gfx942" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           make -j tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           cd ../ &&
+                                           example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
+                                           example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
