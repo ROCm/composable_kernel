@@ -856,8 +856,7 @@ pipeline {
                                            -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -D CMAKE_BUILD_TYPE=Release \
                                            -D GPU_TARGETS="gfx90a" \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           make -j tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
                                            example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
@@ -882,8 +881,7 @@ pipeline {
                                            -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -D CMAKE_BUILD_TYPE=Release \
                                            -D GPU_TARGETS="gfx942" \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           make -j tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
                                            example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
