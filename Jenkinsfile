@@ -725,7 +725,7 @@ pipeline {
             description: "Run the codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CK_TILE_TESTS",
-            defaultValue: true,
+            defaultValue: false,
             description: "Run the ck_tile tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
