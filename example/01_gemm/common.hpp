@@ -43,7 +43,8 @@ struct ProblemSizeStreamK final
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    ck::index_t NumSKBlocks = -1;
+    ck::index_t Grid_size   = -1; //defaults to max occupancy
+    ck::index_t Streamk_sel = 1; //defaults to 1-tile SK
 };
 
 struct ProblemSizeSplitK final
@@ -155,7 +156,8 @@ bool parse_cmd_args<ProblemSizeStreamK>(int argc,
 
         if(argc >= 11)
         {
-            problem_size.NumSKBlocks = std::stoi(argv[10]);
+            problem_size.Streamk_sel = std::stoi(argv[10]);
+            problem_size.Grid_size   = std::stoi(argv[11]);
         }
     }
     else
@@ -165,7 +167,8 @@ bool parse_cmd_args<ProblemSizeStreamK>(int argc,
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
-                  << "arg10: NumSKBlocks(optional)" << std::endl;
+                  << "arg10: stream-k select (0: all DP, 1: 1-tile SK, 2: 2-tile SK)"
+                  << "\narg11: Grid_size(-1 for max occupancy)" << std::endl;
         return false;
     }
 
