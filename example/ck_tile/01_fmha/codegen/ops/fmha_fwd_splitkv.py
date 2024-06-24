@@ -9,13 +9,17 @@ import itertools
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
-from cmake_config import *
-from cpp_symbol_map import *
+from codegen.cmake_config import *
+from codegen.cpp_symbol_map import *
 
-from generate import (
-    FmhaFwdTileSize, FMHA_FWD_KERNEL_HEADER, FmhaFwdApiTrait,
-    FMHA_FWD_API_PER_HDIM_CASE, FMHA_FWD_API_PER_DTYPE
+from codegen.ops.fmha_fwd import (
+    FmhaFwdTileSize,
+    FmhaFwdApiTrait,
+    FMHA_FWD_KERNEL_HEADER,
+    FMHA_FWD_API_PER_DTYPE,
+    FMHA_FWD_API_PER_HDIM_CASE,
 )
+
 
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
