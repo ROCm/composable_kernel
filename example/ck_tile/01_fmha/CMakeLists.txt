@@ -1,7 +1,7 @@
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api fwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
+  --api fwd,fwd_splitkv --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
 )
 
 execute_process(
@@ -17,7 +17,7 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt FMHA_BWD_GEN_BLOBS)
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api fwd --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  --api fwd,fwd_splitkv --output_dir ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_custom_command(
