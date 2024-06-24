@@ -72,8 +72,6 @@ struct BlockFmhaFwdAppendKVPipeline
         }
     }();
 
-    static constexpr const char* name = "qr";
-
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();

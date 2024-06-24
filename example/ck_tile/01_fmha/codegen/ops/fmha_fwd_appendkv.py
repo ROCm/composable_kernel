@@ -93,7 +93,6 @@ FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {
 
 @dataclass
 class FmhaFwdAppendKVApiTrait:
-    pipeline_tag : str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim      : str
     dtype     : str  # data type
@@ -117,52 +116,28 @@ class FmhaFwdAppendKVApiTrait:
 
     @property
     def scheck(self) -> str:
-        if self.mode == 'group': return 'true/*group mode spad always true*/'                  # group mode only generate spad/skpad == true
-        if self.pipeline_tag == 'qr_async':
-            if self.spad == 't' : return 'true' # always support
-            else :                return 'true'
-        elif self.pipeline_tag in ['qr']:
-            if self.spad == 't' : return f'true /*a.seqlen_q % {self.bm0} != 0*/'  # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.seqlen_q % {self.bm0} == 0'
-        else: assert False
+        if self.mode == 'group': return 'true/*group mode spad always true*/'  # group mode only generate spad/skpad == true
+        if self.spad == 't' : return f'true /*a.seqlen_q % {self.bm0} != 0*/'
+        else :                return f'a.seqlen_q % {self.bm0} == 0'
 
     @property
     def skcheck(self) -> str:
-        if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
-        if self.pipeline_tag == 'qr_async':
-            if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
-            else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
-        elif self.pipeline_tag in ['qr', 'qr_fp8']:
-            if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.seqlen_k % {self.bn0} == 0'
-        else: assert False
+        if self.mode == 'group': return 'true/*group mode skpad always true*/' # group mode only generate spad/skpad == true
+        if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/'
+        else :                return f'a.seqlen_k % {self.bn0} == 0'
 
     @property
     def dcheck(self) -> str:
-        if self.pipeline_tag == 'qr_async':
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
-            if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
-            else :               assert False
-        elif self.pipeline_tag in ['qr']:
-            if self.dpad == 't': return f'true /*a.hdim_q % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :               return f'a.hdim_q % {self.bk0blen} == 0'
-        else:   assert False
+        if self.dpad == 't': return f'true /*a.hdim_q % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+        else :               return f'a.hdim_q % {self.bk0blen} == 0'
 
     @property
     def dvcheck(self) -> str:
-        if self.pipeline_tag == 'qr_async':
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
-            if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
-            else :                assert False
-        elif self.pipeline_tag in ['qr']:
-            if self.dvpad == 't': return f'true /*a.hdim_v % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.hdim_v % {self.bk0blen} == 0'
-        else:   assert False
+        if self.dvpad == 't': return f'true /*a.hdim_v % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+        else :                return f'a.hdim_v % {self.bk0blen} == 0'
 
 @dataclass
 class FmhaFwdAppendKVPipeline:
-    tag : str
-
     F_vlayout   : str  # row/col
     F_spad      : str  # true/false
     F_skpad     : str  #
@@ -180,7 +155,7 @@ class FmhaFwdAppendKVPipeline:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f'{self.tag}_v{self.F_vlayout[0]}'
+        n = f'v{self.F_vlayout[0]}'
         if pn != '' : n += f'_{pn}'
         return n
 
@@ -269,7 +244,6 @@ class FmhaFwdAppendKVKernel:
 
     def api_trait(self) -> FmhaFwdAppendKVApiTrait:
         return FmhaFwdAppendKVApiTrait(
-                pipeline_tag=self.F_pipeline.tag,
                 hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 mode=self.F_mode,
@@ -315,24 +289,15 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            if hdim == 256:
-            # if True:
-                pipelines.append(FmhaFwdAppendKVPipeline('qr', 'row', 'f', 'f', 'f', 'f'))
-                pipelines.append(FmhaFwdAppendKVPipeline('qr', 'col', 'f', 'f', 'f', 'f'))
+            pipelines.append(FmhaFwdAppendKVPipeline('row', 'f', 'f', 'f', 'f'))
+            pipelines.append(FmhaFwdAppendKVPipeline('col', 'f', 'f', 'f', 'f'))
 
-                pipelines.append(FmhaFwdAppendKVPipeline('qr', 'row', 't', 't', 't', 't'))
-                pipelines.append(FmhaFwdAppendKVPipeline('qr', 'col', 't', 't', 't', 't'))
-            else:
-                pipelines.append(FmhaFwdAppendKVPipeline('qr_async', 'row', 't', 'f', 't', 't'))
-                pipelines.append(FmhaFwdAppendKVPipeline('qr_async', 'row', 't', 't', 't', 't'))
-                pipelines.append(FmhaFwdAppendKVPipeline('qr_async', 'col', 't', 'f', 't', 't'))
-                pipelines.append(FmhaFwdAppendKVPipeline('qr_async', 'col', 't', 't', 't', 't'))
-                if receipt == 1:
-                    pipelines.append(FmhaFwdAppendKVPipeline('qr', 'row', 't', 't', 't', 't')) # TODO: cover arbitraty hdim
-                    pipelines.append(FmhaFwdAppendKVPipeline('qr', 'col', 't', 'f', 't', 't')) # TODO: cover arbitraty hdim
+            pipelines.append(FmhaFwdAppendKVPipeline('row', 't', 't', 't', 't'))
+            pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't'))
+
         elif dtype in ['fp8', 'bf8']:
             # no need lse/dropout kernels
-            pipelines.append(FmhaFwdAppendKVPipeline('qr', 'col', 'f', 'f', 'f', 'f'))
+            pipelines.append(FmhaFwdAppendKVPipeline('col', 'f', 'f', 'f', 'f'))
         else:
             assert False
         return pipelines
