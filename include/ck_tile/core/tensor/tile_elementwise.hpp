@@ -79,8 +79,10 @@ CK_TILE_DEVICE void set_tile(null_tensor&, const T&)
 template <typename DstrTensors, index_t v>
 CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
 {
+#if CK_TILE_CLEAR_BUF_SUBDWORD_OPT
     constexpr index_t tensor_bytes =
         DstrTensors::get_thread_buffer_size() * sizeof(typename DstrTensors::DataType);
+
     if constexpr(v == 0 && tensor_bytes % 4 == 0)
     {
         using dvec_t = array<index_t, tensor_bytes / 4>;
@@ -89,6 +91,7 @@ CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
             tensor.get(i) = v;
     }
     else
+#endif
     {
         tile_elementwise_inout(
             [](auto& x) { x = type_convert<typename DstrTensors::DataType, index_t>(v); },
