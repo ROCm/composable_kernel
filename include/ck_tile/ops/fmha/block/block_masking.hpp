@@ -389,7 +389,7 @@ struct SimplifiedGenericAttentionMask
             // index_t x_end    = min(i_y + x, x_total);
 
             bool top_right_edge   = i_x_end > min(i_y + x, x_total); // consider right pad
-            bool bottom_left_edge = i_y_end > (i_x + y);
+            bool bottom_left_edge = i_y_end > min(i_x + y, y_total); // consider bottom pad
             // bool is_partial_out_of_bound = i_x_end > x_end; // only consider right-pad for now
 
             return top_right_edge || bottom_left_edge;
