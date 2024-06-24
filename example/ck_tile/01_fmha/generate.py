@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import copy
 import fnmatch
 
+import fmha_fwd_splitkv
+
 DTYPE_MAP = {
     "fp16": "ck_tile::fp16_t",
     "bf16": "ck_tile::bf16_t",
@@ -1677,13 +1679,7 @@ def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optio
         write_fwd_api(api_pool, output_dir)
 
         # write split-kv blobs
-        kernels = get_fwd_splitkv_combine_blobs(kernel_filter, receipt)
-        for kernel in kernels:
-            write_single_fwd_kernel(kernel, output_dir)
-        api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl, True)
-        for kernel in kernels:
-            write_single_fwd_kernel(kernel, output_dir)
-        write_fwd_api(api_pool, output_dir)
+        fmha_fwd_splitkv.write_blobs(output_dir, kernel_filter, receipt, mask_impl)
     else:
         kernels = get_bwd_dot_do_o_blobs()
         for kernel in kernels:
@@ -1697,22 +1693,18 @@ def write_blobs(output_dir: Optional[str], direction: str, kernel_filter : Optio
 def list_blobs(output_file : Optional[str], direction : str, kernel_filter : Optional[str], receipt, mask_impl) -> None:
     assert output_file is not None
     file_path = Path(output_file)
-    with file_path.open('a') as f:
-        if direction == 'fwd':
+
+    if direction == 'fwd':
+        with file_path.open('a') as f:
             _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
             f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
 
-            # get split-kv blobs
-            kernels = get_fwd_splitkv_combine_blobs(kernel_filter, receipt)
-            for kernel in kernels:
-                f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-            _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl, True)
-            for kernel in kernels:
-                f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-            f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_SPLITKV_API_FILENAME) + "\n")
-        else:
+        # get split-kv blobs
+        fmha_fwd_splitkv.list_blobs(file_path, kernel_filter, receipt, mask_impl)
+    else:
+        with file_path.open('a') as f:
             kernels = get_bwd_dot_do_o_blobs()
             for kernel in kernels:
                 f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
