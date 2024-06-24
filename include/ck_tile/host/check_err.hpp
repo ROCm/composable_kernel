@@ -56,8 +56,9 @@ check_err(const Range& out,
     }
 
     const auto is_infinity_error = [=](auto o, auto r) {
-        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
-        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+        const bool either_not_finite = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same =
+            std::isinf(o) && std::isinf(r) && (bit_cast<uint64_t>(o) == bit_cast<uint64_t>(r));
 
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
@@ -114,8 +115,9 @@ check_err(const Range& out,
     }
 
     const auto is_infinity_error = [=](auto o, auto r) {
-        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
-        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+        const bool either_not_finite = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same =
+            std::isinf(o) && std::isinf(r) && (bit_cast<uint64_t>(o) == bit_cast<uint64_t>(r));
 
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
@@ -173,8 +175,9 @@ check_err(const Range& out,
     }
 
     const auto is_infinity_error = [=](auto o, auto r) {
-        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
-        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+        const bool either_not_finite = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same =
+            std::isinf(o) && std::isinf(r) && (bit_cast<uint64_t>(o) == bit_cast<uint64_t>(r));
 
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
@@ -285,8 +288,9 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     }
 
     const auto is_infinity_error = [=](auto o, auto r) {
-        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
-        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+        const bool either_not_finite = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same =
+            std::isinf(o) && std::isinf(r) && (bit_cast<uint64_t>(o) == bit_cast<uint64_t>(r));
 
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
@@ -357,8 +361,9 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     }
 
     const auto is_infinity_error = [=](auto o, auto r) {
-        const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
-        const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+        const bool either_not_finite = !std::isfinite(o) || !std::isfinite(r);
+        const bool both_infinite_and_same =
+            std::isinf(o) && std::isinf(r) && (bit_cast<uint64_t>(o) == bit_cast<uint64_t>(r));
 
         return either_not_finite && !(allow_infinity_ref && both_infinite_and_same);
     };
