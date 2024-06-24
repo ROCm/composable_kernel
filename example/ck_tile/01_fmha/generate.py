@@ -10,6 +10,7 @@ from typing import List, Optional
 from codegen.cmake_config import *
 from codegen.ops import (
     fmha_fwd,
+    fmha_fwd_appendkv,
     fmha_bwd
 )
 
@@ -19,8 +20,9 @@ class HandlerId(IntEnum):
     WRITE_BLOBS = 1
 
 handlers = {
-    'fwd' : (fmha_fwd.list_blobs, fmha_fwd.write_blobs),
-    'bwd' : (fmha_bwd.list_blobs, fmha_bwd.write_blobs),
+    'fwd'          : (fmha_fwd.list_blobs, fmha_fwd.write_blobs),
+    'fwd_appendkv' : (fmha_fwd_appendkv.list_blobs, fmha_fwd_appendkv.write_blobs),
+    'bwd'          : (fmha_bwd.list_blobs, fmha_bwd.write_blobs),
 }
 
 def write_blobs(output_dir: Optional[str], api_list : List[str], kernel_filter : Optional[str], receipt, mask_impl) -> None:

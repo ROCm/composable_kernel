@@ -234,6 +234,102 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
     return ck_tile::make_tuple(kargs, grids);
 }
 
+struct fmha_fwd_appendkv_args
+{
+    const void* q_ptr;
+    const void* k_ptr;
+    const void* knew_ptr;
+    const void* v_ptr;
+    const void* vnew_ptr;
+
+    const void* seqstart_q_ptr;
+    const void* seqstart_k_ptr;
+    const void* seqlen_k_ptr;
+
+    ck_tile::index_t batch;
+    ck_tile::index_t nhead_q;
+    ck_tile::index_t nhead_k;
+    ck_tile::index_t seqlen_q;
+    ck_tile::index_t max_seqlen_q;
+    ck_tile::index_t seqlen_k;
+    ck_tile::index_t seqlen_knew;
+    ck_tile::index_t hdim_q;
+    ck_tile::index_t hdim_v;
+
+    const void* rotary_cos_ptr;
+    const void* rotary_sin_ptr;
+    ck_tile::index_t rotary_dim;
+    bool is_rotary_interleaved;
+
+    ck_tile::index_t stride_q;
+    ck_tile::index_t stride_k;
+    ck_tile::index_t stride_knew;
+    ck_tile::index_t stride_v;
+    ck_tile::index_t stride_vnew;
+    ck_tile::index_t nhead_stride_q;
+    ck_tile::index_t nhead_stride_k;
+    ck_tile::index_t nhead_stride_knew;
+    ck_tile::index_t nhead_stride_v;
+    ck_tile::index_t nhead_stride_vnew;
+    ck_tile::index_t batch_stride_q;
+    ck_tile::index_t batch_stride_k;
+    ck_tile::index_t batch_stride_knew;
+    ck_tile::index_t batch_stride_v;
+    ck_tile::index_t batch_stride_vnew;
+};
+
+template <typename Kernel>
+auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
+{
+    assert(args.nhead_q % args.nhead_k == 0);
+    auto kargs = [&] {
+        // create group mode kernel arguments
+        if constexpr(Kernel::kIsGroupMode)
+        {
+            return Kernel::MakeKargs(args.q_ptr,
+                                     args.k_ptr,
+                                     args.v_ptr,
+                                     args.seqstart_q_ptr,
+                                     args.seqstart_k_ptr,
+                                     args.seqlen_k_ptr,
+                                     args.hdim_q,
+                                     args.hdim_v,
+                                     args.nhead_q,
+                                     args.nhead_q / args.nhead_k,
+                                     args.stride_q,
+                                     args.stride_k,
+                                     args.stride_v,
+                                     args.nhead_stride_q,
+                                     args.nhead_stride_k,
+                                     args.nhead_stride_v);
+        }
+        else
+        { // create batch mode kernel arguments
+            return Kernel::MakeKargs(args.q_ptr,
+                                     args.k_ptr,
+                                     args.v_ptr,
+                                     args.seqlen_q,
+                                     args.seqlen_k,
+                                     args.hdim_q,
+                                     args.hdim_v,
+                                     args.nhead_q,
+                                     args.nhead_q / args.nhead_k,
+                                     args.stride_q,
+                                     args.stride_k,
+                                     args.stride_v,
+                                     args.nhead_stride_q,
+                                     args.nhead_stride_k,
+                                     args.nhead_stride_v,
+                                     args.batch_stride_q,
+                                     args.batch_stride_k,
+                                     args.batch_stride_v);
+        }
+    }();
+
+    dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
+    return ck_tile::make_tuple(kargs, grids);
+}
+
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <ck_tile::index_t HDim_,
           typename DataType_,
@@ -282,6 +378,44 @@ struct fmha_fwd_traits_
 template <typename Traits_>
 float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 
+// this is used to pattern-match internl kernel implementation, not to instantiate kernel
+template <ck_tile::index_t HDim_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
+          ck_tile::index_t kK0_,
+          ck_tile::index_t kN1_,
+          ck_tile::index_t kK1_,
+          ck_tile::index_t kK0BlockLength_,
+          bool kIsVLayoutRowMajor_,
+          // bool kApplyRotray_,
+          bool kPadS_,
+          bool kPadSK_,
+          bool kPadD_,
+          bool kPadDv_>
+struct fmha_fwd_appendkv_traits_
+{
+    static constexpr ck_tile::index_t HDim           = HDim_;
+    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode               = kIsGroupMode_;
+    static constexpr ck_tile::index_t kM0            = kM0_;
+    static constexpr ck_tile::index_t kN0            = kN0_;
+    static constexpr ck_tile::index_t kK0            = kK0_;
+    static constexpr ck_tile::index_t kN1            = kN1_;
+    static constexpr ck_tile::index_t kK1            = kK1_;
+    static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
+    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
+    // static constexpr bool kApplyRotray       = kApplyRotray_;
+    static constexpr bool kPadS  = kPadS_;
+    static constexpr bool kPadSK = kPadSK_;
+    static constexpr bool kPadD  = kPadD_;
+    static constexpr bool kPadDv = kPadDv_;
+};
+
+template <typename Traits_>
+float fmha_fwd_appendkv_(const ck_tile::stream_config&, fmha_fwd_appendkv_args);
+
 // This is the public API, will be generated by script
 struct fmha_fwd_traits
 {
@@ -298,3 +432,15 @@ struct fmha_fwd_traits
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
+
+struct fmha_fwd_appendkv_traits
+{
+    int hdim_q;
+    int hdim_v;
+    std::string data_type;
+    bool is_group_mode;
+    bool is_v_rowmajor;
+};
+float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
+                        fmha_fwd_appendkv_args,
+                        const ck_tile::stream_config&);

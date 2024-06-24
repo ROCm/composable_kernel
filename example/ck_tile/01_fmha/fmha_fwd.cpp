@@ -50,7 +50,11 @@ auto create_args(int argc, char* argv[])
             "seqlen_q. if group-mode, means the average value of seqlen_q\n"
             "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
             "also with \"-s=s0,s1,s2...\" comma seperated int to set per batch seqlen(group-mode)")
-        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
+        .insert("s_k", "-1", "seqlen_k (including new key/value), -1 means equal to s")
+        .insert("s_k_new",
+                "0",
+                "seqlen_k for new key/value, 0 means not to use this at all; "
+                "-1 to choose s_k_new in [1, s] randomly.")
         .insert("s_kpad",
                 "-1",
                 "seqlen_k stride between 2 tokens, currently used in group-mode only\n"
@@ -178,6 +182,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               arg_parser.get_str("s"),
                                                               arg_parser.get_str("s_k"),
                                                               arg_parser.get_str("s_kpad"));
+
+    ck_tile::index_t seqlen_knew = arg_parser.get_int("s_k_new");
 
 #if 0
     // clang-format off
@@ -481,6 +487,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
               << ", mask:" << mask << ", v:" << vlayout << std::flush;
 
+    float ave_time = 0;
+
+    if(0 < seqlen_knew)
+    {
+        auto appendkv_traits = fmha_fwd_appendkv_traits{
+            hdim_q, hdim_v, data_type, mode == mode_enum::group, is_v_rowmajor};
+
+        auto appendkv_args = []() { return fmha_fwd_appendkv_args{}; }();
+
+        ave_time += fmha_fwd_appendkv(appendkv_traits, appendkv_args, stream_config);
+    }
+
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,
                                        data_type,
@@ -598,7 +616,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              {drop_seed, drop_offset}};
     }();
 
-    float ave_time = fmha_fwd(fmha_traits, fmha_args, stream_config);
+    ave_time += fmha_fwd(fmha_traits, fmha_args, stream_config);
 
     if(ave_time < 0)
     {
