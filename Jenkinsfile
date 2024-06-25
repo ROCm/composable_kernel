@@ -828,7 +828,6 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_CODEGEN_TESTS.toBoolean() }
                     }
-                    options { retry(2) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
@@ -856,7 +855,6 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_CK_TILE_TESTS.toBoolean() }
                     }
-                    options { retry(2) }
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = "NO_CK_BUILD"
@@ -877,7 +875,6 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_CK_TILE_TESTS.toBoolean() }
                     }
-                    options { retry(2) }
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = "NO_CK_BUILD"
@@ -1033,7 +1030,7 @@ pipeline {
                         beforeAgent true
                         expression { params.RUN_PERFORMANCE_TESTS.toBoolean() }
                     }
-                    options { retry(2) }
+                    options { retry(1) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = """ -DGPU_TARGETS="gfx90a" -DBUILD_DEV=On """
