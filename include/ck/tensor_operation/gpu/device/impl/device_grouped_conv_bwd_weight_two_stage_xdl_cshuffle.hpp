@@ -84,6 +84,11 @@ __global__ void
                                         k_idx);
 #else
     ignore = karg;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = compute_ptr_offset_of_batch;
+    ignore = num_k_per_block;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -145,6 +150,11 @@ __global__ void
                                              k_idx);
 #else
     ignore = karg;
+    ignore = a_grid_desc_ak0_m_ak1;
+    ignore = b_grid_desc_bk0_n_bk1;
+    ignore = c_grid_desc_mblock_mperblock_nblock_nperblock;
+    ignore = compute_ptr_offset_of_batch;
+    ignore = num_k_per_block;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
