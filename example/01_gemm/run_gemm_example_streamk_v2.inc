@@ -290,9 +290,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     return pass;
 }
 
-bool run_gemm_splitk_example(int argc, char* argv[])
+bool run_gemm_universal_streamk_example(int argc, char* argv[])
 {
-    ProblemSizeStreamK problem_size;
+    ProblemSizeStreamK_universal problem_size;
     ExecutionConfig config;
 
     return !parse_cmd_args(argc, argv, problem_size, config) || run_gemm(problem_size, config);
