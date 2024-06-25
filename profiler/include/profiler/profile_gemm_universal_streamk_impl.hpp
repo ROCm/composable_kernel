@@ -153,7 +153,7 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         std::vector<int> grid_size_list   = {38, 76, 114, 152, 190, 228, 266, 304, 342, 380};
-        std::vector<int> streamk_sel_list = {0, 1, 2};
+        std::vector<int> streamk_sel_list = {0, 1, 2, 3, 4};
 
         if(Grid_size == -1)
         {

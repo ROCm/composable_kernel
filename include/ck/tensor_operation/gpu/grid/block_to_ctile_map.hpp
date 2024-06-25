@@ -1471,6 +1471,16 @@ struct BlockToCTileMap_GemmStreamK_v2
             {
                 sk_tiles = bigEnough ? (grid_size + num_tiles % grid_size) : num_tiles;
             }
+            else if(streamk_sel == 3)
+            {
+                sk_tiles = (num_tiles > (2 * grid_size)) ? (2 * grid_size + num_tiles % grid_size)
+                                                         : num_tiles;
+            }
+            else if(streamk_sel == 4)
+            {
+                sk_tiles = (num_tiles > (3 * grid_size)) ? (3 * grid_size + num_tiles % grid_size)
+                                                         : num_tiles;
+            }
             sk_num_blocks = sk_tiles;
             // if(sk_tiles < sk_num_blocks)
             // {
