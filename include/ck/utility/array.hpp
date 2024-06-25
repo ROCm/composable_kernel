@@ -36,6 +36,8 @@ struct Array
 
         return *this;
     }
+    __host__ __device__ constexpr const TData* begin() const { return &mData[0]; }
+    __host__ __device__ constexpr const TData* end() const { return &mData[NSize]; }
 };
 
 // empty Array
