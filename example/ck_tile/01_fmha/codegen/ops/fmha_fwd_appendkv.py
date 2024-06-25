@@ -13,7 +13,6 @@ from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
 
 from codegen.ops.fmha_fwd import (
-    FmhaFwdTileSize,
     FmhaFwdApiTrait,
     DTYPE_BITS,
     FMHA_FWD_KERNEL_HEADER,
@@ -25,17 +24,6 @@ from codegen.ops.fmha_fwd import (
 FMHA_FWD_APPENDKV_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
-using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}>;
-using fmha_block_warps_{F_idx} = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
-using fmha_warp_tile_{F_idx} = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
-
-using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
-                                      fmha_block_warps_{F_idx},
-                                      fmha_warp_tile_{F_idx},
-                                      fmha_block_warps_{F_idx},
-                                      fmha_warp_tile_{F_idx},
-                                      {F_vlayout}>;
-
 using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdAppendKVTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
@@ -46,7 +34,11 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProbl
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
-    fmha_shape_{F_idx},
+    {F_bs},
+    {F_bsk}, 
+    {F_bd}, 
+    {F_bdv},
+    {F_vlayout},
     {F_mode},
     fmha_trait_{F_idx}>;
 
@@ -54,10 +46,10 @@ using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipeline<
     fmha_pipeline_problem_{F_idx}>;
 
 using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdAppendKVKernel<ck_tile::FmhaFwdAppendKVTilePartitioner<fmha_shape_{F_idx}>,
+    ck_tile::FmhaFwdAppendKVKernel<ck_tile::FmhaFwdAppendKVTilePartitioner<{F_bs}, {F_bsk}, {F_bd}, {F_bdv}>,
                   fmha_pipeline_{F_idx}>;
 
-using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout},
+using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout},
                         {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 #include <iostream>
@@ -86,7 +78,7 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits t, fmha_fwd_appendkv_args a, co
 
 FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 return fmha_fwd_appendkv_<trait_>(s, a);
             }}
 """
@@ -97,12 +89,10 @@ class FmhaFwdAppendKVApiTrait:
     hdim      : str
     dtype     : str  # data type
     mode      : str  # value from MODE_MAP
-    bm0       : int  # tile size along q seqlen (block size)
-    bn0       : int  # tile size along qk seqlen
-    bk0       : int  # tile size along qk gemm unroll
-    bn1       : int  # tile size along v head_dim
-    bk1       : int  # tile size along kv gemm unroll
-    bk0blen   : int
+    bs        : int  # tile size along q seqlen
+    bsk       : int  # tile size along k seqlen
+    bd        : int  # tile size along qk gemm unroll
+    bdv       : int  # tile size along kv gemm unroll
     vlayout   : str
     spad      : str
     skpad     : str
@@ -111,30 +101,30 @@ class FmhaFwdAppendKVApiTrait:
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0blen}-'+\
+        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bs}-{self.bsk}-{self.bd}-{self.bdv}-'+\
                     f'{self.vlayout}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}'
 
     @property
     def scheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode spad always true*/'  # group mode only generate spad/skpad == true
-        if self.spad == 't' : return f'true /*a.seqlen_q % {self.bm0} != 0*/'
-        else :                return f'a.seqlen_q % {self.bm0} == 0'
+        if self.spad == 't' : return f'true /*a.seqlen_q % {self.bs} != 0*/'
+        else :                return f'a.seqlen_q % {self.bs} == 0'
 
     @property
     def skcheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode skpad always true*/' # group mode only generate spad/skpad == true
-        if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/'
-        else :                return f'a.seqlen_k % {self.bn0} == 0'
+        if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bsk} != 0*/'
+        else :                return f'a.seqlen_k % {self.bsk} == 0'
 
     @property
     def dcheck(self) -> str:
-        if self.dpad == 't': return f'true /*a.hdim_q % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-        else :               return f'a.hdim_q % {self.bk0blen} == 0'
+        if self.dpad == 't': return f'true /*a.hdim_q % {self.bd} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+        else :               return f'a.hdim_q % {self.bd} == 0'
 
     @property
     def dvcheck(self) -> str:
-        if self.dvpad == 't': return f'true /*a.hdim_v % {self.bk0blen} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-        else :                return f'a.hdim_v % {self.bk0blen} == 0'
+        if self.dvpad == 't': return f'true /*a.hdim_v % {self.bdv} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+        else :                return f'a.hdim_v % {self.bdv} == 0'
 
 @dataclass
 class FmhaFwdAppendKVPipeline:
@@ -186,8 +176,7 @@ class FmhaFwdAppendKVApiPool:
                     inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
-                                   F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0blen=trait.bk0blen,
-                                   F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
+                                   F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
                 if_j = 'if' if j == 0 else 'else if'
                 per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_inner_dispatch=inners)
             if_i = 'if' if i == 0 else 'else if'
@@ -195,12 +184,24 @@ class FmhaFwdAppendKVApiPool:
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_APPENDKV_API.format(F_dispatch = per_dtypes)
 
 @dataclass
+class FmhaFwdAppendKVTileSize:
+    F_bs        : int  # tile size along q seqlen
+    F_bsk       : int  # tile size along k seqlen
+    F_bd        : int  # tile size along qk gemm unroll
+    F_bdv       : int  # tile size along kv gemm unroll
+    F_occupancy : int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
+    @property
+    def name(self) -> str:
+        return f"b{self.F_bs}x{self.F_bsk}x{self.F_bd}x{self.F_bdv}" +\
+            ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
+
+@dataclass
 class FmhaFwdAppendKVKernel:
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
     F_mode          : str  # value from MODE_MAP
-    F_tile          : FmhaFwdTileSize
+    F_tile          : FmhaFwdAppendKVTileSize
     F_pipeline      : FmhaFwdAppendKVPipeline
     mask_impl       : str
 
@@ -212,18 +213,10 @@ class FmhaFwdAppendKVKernel:
                 F_idx           = self.F_idx,
                 F_hdim          = self.F_hdim,
                 F_dtype         = DTYPE_MAP[self.F_dtype],
-                F_bm0           = self.F_tile.F_bm0,
-                F_bn0           = self.F_tile.F_bn0,
-                F_bk0           = self.F_tile.F_bk0,
-                F_bn1           = self.F_tile.F_bn1,
-                F_bk1           = self.F_tile.F_bk1,
-                F_bk0blen       = self.F_tile.F_bk0blen,
-                F_rm            = self.F_tile.F_rm,
-                F_rn            = self.F_tile.F_rn,
-                F_rk            = self.F_tile.F_rk,
-                F_wm            = self.F_tile.F_wm,
-                F_wn            = self.F_tile.F_wn,
-                F_wk            = self.F_tile.F_wk,
+                F_bs            = self.F_tile.F_bs,
+                F_bsk           = self.F_tile.F_bsk,
+                F_bd            = self.F_tile.F_bd,
+                F_bdv           = self.F_tile.F_bdv,
                 F_vlayout       = LAYOUT_MAP[self.F_pipeline.F_vlayout],
                 F_spad          = BOOL_MAP[self.F_pipeline.F_spad],
                 F_skpad         = BOOL_MAP[self.F_pipeline.F_skpad],
@@ -247,12 +240,10 @@ class FmhaFwdAppendKVKernel:
                 hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 mode=self.F_mode,
-                bm0=self.F_tile.F_bm0,
-                bn0=self.F_tile.F_bn0,
-                bk0=self.F_tile.F_bk0,
-                bn1=self.F_tile.F_bn1,
-                bk1=self.F_tile.F_bk1,
-                bk0blen=self.F_tile.F_bk0blen,
+                bs=self.F_tile.F_bs,
+                bsk=self.F_tile.F_bsk,
+                bd=self.F_tile.F_bd,
+                bdv=self.F_tile.F_bdv,
                 vlayout=self.F_pipeline.F_vlayout,
                 spad=self.F_pipeline.F_spad,
                 skpad=self.F_pipeline.F_skpad,
@@ -261,24 +252,24 @@ class FmhaFwdAppendKVKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
+def get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+            '32'  : FmhaFwdAppendKVTileSize(64, 64,  32,  32, -1),
+            '64'  : FmhaFwdAppendKVTileSize(64, 64,  64,  64, -1),
+            '128' : FmhaFwdAppendKVTileSize(64, 64, 128, 128, -1),
+            '256' : FmhaFwdAppendKVTileSize(64, 64, 256, 256, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     2, 1, 1, 32, 32, 32, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 32, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 32, -1)
+            '64'  : FmhaFwdAppendKVTileSize(64, 64,  64,  64, -1),
+            '128' : FmhaFwdAppendKVTileSize(64, 64, 128, 128, -1),
+            '256' : FmhaFwdAppendKVTileSize(64, 64, 256, 256, -1)
         }
     else:
         return None
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
+def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines(dtype, hdim) -> List[FmhaFwdAppendKVPipeline]:
@@ -289,8 +280,8 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            pipelines.append(FmhaFwdAppendKVPipeline('row', 'f', 'f', 'f', 'f'))
-            pipelines.append(FmhaFwdAppendKVPipeline('col', 'f', 'f', 'f', 'f'))
+            # pipelines.append(FmhaFwdAppendKVPipeline('row', 'f', 'f', 'f', 'f'))
+            # pipelines.append(FmhaFwdAppendKVPipeline('col', 'f', 'f', 'f', 'f'))
 
             pipelines.append(FmhaFwdAppendKVPipeline('row', 't', 't', 't', 't'))
             pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't'))
@@ -306,7 +297,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
     api_pool = FmhaFwdAppendKVApiPool(mask_impl)
 
     for dtype in DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
+        d = get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -347,14 +338,14 @@ def write_fwd_appendkv_api(api_pool : FmhaFwdAppendKVApiPool, autogen_dir: Path)
     (autogen_dir / FMHA_FWD_APPENDKV_API_FILENAME).write_text(api_pool.api)
 
 def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
-    api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
+    api_pool, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_fwd_appendkv_api(api_pool, output_dir)
 
 def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, mask_impl) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_blobs(kernel_filter, receipt, mask_impl)
+        _, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME) + "\n")

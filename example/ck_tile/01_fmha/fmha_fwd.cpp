@@ -472,7 +472,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
+    knew_buf.ToDevice(knew_host.data());
     v_buf.ToDevice(v_host.data());
+    vnew_buf.ToDevice(vnew_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
@@ -726,6 +728,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
               << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
               << " GB/s" << std::flush;
+
+    k_buf.FromDevice(k_host.data());
+    for(int row = 0; row < shape_seqlen_k; ++row)
+    {
+        printf("[POYENC][HOST] k_host[%3d] = ", row);
+        for(int col = 0; col < hdim_q; ++col)
+        {
+            printf("%11.7f", ck_tile::type_convert<float>(k_host(0, 0, row, col)));
+        }
+        printf("\n");
+    }
 
     if(!do_validation)
     {

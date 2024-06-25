@@ -345,6 +345,10 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
     }();
 
     dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
+    printf("[POYENC][HOST] grid size: %2d,%2d,%2d\n",
+           static_cast<int>(grids.x),
+           static_cast<int>(grids.y),
+           static_cast<int>(grids.z));
     return ck_tile::make_tuple(kargs, grids);
 }
 
@@ -400,33 +404,29 @@ float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 template <ck_tile::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
-          ck_tile::index_t kM0_,
-          ck_tile::index_t kN0_,
-          ck_tile::index_t kK0_,
-          ck_tile::index_t kN1_,
-          ck_tile::index_t kK1_,
-          ck_tile::index_t kK0BlockLength_,
+          ck_tile::index_t kTileSizeS_,
+          ck_tile::index_t kTileSizeSk_,
+          ck_tile::index_t kTileSizeD_,
+          ck_tile::index_t kTileSizeDv_,
           bool kIsVLayoutRowMajor_,
           // bool kApplyRotray_,
           bool kPadS_,
-          bool kPadSK_,
+          bool kPadSk_,
           bool kPadD_,
           bool kPadDv_>
 struct fmha_fwd_appendkv_traits_
 {
-    static constexpr ck_tile::index_t HDim           = HDim_;
-    using DataType                                   = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode               = kIsGroupMode_;
-    static constexpr ck_tile::index_t kM0            = kM0_;
-    static constexpr ck_tile::index_t kN0            = kN0_;
-    static constexpr ck_tile::index_t kK0            = kK0_;
-    static constexpr ck_tile::index_t kN1            = kN1_;
-    static constexpr ck_tile::index_t kK1            = kK1_;
-    static constexpr ck_tile::index_t kK0BlockLength = kK0BlockLength_;
-    static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
+    static constexpr ck_tile::index_t HDim        = HDim_;
+    using DataType                                = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode            = kIsGroupMode_;
+    static constexpr ck_tile::index_t kTileSizeS  = kTileSizeS_;
+    static constexpr ck_tile::index_t kTileSizeSk = kTileSizeSk_;
+    static constexpr ck_tile::index_t kTileSizeD  = kTileSizeD_;
+    static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
+    static constexpr bool kIsVLayoutRowMajor      = kIsVLayoutRowMajor_;
     // static constexpr bool kApplyRotray       = kApplyRotray_;
     static constexpr bool kPadS  = kPadS_;
-    static constexpr bool kPadSK = kPadSK_;
+    static constexpr bool kPadSk = kPadSk_;
     static constexpr bool kPadD  = kPadD_;
     static constexpr bool kPadDv = kPadDv_;
 };

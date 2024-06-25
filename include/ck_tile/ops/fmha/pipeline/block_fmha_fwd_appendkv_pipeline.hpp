@@ -17,17 +17,14 @@ struct BlockFmhaFwdAppendKVPipeline
     using KDataType = typename Problem::KDataType;
     using VDataType = typename Problem::VDataType;
 
-    using BlockFmhaShape = typename Problem::BlockFmhaShape;
-    using VLayout        = typename BlockFmhaShape::VLayout;
+    using VLayout = typename Problem::VLayout;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0            = BlockFmhaShape::kM0;
-    static constexpr index_t kN0            = BlockFmhaShape::kN0;
-    static constexpr index_t kK0            = BlockFmhaShape::kK0;
-    static constexpr index_t kN1            = BlockFmhaShape::kN1;
-    static constexpr index_t kK1            = BlockFmhaShape::kK1;
-    static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
+    static constexpr index_t kTileSizeS  = Problem::kTileSizeS;
+    static constexpr index_t kTileSizeSk = Problem::kTileSizeSk;
+    static constexpr index_t kTileSizeD  = Problem::kTileSizeD;
+    static constexpr index_t kTileSizeDv = Problem::kTileSizeDv;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -53,19 +50,19 @@ struct BlockFmhaFwdAppendKVPipeline
             return Problem::kBlockPerCu;
         else
         {
-            if constexpr(kK0BlockLength <= 32)
+            if constexpr(kTileSizeD <= 32)
             {
                 return 2;
             }
-            else if constexpr(kK0BlockLength <= 64)
+            else if constexpr(kTileSizeD <= 64)
             {
                 return 3;
             }
-            else if constexpr(kK0BlockLength <= 128)
+            else if constexpr(kTileSizeD <= 128)
             {
                 return 2;
             }
-            else if constexpr(kK0BlockLength <= 256)
+            else if constexpr(kTileSizeD <= 256)
             {
                 return 1;
             }
@@ -90,11 +87,11 @@ struct BlockFmhaFwdAppendKVPipeline
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                const KElementFunction& k_element_func,
                const KnewDramBlockWindowTmp& knew_dram_block_window_tmp, // N0*K0 tile
                const KnewElementFunction& knew_element_func,
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
                const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp, // N1*K1 tile
                const VnewElementFunction& vnew_element_func,
@@ -111,6 +108,39 @@ struct BlockFmhaFwdAppendKVPipeline
         (void)vnew_dram_block_window_tmp;
         (void)vnew_element_func;
         (void)smem_ptr;
+
+        auto knew_dram_block_window =
+            make_tile_window(knew_dram_block_window_tmp.get_bottom_tensor_view(),
+                             knew_dram_block_window_tmp.get_window_lengths(),
+                             {0, 0});
+
+        auto knew_dram_window =
+            make_tile_window(knew_dram_block_window.get_bottom_tensor_view(),
+                             knew_dram_block_window.get_window_lengths(),
+                             knew_dram_block_window.get_window_origin(),
+                             Policy::template MakeKnewDramTileDistribution<Problem>());
+
+        auto knew_tile = load_tile(knew_dram_window);
+        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0)
+        {
+            constexpr auto spans = decltype(knew_tile)::get_distributed_spans();
+            sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        knew_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                    const auto row         = tile_idx.at(number<0>{});
+                    const auto col         = tile_idx.at(number<1>{});
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                    printf("[POYENC][DEVICE] knew_tile(%2d,%2d): %11.7f\n",
+                           row,
+                           col,
+                           type_convert<float>(knew_tile(i_j_idx)));
+                });
+            });
+        }
+        store_tile(k_dram_block_window_tmp, knew_tile);
     }
 
     template <typename QDramBlockWindowTmp,
@@ -119,9 +149,9 @@ struct BlockFmhaFwdAppendKVPipeline
               typename VDramBlockWindowTmp,
               typename VnewDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
-                                        const KDramBlockWindowTmp& k_dram_block_window_tmp,
+                                        KDramBlockWindowTmp& k_dram_block_window_tmp,
                                         const KnewDramBlockWindowTmp& knew_dram_block_window_tmp,
-                                        const VDramBlockWindowTmp& v_dram_block_window_tmp,
+                                        VDramBlockWindowTmp& v_dram_block_window_tmp,
                                         const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp,
                                         void* smem_ptr) const
     {

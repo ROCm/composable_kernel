@@ -7,35 +7,30 @@
 
 namespace ck_tile {
 
-template <typename BlockFmhaShape_>
+template <index_t kTileSizeS_, index_t kTileSizeSk_, index_t kTileSizeD_, index_t kTileSizeDv_>
 struct FmhaFwdAppendKVTilePartitioner
 {
-    using BlockFmhaShape = ck_tile::remove_cvref_t<BlockFmhaShape_>;
+    static constexpr ck_tile::index_t kTileSizeS  = kTileSizeS_;
+    static constexpr ck_tile::index_t kTileSizeSk = kTileSizeSk_;
+    static constexpr ck_tile::index_t kTileSizeD  = kTileSizeD_;
+    static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
 
-    static constexpr ck_tile::index_t kM0 = BlockFmhaShape::kM0;
-    static constexpr ck_tile::index_t kN0 = BlockFmhaShape::kN0;
-    static constexpr ck_tile::index_t kK0 = BlockFmhaShape::kK0;
-    static constexpr ck_tile::index_t kN1 = BlockFmhaShape::kN1;
-    static constexpr ck_tile::index_t kK1 = BlockFmhaShape::kK1;
+    static_assert(kTileSizeD == kTileSizeDv);
 
-    static constexpr const char* name = "shb";
-
-    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
-                                                ck_tile::index_t nhead_,
-                                                ck_tile::index_t seqlen_q_,
-                                                ck_tile::index_t hdim_v_)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
+                                                ck_tile::index_t nhead,
+                                                ck_tile::index_t seqlen_knew,
+                                                ck_tile::index_t /*hdim_v*/)
     {
+        assert(ck_tile::integer_divide_ceil(hdim_v, kTileSizeD) == 1);
+
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kM0) *
-                        ck_tile::integer_divide_ceil(hdim_v_, kN1),
-                    nhead_,
-                    batch_size_);
+        return dim3(ck_tile::integer_divide_ceil(seqlen_knew, kTileSizeSk), nhead, batch_size);
     }
 
-    CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t hdim_v)
+    CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_q*/, ck_tile::index_t /*hdim_v*/)
     {
-        // const index_t num_tile_m0 = seqlen_q / kM0;
-        const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, kN1);
+        // const index_t num_tile_n1 = ck_tile::integer_divide_ceil(hdim_v, kN1);
 
         const index_t i_block = blockIdx.x;
         const index_t i_nhead = blockIdx.y;
@@ -46,10 +41,10 @@ struct FmhaFwdAppendKVTilePartitioner
             index_t modulus  = dividend - quotient * divisor;
             return ck_tile::make_tuple(quotient, modulus);
         };
+        (void)f;
+        // const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
 
-        const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
-        return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+        return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 };
 

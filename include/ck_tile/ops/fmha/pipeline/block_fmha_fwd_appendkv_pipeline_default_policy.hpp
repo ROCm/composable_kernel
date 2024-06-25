@@ -28,13 +28,13 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
-        using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VLayout   = remove_cvref_t<typename Problem::VLayout>;
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t kBlockSize   = Problem::kBlockSize;
-            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
+            constexpr index_t kNPerBlock   = Problem::kTileSizeSk;
+            constexpr index_t kKPerBlock   = Problem::kTileSizeDv;
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
 
             // TODO: not correct!
@@ -53,6 +53,30 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return 1;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKnewDramTileDistribution()
+    {
+        using KDataType = remove_cvref_t<typename Problem::KDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::kTileSizeSk;
+        constexpr index_t kKPerBlock = Problem::kTileSizeD;
+
+        constexpr index_t K1 = 16 / sizeof(KDataType);
+        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t N2 = get_warp_size() / K0;
+        constexpr index_t N1 = kBlockSize / get_warp_size();
+        constexpr index_t N0 = kNPerBlock / (N2 * N1);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 };
 
