@@ -94,13 +94,13 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     using namespace ck::literals;
 
-    auto M        = problem_size.M;
-    auto N        = problem_size.N;
-    auto K        = problem_size.K;
-    auto StrideA  = problem_size.StrideA;
-    auto StrideB  = problem_size.StrideB;
-    auto StrideC  = problem_size.StrideC;
-    auto Grid_size = problem_size.Grid_size;
+    auto M           = problem_size.M;
+    auto N           = problem_size.N;
+    auto K           = problem_size.K;
+    auto StrideA     = problem_size.StrideA;
+    auto StrideB     = problem_size.StrideB;
+    auto StrideC     = problem_size.StrideC;
+    auto Grid_size   = problem_size.Grid_size;
     auto Streamk_sel = problem_size.Streamk_sel;
 
     auto f_host_tensor_descriptor =

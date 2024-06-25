@@ -43,8 +43,8 @@ struct ProblemSizeStreamK final
     ck::index_t StrideB = 4096;
     ck::index_t StrideC = 4096;
 
-    ck::index_t Grid_size   = -1; //defaults to max occupancy
-    ck::index_t Streamk_sel = 1; //defaults to 1-tile SK
+    ck::index_t Grid_size   = -1; // defaults to max occupancy
+    ck::index_t Streamk_sel = 1;  // defaults to 1-tile SK
 };
 
 struct ProblemSizeSplitK final
