@@ -237,9 +237,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
 struct fmha_fwd_appendkv_args
 {
     const void* q_ptr;
-    const void* k_ptr;
+    void* k_ptr;
     const void* knew_ptr;
-    const void* v_ptr;
+    void* v_ptr;
     const void* vnew_ptr;
 
     const void* seqstart_q_ptr;
@@ -288,41 +288,59 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
         {
             return Kernel::MakeKargs(args.q_ptr,
                                      args.k_ptr,
+                                     args.knew_ptr,
                                      args.v_ptr,
+                                     args.vnew_ptr,
                                      args.seqstart_q_ptr,
                                      args.seqstart_k_ptr,
                                      args.seqlen_k_ptr,
+                                     args.seqlen_knew,
                                      args.hdim_q,
                                      args.hdim_v,
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.stride_q,
                                      args.stride_k,
+                                     args.stride_knew,
                                      args.stride_v,
+                                     args.stride_vnew,
                                      args.nhead_stride_q,
                                      args.nhead_stride_k,
-                                     args.nhead_stride_v);
+                                     args.nhead_stride_knew,
+                                     args.nhead_stride_v,
+                                     args.nhead_stride_vnew,
+                                     args.batch_stride_knew,
+                                     args.batch_stride_vnew);
         }
         else
         { // create batch mode kernel arguments
             return Kernel::MakeKargs(args.q_ptr,
                                      args.k_ptr,
+                                     args.knew_ptr,
                                      args.v_ptr,
+                                     args.vnew_ptr,
                                      args.seqlen_q,
                                      args.seqlen_k,
+                                     args.seqlen_knew,
                                      args.hdim_q,
                                      args.hdim_v,
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.stride_q,
                                      args.stride_k,
+                                     args.stride_knew,
                                      args.stride_v,
+                                     args.stride_vnew,
                                      args.nhead_stride_q,
                                      args.nhead_stride_k,
+                                     args.nhead_stride_knew,
                                      args.nhead_stride_v,
+                                     args.nhead_stride_vnew,
                                      args.batch_stride_q,
                                      args.batch_stride_k,
-                                     args.batch_stride_v);
+                                     args.batch_stride_knew,
+                                     args.batch_stride_v,
+                                     args.batch_stride_vnew);
         }
     }();
 

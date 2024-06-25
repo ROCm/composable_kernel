@@ -83,11 +83,14 @@ struct FmhaFwdAppendKVKernel
     struct CommonKargs
     {
         const void* q_ptr;
-        const void* k_ptr;
-        const void* v_ptr;
+        void* k_ptr;
+        const void* knew_ptr;
+        void* v_ptr;
+        const void* vnew_ptr;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
+        ck_tile::index_t seqlen_knew;
         ck_tile::index_t hdim_q;
         ck_tile::index_t hdim_v;
 
@@ -98,11 +101,18 @@ struct FmhaFwdAppendKVKernel
 
         ck_tile::index_t stride_q;
         ck_tile::index_t stride_k;
+        ck_tile::index_t stride_knew;
         ck_tile::index_t stride_v;
+        ck_tile::index_t stride_vnew;
 
         ck_tile::index_t nhead_stride_q;
         ck_tile::index_t nhead_stride_k;
+        ck_tile::index_t nhead_stride_knew;
         ck_tile::index_t nhead_stride_v;
+        ck_tile::index_t nhead_stride_vnew;
+
+        ck_tile::index_t batch_stride_knew;
+        ck_tile::index_t batch_stride_vnew;
     };
 
     struct BatchModeKargs : CommonKargs
@@ -124,39 +134,57 @@ struct FmhaFwdAppendKVKernel
     template <bool Cond = !kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
+              void* k_ptr,
+              const void* knew_ptr,
+              void* v_ptr,
+              const void* vnew_ptr,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k,
+              ck_tile::index_t seqlen_knew,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
+              ck_tile::index_t stride_knew,
               ck_tile::index_t stride_v,
+              ck_tile::index_t stride_vnew,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_knew,
               ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_vnew,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
-              ck_tile::index_t batch_stride_v)
+              ck_tile::index_t batch_stride_knew,
+              ck_tile::index_t batch_stride_v,
+              ck_tile::index_t batch_stride_vnew)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
+                     knew_ptr,
                      v_ptr,
+                     vnew_ptr,
                      seqlen_q,
                      seqlen_k,
+                     seqlen_knew,
                      hdim_q,
                      hdim_v,
                      num_head_q,
                      nhead_ratio_qk,
                      stride_q,
                      stride_k,
+                     stride_knew,
                      stride_v,
+                     stride_vnew,
                      nhead_stride_q,
                      nhead_stride_k,
-                     nhead_stride_v}, // args for common karg
+                     nhead_stride_knew,
+                     nhead_stride_v,
+                     nhead_stride_vnew,
+                     batch_stride_knew,
+                     batch_stride_vnew}, // args for common karg
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v};
@@ -167,37 +195,55 @@ struct FmhaFwdAppendKVKernel
     template <bool Cond = kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
+              void* k_ptr,
+              const void* knew_ptr,
+              void* v_ptr,
+              const void* vnew_ptr,
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
               const void* seqlen_k_ptr,
+              ck_tile::index_t seqlen_knew,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
+              ck_tile::index_t stride_knew,
               ck_tile::index_t stride_v,
+              ck_tile::index_t stride_vnew,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v)
+              ck_tile::index_t nhead_stride_knew,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_vnew,
+              ck_tile::index_t batch_stride_knew,
+              ck_tile::index_t batch_stride_vnew)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
+                     knew_ptr,
                      v_ptr,
+                     vnew_ptr,
                      -1, // seqlen will be updated by another pointer
                      -1, //
+                     seqlen_knew,
                      hdim_q,
                      hdim_v,
                      num_head_q,
                      nhead_ratio_qk,
                      stride_q,
                      stride_k,
+                     stride_knew,
                      stride_v,
+                     stride_vnew,
                      nhead_stride_q,
                      nhead_stride_k,
-                     nhead_stride_v}, // args for common karg
+                     nhead_stride_knew,
+                     nhead_stride_v,
+                     nhead_stride_vnew,
+                     batch_stride_knew,
+                     batch_stride_vnew}, // args for common karg
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -233,7 +279,11 @@ struct FmhaFwdAppendKVKernel
 
         long_index_t batch_offset_q = 0;
         long_index_t batch_offset_k = 0;
+        long_index_t batch_offset_knew =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_knew;
         long_index_t batch_offset_v = 0;
+        long_index_t batch_offset_vnew =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_vnew;
 
         if constexpr(kIsGroupMode)
         {
@@ -288,10 +338,18 @@ struct FmhaFwdAppendKVKernel
             reinterpret_cast<const KDataType*>(kargs.k_ptr) +
             static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k +
             batch_offset_k;
+        const KDataType* knew_ptr =
+            reinterpret_cast<const KDataType*>(kargs.knew_ptr) +
+            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_knew +
+            batch_offset_knew;
         const VDataType* v_ptr =
             reinterpret_cast<const VDataType*>(kargs.v_ptr) +
             static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v +
             batch_offset_v;
+        const VDataType* vnew_ptr =
+            reinterpret_cast<const VDataType*>(kargs.vnew_ptr) +
+            static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_vnew +
+            batch_offset_vnew;
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
@@ -317,6 +375,19 @@ struct FmhaFwdAppendKVKernel
 
             return pad_tensor_view(
                 k_dram_naive,
+                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                sequence<kPadSeqLenK, kPadHeadDimQ>{});
+        }();
+        const auto knew_dram = [&]() {
+            const auto knew_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                knew_ptr,
+                make_tuple(kargs.seqlen_knew, kargs.hdim_q),
+                make_tuple(kargs.stride_knew, 1),
+                number<FmhaPipeline::kAlignmentK>{},
+                number<1>{});
+
+            return pad_tensor_view(
+                knew_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenK, kPadHeadDimQ>{});
         }();
@@ -357,6 +428,43 @@ struct FmhaFwdAppendKVKernel
                     sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
         }();
+        const auto vnew_dram = [&]() {
+            if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                const auto vnew_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                    vnew_ptr,
+                    make_tuple(kargs.seqlen_knew, kargs.hdim_v),
+                    make_tuple(kargs.stride_vnew, 1),
+                    number<FmhaPipeline::kAlignmentV>{},
+                    number<1>{});
+
+                const auto vnew_dram_transposed = transform_tensor_view(
+                    vnew_dram_naive,
+                    make_tuple(make_pass_through_transform(kargs.hdim_v),
+                               make_pass_through_transform(kargs.seqlen_knew)),
+                    make_tuple(sequence<1>{}, sequence<0>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                return pad_tensor_view(
+                    vnew_dram_transposed,
+                    make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
+            }
+            else
+            {
+                const auto vnew_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                    vnew_ptr,
+                    make_tuple(kargs.hdim_v, kargs.seqlen_knew),
+                    make_tuple(kargs.stride_vnew, 1),
+                    number<FmhaPipeline::kAlignmentV>{},
+                    number<1>{});
+
+                return pad_tensor_view(
+                    vnew_dram_naive,
+                    make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
+            }
+        }();
 
         auto q_dram_window =
             make_tile_window(q_dram,
@@ -366,12 +474,27 @@ struct FmhaFwdAppendKVKernel
         auto k_dram_window = make_tile_window(
             k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
 
+        auto knew_dram_window =
+            make_tile_window(knew_dram,
+                             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                             {0, 0});
+
         auto v_dram_window =
             make_tile_window(v_dram,
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
 
-        FmhaPipeline{}(q_dram_window, k_dram_window, v_dram_window, smem_ptr);
+        auto vnew_dram_window =
+            make_tile_window(vnew_dram,
+                             make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
+                             {i_n1, 0});
+
+        FmhaPipeline{}(q_dram_window,
+                       k_dram_window,
+                       knew_dram_window,
+                       v_dram_window,
+                       vnew_dram_window,
+                       smem_ptr);
     }
 };
 

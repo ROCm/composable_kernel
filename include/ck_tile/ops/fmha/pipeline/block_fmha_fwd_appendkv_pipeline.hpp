@@ -79,41 +79,61 @@ struct BlockFmhaFwdAppendKVPipeline
 
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
+              typename KnewDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
+              typename VnewDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
-              typename VElementFunction>
+              typename KnewElementFunction,
+              typename VElementFunction,
+              typename VnewElementFunction>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                const KElementFunction& k_element_func,
+               const KnewDramBlockWindowTmp& knew_dram_block_window_tmp, // N0*K0 tile
+               const KnewElementFunction& knew_element_func,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
+               const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp, // N1*K1 tile
+               const VnewElementFunction& vnew_element_func,
                void* smem_ptr) const
     {
         (void)q_dram_block_window_tmp;
         (void)q_element_func;
         (void)k_dram_block_window_tmp;
         (void)k_element_func;
+        (void)knew_dram_block_window_tmp;
+        (void)knew_element_func;
         (void)v_dram_block_window_tmp;
         (void)v_element_func;
+        (void)vnew_dram_block_window_tmp;
+        (void)vnew_element_func;
         (void)smem_ptr;
     }
 
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
-              typename VDramBlockWindowTmp>
+              typename KnewDramBlockWindowTmp,
+              typename VDramBlockWindowTmp,
+              typename VnewDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                                         const KDramBlockWindowTmp& k_dram_block_window_tmp,
+                                        const KnewDramBlockWindowTmp& knew_dram_block_window_tmp,
                                         const VDramBlockWindowTmp& v_dram_block_window_tmp,
+                                        const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp,
                                         void* smem_ptr) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
                           identity{},
+                          knew_dram_block_window_tmp,
+                          identity{},
                           v_dram_block_window_tmp,
+                          identity{},
+                          vnew_dram_block_window_tmp,
                           identity{},
                           smem_ptr);
     }

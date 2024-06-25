@@ -352,10 +352,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
     ck_tile::HostTensor<KDataType> k_host(
         get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+    ck_tile::HostTensor<KDataType> knew_host(
+        0 < seqlen_knew
+            ? get_lengths(i_perm, shape_batch, nhead_k, seqlen_knew, hdim_q)
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<VDataType> v_host(
         is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
-
+    ck_tile::HostTensor<VDataType> vnew_host(
+        0 < seqlen_knew
+            ? (is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, seqlen_knew, hdim_v)
+                             : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, seqlen_knew))
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<BiasDataType> bias_host(
         bias.type == bias_enum::elementwise_bias
             ? get_lengths(i_perm, 1, 1, shape_seqlen_q, shape_seqlen_k)
@@ -399,6 +407,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::FillUniformDistribution<KDataType>{0.f, 1.f, seed}(k_host);
         ck_tile::FillUniformDistribution<VDataType>{0.f, 1.f, seed}(v_host);
         ck_tile::FillUniformDistribution<BiasDataType>{0.f, 1.f, seed}(bias_host);
+
+        std::fill(knew_host.begin(), knew_host.end(), static_cast<KDataType>(99.f));
+        std::fill(vnew_host.begin(), vnew_host.end(), static_cast<VDataType>(99.f));
     }
     else if(init_method == "nf")
     {
@@ -447,7 +458,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem vnew_buf(vnew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_buf(lse_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
@@ -496,33 +509,54 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         auto appendkv_args = [&, k_paddings_ = seqlen_kpads]() {
             // setup stride_* arguments
-            const ck_tile::index_t stride_q = (i_perm ? hdim_q : nhead * hdim_q);
-            const ck_tile::index_t stride_k = (i_perm ? hdim_q : nhead_k * hdim_q);
-            const ck_tile::index_t stride_v = [&]() {
+            const ck_tile::index_t stride_q    = (i_perm ? hdim_q : nhead * hdim_q);
+            const ck_tile::index_t stride_k    = (i_perm ? hdim_q : nhead_k * hdim_q);
+            const ck_tile::index_t stride_knew = (i_perm ? hdim_q : nhead_k * hdim_q);
+            const ck_tile::index_t stride_v    = [&]() {
                 if(is_v_rowmajor)
                     return i_perm ? hdim_v : nhead_k * hdim_v;
                 else
-                    return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
+                    return i_perm ? (shape_seqlen_k - seqlen_knew)
+                                     : nhead_k * (shape_seqlen_k - seqlen_knew);
+            }();
+            const ck_tile::index_t stride_vnew = [&]() {
+                if(is_v_rowmajor)
+                    return i_perm ? hdim_v : nhead_k * hdim_v;
+                else
+                    return i_perm ? seqlen_knew : nhead_k * seqlen_knew;
             }();
             // setup nhead_stride_* arguments
             const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-            const ck_tile::index_t nhead_stride_k = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
-            const ck_tile::index_t nhead_stride_v = [&]() {
+            const ck_tile::index_t nhead_stride_k =
+                (i_perm ? (shape_seqlen_k - seqlen_knew) * hdim_q : hdim_q);
+            const ck_tile::index_t nhead_stride_knew = (i_perm ? seqlen_knew * hdim_q : hdim_q);
+            const ck_tile::index_t nhead_stride_v    = [&]() {
                 if(is_v_rowmajor)
-                    return i_perm ? shape_seqlen_k * hdim_v : hdim_v;
+                    return i_perm ? (shape_seqlen_k - seqlen_knew) * hdim_v : hdim_v;
                 else
-                    return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
+                    return i_perm ? hdim_v * (shape_seqlen_k - seqlen_knew)
+                                     : (shape_seqlen_k - seqlen_knew);
+            }();
+            const ck_tile::index_t nhead_stride_vnew = [&]() {
+                if(is_v_rowmajor)
+                    return i_perm ? seqlen_knew * hdim_v : hdim_v;
+                else
+                    return i_perm ? hdim_v * seqlen_knew : seqlen_knew;
             }();
             // setup batch_stride_* arguments
             const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
-            const ck_tile::index_t batch_stride_k = (nhead_k * shape_seqlen_k * hdim_q);
-            const ck_tile::index_t batch_stride_v = (nhead_k * hdim_v * shape_seqlen_k);
+            const ck_tile::index_t batch_stride_k =
+                (nhead_k * (shape_seqlen_k - seqlen_knew) * hdim_q);
+            const ck_tile::index_t batch_stride_knew = (nhead_k * seqlen_knew * hdim_q);
+            const ck_tile::index_t batch_stride_v =
+                (nhead_k * hdim_v * (shape_seqlen_k - seqlen_knew));
+            const ck_tile::index_t batch_stride_vnew = (nhead_k * hdim_v * seqlen_knew);
 
             return fmha_fwd_appendkv_args{q_buf.GetDeviceBuffer(),
                                           k_buf.GetDeviceBuffer(),
-                                          nullptr,
+                                          knew_buf.GetDeviceBuffer(),
                                           v_buf.GetDeviceBuffer(),
-                                          nullptr,
+                                          vnew_buf.GetDeviceBuffer(),
                                           seqstart_q.GetDeviceBuffer(),
                                           seqstart_k.GetDeviceBuffer(),
                                           k_paddings_[0] < 0 ? nullptr
@@ -542,19 +576,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           false,
                                           stride_q,
                                           stride_k,
-                                          0,
+                                          stride_knew,
                                           stride_v,
-                                          0,
+                                          stride_vnew,
                                           nhead_stride_q,
                                           nhead_stride_k,
-                                          0,
+                                          nhead_stride_knew,
                                           nhead_stride_v,
-                                          0,
+                                          nhead_stride_vnew,
                                           batch_stride_q,
                                           batch_stride_k,
-                                          0,
+                                          batch_stride_knew,
                                           batch_stride_v,
-                                          0};
+                                          batch_stride_vnew};
         }();
 
         ave_time += fmha_fwd_appendkv(appendkv_traits, appendkv_args, stream_config);
