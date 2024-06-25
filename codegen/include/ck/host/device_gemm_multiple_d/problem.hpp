@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,11 +12,14 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
+// defines the problem specification for a GEMM operation
 struct Problem
 {
-    std::size_t M                    = 0;
-    std::size_t N                    = 0;
-    std::size_t K                    = 0;
+    // dimensions for GEMM operation
+    std::size_t M = 0;
+    std::size_t N = 0;
+    std::size_t K = 0;
+    // layouts for tensors
     bool TransA                      = false;
     bool TransB                      = false;
     bool TransE                      = false;
@@ -29,9 +32,13 @@ struct Problem
     std::string BElementOp           = PassThrough;
     std::string CDEElementOp         = PassThrough;
 
+    // returns the correct device op file for the operation
     std::string GetIncludeHeader() const;
 
-    std::vector<Solution> GetSolutions(const std::string& arch) const;
+    // returns a list of instances based on the problem spec and provided fusion operations
+    std::vector<Solution> GetSolutions(const std::string& arch,
+                                       const std::string& prologue,
+                                       const std::string& epilogue) const;
 };
 
 } // namespace device_gemm_multiple_d

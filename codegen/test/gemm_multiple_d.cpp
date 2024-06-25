@@ -10,6 +10,7 @@
 #include <test.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
+#include <fstream>
 
 using half = _Float16;
 // using half = __fp16;
@@ -159,7 +160,10 @@ TEST_CASE(test_problem_kernel)
     auto b = to_gpu(generate_buffer<half>(1024 * 1024, 1));
     auto c = to_gpu(generate_buffer<half>(1024 * 1024, 2));
 
-    for(auto solution : prob.GetSolutions("gfx90a"))
+    std::string epilogue = "";
+    std::string prologue = "";
+
+    for(auto solution : prob.GetSolutions("gfx90a", prologue, epilogue))
     {
         auto src  = ck::host::InterpolateString(gemm_compile_check,
                                                {{"include", prob.GetIncludeHeader()},
@@ -178,6 +182,7 @@ TEST_CASE(test_problem_kernel)
         auto grid_size      = ck::host::integer_divide_ceil(prob.M, m_per_block) *
                          ck::host::integer_divide_ceil(prob.N, n_per_block);
         k.launch(nullptr, grid_size * block_size, block_size)(a.data(), b.data(), c.data());
+
         CHECK(report(solution, check(rtc::from_gpu(c))));
     }
 }

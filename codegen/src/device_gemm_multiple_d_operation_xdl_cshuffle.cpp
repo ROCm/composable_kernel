@@ -10,6 +10,7 @@ namespace ck {
 namespace host {
 namespace device_gemm_multiple_d {
 
+// calculate appropriate Gemm Specification based on input tensor dimensions
 static std::string GetGemmSpec(const std::size_t m,
                                const std::size_t n,
                                const std::size_t k,
@@ -30,9 +31,40 @@ static std::string GetGemmSpec(const std::size_t m,
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
 }
 
+// function to update prologue/epilogue with user provided operation
+void Operation_Xdl_CShuffle::update_prologue(const std::string& prologue)
+{
+    if(!prologue.empty())
+    {
+        this->prologue    = prologue;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->prologue = "";
+    }
+}
+
+void Operation_Xdl_CShuffle::update_epilogue(const std::string& epilogue)
+{
+    if(!epilogue.empty())
+    {
+        this->epilogue    = epilogue;
+        this->cde_elem_op = "CDEElementOp";
+    }
+    else
+    {
+        this->epilogue = "";
+    }
+}
+
+// accounts for all possible combinations of Row/Col major
 static Layout ToLayout(bool Trans) { return Trans ? Layout::Column : Layout::Row; }
 
-std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(const Problem& prob)
+// Hard-code tuning parameters in modularized fashion, string them together into a vector of
+// instances
+std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
+    const Problem& prob, const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Operation_Xdl_CShuffle> result;
 
@@ -155,6 +187,7 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
         // clang-format on
     };
 
+    // choose correct arrangement of tuning parameters based on the layout of each tensor
     const auto a_block_descriptions =
         prob.TransA ? a_block_descriptions_colmajor : a_block_descriptions_rowmajor;
     const auto b_block_descriptions =
@@ -165,6 +198,7 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
     assert(tile_descriptions.size() == cshuffle_descriptions.size());
     assert(tile_descriptions.size() == c_block_descriptions.size());
 
+    // Put all values together into a single operation > store into the result vector
     for(std::size_t i = 0; i < tile_descriptions.size(); i++)
     {
         Operation_Xdl_CShuffle x;
@@ -188,12 +222,17 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(con
                                             x.tile_desc.m_per_block,
                                             x.tile_desc.n_per_block,
                                             x.tile_desc.k_per_block);
+        x.update_prologue(prologue);
+        x.update_epilogue(epilogue);
         result.push_back(x);
     }
     return result;
 }
 
-std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateOperations()
+// set up instances when not provided with a problem specification, use default operation values and
+// all possible layout combinations
+std::vector<std::vector<Operation_Xdl_CShuffle>>
+Operation_Xdl_CShuffle::CreateOperations(const std::string& prologue, const std::string& epilogue)
 {
     std::vector<Problem> problems;
     for(bool TransA : {true, false})
@@ -204,7 +243,8 @@ std::vector<std::vector<Operation_Xdl_CShuffle>> Operation_Xdl_CShuffle::CreateO
             prob.TransB = TransB;
             problems.push_back(prob);
         }
-    return Transform(problems, [](const Problem& p) { return CreateOperations(p); });
+    return Transform(problems,
+                     [&](const Problem& p) { return CreateOperations(p, prologue, epilogue); });
 }
 
 static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
@@ -224,9 +264,20 @@ static const char* const DeviceGemmMultipleD_Xdl_CShuffleTemplate =
     "${CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock}, "
     "${CDEBlockTransferScalarPerVector_NPerBlock}>";
 
+// use hardcoded instances from vector of operations to substitute values into instance template
 Solution Operation_Xdl_CShuffle::ToSolution() const
 {
     std::unordered_map<std::string, std::string> values = {
+        {"name",
+         std::to_string(this->tile_desc.block_size) + "_" +
+             std::to_string(this->tile_desc.m_per_block) + "_" +
+             std::to_string(this->tile_desc.n_per_block) + "_" +
+             std::to_string(this->tile_desc.k_per_block) + "_" +
+             std::to_string(this->tile_desc.ak1) + "_" + std::to_string(this->tile_desc.bk1) + "_" +
+             std::to_string(this->tile_desc.m_per_XDL) + "_" +
+             std::to_string(this->tile_desc.n_per_XDL) + "_" +
+             std::to_string(this->tile_desc.m_Xdl_per_wave) + "_" +
+             std::to_string(this->tile_desc.n_Xdl_per_wave)},
         {"LayoutA", ToString(this->A.layout)},
         {"LayoutB", ToString(this->B.layout)},
         {"LayoutDs",
