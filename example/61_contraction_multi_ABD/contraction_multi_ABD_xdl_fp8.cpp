@@ -22,7 +22,7 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F8 = ck::f8_t;
+using F8  = ck::f8_t;
 using F16 = ck::half_t;
 using F32 = float;
 
@@ -186,8 +186,8 @@ int main(int argc, char* argv[])
     // set zero
     e_device_buf.SetZero();
 
-    auto a_element_op   = AElementOp{};
-    auto b_element_op   = BElementOp{};
+    auto a_element_op = AElementOp{};
+    auto b_element_op = BElementOp{};
 
     // do GEMM
     auto device_op = DeviceOpInstance{};
@@ -196,8 +196,7 @@ int main(int argc, char* argv[])
         std::array<const void*, 2>{a0_device_buf.GetDeviceBuffer(),
                                    a1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 2>{b0_device_buf.GetDeviceBuffer(),
-	b1_device_buf.GetDeviceBuffer()
-	},
+                                   b1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 0>{},
         e_device_buf.GetDeviceBuffer(),
         std::array<std::vector<ck::index_t>, 2>{a0_ms_ks_lengths, a1_ms_ks_lengths},
@@ -267,7 +266,7 @@ int main(int argc, char* argv[])
             }
         }
 
-	Tensor<B0DataType> b_ns_ks(b0_ns_ks_lengths, b0_ns_ks_strides);
+        Tensor<B0DataType> b_ns_ks(b0_ns_ks_lengths, b0_ns_ks_strides);
 
         for(size_t n0 = 0; n0 < b_ns_ks.mDesc.GetLengths()[0]; ++n0)
         {
@@ -301,8 +300,8 @@ int main(int argc, char* argv[])
         auto ref_invoker = ref_op.MakeInvoker();
 
         Tensor<float> empty_tensor(std::vector<ck::index_t>{}, std::vector<ck::index_t>{});
-        auto ref_argument =
-            ref_op.MakeArgument(a_ms_ks, b_ns_ks, c_ms_ns_host_result, PassThrough{}, PassThrough{});
+        auto ref_argument = ref_op.MakeArgument(
+            a_ms_ks, b_ns_ks, c_ms_ns_host_result, PassThrough{}, PassThrough{});
 
         ref_invoker.Run(ref_argument);
 

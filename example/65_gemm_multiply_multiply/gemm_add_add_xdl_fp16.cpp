@@ -43,7 +43,7 @@ using EDataType        = F16;
 using A0Layout = Row;
 using B0Layout = Col;
 using D0Layout = Row;
-using D1Layout = Row; 
+using D1Layout = Row;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
 using ELayout  = Row;
 
