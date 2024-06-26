@@ -78,6 +78,65 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
     }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
+    {
+        // TODO: this is for 3d layout
+        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        return 16 / sizeof(VDataType);
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeVnewDramTileDistribution()
+    {
+        using VLayout = remove_cvref_t<typename Problem::VLayout>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        static_assert(!std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            constexpr index_t kNPerBlock = Problem::kTileSizeDv;
+            constexpr index_t kKPerBlock = Problem::kTileSizeSk;
+
+            constexpr index_t K1 = GetAlignmentV<Problem>();
+            constexpr index_t K0 = kKPerBlock / K1;
+            constexpr index_t N2 = get_warp_size() / K0;
+            constexpr index_t N1 = kBlockSize / get_warp_size();
+            constexpr index_t N0 = kNPerBlock / (N2 * N1);
+            static_assert(N0 != 0);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+        else
+        {
+            using VDataType = remove_cvref_t<typename Problem::VDataType>;
+
+            constexpr index_t kNPerBlock = Problem::kTileSizeDv;
+            constexpr index_t kKPerBlock = Problem::kTileSizeSk;
+
+            constexpr index_t K1 = 16 / sizeof(VDataType);
+            constexpr index_t K0 = kKPerBlock / K1;
+            constexpr index_t N2 = get_warp_size() / K0;
+            constexpr index_t N1 = kBlockSize / get_warp_size();
+            constexpr index_t N0 = kNPerBlock / (N2 * N1);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<2, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 1>>{});
+        }
+    }
 };
 
 } // namespace ck_tile

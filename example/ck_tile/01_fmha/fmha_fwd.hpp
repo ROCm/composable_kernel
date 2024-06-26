@@ -344,7 +344,7 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
         }
     }();
 
-    dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
+    dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_knew, args.hdim_v);
     printf("[POYENC][HOST] grid size: %2d,%2d,%2d\n",
            static_cast<int>(grids.x),
            static_cast<int>(grids.y),

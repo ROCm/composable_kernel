@@ -121,26 +121,45 @@ struct BlockFmhaFwdAppendKVPipeline
                              Policy::template MakeKnewDramTileDistribution<Problem>());
 
         auto knew_tile = load_tile(knew_dram_window);
-        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == 0)
+        /// TODO: apply RoPE on knew_tile here
+        store_tile(k_dram_block_window_tmp, knew_tile);
+
+        auto vnew_dram_block_window =
+            make_tile_window(vnew_dram_block_window_tmp.get_bottom_tensor_view(),
+                             vnew_dram_block_window_tmp.get_window_lengths(),
+                             {0, 0});
+
+        auto vnew_dram_window =
+            make_tile_window(vnew_dram_block_window.get_bottom_tensor_view(),
+                             vnew_dram_block_window.get_window_lengths(),
+                             vnew_dram_block_window.get_window_origin(),
+                             Policy::template MakeVnewDramTileDistribution<Problem>());
+
+        auto vnew_tile = load_tile(vnew_dram_window);
+
+#if defined(ENABLE_PIPELINE_DEBUG_PRINT)
+        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
         {
-            constexpr auto spans = decltype(knew_tile)::get_distributed_spans();
+            printf("[POYENC][DEVICE] tid: %d\n", TID);
+            constexpr auto spans = decltype(vnew_tile)::get_distributed_spans();
             sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
                     const auto tile_idx = get_x_indices_from_distributed_indices(
-                        knew_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+                        vnew_tile.get_tile_distribution(), make_tuple(idx0, idx1));
 
                     const auto row         = tile_idx.at(number<0>{});
                     const auto col         = tile_idx.at(number<1>{});
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                    printf("[POYENC][DEVICE] knew_tile(%2d,%2d): %11.7f\n",
+                    printf("[POYENC][DEVICE] vnew_tile(%2d,%2d): %11.7f\n",
                            row,
                            col,
-                           type_convert<float>(knew_tile(i_j_idx)));
+                           type_convert<float>(vnew_tile(i_j_idx)));
                 });
             });
         }
-        store_tile(k_dram_block_window_tmp, knew_tile);
+#endif
+        store_tile(v_dram_block_window_tmp, vnew_tile);
     }
 
     template <typename QDramBlockWindowTmp,
