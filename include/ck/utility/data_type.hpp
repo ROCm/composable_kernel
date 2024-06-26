@@ -1009,8 +1009,7 @@ struct vector_type<T, 256, typename std::enable_if_t<is_native_type<T>()>>
 template <typename T, index_t N>
 struct non_native_vector_base
 {
-    using BoolVecT = non_native_vector_base<bool, N>;
-    using VecT     = non_native_vector_base<T, N>;
+    using VecT = non_native_vector_base<T, N>;
 
     __host__ __device__ non_native_vector_base() = default;
 
