@@ -132,10 +132,7 @@ __global__ void matmul(const src1_t* a, const src2_t* b, dst_t* c)
         b_shared[(8 * (lane / N) + i) * N + (lane % N)] = b_temp[i];
     }
 
-    asm volatile("\
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
+    __syncthreads();
 
     // Idx must be a 32-bit register and it is storing 4 2-bit indexes of A's non zero elements.
     // It starts with last two elements of every 4 elements subgroup set as non-zero
@@ -165,11 +162,6 @@ __global__ void matmul(const src1_t* a, const src2_t* b, dst_t* c)
     {
         b_frag[i] = b_shared[(8 * (lane / N) + i) * N + (lane % N)];
     }
-
-    asm volatile("\
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
 
     builtin_smfmac_naive_selector<src1_vec, src2_vec, acc_vec>(a_frag, b_frag, idx, c_thread_buf_);
     __syncthreads();

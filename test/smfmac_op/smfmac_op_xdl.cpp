@@ -24,31 +24,31 @@ template <typename Tuple>
 class TestSmfmac : public ::testing::Test
 {
     protected:
-    using Src1Type    = std::tuple_element_t<0, Tuple>;
-    using Src1VecSize = std::tuple_element_t<1, Tuple>;
-    using Src2Type    = std::tuple_element_t<2, Tuple>;
-    using Src2VecSize = std::tuple_element_t<3, Tuple>;
-    using DstType     = std::tuple_element_t<4, Tuple>;
-    using AccVecSize  = std::tuple_element_t<5, Tuple>;
-    using GPUAccType  = std::tuple_element_t<6, Tuple>;
-    using CPUAccType  = std::tuple_element_t<7, Tuple>;
-    using M           = std::tuple_element_t<8, Tuple>;
-    using N           = std::tuple_element_t<9, Tuple>;
-    using K           = std::tuple_element_t<10, Tuple>;
+    using Src1Type                           = std::tuple_element_t<0, Tuple>;
+    static constexpr ck::index_t Src1VecSize = std::tuple_element_t<1, Tuple>{}.value;
+    using Src2Type                           = std::tuple_element_t<2, Tuple>;
+    static constexpr ck::index_t Src2VecSize = std::tuple_element_t<3, Tuple>{}.value;
+    using DstType                            = std::tuple_element_t<4, Tuple>;
+    static constexpr ck::index_t AccVecSize  = std::tuple_element_t<5, Tuple>{}.value;
+    using GPUAccType                         = std::tuple_element_t<6, Tuple>;
+    using CPUAccType                         = std::tuple_element_t<7, Tuple>;
+    static constexpr ck::index_t M           = std::tuple_element_t<8, Tuple>{}.value;
+    static constexpr ck::index_t N           = std::tuple_element_t<9, Tuple>{}.value;
+    static constexpr ck::index_t K           = std::tuple_element_t<10, Tuple>{}.value;
 
     void Run()
     {
         bool pass                     = true;
         constexpr auto matmul_default = ck::smfmac_op_util::matmul<Src1Type,
-                                                                   Src1VecSize::value,
+                                                                   Src1VecSize,
                                                                    Src2Type,
-                                                                   Src2VecSize::value,
+                                                                   Src2VecSize,
                                                                    GPUAccType,
-                                                                   AccVecSize::value,
+                                                                   AccVecSize,
                                                                    DstType,
-                                                                   M::value,
-                                                                   N::value,
-                                                                   K::value>;
+                                                                   M,
+                                                                   N,
+                                                                   K>;
 
         constexpr auto smfmac_kernel_container = std::make_tuple(matmul_default);
 
@@ -66,56 +66,24 @@ class TestSmfmac : public ::testing::Test
                 PassThrough,
                 PassThrough,
                 PassThrough,
-                AccVecSize::value,
-                M::value,
-                N::value,
-                K::value>{}(std::get<ck::Number<i>{}>(smfmac_kernel_container));
+                AccVecSize,
+                M,
+                N,
+                K>{}(std::get<ck::Number<i>{}>(smfmac_kernel_container));
         });
 
         EXPECT_TRUE(pass);
     }
 };
 
-using four_t      = std::integral_constant<ck::index_t, 4>;
-using eight_t     = std::integral_constant<ck::index_t, 8>;
-using sixteen_t   = std::integral_constant<ck::index_t, 16>;
-using thirtytwo_t = std::integral_constant<ck::index_t, 32>;
+template <ck::index_t N>
+using I = ck::Number<N>;
 
-using KernelTypes = ::testing::Types<
-    std::tuple<F16, four_t, F16, eight_t, F32, four_t, F32, F32, sixteen_t, sixteen_t, thirtytwo_t>,
-    std::tuple<BF16,
-               four_t,
-               BF16,
-               eight_t,
-               F32,
-               four_t,
-               F32,
-               F32,
-               sixteen_t,
-               sixteen_t,
-               thirtytwo_t>,
-    std::tuple<F16,
-               four_t,
-               F16,
-               eight_t,
-               F32,
-               sixteen_t,
-               F32,
-               F32,
-               thirtytwo_t,
-               thirtytwo_t,
-               sixteen_t>,
-    std::tuple<BF16,
-               four_t,
-               BF16,
-               eight_t,
-               F32,
-               sixteen_t,
-               F32,
-               F32,
-               thirtytwo_t,
-               thirtytwo_t,
-               sixteen_t>>;
+using KernelTypes =
+    ::testing::Types<std::tuple<F16, I<4>, F16, I<8>, F32, I<4>, F32, F32, I<16>, I<16>, I<32>>,
+                     std::tuple<BF16, I<4>, BF16, I<8>, F32, I<4>, F32, F32, I<16>, I<16>, I<32>>,
+                     std::tuple<F16, I<4>, F16, I<8>, F32, I<16>, F32, F32, I<32>, I<32>, I<16>>,
+                     std::tuple<BF16, I<4>, BF16, I<8>, F32, I<16>, F32, F32, I<32>, I<32>, I<16>>>;
 
 TYPED_TEST_SUITE(TestSmfmac, KernelTypes);
 TYPED_TEST(TestSmfmac, TestSmfmacFP16BF16) { this->Run(); }
