@@ -139,7 +139,7 @@ bool parse_cmd_args<ProblemSize>(int argc,
 template <>
 bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
                                                   char* argv[],
-                                                  ProblemSizeStreamK& problem_size,
+                                                  ProblemSizeStreamK_universal& problem_size,
                                                   ExecutionConfig& config)
 {
     if(argc == 1)
