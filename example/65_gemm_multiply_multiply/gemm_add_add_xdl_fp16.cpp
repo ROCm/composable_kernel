@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
-    ck::index_t StrideD = 0;
+    ck::index_t StrideD = K;
     ck::index_t StrideE = N;
 
     if(argc == 1)
@@ -192,8 +192,6 @@ int main(int argc, char* argv[])
 
     constexpr ck::index_t NumDTensor = DsDataType::Size();
 
-    constexpr auto I0 = ck::Number<0>{};
-
     // do GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
@@ -208,7 +206,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, NumDTensor>{I0, I0},
+                               std::array<ck::index_t, NumDTensor>{StrideD, StrideD},
                                StrideE,
                                a_element_op,
                                b_element_op,
