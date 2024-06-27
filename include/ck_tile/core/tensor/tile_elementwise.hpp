@@ -76,14 +76,14 @@ CK_TILE_DEVICE void set_tile(null_tensor&, const T&)
 
 // TODO: prefer to use per-dword value to set a tensor, in case compiler not doing well with
 // sub-dword tensor...
-template <typename DstrTensors, index_t v>
-CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
+template <typename DstrTensors, index_t v, bool skip_subdword_opt = false>
+CK_TILE_DEVICE void
+set_tile(DstrTensors& dstr_tensor, number<v>, bool_constant<skip_subdword_opt> = {})
 {
-#if CK_TILE_CLEAR_BUF_SUBDWORD_OPT
     constexpr index_t tensor_bytes =
         DstrTensors::get_thread_buffer_size() * sizeof(typename DstrTensors::DataType);
 
-    if constexpr(v == 0 && tensor_bytes % 4 == 0)
+    if constexpr(v == 0 && tensor_bytes % 4 == 0 && !skip_subdword_opt)
     {
         using dvec_t = array<index_t, tensor_bytes / 4>;
         auto& tensor = reinterpret_cast<dvec_t&>(dstr_tensor.get_thread_buffer());
@@ -91,7 +91,6 @@ CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
             tensor.get(i) = v;
     }
     else
-#endif
     {
         tile_elementwise_inout(
             [](auto& x) { x = type_convert<typename DstrTensors::DataType, index_t>(v); },

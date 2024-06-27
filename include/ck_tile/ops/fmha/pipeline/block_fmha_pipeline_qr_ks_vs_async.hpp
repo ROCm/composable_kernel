@@ -225,8 +225,21 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
+        constexpr bool skip_subdword_opt_q = [&]() {
+            // TODO: rocm-6.2 compiler has spill anc computation error if not use below
+            // specialization
+            // if constexpr(kK0BlockLength == 64 && kPadSeqLenK &&
+            //             BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS && !kStoreLSE &&
+            //             !kHasDropout)
+            //    return true;
+            // else
+            //    return false;
+            return false;
+        }();
         auto q = decltype(load_tile(q_dram_window)){};
-        set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
+        set_tile(q,
+                 number<0>{},
+                 bool_constant<skip_subdword_opt_q>{}); // use per-dword clear to avoid scratch
         load_tile_raw(q, q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
@@ -634,6 +647,11 @@ struct BlockFmhaPipelineQRKSVSAsync
                         move_tile_window(v_dram_window, {0, kK1});
                 });
             }
+#if CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE
+            // Note: rocm 6.2 will have precision issue if not have barrier
+            // need further debug
+            __builtin_amdgcn_s_barrier();
+#endif
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
