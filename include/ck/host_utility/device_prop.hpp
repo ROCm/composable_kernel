@@ -84,4 +84,9 @@ inline bool is_gfx11_supported()
            ck::get_device_name() == "gfx1102" || ck::get_device_name() == "gfx1103";
 }
 
+inline bool is_gfx12_supported()
+{
+    return ck::get_device_name() == "gfx1200" || ck::get_device_name() == "gfx1201";
+}
+
 } // namespace ck
