@@ -23,20 +23,7 @@ trigger:
     - Jenkinsfile
     - LICENSE
 
-pr:
-  autoCancel: true
-  branches:
-    include:
-    - develop
-  paths:
-    exclude:
-    - .github
-    - docs
-    - '.*.y*ml'
-    - '*.md'
-    - Jenkinsfile
-    - LICENSE
-  drafts: false
+pr: none
 
 jobs:
   - template: ${{ variables.CI_COMPONENT_PATH }}/composable_kernel.yml@pipelines_repo
