@@ -493,6 +493,7 @@ def Build_CK(Map conf=[:]){
 
         def variant = env.STAGE_NAME
         def retimage
+
         gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
@@ -660,9 +661,6 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCM
 
 pipeline {
     agent none
-    triggers {
-        parameterizedCron(CRON_SETTINGS)
-    }
     options {
         parallelsAlwaysFailFast()
     }
