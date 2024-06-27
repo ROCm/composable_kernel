@@ -299,6 +299,23 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    template <index_t TileHeight, index_t TileWidth>
+    CK_TILE_HOST_DEVICE constexpr auto GetTileRangeAlongX(index_t i_y,
+                                                          number<TileHeight> height,
+                                                          number<TileWidth> width,
+                                                          index_t num_splits,
+                                                          index_t i_split) const
+    {
+        auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
+
+        const index_t x_per_split = ck_tile::max(1, x_total / num_splits);
+        const index_t split_start = x_per_split * i_split;
+        const index_t split_end = (i_split == num_splits - 1 ? x_total : split_start + x_per_split);
+
+        return ck_tile::make_tuple(ck_tile::max(origin_start, split_start),
+                                   ck_tile::min(origin_end, split_end));
+    }
+
     // to get the loop length along Y axis, return index:[start, end), end-start=length
     // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
     // TODO: y_end still could be negative, so end-start could be negative(need check)
@@ -372,7 +389,7 @@ struct SimplifiedGenericAttentionMask
             // index_t x_end    = min(i_y + x, x_total);
 
             bool top_right_edge   = i_x_end > min(i_y + x, x_total); // consider right pad
-            bool bottom_left_edge = i_y_end > (i_x + y);
+            bool bottom_left_edge = i_y_end > min(i_x + y, y_total); // consider bottom pad
             // bool is_partial_out_of_bound = i_x_end > x_end; // only consider right-pad for now
 
             return top_right_edge || bottom_left_edge;
