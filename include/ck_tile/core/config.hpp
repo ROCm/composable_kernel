@@ -17,6 +17,9 @@
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
 #define __gfx11__
 #endif
+#if defined(__gfx1200__) || defined(__gfx1201__)
+#define __gfx12__
+#endif
 
 #ifndef CK_TILE_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
@@ -155,7 +158,7 @@
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx103__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) // for GPU code
+#elif defined(__gfx11__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 

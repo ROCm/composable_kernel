@@ -371,12 +371,16 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             if constexpr(B0EnableLds)
             {
                 // BK0_L_BK1 -> BK0_LRepeat_Lwaves_LPerWmma_BK1
-                constexpr auto B_K0   = B0BlockDesc_{}.GetLength(I0);
-                constexpr auto B_K1   = B0BlockDesc_{}.GetLength(I2);
+                constexpr auto B_K0 = B0BlockDesc_{}.GetLength(I0);
+                constexpr auto B_K1 = B0BlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto B_KRow = I2;
+#else
                 constexpr auto B_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     B0BlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<LRepeat>{}, Number<LWaves>{}, Number<LPerWmma>{})),
                                make_pass_through_transform(Number<B_K1>{})),
@@ -428,12 +432,16 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             if constexpr(B1EnableLds)
             {
                 // BL0_N_BL1 -> BL0_NRepeat_Nwaves_NPerWmma_BL1
-                constexpr auto B_L0   = B1BlockDesc_{}.GetLength(I0);
-                constexpr auto B_L1   = B1BlockDesc_{}.GetLength(I2);
+                constexpr auto B_L0 = B1BlockDesc_{}.GetLength(I0);
+                constexpr auto B_L1 = B1BlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto B_LRow = I2;
+#else
                 constexpr auto B_LRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     B1BlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<B_L0>{}, B_LRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<B_L0 / B_LRow>{}, B_LRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
                                make_pass_through_transform(Number<B_L1>{})),

@@ -44,7 +44,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             // on gfx11 only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)
