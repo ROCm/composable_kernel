@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/loop_scheduler.hpp"
-#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 
 namespace ck {
 

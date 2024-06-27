@@ -133,6 +133,7 @@ __global__ void
         // Iterate over K dimension for this [M,N] tile
         // still in the same GEMM && the same [M,N] tile
         auto k_tiles = work_scheduler.GetNextKTiles(k_batch, b2c_tile_map.GetTileKIdx());
+        work_scheduler.SetIsSyncNeeded(k_tiles, k_batch);
 
         // just accumulate results in registers!
         GridwiseGemm::template RunGEMM(p_a_grid,
@@ -874,6 +875,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffle
             << std::string(ALayout::name)[0] << ","
             << std::string(BLayout::name)[0] << ","
             << std::string(ELayout::name)[0] << ","
+            << NumGemmKPrefetchStage << ", "
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
