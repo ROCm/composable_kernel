@@ -181,7 +181,7 @@ endfunction(add_example_executable_no_testing EXAMPLE_NAME)
 # add all example subdir
 file(GLOB dir_list LIST_DIRECTORIES true *)
 FOREACH(subdir ${dir_list})
-    IF(IS_DIRECTORY "${subdir}")
+    if(IS_DIRECTORY "${subdir}" AND EXISTS "${subdir}/CMakeLists.txt")
         add_subdirectory(${subdir})
     ENDIF()
 ENDFOREACH()
