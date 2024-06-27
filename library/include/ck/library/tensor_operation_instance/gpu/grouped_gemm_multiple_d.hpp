@@ -31,6 +31,58 @@ void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_irregu
                                                   PassThrough,
                                                   PassThrough>>>& instances);
 
+void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv1_pf1_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Col,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+
+void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv1_pf2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Col,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+
+void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv2_pf1_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Col,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+
+void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv2_pf2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Col,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F16,
+                                                  F16,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+
 void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instances_pipeline_v1(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Row,
@@ -129,6 +181,14 @@ struct DeviceOperationInstanceFactory<
             {
 #if defined(CK_ENABLE_FP16)
                 add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_irregular_instances(
+                    op_ptrs);
+                add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv1_pf1_instances(
+                    op_ptrs);
+                add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv1_pf2_instances(
+                    op_ptrs);
+                add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv2_pf1_instances(
+                    op_ptrs);
+                add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_nk_mn_mem_pv2_pf2_instances(
                     op_ptrs);
 #endif
             }
