@@ -54,7 +54,7 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -147,7 +147,7 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const Block2CTileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     // printf("entry kernel launch");
     __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
@@ -237,7 +237,7 @@ __global__ void
             const CDEElementwiseOperation cde_element_op,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseOp::SharedMemTrait::lds_size];
 
     GridwiseOp::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -375,8 +375,9 @@ struct GridwiseGemmMultipleD_Wmma
             }
             else
             {
+                constexpr auto A_KRow        = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                constexpr auto K0PerWmma     = WmmaK / A_KRow / K1;
                 // KWmma->MRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<KWmmaPerblock>{},
@@ -422,8 +423,9 @@ struct GridwiseGemmMultipleD_Wmma
             }
             else
             {
+                constexpr auto B_KRow        = I2;
                 constexpr auto KWmmaPerblock = KPerBlock / WmmaK;
-                constexpr auto K0PerWmma     = WmmaK / 2 / K1;
+                constexpr auto K0PerWmma     = WmmaK / B_KRow / K1;
                 // KWmma->NRepeat->MWave->K0PerWmma->KRow->MPerWmma->K1 Per Thread
                 return make_naive_tensor_descriptor(
                     make_tuple(Number<KWmmaPerblock>{},
@@ -495,12 +497,16 @@ struct GridwiseGemmMultipleD_Wmma
             if constexpr(AEnableLds)
             {
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
-                constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
-                constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
+                constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
+                constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto A_KRow = I2;
+#else
                 constexpr auto A_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
                                make_pass_through_transform(Number<A_K1>{})),
@@ -534,12 +540,16 @@ struct GridwiseGemmMultipleD_Wmma
             if constexpr(BEnableLds)
             {
                 // BK0_N_BK1 -> BK0_NRepeat_Nwaves_NPerWmma_BK1
-                constexpr auto B_K0   = BBlockDesc_{}.GetLength(I0);
-                constexpr auto B_K1   = BBlockDesc_{}.GetLength(I2);
+                constexpr auto B_K0 = BBlockDesc_{}.GetLength(I0);
+                constexpr auto B_K1 = BBlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto B_KRow = I2;
+#else
                 constexpr auto B_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     BBlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
                                make_pass_through_transform(Number<B_K1>{})),
@@ -571,15 +581,12 @@ struct GridwiseGemmMultipleD_Wmma
     // *Caution Here repeat is shuffle repeat
     GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerWmma);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerWmma);
-
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1,
-                           Number<CShuffleMRepeatPerShuffle * MWave * MPerWmma>{},
+                           Number<CShuffleMRepeatPerShuffle * MWaves * MPerWmma>{},
                            I1,
-                           Number<CShuffleNRepeatPerShuffle * NWave * NPerWmma>{}));
+                           Number<CShuffleNRepeatPerShuffle * NWaves * NPerWmma>{}));
 
         return c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat;
     }
@@ -799,8 +806,9 @@ struct GridwiseGemmMultipleD_Wmma
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
 
-        const auto MBlock                                        = M / MPerBlock;
-        const auto NBlock                                        = N / NPerBlock;
+        const auto MBlock = M / MPerBlock;
+        const auto NBlock = N / NPerBlock;
+
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),

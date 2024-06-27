@@ -140,10 +140,18 @@ __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
         p_shared[8 * 16 * lane_hi + 8 * lane_lo + ele + 16 * 16] = b_temp[ele];
     }
 
+#ifdef __gfx12__
+    asm volatile("\
+    s_wait_dscnt 0x0 \n \
+    s_barrier_signal -1 \n \
+    s_barrier_wait -1 \
+    " ::);
+#else
     asm volatile("\
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#endif
 
     for(int ele = 0; ele < 16; ++ele)
     {
@@ -155,10 +163,18 @@ __global__ void matmul(const src_t* a, const src_t* b, dst_t* c)
         a_frag[ele] = p_shared[(ele / 8) * 16 * 8 + 8 * lane + ele % 8];
     }
 
+#ifdef __gfx12__
+    asm volatile("\
+    s_wait_dscnt 0x0 \n \
+    s_barrier_signal -1 \n \
+    s_barrier_wait -1 \
+    " ::);
+#else
     asm volatile("\
     s_waitcnt lgkmcnt(0) \n \
     s_barrier \
     " ::);
+#endif
 
     // sync threads, similar to mma_sync
     // __syncthreads();
