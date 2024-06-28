@@ -214,6 +214,9 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     def invocation_tag=""
+    if (setup_args.contains("gfx12")){
+        invocation_tag="gfx12"
+    }
     if (setup_args.contains("gfx11")){
         invocation_tag="gfx11"
     }
@@ -519,7 +522,7 @@ def Build_CK(Map conf=[:]){
                     //check whether to run performance tests on this node
                     def do_perf_tests = 0
                     sh 'rocminfo | tee rocminfo.log'
-                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
+                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx1201" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
                         do_perf_tests = 1
                         echo "Stash profiler and run performance tests"
                     }
@@ -949,6 +952,26 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx1101" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
+                stage("Build CK and run Tests on gfx1201")
+                {
+                    when {
+                        beforeAgent true
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1201") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1201" -DDL_KERNELS=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx1201" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
