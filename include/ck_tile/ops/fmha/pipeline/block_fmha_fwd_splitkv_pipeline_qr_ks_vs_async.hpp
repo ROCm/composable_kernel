@@ -81,7 +81,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
             return Problem::kBlockPerCu;
         else
         {
-            // lower occupancy if we enable almost all the features
+            // Minimize occupancy if we enable almost all the features
             if constexpr(kPadSeqLenK && BiasEnum != BlockAttentionBiasEnum::NO_BIAS &&
                          FmhaMask::IsMasking && kStoreLSE && kHasDropout)
             {
