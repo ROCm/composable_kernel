@@ -103,15 +103,16 @@ struct tensor_view
     }
 
     template <typename X,
+              bool pre_nop = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE constexpr void
-    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
-                                      const TensorCoord& coord) const
+    CK_TILE_HOST_DEVICE constexpr void async_get_vectorized_elements_raw(
+        remove_cvref_t<DataType>* smem, const TensorCoord& coord, bool_constant<pre_nop> = {}) const
     {
-        return buf_.template async_get_raw<X>(smem, coord.get_offset(), true /*not used*/);
+        return buf_.template async_get_raw<X>(
+            smem, coord.get_offset(), true /*not used*/, bool_constant<pre_nop>{});
     }
 
     // X is vector of DataType.

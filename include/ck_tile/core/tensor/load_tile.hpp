@@ -36,30 +36,37 @@ template <typename T,
           typename WindowLengths_,
           typename TileDistribution_,
           index_t NumCoord,
-          bool oob_conditional_check = true>
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
 CK_TILE_DEVICE auto load_tile_raw(T& tile,
                                   const tile_window_with_static_distribution<BottomTensorView_,
                                                                              WindowLengths_,
                                                                              TileDistribution_,
                                                                              NumCoord>& tile_window,
-                                  bool_constant<oob_conditional_check> = {})
+                                  bool_constant<oob_conditional_check> = {},
+                                  bool_constant<pre_nop>               = {})
 {
-    tile_window.load_raw(tile, bool_constant<oob_conditional_check>{});
+    tile_window.load_raw(tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
 template <typename LdsTileWindow_,
           typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
-          index_t NumCoord>
+          index_t NumCoord,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
 CK_TILE_DEVICE auto
 async_load_tile_raw(LdsTileWindow_&& lds_tile,
                     const tile_window_with_static_distribution<BottomTensorView_,
                                                                WindowLengths_,
                                                                TileDistribution_,
-                                                               NumCoord>& tile_window)
+                                                               NumCoord>& tile_window,
+                    bool_constant<oob_conditional_check> = {},
+                    bool_constant<pre_nop>               = {})
 {
-    return tile_window.async_load_raw(lds_tile);
+    return tile_window.async_load_raw(
+        lds_tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
 CK_TILE_DEVICE auto async_load_fence(index_t cnt = 0)
