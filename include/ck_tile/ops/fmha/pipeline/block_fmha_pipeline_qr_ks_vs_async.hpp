@@ -7,10 +7,8 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck_tile/ops/fmha/block/block_dropout.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
-#define CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE 1
+#define CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE 0
 
 namespace ck_tile {
 
@@ -222,6 +220,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             q_dram_block_window_tmp.get_window_lengths(),
             q_dram_block_window_tmp.get_window_origin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        q_dram_window.init_raw();
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
@@ -308,6 +307,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             k_dram_block_window.get_window_origin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
+        k_dram_window.init_raw();
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window  = make_tile_window(
             bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -647,30 +647,16 @@ struct BlockFmhaPipelineQRKSVSAsync
                         move_tile_window(v_dram_window, {0, kK1});
                 });
             }
-#if CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE
-            // Note: rocm 6.2 will have precision issue if not have barrier
-            // need further debug
-            __builtin_amdgcn_s_barrier();
-#endif
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0, 0});
-                k_dram_window =
-                    make_tile_window(k_dram_block_window.get_bottom_tensor_view(),
-                                     k_dram_block_window.get_window_lengths(),
-                                     k_dram_block_window.get_window_origin(),
-                                     Policy::template MakeKDramTileDistribution<Problem>());
-#if CK_TILE_WA_ASYNC_PIPELINE_ROCM62_PREC_ISSUE
-                // Note: rocm 6.2 will have precision issue if not have barrier
-                // need further debug
-                __builtin_amdgcn_s_barrier();
-#else
+                k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
+
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-#endif
                 async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
                 move_tile_window(k_dram_window, {0, kK0});
             }

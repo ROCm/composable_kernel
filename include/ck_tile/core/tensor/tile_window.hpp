@@ -403,8 +403,8 @@ struct tile_window_with_static_distribution
 
     // TODO: currently async load only implemented in inline asm
     template <typename LdsTileWindow_, bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto async_load(LdsTileWindow_&& lds_tile,
-                                   bool_constant<oob_conditional_check> = {}) const
+    CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
+                                       bool_constant<oob_conditional_check> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         // using LdsTensorView = typename LdsTileWindow::BottomTensorView;
@@ -452,7 +452,7 @@ struct tile_window_with_static_distribution
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
                 // read from bottom tensor
-                get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
                     smem, bottom_tensor_thread_coord);
 
                 // move thread coordinate
@@ -667,6 +667,67 @@ struct tile_window_with_static_distribution
                                    step);
         });
     }
+
+    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    {
+        window_origin_ = new_window_origin;
+
+#if 0 // debug
+      // TODO: this use more register for FA, but less register for GEMM
+      // need investigation
+      // only support warp-tile and block-tile
+        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
+
+        WindowAdaptorCoord window_adaptor_thread_coord_tmp;
+
+        if constexpr(NDimP == 1)
+        {
+            window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+                tile_dstr_.get_ps_ys_to_xs_adaptor(), AdaptorTopIndex{get_lane_id(), 0});
+        }
+        else if constexpr(NDimP == 2)
+        {
+            window_adaptor_thread_coord_tmp =
+                make_tensor_adaptor_coordinate(tile_dstr_.get_ps_ys_to_xs_adaptor(),
+                                               AdaptorTopIndex{get_warp_id(), get_lane_id(), 0});
+        }
+#else
+        // TODO: this use less register for FA, but more register for GEMM
+        // need investigation
+        const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
+            tile_dstr_.get_ps_ys_to_xs_adaptor(),
+            container_concat(detail::get_partition_index(tile_dstr_), array<index_t, NDimY>{0}));
+#endif
+
+        BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
+            window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
+
+        const auto bottom_tensor_thread_coord_tmp = make_tensor_coordinate(
+            bottom_tensor_view_.get_tensor_descriptor(), bottom_tensor_thread_origin_idx_tmp);
+
+        // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
+        // future load/store() calls (might allocate more registers)
+        using Traits = load_store_traits;
+        using SFC_Ys = typename Traits::SFC_Ys;
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp;
+            auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp;
+
+            constexpr auto idx_diff_ys =
+                SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
+
+            constexpr auto idx_diff_ps_ys = container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+
+            move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+            pre_computed_coords_(iCoord) =
+                make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
+        });
+    }
+
+    CK_TILE_HOST_DEVICE void init_raw() { bottom_tensor_view_.init_raw(); }
 
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]

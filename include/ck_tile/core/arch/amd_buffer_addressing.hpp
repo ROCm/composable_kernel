@@ -1923,6 +1923,22 @@ CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
         dst, src_wave_buffer_resource, src_thread_addr_offset, 0, is_valid_element);
 }
 
+// This version support buffer resource as input arg
+template <typename T,
+          index_t N,
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
+          bool oob_conditional_check          = true>
+CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
+                                        const int32x4_t src_wave_buffer_resource,
+                                        index_t src_thread_element_offset,
+                                        index_t is_valid_element = 0)
+{
+    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+
+    amd_buffer_load_raw_impl<T, N, coherence, oob_conditional_check>(
+        dst, src_wave_buffer_resource, src_thread_addr_offset, 0, is_valid_element);
+}
+
 // unfortunately async copy can not make sure invalid data is zero inside LDS
 // ... unless people manually write zero to LDS at the proper address.
 // so not support invalid_element check for now.
@@ -1930,14 +1946,28 @@ CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
-CK_TILE_DEVICE void amd_async_buffer_load_with_oob(T* smem,
-                                                   const T* p_src_wave,
-                                                   index_t src_thread_element_offset,
-                                                   index_t src_element_space_size)
+CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
+                                                       const T* p_src_wave,
+                                                       index_t src_thread_element_offset,
+                                                       index_t src_element_space_size)
 {
     const int32x4_t src_wave_buffer_resource =
         make_wave_buffer_resource(p_src_wave, src_element_space_size * sizeof(T));
 
+    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+
+    amd_async_buffer_load_impl<T, N, coherence>(
+        smem, src_wave_buffer_resource, src_thread_addr_offset, 0, 0);
+}
+
+// This version support buffer resource as input arg
+template <typename T,
+          index_t N,
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
+CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
+                                                       const int32x4_t src_wave_buffer_resource,
+                                                       index_t src_thread_element_offset)
+{
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
 
     amd_async_buffer_load_impl<T, N, coherence>(

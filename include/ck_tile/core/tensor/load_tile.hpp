@@ -59,7 +59,7 @@ async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                                                TileDistribution_,
                                                                NumCoord>& tile_window)
 {
-    return tile_window.async_load(lds_tile);
+    return tile_window.async_load_raw(lds_tile);
 }
 
 CK_TILE_DEVICE auto async_load_fence(index_t cnt = 0)

@@ -36,6 +36,8 @@ struct tensor_view
     {
     }
 
+    CK_TILE_HOST_DEVICE void init_raw() { buf_.init_raw(); }
+
     CK_TILE_HOST_DEVICE constexpr auto& get_tensor_descriptor() const { return desc_; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension()
@@ -105,10 +107,11 @@ struct tensor_view
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE constexpr void async_get_vectorized_elements(remove_cvref_t<DataType>* smem,
-                                                                     const TensorCoord& coord) const
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements_raw(remove_cvref_t<DataType>* smem,
+                                      const TensorCoord& coord) const
     {
-        return buf_.template async_get<X>(smem, coord.get_offset(), true /*not used*/);
+        return buf_.template async_get_raw<X>(smem, coord.get_offset(), true /*not used*/);
     }
 
     // X is vector of DataType.
