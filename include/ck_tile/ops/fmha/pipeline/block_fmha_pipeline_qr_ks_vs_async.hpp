@@ -234,6 +234,8 @@ struct BlockFmhaPipelineQRKSVSAsync
         set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
         load_tile_raw(q, q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
+        asm volatile("; this inline asm is workaround to prevent compiler from using too much "
+                     "scratch memory" ::);
 
         using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
         auto s_acc              = SaccBlockTileType{};
