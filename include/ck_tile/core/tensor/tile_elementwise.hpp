@@ -131,7 +131,8 @@ set_tile(DstrTensors& dstr_tensor, number<v>, bool_constant<skip_subdword_opt> =
     }
     else
     {
-        tile_elementwise_inout([](auto& x) { x = type_convert<elem_type>(v); }, dstr_tensor);
+        tile_elementwise_inout([](auto& x) { x = type_convert<elem_type, index_t>(v); },
+                               dstr_tensor);
     }
 }
 
