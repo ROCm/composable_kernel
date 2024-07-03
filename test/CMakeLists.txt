@@ -213,7 +213,7 @@ add_subdirectory(wrapper)
 if(GPU_TARGETS MATCHES "gfx11")
     add_subdirectory(wmma_op)
 endif()
-if(GPU_TARGETS MATCHES "gfx942")
+if(GPU_TARGETS MATCHES "gfx942" AND CK_HIP_VERSION_MAJOR GREATER_EQUAL 6 AND CK_HIP_VERSION_MINOR GREATER_EQUAL 2) # smfmac needs ROCm6.2
     add_subdirectory(smfmac_op)
 endif()
 add_subdirectory(position_embedding)
