@@ -11,6 +11,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/utility/amd_wmma.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace wmma_op_util {
