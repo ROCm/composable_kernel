@@ -818,8 +818,6 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
         const bool has_k_block_main_loop =
             gridwise_gemm_pipeline.CalculateHasMainLoop(num_k_block_main_loop);
 
-        bool clear_c_thread_buf = true;
-
         auto blockwise_gemm = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector<
             BlockSize,
             ComputeType,
@@ -850,8 +848,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                                                       b_block_slice_copy_step,
                                                       blockwise_gemm,
                                                       c_thread_buf,
-                                                      num_k_block_main_loop,
-                                                      clear_c_thread_buf);
+                                                      num_k_block_main_loop);
         }
         else
         {
@@ -869,8 +866,7 @@ class GridwiseGemmMultipleD_xdl_splitk_cshuffle_v2
                                                        b_block_slice_copy_step,
                                                        blockwise_gemm,
                                                        c_thread_buf,
-                                                       num_k_block_main_loop,
-                                                       clear_c_thread_buf);
+                                                       num_k_block_main_loop);
         }
     }
 

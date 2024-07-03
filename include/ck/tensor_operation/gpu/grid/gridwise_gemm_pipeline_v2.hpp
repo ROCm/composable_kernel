@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -49,8 +49,7 @@ struct GridwiseGemmPipeline_v2
                                const BBlockTransferStep& b_block_copy_step,
                                const BlockwiseGemm& blockwise_gemm,
                                CThreadBuffer& c_thread_buf,
-                               index_t num_loop,
-                               bool clear_c_thread_buf = true)
+                               index_t num_loop)
     {
         // global read 0
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
@@ -61,8 +60,7 @@ struct GridwiseGemmPipeline_v2
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
         // Initialize C
-        if(clear_c_thread_buf)
-            c_thread_buf.Clear();
+        c_thread_buf.Clear();
 
         // LDS write 0
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
