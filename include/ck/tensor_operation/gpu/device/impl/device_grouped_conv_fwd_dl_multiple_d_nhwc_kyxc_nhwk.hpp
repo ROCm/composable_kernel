@@ -90,16 +90,20 @@ __global__ void
             const Block2CTileMap block_2_ctile_map,
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx103__) || \
-    defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx94__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx103__) ||         \
+    defined(__gfx90a__) || defined(__gfx908__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__))
     // offset base pointer for each work-group
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
     const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
-    const long_index_t b_batch_offset = compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
-    const long_index_t c_batch_offset = compute_ptr_offset_of_batch.GetEPtrOffset(g_idx);
+    const long_index_t a_batch_offset =
+        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+    const long_index_t b_batch_offset =
+        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+    const long_index_t c_batch_offset =
+        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
 
     const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
@@ -664,7 +668,7 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
         // check device
         if(!(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-             ck::is_gfx103_supported() || ck::is_gfx11_supported()))
+             ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported()))
         {
             return false;
         }
