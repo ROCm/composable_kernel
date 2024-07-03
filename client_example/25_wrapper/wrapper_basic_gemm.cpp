@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
+    defined(__gfx94__))
 
 #include <numeric>
 #include <cstdlib>
@@ -222,3 +224,4 @@ int main(int argc, char* argv[])
         3840, 4096, 4096, tile_shape, thread_layout);
     return 0;
 }
+#endif
