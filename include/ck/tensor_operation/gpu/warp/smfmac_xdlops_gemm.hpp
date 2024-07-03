@@ -5,7 +5,6 @@
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/math.hpp"
-#include "ck/utility/amd_xdlops.hpp"
 #include "ck/utility/amd_smfmac.hpp"
 
 namespace ck {
@@ -211,10 +210,10 @@ struct SparseXdlopsGemm
     __host__ __device__ constexpr SparseXdlopsGemm()
     {
         static_assert(NPerXdlops == 16 || NPerXdlops == 32,
-                      "Only support GemmNPerXdlops == 4, 8, 16, 32 or 64 for smfmac xdlops");
+                      "Only support GemmNPerXdlops == 16 or 32 for smfmac xdlops");
 
         static_assert(MPerXdlops == 16 || MPerXdlops == 32,
-                      "Only support GemmMPerXdlops == 4, 8, 16, 32 or 64 for xdlops");
+                      "Only support GemmMPerXdlops == 16 or 32 for smfmac xdlops");
 
         static_assert(KPack % smfmac_instr.k_per_blk == 0, "KPack cannot be divided by k_per_blk");
     }
