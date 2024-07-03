@@ -60,7 +60,7 @@ if(GPU_TARGETS MATCHES "gfx9")
 
 endif()
 
-if(GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12" OR GPU_TARGETS MATCHES "gfx9")
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     list(APPEND PROFILER_SOURCES profile_gemm_bilinear.cpp)
   endif()
@@ -137,7 +137,7 @@ if(GPU_TARGETS MATCHES "gfx9")
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_fwd_convinvscale_instance)
 endif()
 
-if(GPU_TARGETS MATCHES "gfx9" OR GPU_TARGETS MATCHES "gfx11")
+if(GPU_TARGETS MATCHES "gfx9" OR GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12")
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_bilinear_instance)
   endif()
