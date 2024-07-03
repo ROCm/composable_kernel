@@ -908,6 +908,51 @@ struct OffsettedBlockToCTileMap
     UnderlyingBlockToCTileMap block_to_ctile_map_;
     index_t block_start_;
 };
+// second version with 2 offsets
+template <typename UnderlyingBlockToCTileMap>
+struct OffsettedBlockToCTileMap2
+{
+    using underlying_type = UnderlyingBlockToCTileMap;
+
+    __host__ __device__ OffsettedBlockToCTileMap2(UnderlyingBlockToCTileMap block_to_ctile_map,
+                                                  index_t group_offset,
+                                                  index_t tile_offset)
+        : block_to_ctile_map_{block_to_ctile_map},
+          group_offset_{group_offset},
+          tile_offset_{tile_offset}
+    {
+    }
+
+    template <typename TopIdx>
+    __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
+    {
+        return block_to_ctile_map_.CalculateBottomIndex(
+            make_multi_index(idx_top[Number<0>{}] + tile_offset_ - group_offset_));
+    }
+
+    template <typename CTileIdx, typename CTileDim>
+    __host__ __device__ bool ValidCTileIndex(const CTileIdx& c_tile_idx,
+                                             const CTileDim& c_tile_dim) const
+    {
+        return block_to_ctile_map_.ValidCTileIndex(c_tile_idx, c_tile_dim);
+    }
+
+    template <typename CGridDesc_M_N>
+    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& c_grid_desc_m_n) const
+    {
+        return block_to_ctile_map_.CheckValidity(c_grid_desc_m_n);
+    }
+
+    __host__ __device__ constexpr index_t CalculateGridSize(index_t M, index_t N) const
+    {
+        return block_to_ctile_map_.CalculateGridSize(M, N);
+    }
+
+    __device__ void UpdateTileOffset(index_t offset) { tile_offset_ = offset; }
+    UnderlyingBlockToCTileMap block_to_ctile_map_;
+    index_t group_offset_;
+    index_t tile_offset_;
+};
 
 ///
 /// @brief      Simple tile mapping which creates 3D grid of block of threads.

@@ -69,6 +69,9 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
 #define __gfx11__
 #endif
+#if defined(__gfx1200__) || defined(__gfx1201__)
+#define __gfx12__
+#endif
 
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
@@ -77,7 +80,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx12__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
@@ -89,7 +92,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx12__)
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8_GFX11
@@ -108,13 +111,6 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 
 #if defined(__gfx94__)
 #define CK_USE_AMD_MFMA_GFX940
-#endif
-
-// WMMA instruction
-#ifndef __HIP_DEVICE_COMPILE__ // for host code
-#define CK_USE_AMD_WMMA
-#elif defined(__gfx11__) // for GPU code
-#define CK_USE_AMD_WMMA
 #endif
 
 // buffer load
@@ -155,7 +151,7 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
 
 // LDS direct loads using inline assembly
-#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 0
 
 // set stochastic rounding as default for f8 conversions
 #define CK_USE_SR_F8_CONVERSION 1
