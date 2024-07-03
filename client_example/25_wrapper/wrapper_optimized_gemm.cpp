@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
 
 #include <numeric>
 #include <cstdlib>
@@ -9,13 +7,15 @@
 #include <initializer_list>
 #include <vector>
 
-#include "ck/library/utility/host_tensor.hpp"
+#include "ck/utility/common_header.hpp"
+// __gfx9__ defined in the above header via ck.hpp
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
 
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/check_err.hpp"
-#include "ck/utility/common_header.hpp"
 #include "ck/library/utility/fill.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 #include "ck/wrapper/layout.hpp"
 #include "ck/wrapper/tensor.hpp"
 #include "ck/wrapper/operations/copy.hpp"
