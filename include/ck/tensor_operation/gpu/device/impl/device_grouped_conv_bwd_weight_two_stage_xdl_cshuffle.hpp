@@ -47,12 +47,12 @@ __global__ void
 #endif
         kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3(
             typename GridwiseGemm::Argument karg,
-            const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+            [[maybe_unused]] const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+            [[maybe_unused]] const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+            [[maybe_unused]] const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-            const index_t num_k_per_block)
+            [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+            [[maybe_unused]] const index_t num_k_per_block)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
@@ -103,12 +103,12 @@ __global__ void
 #endif
         kernel_grouped_conv_bwd_weight_xdl_cshuffle_v3_2lds(
             typename GridwiseGemm::Argument karg,
-            const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
-            const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+            [[maybe_unused]] const AGridDesc_AK0_M_K1 a_grid_desc_ak0_m_ak1,
+            [[maybe_unused]] const BGridDesc_BK0_N_K1 b_grid_desc_bk0_n_bk1,
+            [[maybe_unused]] const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                 c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
-            const index_t num_k_per_block)
+            [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+            [[maybe_unused]] const index_t num_k_per_block)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
