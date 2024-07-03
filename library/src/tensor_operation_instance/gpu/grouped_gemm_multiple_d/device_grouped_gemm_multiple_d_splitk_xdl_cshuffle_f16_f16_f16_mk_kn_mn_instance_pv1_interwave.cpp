@@ -6,18 +6,21 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_multiple_d_splitk_xdl_cshuffle_tile_loop.hpp"
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_multiple_d/device_grouped_gemm_multiple_d_splitk_xdl_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_multiple_d/device_grouped_gemm_multiple_d_splitk_xdl_cshuffle_f16_f16_f16_mk_kn_mn_instance.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using GemmInstances =
-    device_ggemm_md_splitk_xdl_cshuffle_f16_f16_f16_mk_kn_mn_irregular_tile_instances<
-        PipelineVersion::v1>;
+static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_irregular_instances_pipeline_v1(
+using GemmInstances = device_ggemm_md_splitk_xdl_cshuffle_f16_f16_f16_mk_kn_mn_tile_instances<
+    GemmMNKPadding,
+    PipelineVersion::v1,
+    LoopScheduler::Interwave>;
+
+void add_device_grouped_gemm_multi_d_splitk_cshuffle_f16_f16_f16_mk_kn_mn_instances_pv1_interwave(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
                                                   Row,
                                                   Empty_Tuple,
