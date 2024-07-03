@@ -1461,31 +1461,27 @@ struct BlockToCTileMap_GemmStreamK_v2
 
             // check if there's enough work for DP+ stream-k
             bool bigEnough = num_tiles > grid_size;
-            // select between 1 tile and 2 tile sk
+            // select between stream-k strategies
             uint32_t sk_tiles = 0;
-            if(streamk_sel == 1)
+            if(streamk_sel == 1) // 1 tile stream-k
             {
                 sk_tiles = bigEnough ? (num_tiles % grid_size) : num_tiles;
             }
-            else if(streamk_sel == 2)
+            else if(streamk_sel == 2) // 2-tile stream-k
             {
                 sk_tiles = bigEnough ? (grid_size + num_tiles % grid_size) : num_tiles;
             }
-            else if(streamk_sel == 3)
+            else if(streamk_sel == 3) // 3-tile stream-k
             {
                 sk_tiles = (num_tiles > (2 * grid_size)) ? (2 * grid_size + num_tiles % grid_size)
                                                          : num_tiles;
             }
-            else if(streamk_sel == 4)
+            else if(streamk_sel == 4) // 4-tile stream-k
             {
                 sk_tiles = (num_tiles > (3 * grid_size)) ? (3 * grid_size + num_tiles % grid_size)
                                                          : num_tiles;
             }
             sk_num_blocks = sk_tiles;
-            // if(sk_tiles < sk_num_blocks)
-            // {
-            //     sk_num_blocks = sk_tiles;
-            // }
             // remaining tiles are DP tiles
             dp_tiles = bigEnough ? (num_tiles - sk_tiles) : 0;
 
@@ -1508,7 +1504,6 @@ struct BlockToCTileMap_GemmStreamK_v2
 
             dp_num_blocks      = dp_tiles;
             dp_start_block_idx = sk_num_blocks;
-            // dp_start_block_idx = ((sk_num_blocks + grid_size - 1) / grid_size) * grid_size;
         }
 
         n_tiles = MDiv2(math::integer_divide_ceil(n, NPerBlock));
@@ -1523,30 +1518,29 @@ struct BlockToCTileMap_GemmStreamK_v2
             equiv_tiles_little    = MDiv(upper_little / k_iters_per_tile.get());
         }
 
-#if 0
-        printf("streamk_sel=%0d,grid_size=%0d, num_tiles:%d, dp_tiles:%d, sk_tiles:%u, "
-               "sk_num_blocks:%d,dp_num_blocks:%d,sk_num_big_blocks:%d, "
-               "sk_total_iters:%d, dp_start_block_idx:%d,  "
-               "k_iters_per_tile:%d, k_iters_per_big_block:%d, reduction_start_block_idx:%u, "
-               " workspace(acc float):%u\n",
-               streamk_sel,
-               grid_size,
-               //    occupancy,
-               //    get_grid_dims(num_cu, occupancy).x,
-               num_tiles,
-               dp_tiles,
-               get_sk_tiles(),
-               sk_num_blocks,
-               dp_num_blocks,
-               sk_num_big_blocks,
-               sk_total_iters,
-               dp_start_block_idx,
+        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+        {
+            printf("streamk_sel=%0d,grid_size=%0d, num_tiles:%d, dp_tiles:%d, sk_tiles:%u, "
+                   "sk_num_blocks:%d,dp_num_blocks:%d,sk_num_big_blocks:%d, "
+                   "sk_total_iters:%d, dp_start_block_idx:%d,  "
+                   "k_iters_per_tile:%d, k_iters_per_big_block:%d, reduction_start_block_idx:%u, "
+                   " workspace(acc float):%u\n",
+                   streamk_sel,
+                   grid_size,
+                   num_tiles,
+                   dp_tiles,
+                   get_sk_tiles(),
+                   sk_num_blocks,
+                   dp_num_blocks,
+                   sk_num_big_blocks,
+                   sk_total_iters,
+                   dp_start_block_idx,
 
-               k_iters_per_tile.get(),
-               k_iters_per_big_block,
-               reduction_start_block_idx,
-               get_workspace_size(sizeof(float)));
-#endif
+                   k_iters_per_tile.get(),
+                   k_iters_per_big_block,
+                   reduction_start_block_idx,
+                   get_workspace_size(sizeof(float)));
+        }
     }
 
     __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
@@ -1656,90 +1650,6 @@ struct BlockToCTileMap_GemmStreamK_v2
         m_tile_idx_with_adapt = tile_idx_local % sub_m_adapt;
         return make_tuple(m_tile_idx_with_adapt + m_tile_idx_sub0 * tile_swizzle_sub_m,
                           n_tile_idx_with_adapt);
-
-        // adding gfx94x optimized
-        // index_t block_1d_id = tile_idx;
-        // const index_t N0    = n_tiles_value;
-        // const index_t M0    = math::integer_divide_ceil(n * m / m, MPerBlock);
-        // // index_t GroupNum    = 8;
-        // // index_t M01_        = 4;
-
-        // if(M0 == 1)
-        // {
-        //     return make_tuple(0, block_1d_id);
-        // }
-        // else if(N0 == 1)
-        // {
-        //     return make_tuple(block_1d_id, 0);
-        // }
-        // // block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
-        // else
-        // {
-        //     const auto group_size    = math::integer_divide_ceil(M0 * N0, GroupNum);
-        //     const auto big_group_num = GroupNum - (group_size * GroupNum - M0 * N0);
-        //     auto group_id_x          = block_1d_id % GroupNum;
-        //     auto group_id_y          = block_1d_id / GroupNum;
-        //     auto remap_block_1d_id =
-        //         group_id_x <= big_group_num
-        //             ? group_id_x * group_size + group_id_y
-        //             : group_id_x * group_size + big_group_num - group_id_x + group_id_y;
-
-        //     index_t idx_N0 = remap_block_1d_id % N0;
-        //     index_t idx_M0 = remap_block_1d_id / N0;
-
-        //     const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
-
-        //     index_t idx_M00          = idx_M0 / M01_;
-        //     index_t idx_M01          = idx_M0 % M01_;
-        //     index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
-
-        //     /**
-        //      *                        idxN0
-        //      *
-        //      *           |<               mtx   N                 >|
-        //      *
-        //      *             NPerBlock   NPerBlock   NPerBlock   NPerBlock
-        //      *                N_0         N_1        N_2         N_3
-        //      *       -   |-----------|-----------|-----------|-----|-----|-
-        //      *       ^   | -   -  0  |/---->  2  |           |     |     |
-        //      *           | |   |     /     |     |           |     |     |  M_0  MPerBlock
-        //      *           | M   |    /|     |     |           |     |     |
-        //      *           |-0---|---/-|-----|-----|-----------|-----|-----|-
-        //      *           | 1   |  /  |     |     |  blockid  |     |     |
-        //      * idxM0     | |   | /   |     V     |     5     |     |     |  M_1  MPerBlock
-        //      *           | -   V   1 |     -  3  |           |     |     |
-        //      *           |-----------|-----------|-----------|-----|-----|-
-        //      *    mtx M  |           |           |           |     |     |
-        //      *           |           |           |           |     |     |  M_2  MPerBlock
-        //      *           |           |           |           |     |     |
-        //      *           |-----------|-----------|-----------|-----|-----|-
-        //      *           |           |           |           |     |     |
-        //      *           |           |           |           |     |     |  M_3  MPerBlock
-        //      *           |           |           |           |     |     |
-        //      *           |-----------|-----------|-----------|-----|-----|-
-        //      *       V   |           |           |           |     |     |
-        //      *       -   |-----------|-----------|-----------|-----|-----|- M_4  MPerBlock
-        //      *           |           |           |           |     |     |
-        //      *           |-----------|-----------|-----------|-----|-----|-
-        //      *  Example:
-        //      *   assume:
-        //      *      M0 = 5
-        //      *      N0 = 4
-        //      *      block_1d_id = 5
-        //      *      M01 = 2
-        //      *
-        //      *   idx_N0 = 1
-        //      *   idx_M0 = 1
-        //      *   M01_adapt = 2
-        //      *   idx_M00 = 0
-        //      *   idx_M01 = 1
-        //      *   idx_N0_M01_local = 5
-        //      *   output {1, 2}
-        //      */
-
-        //     return make_tuple(idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
-        //                       idx_N0_M01_local / M01_adapt);
-        //}
     }
 
     __host__ __device__ uint32_t get_workspace_size_for_acc(uint32_t acc_element_bytes) const

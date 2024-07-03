@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -117,7 +117,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     auto f_get_default_stride =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if(stride == 0)
+            if(stride == -1)
             {
                 // give a chance if stride is zero, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
@@ -162,18 +162,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
-#if 0
-    printf("B matrix:\n");
-    for (int in = 0; in < N; in++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            printf("%02x ", *(reinterpret_cast<uint8_t*>(&b_k_n(ik,in))));
-            if(ik%8==7) printf("|");
-        }
-        printf("\n");
-    }
-#endif
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));

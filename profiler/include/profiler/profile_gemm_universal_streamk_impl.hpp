@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -153,7 +153,9 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     for(auto& op_ptr : op_ptrs)
     {
         std::vector<int> grid_size_list   = {38, 76, 114, 152, 190, 228, 266, 304, 342, 380};
-        std::vector<int> streamk_sel_list = {0, 1, 2, 3, 4};
+        std::vector<int> streamk_sel_list = {
+            0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
+                            // 2:2-tile Stream-K + DP
 
         if(Grid_size == -1)
         {

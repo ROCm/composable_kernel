@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -147,10 +147,8 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
-            hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                             0,
-                                             arg.M * arg.N * sizeof(CDataType),
-                                             stream_config.stream_id_)); // HS
+            hipGetErrorString(hipMemsetAsync(
+                arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_));
             const auto Run = [&](const auto& kernel) {
                 dim3 grid_dim;
                 if(arg.Grid_size < 0)
@@ -193,25 +191,13 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                     };
 
                     ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                        stream_config,
-                        run_flush_cache,
-                        kernel,
-                        grid_dim,
-                        // dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        arg_);
+                        stream_config, run_flush_cache, kernel, grid_dim, dim3(BlockSize), 0, arg_);
                 }
                 else
                 {
 
-                    ave_time = launch_and_time_kernel(stream_config,
-                                                      kernel,
-                                                      //   dim3(gdx, gdy, gdz),
-                                                      grid_dim,
-                                                      dim3(BlockSize),
-                                                      0,
-                                                      arg);
+                    ave_time = launch_and_time_kernel(
+                        stream_config, kernel, grid_dim, dim3(BlockSize), 0, arg);
                 }
             };
 
@@ -477,7 +463,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
-        // return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch};
+
         return Argument{
             p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, streamk_sel, Grid_size}; // HS
     }

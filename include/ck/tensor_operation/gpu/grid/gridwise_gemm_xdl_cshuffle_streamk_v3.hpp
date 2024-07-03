@@ -32,22 +32,13 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
+        kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        // karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        // karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_a_grid,
-        karg.p_b_grid,
-        karg.p_c_grid,
-        p_shared,
-        karg);
+        karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared, karg);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -62,8 +53,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
+        kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -71,17 +61,8 @@ __global__ void
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
-
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        // karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        // karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_a_grid,
-        karg.p_b_grid,
-        karg.p_c_grid,
-        p_shared_0,
-        p_shared_1,
-        karg);
+        karg.p_a_grid, karg.p_b_grid, karg.p_c_grid, p_shared_0, p_shared_1, karg);
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -155,15 +136,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                   MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    // __host__ static auto CalculateGridSize(index_t M, index_t N) //, index_t KBatch)
-    // {
-    //     // return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
-    //     // return ((Block2CTileMap::CalculateGridSize(M, N)) * KBatch);
-    //     // return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, 1);
-    //     return Block2CTileMap::CalculateGridSize(M, N);
-    // }
-
     __host__ static auto CalculateMPadded(index_t M)
     {
         return math::integer_least_multiple(M, MPerBlock);
@@ -995,10 +967,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         }
         else
         {
-            // constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
-            // auto K_t                = KReadVec;
-            // auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
-            if(karg.K <= 0) // HS
+
+            if(karg.K <= 0)
             {
                 return false;
             }
@@ -1103,10 +1073,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                           << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
                           << std::endl;
             }
-            // if(karg.KBatch > 1)
-            // {
-            //     return false;
-            // }
         }
 
         // check gridwise gemm pipeline
@@ -1152,16 +1118,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         return c_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
-    // return block_id to C matrix tile idx (m0, n0) mapping
-    // if arch = gfx942
-    // using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
-    // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
     using Block2CTileMap_streamk = BlockToCTileMap_GemmStreamK_v2<MPerBlock,
                                                                   NPerBlock,
                                                                   KPerBlock,
                                                                   StreamKReductionStrategy::Atomic,
                                                                   8,
-                                                                  4>; // HS
+                                                                  4>;
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
@@ -1177,43 +1139,39 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
-        // Provide a value for TileSwizzleSubM_
         Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
                                                          problem.N,
                                                          AK0Number * problem.KPadded,
                                                          problem.Grid_size,
-                                                         problem.Streamk_sel); // HS
-        uint32_t iter_start, iter_end;                                         // HS
-        bool is_sk_block, is_dp_block; //, is_padding_block; //, is_reduction_block; // HS
-        index_t num_k_block_main_loop; // HS
+                                                         problem.Streamk_sel);
+        uint32_t iter_start, iter_end;
+        bool is_sk_block, is_dp_block;
+        index_t num_k_block_main_loop;
 
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
             block_idx += gridDim.x)
         {
-            // for(unsigned int kbatch_id = 0; kbatch_id < static_cast<unsigned
-            // int>(problem.KBatch);
-            //     kbatch_id++)
+
             is_sk_block =
                 static_cast<uint32_t>(block_idx) < block_2_ctile_map_streamk.sk_num_blocks;
             is_dp_block =
                 static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.dp_start_block_idx &&
                 static_cast<uint32_t>(block_idx) <
-                    block_2_ctile_map_streamk.reduction_start_block_idx; // HS
+                    block_2_ctile_map_streamk.reduction_start_block_idx;
 
-            block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end); // HS
-            num_k_block_main_loop = iter_end - iter_start;                            // HS
+            block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
+            num_k_block_main_loop = iter_end - iter_start;
 
             while(true)
             {
                 uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
                     block_2_ctile_map_streamk.get_current_iter_length(
-                        iter_start, iter_end, num_k_block_main_loop)); // HS
-                uint32_t tile_idx, iter_offset;                        // HS
+                        iter_start, iter_end, num_k_block_main_loop));
+                uint32_t tile_idx, iter_offset;
                 block_2_ctile_map_streamk.get_tile_idx_with_offset(
-                    iter_end - 1, tile_idx, iter_offset); // HS
-                iter_offset =
-                    __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1); // HS
+                    iter_end - 1, tile_idx, iter_offset);
+                iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
 
                 const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(problem.M,
                                                                                  problem.MPadded,
@@ -1237,17 +1195,13 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
                 const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_a_grid /*+ splitk_batch_offset.a_k_split_offset*/,
-                    a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+                    p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
                 const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_b_grid /*+ splitk_batch_offset.b_k_split_offset*/,
-                    b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+                    p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
-                // const auto block_work_idx =
-                //     block_2_ctile_map.CalculateBottomIndex(make_multi_index(block_idx));
                 auto block_work_idx =
-                    block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N); // HS
+                    block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N);
 
                 const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
                 const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
@@ -1260,7 +1214,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
 
                 const index_t k0_block_data_idx_on_grid =
-                    __builtin_amdgcn_readfirstlane(iter_offset * AK0Number); // HS
+                    __builtin_amdgcn_readfirstlane(iter_offset * AK0Number);
 
                 // lds max alignment
                 constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
@@ -1298,7 +1252,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     true,
                     BlockwiseGemmPipe::GlobalBufferNum>(
                     a_grid_desc_ak0_m_ak1,
-                    make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0), // HS
+                    make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0),
                     a_element_op,
                     a_block_desc_ak0_m_ak1,
                     make_multi_index(0, 0, 0),
@@ -1361,7 +1315,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                 num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
                     (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-                    KPerBlock); // HS:AK0*KPadded/KPerBlock
+                    KPerBlock); :AK0*KPadded/KPerBlock
 
                 blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                     a_grid_desc_ak0_m_ak1,
@@ -1607,7 +1561,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 if(iter_end <= iter_start)
                     break;
                 // make sure next loop LDS is ready for use
-                block_sync_lds(); // HS
+                block_sync_lds();
             }
         }
     }
@@ -1627,13 +1581,11 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
-        Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
-                                                         problem.N,
-                                                         AK0Number * problem.KPadded,
-                                                         problem.Grid_size); // HS
-        uint32_t iter_start, iter_end;                                       // HS
-        bool is_sk_block, is_dp_block; //, is_padding_block; //, is_reduction_block; // HS
-        index_t num_k_block_main_loop; // HS
+        Block2CTileMap_streamk block_2_ctile_map_streamk(
+            problem.M, problem.N, AK0Number * problem.KPadded, problem.Grid_size);
+        uint32_t iter_start, iter_end;
+        bool is_sk_block, is_dp_block; //, is_padding_block; //, is_reduction_block;
+        index_t num_k_block_main_loop;
 
         for(auto block_idx = get_block_1d_id();
             block_idx < block_2_ctile_map_streamk.get_grid_dims();
@@ -1644,21 +1596,20 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             is_dp_block =
                 static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.dp_start_block_idx &&
                 static_cast<uint32_t>(block_idx) <
-                    block_2_ctile_map_streamk.reduction_start_block_idx; // HS
+                    block_2_ctile_map_streamk.reduction_start_block_idx;
 
-            block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end); // HS
-            num_k_block_main_loop = iter_end - iter_start;                            // HS
+            block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
+            num_k_block_main_loop = iter_end - iter_start;
 
             {
 
                 uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
                     block_2_ctile_map_streamk.get_current_iter_length(
-                        iter_start, iter_end, num_k_block_main_loop)); // HS
-                uint32_t tile_idx, iter_offset;                        // HS
+                        iter_start, iter_end, num_k_block_main_loop));
+                uint32_t tile_idx, iter_offset;
                 block_2_ctile_map_streamk.get_tile_idx_with_offset(
-                    iter_end - 1, tile_idx, iter_offset); // HS
-                iter_offset =
-                    __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1); // HS
+                    iter_end - 1, tile_idx, iter_offset);
+                iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
 
                 const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(problem.M,
                                                                                  problem.MPadded,
@@ -1683,16 +1634,12 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
                 const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_a_grid /*+ splitk_batch_offset.a_k_split_offset*/,
-                    a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+                    p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
                 const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_b_grid /*+ splitk_batch_offset.b_k_split_offset*/,
-                    b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+                    p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
-                // const auto block_work_idx =
-                //     block_2_ctile_map.CalculateBottomIndex(make_multi_index(block_idx));
                 auto block_work_idx =
-                    block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N); // HS
+                    block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N);
 
                 const index_t block_m_id = __builtin_amdgcn_readfirstlane(block_work_idx[I0]);
                 const index_t block_n_id = __builtin_amdgcn_readfirstlane(block_work_idx[I1]);
@@ -1704,7 +1651,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 const index_t n_block_data_idx_on_grid =
                     __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
                 const index_t k0_block_data_idx_on_grid =
-                    __builtin_amdgcn_readfirstlane(iter_offset * AK0Number); // HS
+                    __builtin_amdgcn_readfirstlane(iter_offset * AK0Number);
 
                 // lds max alignment
                 constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
@@ -1742,7 +1689,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     true,
                     BlockwiseGemmPipe::GlobalBufferNum>(
                     a_grid_desc_ak0_m_ak1,
-                    make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0), // HS
+                    make_multi_index(k0_block_data_idx_on_grid, m_block_data_idx_on_grid, 0),
                     a_element_op,
                     a_block_desc_ak0_m_ak1,
                     make_multi_index(0, 0, 0),
@@ -1773,7 +1720,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                     true,
                     BlockwiseGemmPipe::GlobalBufferNum>(
                     b_grid_desc_bk0_n_bk1,
-                    make_multi_index(k0_block_data_idx_on_grid, n_block_data_idx_on_grid, 0), // HS
+                    make_multi_index(k0_block_data_idx_on_grid, n_block_data_idx_on_grid, 0),
                     b_element_op,
                     b_block_desc_bk0_n_bk1,
                     make_multi_index(0, 0, 0),
