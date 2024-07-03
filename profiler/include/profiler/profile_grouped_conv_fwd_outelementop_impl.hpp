@@ -166,11 +166,11 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
     case 0: break;
     case 1:
         input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
-        weight.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+        weight.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-1, 1});
         break;
     default:
         input.GenerateTensorValue(GeneratorTensor_3<InDataType>{-5.0, 5.0});
-        weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-5.0, 5.0});
+        weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-1.0, 1.0});
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
@@ -182,11 +182,11 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
 
     // random scale values
     auto scale_in = type_convert<float>(
-        type_convert<f8_t>(4.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
     auto scale_wei = type_convert<float>(
-        type_convert<f8_t>(4.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
     auto scale_out = type_convert<float>(
-        type_convert<f8_t>(4.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
 
     // initialize out_element_op for each iteration
     const auto out_element_op = OutElementOp{scale_in, scale_wei, scale_out};

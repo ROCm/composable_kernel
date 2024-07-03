@@ -88,8 +88,6 @@ int grouped_conv_fwd_outelementop(int argc, char* argv[])
     using ConvScale    = ck::tensor_operation::element_wise::ConvScale;
     using ConvInvScale = ck::tensor_operation::element_wise::ConvInvscale;
 
-    // constexpr auto I1 = ck::Number<1>{};
-    // constexpr auto I2 = ck::Number<2>{};
     constexpr auto I3 = ck::Number<3>{};
 
     auto profile = [&](auto num_dim_spatial_tmp,
