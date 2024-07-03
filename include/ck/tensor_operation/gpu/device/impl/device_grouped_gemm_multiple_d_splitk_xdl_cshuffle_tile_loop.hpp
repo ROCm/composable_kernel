@@ -161,6 +161,9 @@ __global__ void
         // do CShuffle in flight with loading partials products of other peer workgroups.
         GridwiseGemm::StorePartials(p_workspace, static_cast<void*>(p_shared), results_buffer);
         work_scheduler.FlagFinished();
+        // When above would be done, then this will be necessary only when there are multiple
+        // WGPs reducing along K-dim.
+        work_scheduler.SynchronizeVmem();
 
         // The workgroup which processed first K tile accumulates results and stores to GMEM
         if(b2c_tile_map.IsFirstKSplitBlock())

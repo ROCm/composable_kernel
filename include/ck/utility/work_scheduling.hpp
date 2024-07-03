@@ -39,7 +39,7 @@ class StridedReductionTileLoop
           tile_id_{__builtin_amdgcn_readfirstlane(get_block_1d_id() * tiles_per_block_)},
           block_tile_idx_{__builtin_amdgcn_readfirstlane(0)},
           finished_block_flags_{p_flags},
-          is_sync_needed_{1}
+          is_sync_needed_{true}
     {
     }
 
@@ -179,7 +179,13 @@ class StridedReductionTileLoop
 
     __device__ void SetIsSyncNeeded(index_t next_k_tiles, index_t k_tiles)
     {
-        is_sync_needed_ = __builtin_amdgcn_readfirstlane(next_k_tiles == k_tiles ? 0 : 1);
+        is_sync_needed_ = (next_k_tiles == k_tiles ? 0 : 1);
+    }
+
+    __device__ void SynchronizeVmem() const
+    {
+        __builtin_amdgcn_s_waitcnt(0x0f70); // s_waitcnt vmcnt(0)
+        __builtin_amdgcn_s_barrier();       // s_barrier
     }
 
     const index_t tile_count_;
@@ -187,7 +193,7 @@ class StridedReductionTileLoop
     index_t tile_id_;
     index_t block_tile_idx_;
     workgroup_barrier finished_block_flags_;
-    index_t is_sync_needed_;
+    bool is_sync_needed_;
 };
 
 } // namespace ck
