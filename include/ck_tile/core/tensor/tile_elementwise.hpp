@@ -88,6 +88,7 @@ set_tile(DstrTensors& dstr_tensor, number<v>, bool_constant<skip_subdword_opt> =
     // # bytes per write = 4
     if constexpr(v == 0 && tensor_bytes % 4 == 0 && !skip_subdword_opt)
     {
+#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
         auto& buffer = dstr_tensor.get_thread_buffer();
 
         static_for<0, tensor_bytes / 4, 1>{}([&](auto i_write) {
@@ -121,6 +122,12 @@ set_tile(DstrTensors& dstr_tensor, number<v>, bool_constant<skip_subdword_opt> =
                 static_assert(false, "type not supported");
             }
         });
+#else
+        using dvec_t = array<index_t, tensor_bytes / 4>;
+        auto& tensor = reinterpret_cast<dvec_t&>(dstr_tensor.get_thread_buffer());
+        for(auto i = 0; i < tensor.size(); i++)
+            tensor.get(i) = v;
+#endif
     }
     else
     {
