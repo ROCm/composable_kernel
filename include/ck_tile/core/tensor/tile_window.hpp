@@ -404,6 +404,10 @@ struct tile_window_with_static_distribution
                 }
             });
         });
+#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
+        asm volatile("; this inline asm is workaround to prevent compiler from using too much "
+                     "scratch memory" ::);
+#endif
     }
 
     // TODO: currently async load only implemented in inline asm
