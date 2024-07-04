@@ -42,11 +42,11 @@ class TestGemmUniversal_MK_NK
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    //         ADataType, BDataType, CDataType
-    std::tuple<      F16,       F16,       F16>,
-    std::tuple<      F16,        F8,       F16>,
-    std::tuple<      F8,        F16,       F16>,
-    std::tuple<     BF16,      BF16,      BF16>
+    //         ADataType, BDataType, ComputeDataType, CDataType
+    std::tuple<      F16,       F16,             F16,     F16>,
+    std::tuple<      F16,        F8,             F16,     F16>,
+    std::tuple<      F8,        F16,             F16,     F16>,
+    std::tuple<     BF16,      BF16,            BF16,    BF16>
     >;
 // clang-format on
 

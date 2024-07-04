@@ -249,6 +249,31 @@ struct MultiplyAdd
     }
 };
 
+struct MultiplyMultiply
+{
+    template <typename E, typename C, typename D0, typename D1>
+    __host__ __device__ constexpr void
+    operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::half_t, float, float, float>(
+        ck::half_t& e, const float& c, const float& d0, const float& d1) const
+    {
+        const float x0_f = c * d0 * d1;
+
+        e = ck::type_convert<ck::half_t>(x0_f);
+    }
+
+    template <>
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, float, float, float>(
+        ck::bhalf_t& e, const float& c, const float& d0, const float& d1) const
+    {
+        const float x0_f = c * d0 * d1;
+
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
+    }
+};
+
 struct MultiplyAddFastGelu
 {
     template <typename E, typename C, typename D0, typename D1>
