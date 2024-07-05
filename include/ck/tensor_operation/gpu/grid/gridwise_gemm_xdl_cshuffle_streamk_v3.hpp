@@ -1315,7 +1315,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                 num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
                     (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
-                    KPerBlock); :AK0*KPadded/KPerBlock
+                    KPerBlock);
 
                 blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
                     a_grid_desc_ak0_m_ak1,

@@ -1517,30 +1517,6 @@ struct BlockToCTileMap_GemmStreamK_v2
             equiv_tiles_big       = MDiv(upper_big / k_iters_per_tile.get());
             equiv_tiles_little    = MDiv(upper_little / k_iters_per_tile.get());
         }
-
-        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-        {
-            printf("streamk_sel=%0d,grid_size=%0d, num_tiles:%d, dp_tiles:%d, sk_tiles:%u, "
-                   "sk_num_blocks:%d,dp_num_blocks:%d,sk_num_big_blocks:%d, "
-                   "sk_total_iters:%d, dp_start_block_idx:%d,  "
-                   "k_iters_per_tile:%d, k_iters_per_big_block:%d, reduction_start_block_idx:%u, "
-                   " workspace(acc float):%u\n",
-                   streamk_sel,
-                   grid_size,
-                   num_tiles,
-                   dp_tiles,
-                   get_sk_tiles(),
-                   sk_num_blocks,
-                   dp_num_blocks,
-                   sk_num_big_blocks,
-                   sk_total_iters,
-                   dp_start_block_idx,
-
-                   k_iters_per_tile.get(),
-                   k_iters_per_big_block,
-                   reduction_start_block_idx,
-                   get_workspace_size(sizeof(float)));
-        }
     }
 
     __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)

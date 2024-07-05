@@ -116,26 +116,37 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         };
 
     auto f_get_default_stride =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
             if(stride == -1)
             {
-                // give a chance if stride is zero, return a default packed stride
+                // give a chance if stride is -1, return a default packed stride
                 if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
                 {
-                    return col;
+                    return static_cast<std::size_t>(col);
                 }
                 else
                 {
-                    return row;
+                    return static_cast<std::size_t>(row);
                 }
             }
             else
-                return stride;
+                return static_cast<std::size_t>(stride);
         };
+
+    auto f_get_default_streamk_policy = [](ck::index_t streamk_sel) {
+        if(streamk_sel == -1)
+        {
+            return static_cast<std::size_t>(4);
+        }
+        else
+            return static_cast<std::size_t>(streamk_sel);
+    };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
     StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
+
+    Streamk_sel = f_get_default_streamk_policy(Streamk_sel);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
