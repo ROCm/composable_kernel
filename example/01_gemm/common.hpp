@@ -174,13 +174,13 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
     }
     else
     {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
-                  << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
-                  << std::endl
-                  << "arg3: time kernel (0=no, 1=yes)" << std::endl
-                  << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
-                  << "arg10: stream-k select (0: all DP, 1: 1-tile SK, 2: 2-tile SK)"
-                  << "\narg11: Grid_size(-1 for max occupancy)" << std::endl;
+        std::cerr
+            << "arg1: verification (0=no, 1=yes)" << std::endl
+            << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)" << std::endl
+            << "arg3: time kernel (0=no, 1=yes)" << std::endl
+            << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
+            << "arg10: stream-k select (-1: default config, 0: all DP, 1: 1-tile SK, 2: 2-tile SK)"
+            << "\narg11: Grid_size(-1 for max occupancy)" << std::endl;
         return false;
     }
 

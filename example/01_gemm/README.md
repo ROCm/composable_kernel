@@ -16,7 +16,7 @@ arg1: verification (0=no, 1=yes)
 arg2: initialization (0=no init, 1=integer value, 2=decimal value)
 arg3: time kernel (0=no, 1=yes)
 arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC
-arg10: stream-k select (0: all DP, 1: 1-tile SK, 2: 2-tile SK)
+arg10: stream-k select (-1: default config, 0: all DP, 1: 1-tile SK, 2: 2-tile SK)
 arg11: Grid_size(-1 for max occupancy)
 bin/example_gemm_xdl_fp16_streamk_v3 1 2 1 3840 4096 4096 4096 4096 4096 1 -1
 a_m_k: dim 2, lengths {3840, 4096}, strides {4096, 1}
