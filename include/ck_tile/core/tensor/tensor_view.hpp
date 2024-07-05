@@ -87,19 +87,21 @@ struct tensor_view
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
     template <typename X,
               bool oob_conditional_check = true,
+              bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                  typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
                   bool>::type = false>
-    CK_TILE_HOST_DEVICE void
-    get_vectorized_elements_raw(remove_cvref_t<X>& dst,
-                                const TensorCoord& coord,
-                                bool_constant<oob_conditional_check> = {}) const
+    CK_TILE_HOST_DEVICE void get_vectorized_elements_raw(remove_cvref_t<X>& dst,
+                                                         const TensorCoord& coord,
+                                                         bool_constant<oob_conditional_check> = {},
+                                                         bool_constant<pre_nop> = {}) const
     {
-        return buf_.template get_raw<X, oob_conditional_check>(
+        return buf_.template get_raw<X, oob_conditional_check, pre_nop>(
             dst,
             coord.get_offset(),
-            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<pre_nop>{});
     }
 
     template <typename X,

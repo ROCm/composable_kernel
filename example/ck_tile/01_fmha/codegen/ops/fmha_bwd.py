@@ -272,7 +272,7 @@ class FmhaBwdApiPool:
             if_i = 'if' if i == 0 else 'else if'
             per_dtypes = per_dtypes + FMHA_BWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
         if not per_dtypes:
-            # empry string we add some ignore to supprise warning in api
+            # empty string we add some ignore to suppress warning in api
             per_dtypes += '    (void)t ; (void)s ; (void)a;'
         return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_dtypes)
 

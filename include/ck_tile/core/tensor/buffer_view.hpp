@@ -346,12 +346,15 @@ struct buffer_view<address_space_enum::global,
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
               bool oob_conditional_check = true,
+              bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto
-    get_raw(remove_cvref_t<X>& dst, index_t i, bool is_valid_element) const
+    CK_TILE_DEVICE constexpr auto get_raw(remove_cvref_t<X>& dst,
+                                          index_t i,
+                                          bool is_valid_element,
+                                          bool_constant<pre_nop> = {}) const
     {
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
 
@@ -362,8 +365,8 @@ struct buffer_view<address_space_enum::global,
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence, oob_conditional_check>(
-            dst, cached_buf_res_, i, is_valid_element);
+        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence, oob_conditional_check, pre_nop>(
+            dst, cached_buf_res_, i, is_valid_element, bool_constant<pre_nop>{});
     }
 
     // i is offset of T, not X. i should be aligned to X

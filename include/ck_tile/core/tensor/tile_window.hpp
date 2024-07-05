@@ -367,10 +367,6 @@ struct tile_window_with_static_distribution
 
         auto& dst_vec_tbuf = reinterpret_cast<vectorized_tbuf&>(dst_tensor.get_thread_buffer());
 
-        // in case valu write sgpr followed by vmem read sgpr race condition
-        if constexpr(pre_nop)
-            s_nop(4);
-
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
@@ -378,7 +374,13 @@ struct tile_window_with_static_distribution
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+                constexpr auto pre_nop_ = [&]() {
+                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
+                        return bool_constant<true>{};
+                    else
+                        return bool_constant<false>{};
+                }();
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
@@ -389,7 +391,8 @@ struct tile_window_with_static_distribution
                 get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
                     dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
                     bottom_tensor_thread_coord,
-                    bool_constant<oob_conditional_check>{});
+                    bool_constant<oob_conditional_check>{},
+                    pre_nop_);
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
