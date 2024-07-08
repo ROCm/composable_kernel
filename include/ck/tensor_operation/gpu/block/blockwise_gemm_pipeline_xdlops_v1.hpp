@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -144,12 +144,12 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
 
-    __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
+    __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
+    __host__ __device__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         ignore = num_loop;
         return TailNumber::Full;
@@ -259,7 +259,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                            xdlops_gemm.template Run(
+                            xdlops_gemm.Run(
                                 a_thread_vec.template AsType<mfma_input_type>(),
                                 b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
@@ -319,10 +319,9 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                        xdlops_gemm.template Run(
-                            a_thread_vec.template AsType<mfma_input_type>(),
-                            b_thread_vec.template AsType<mfma_input_type>(),
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
             });
@@ -446,12 +445,12 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
-    __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
+    __host__ __device__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
         return num_loop > PrefetchStages;
     }
 
-    __host__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
+    __host__ __device__ static constexpr TailNumber BlockLoopTailNum(index_t num_loop)
     {
         ignore = num_loop;
         return TailNumber::Full;
@@ -584,7 +583,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                     block_sync_lds();
                                     __builtin_amdgcn_sched_barrier(0);
                                 }
-                                xdlops_gemm.template Run(
+                                xdlops_gemm.Run(
                                     a_thread_vec.template AsType<mfma_input_type>(),
                                     b_thread_vec.template AsType<mfma_input_type>(),
                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
@@ -668,7 +667,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                 block_sync_lds();
                                 __builtin_amdgcn_sched_barrier(0);
                             }
-                            xdlops_gemm.template Run(
+                            xdlops_gemm.Run(
                                 a_thread_vec.template AsType<mfma_input_type>(),
                                 b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));

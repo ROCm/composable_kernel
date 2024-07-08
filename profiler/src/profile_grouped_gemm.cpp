@@ -98,8 +98,8 @@ int profile_grouped_gemm(int argc, char* argv[])
     int n_iter   = 10;
     if(argc == 17)
     {
-        n_warmup = std::stoi(argv[16]);
-        n_iter   = std::stoi(argv[17]);
+        n_warmup = std::stoi(argv[15]);
+        n_iter   = std::stoi(argv[16]);
     }
 
 #ifdef CK_ENABLE_FP16

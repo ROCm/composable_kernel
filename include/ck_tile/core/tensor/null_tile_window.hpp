@@ -35,6 +35,8 @@ struct null_tile_window
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return BottomTensorIndex{}; }
 
+    CK_TILE_DEVICE void init_raw() {}
+
     WindowLengths window_lengths_;
 };
 
