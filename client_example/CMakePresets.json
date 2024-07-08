@@ -1,0 +1,80 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "linux-debug",
+            "displayName": "Linux Debug",
+            "hidden": true,
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "installDir": "${sourceDir}/build/install/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "client-example-debug",
+            "displayName": "MI200 Debug",
+            "inherits": "linux-debug",
+            "generator": "Unix Makefiles",
+            "description": "Development Environment for MI200 Series.",
+            "environment": {
+                "NONE": ""
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
+                "GPU_TARGETS": "gfx90a",
+                "CMAKE_PREFIX_PATH": "/dockerx/repos/composable_kernel.worktrees/andriy/lwpck-1394/build/install/gfx90a-release;/opt/rocm"
+            }
+        },
+        {
+            "name": "client-example-release",
+            "displayName": "MI200 Release",
+            "inherits": "client-example-debug",
+            "generator": "Unix Makefiles",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "hidden": true,
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release",
+            "hidden": true,
+            "configuration": "Release"
+        },
+        {
+            "name": "client-example-debug",
+            "displayName": "MI200 Debug Build",
+            "configurePreset": "client-example-debug",
+            "description": "Development Environment for MI200 Series.",
+            "inherits": [
+                "Debug"
+            ],
+            "jobs": 32
+        },
+        {
+            "name": "client-example-release",
+            "displayName": "MI200 Release Build",
+            "configurePreset": "client-example-release",
+            "description": "Development Environment for MI200 Series.",
+            "inherits": [
+                "Release"
+            ],
+            "jobs": 32
+        }
+    ]
+}
