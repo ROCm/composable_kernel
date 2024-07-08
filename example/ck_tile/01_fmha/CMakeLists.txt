@@ -89,7 +89,7 @@ else()
 endif()
 
 # conditionally enable call to the fwd_appendkv API in fmha_fwd example
-if ("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
+if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
