@@ -11,6 +11,7 @@ from codegen.cmake_config import *
 from codegen.ops import (
     fmha_fwd,
     fmha_fwd_appendkv,
+    fmha_fwd_splitkv,
     fmha_bwd
 )
 
@@ -22,6 +23,7 @@ class HandlerId(IntEnum):
 handlers = {
     'fwd'          : (fmha_fwd.list_blobs, fmha_fwd.write_blobs),
     'fwd_appendkv' : (fmha_fwd_appendkv.list_blobs, fmha_fwd_appendkv.write_blobs),
+    'fwd_splitkv'  : (fmha_fwd_splitkv.list_blobs, fmha_fwd_splitkv.write_blobs),
     'bwd'          : (fmha_bwd.list_blobs, fmha_bwd.write_blobs),
 }
 
