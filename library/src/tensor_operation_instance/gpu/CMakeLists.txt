@@ -59,7 +59,7 @@ function(add_instance_library INSTANCE_NAME)
     endforeach()
     # Do not build WMMA instances if gfx11 targets are not on the target list
     foreach(source IN LISTS ARGN)
-	if(NOT GPU_TARGETS MATCHES "gfx11" AND NOT GPU_TARGETS MATCHES "gfx12" AND source MATCHES "_wmma")
+	if(NOT INST_TARGETS MATCHES "gfx11" AND NOT INST_TARGETS MATCHES "gfx12" AND source MATCHES "_wmma")
             message("removing wmma instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
