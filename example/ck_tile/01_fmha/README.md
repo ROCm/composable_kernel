@@ -34,6 +34,7 @@ args:
                  if not equal to h, then this is GQA/MQA case
           -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
                  total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
+                 also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
         -s_k    seqlen_k, -1 means equal to s (default:-1)
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, -1 means equal to d (default:-1)

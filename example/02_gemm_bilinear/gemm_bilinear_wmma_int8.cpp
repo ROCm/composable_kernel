@@ -17,6 +17,7 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 struct AlphaBetaAdd
 {
@@ -173,6 +174,14 @@ int main(int argc, char* argv[])
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, alpha, "
                "beta\n");
         exit(0);
+    }
+
+    bool is_supported = ck::is_gfx11_supported();
+    if(!is_supported)
+    {
+        std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()
+                  << std::endl;
+        return 0;
     }
 
     auto f_host_tensor_descriptor =

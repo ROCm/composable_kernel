@@ -43,7 +43,15 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
             first = false;
         else
             os << delim;
-        os << static_cast<T>(v);
+
+        if constexpr(std::is_same_v<T, ck::f8_t> || std::is_same_v<T, ck::bf8_t>)
+        {
+            os << ck::type_convert<float>(v);
+        }
+        else
+        {
+            os << static_cast<T>(v);
+        }
     }
     return os;
 }

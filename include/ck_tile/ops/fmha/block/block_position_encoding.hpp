@@ -23,13 +23,13 @@ VERTICAL:
    [0] 1  2  3  4  5
    [0] 1  2  3  4  5
 
-TOP_LEFT:
+TOP_LEFT(but negative):
    [0] 1  2  3  4  5
     1 [0] 1  2  3  4
     2  1 [0] 1  2  3
     3  2  1 [0] 1  2
 
-FROM_BOTTOM_RIGHT:
+FROM_BOTTOM_RIGHT(but negative):
     2  1 [0] 1  2  3
     3  2  1 [0] 1  2
     4  3  2  1 [0] 1
@@ -54,7 +54,7 @@ struct Alibi
                               index_t x_total_,
                               AlibiMode mode_ = AlibiMode::VERTICAL)
     {
-        slope = mode_ == AlibiMode::VERTICAL ? slope_ : -slope;
+        slope = mode_ == AlibiMode::VERTICAL ? slope_ : -slope_;
 
         shift_left_up = [&]() {
             if(RowMajor)

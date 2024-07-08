@@ -28,6 +28,7 @@ Example is GQA-4
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -299,4 +300,14 @@ using ReferenceGemm1Instance =
 
 #include "run_grouped_query_attention_forward_wmma.inc"
 
-int main(int argc, char* argv[]) { return run(argc, argv); }
+int main(int argc, char* argv[])
+{
+    bool is_supported = ck::is_gfx11_supported();
+    if(!is_supported)
+    {
+        std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()
+                  << std::endl;
+        return 0;
+    }
+    return run(argc, argv);
+}

@@ -692,8 +692,8 @@ pipeline {
             description: "Select whether to build DL kernels (default: OFF)")
         booleanParam(
             name: "hipTensor_test",
-            defaultValue: true,
-            description: "Use the CK build to verify hipTensor build and tests (default: ON)")
+            defaultValue: false,
+            description: "Use the CK build to verify hipTensor build and tests (default: OFF)")
         string(
             name: 'hipTensor_branch',
             defaultValue: 'mainline',
@@ -879,10 +879,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1100;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx908;gfx90a" \
+                                           -DGPU_TARGETS="gfx1100;gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
@@ -902,9 +902,8 @@ pipeline {
                         execute_args = """ cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_TARGETS="gfx90a;gfx1030;gfx1101" \
                                            -D INSTANCES_ONLY=ON \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j32 """
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j64 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)

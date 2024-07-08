@@ -13,7 +13,7 @@
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_tile_loop_multply.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_gemm_tile_loop_multiply.hpp"
 
 #include "ck/host_utility/hip_check_error.hpp"
 
