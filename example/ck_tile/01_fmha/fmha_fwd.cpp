@@ -370,6 +370,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(num_splits != 1)
     {
         std::cerr << "split-kv is not supported. ignoring the 'num_splits' option" << std::endl;
+        num_splits = 1;
     }
 #endif
 
