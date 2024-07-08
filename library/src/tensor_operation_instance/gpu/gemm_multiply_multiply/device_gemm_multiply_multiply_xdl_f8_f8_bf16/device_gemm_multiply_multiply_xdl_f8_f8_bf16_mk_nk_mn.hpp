@@ -23,7 +23,7 @@ using Col = tensor_layout::gemm::ColumnMajor;
 template <index_t... Is>
 using S = Sequence<Is...>;
 
-using PassThrough = element_wise::PassThrough;
+using PassThrough      = element_wise::PassThrough;
 using MultiplyMultiply = element_wise::MultiplyMultiply;
 
 static constexpr auto GemmDefault    = GemmSpecialization::Default;
