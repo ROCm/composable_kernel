@@ -248,11 +248,13 @@ float fmha_fwd_dispatch(fmha_fwd_traits traits,
                         fmha_fwd_args args,
                         const ck_tile::stream_config& config)
 {
+#if CK_TILE_FMHA_FWD_SPLITKV_API
     if(1 < args.num_splits)
     {
         return fmha_fwd_splitkv(traits, args, config);
     }
     else
+#endif
     {
         return fmha_fwd(traits, args, config);
     }
