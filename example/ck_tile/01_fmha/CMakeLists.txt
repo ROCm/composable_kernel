@@ -82,7 +82,7 @@ else()
 endif()
 
 # conditionally enable call to the fwd_splitkv API in fmha_fwd example
-if ("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)
+if("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)

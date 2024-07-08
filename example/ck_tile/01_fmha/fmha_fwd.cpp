@@ -366,6 +366,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     int num_splits = arg_parser.get_int("num_splits");
+#if !CK_TILE_FMHA_FWD_SPLITKV_API
+    if(num_splits != 1)
+    {
+        std::cerr << "split-kv is not supported. ignoring the 'num_splits' option" << std::endl;
+    }
+#endif
 
     int stream_warmup = arg_parser.get_int("warmup");
     int stream_repeat = arg_parser.get_int("repeat");
