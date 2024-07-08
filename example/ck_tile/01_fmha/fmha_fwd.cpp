@@ -289,6 +289,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               arg_parser.get_str("s_kpad"));
 
     ck_tile::index_t seqlen_knew = arg_parser.get_int("s_k_new");
+#if !CK_TILE_FMHA_FWD_APPENDKV_API
+    if(0 < seqlen_knew)
+    {
+        std::cerr << "append-kv is not supported" << std::endl;
+        return false;
+    }
+#endif
 
 #if 0
     // clang-format off
@@ -638,6 +645,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     float ave_time = 0;
 
+#if CK_TILE_FMHA_FWD_APPENDKV_API
     if(0 < seqlen_knew)
     {
         auto appendkv_traits = fmha_fwd_appendkv_traits{
@@ -724,6 +732,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         ave_time += fmha_fwd_appendkv(appendkv_traits, appendkv_args, stream_config);
     }
+#endif
 
     auto fmha_traits = fmha_fwd_traits{hdim_q,
                                        hdim_v,

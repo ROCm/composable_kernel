@@ -88,6 +88,13 @@ else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)
 endif()
 
+# conditionally enable call to the fwd_appendkv API in fmha_fwd example
+if ("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
+else()
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
+endif()
+
 # Allow comparing floating points directly in order to check sentinel values
 list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
