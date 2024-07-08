@@ -57,6 +57,7 @@ if(GPU_TARGETS MATCHES "gfx9")
   list(APPEND PROFILER_SOURCES profile_conv_fwd_bias_relu_add.cpp)
   list(APPEND PROFILER_SOURCES profile_conv_bwd_data.cpp)
   list(APPEND PROFILER_SOURCES profile_conv_fwd.cpp)
+  list(APPEND PROFILER_SOURCES profile_grouped_conv_fwd_outelementop.cpp)
 
 endif()
 
@@ -134,6 +135,8 @@ if(GPU_TARGETS MATCHES "gfx9")
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_conv2d_bwd_data_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv1d_bwd_weight_instance)
   target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv2d_bwd_weight_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_fwd_convscale_instance)
+  target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_grouped_conv3d_fwd_convinvscale_instance)
 endif()
 
 if(GPU_TARGETS MATCHES "gfx9" OR GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12")
