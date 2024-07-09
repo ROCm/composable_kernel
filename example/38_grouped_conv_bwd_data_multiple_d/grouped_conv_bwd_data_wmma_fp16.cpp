@@ -3,6 +3,7 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle.hpp"
 #include "common.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 using OutDataType      = FP16;
 using WeiDataType      = FP16;
@@ -31,4 +32,14 @@ using DeviceConvInstance = ck::tensor_operation::device::DeviceGroupedConvBwdDat
 
 #include "run_grouped_conv_bwd_data_example.inc"
 
-int main(int argc, char* argv[]) { return run_grouped_conv_bwd_data_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    bool is_supported = ck::is_gfx11_supported();
+    if(!is_supported)
+    {
+        std::cout << "WARNING: wmma example not supported on the platform " << ck::get_device_name()
+                  << std::endl;
+        return 0;
+    }
+    return run_grouped_conv_bwd_data_example(argc, argv);
+}
