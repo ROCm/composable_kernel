@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
+#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -15,19 +16,20 @@ namespace ck_tile {
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy>
 struct BlockFmhaPipelineQRKSVSAsync
 {
-    using Problem             = remove_cvref_t<Problem_>;
-    using Policy              = remove_cvref_t<Policy_>;
-    using QDataType           = remove_cvref_t<typename Problem::QDataType>;
-    using KDataType           = remove_cvref_t<typename Problem::KDataType>;
-    using VDataType           = remove_cvref_t<typename Problem::VDataType>;
-    using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
-    using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
-    using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
-    using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
-    using PDataType           = remove_cvref_t<typename Problem::PDataType>;
-    using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
-    using ODataType           = remove_cvref_t<typename Problem::ODataType>;
-    using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
+    using Problem               = remove_cvref_t<Problem_>;
+    using Policy                = remove_cvref_t<Policy_>;
+    using QDataType             = remove_cvref_t<typename Problem::QDataType>;
+    using KDataType             = remove_cvref_t<typename Problem::KDataType>;
+    using VDataType             = remove_cvref_t<typename Problem::VDataType>;
+    using SaccDataType          = remove_cvref_t<typename Problem::SaccDataType>;
+    using SMPLComputeDataType   = remove_cvref_t<typename Problem::SMPLComputeDataType>;
+    using BiasDataType          = remove_cvref_t<typename Problem::BiasDataType>;
+    using RandValOutputDataType = remove_cvref_t<typename Problem::RandValOutputDataType>;
+    using LSEDataType           = remove_cvref_t<typename Problem::LSEDataType>;
+    using PDataType             = remove_cvref_t<typename Problem::PDataType>;
+    using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
+    using ODataType             = remove_cvref_t<typename Problem::ODataType>;
+    using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -54,6 +56,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -78,6 +81,12 @@ struct BlockFmhaPipelineQRKSVSAsync
             return Problem::kBlockPerCu;
         else
         {
+            // minimize occupancy
+            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)
+            {
+                return 1;
+            }
+
             if constexpr(kK0BlockLength <= 32)
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS &&
@@ -109,6 +118,8 @@ struct BlockFmhaPipelineQRKSVSAsync
 
     static constexpr const char* name = "qr_async";
 
+    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -118,6 +129,7 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
@@ -137,6 +149,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                const LSEElementFunction& lse_element_func,
                const SAccElementFunction& s_acc_element_func,
@@ -145,7 +158,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr) const
+               void* smem_ptr,
+               DropoutType& dropout) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -212,6 +226,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             q_dram_block_window_tmp.get_window_lengths(),
             q_dram_block_window_tmp.get_window_origin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        q_dram_window.init_raw();
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
@@ -285,12 +300,26 @@ struct BlockFmhaPipelineQRKSVSAsync
             k_dram_block_window.get_window_origin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
+        k_dram_window.init_raw();
+        constexpr auto k_oob_ck = bool_constant<true>{};
+        constexpr auto k_pre_np = [&]() {
+            if constexpr(kPadSeqLenK &&
+                         (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
+                return bool_constant<true>{};
+            else
+                return bool_constant<false>{};
+        }();
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window  = make_tile_window(
             bias_dram_block_window_tmp.get_bottom_tensor_view(),
             bias_dram_block_window_tmp.get_window_lengths(),
             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
+
+        auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
+            randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -299,7 +328,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         // prefetch K tile
-        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
+        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -322,7 +351,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                     async_load_tile_raw(k_lds_store(number<LdsSeq.at(number<i_k0 + 1>{})>{}),
-                                        k_dram_window);
+                                        k_dram_window,
+                                        k_oob_ck,
+                                        k_pre_np);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
@@ -558,8 +589,25 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             });
 
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+            if constexpr(kHasDropout)
+            {
+                auto randval_ptr =
+                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
+                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                    randval_ptr,
+                    seqlen_k_start + i_total_loops * kN0,
+                    p_compute,
+                    randval_dram_window);
+            }
+
+            const auto p = [&]() {
+                if constexpr(std::is_same_v<PDataType, fp16_t>)
+                    return impl::cast_tile_pk_fp16_fp32<PDataType>(
+                        tile_elementwise_in(p_compute_element_func, p_compute));
+                else
+                    return cast_tile<PDataType>(
+                        tile_elementwise_in(p_compute_element_func, p_compute));
+            }();
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
@@ -609,16 +657,13 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0, 0});
-                k_dram_window =
-                    make_tile_window(k_dram_block_window.get_bottom_tensor_view(),
-                                     k_dram_block_window.get_window_lengths(),
-                                     k_dram_block_window.get_window_origin(),
-                                     Policy::template MakeKDramTileDistribution<Problem>());
+                k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
+                async_load_tile_raw(
+                    k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail
@@ -688,6 +733,7 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
@@ -695,11 +741,13 @@ struct BlockFmhaPipelineQRKSVSAsync
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
                LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr) const
+               void* smem_ptr,
+               DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -709,6 +757,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
+                          randval_dram_block_window_tmp,
                           lse_dram_block_window_tmp,
                           identity{},
                           identity{},
@@ -717,7 +766,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           mask,
                           position_encoding,
                           scale_s,
-                          smem_ptr);
+                          smem_ptr,
+                          dropout);
     }
 };
 
