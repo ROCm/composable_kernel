@@ -219,7 +219,7 @@ struct vector_type<T, 1, typename std::enable_if_t<is_native_type<T>()>>
     }
 };
 
-int static err = 0;
+__device__ int static err = 0;
 template <typename T>
 struct vector_type<T, 2, typename std::enable_if_t<is_native_type<T>()>>
 {
