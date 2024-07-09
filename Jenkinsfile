@@ -652,12 +652,10 @@ def process_results(Map conf=[:]){
     }
 }
 
-//launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1;
-                                              0 21 * * * % ROCMVERSION=6.1;hipTensor_test=true
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;COMPILER_COMMIT=;USE_SCCACHE=false
-                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
+
+//cron job test
+CRON_SETTINGS = BRANCH_NAME == "lwpck-1956" ? '''0 21 * * * % ROCMVERSION=6.1;hipTensor_test=true''' : ""
+
 
 pipeline {
     agent none
