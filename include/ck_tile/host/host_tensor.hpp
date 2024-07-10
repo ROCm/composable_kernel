@@ -330,7 +330,7 @@ struct HostTensor
     {
     }
 
-    std::size_t get_legnth(std::size_t dim) const { return mDesc.get_length(dim); }
+    std::size_t get_length(std::size_t dim) const { return mDesc.get_length(dim); }
 
     decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
 
