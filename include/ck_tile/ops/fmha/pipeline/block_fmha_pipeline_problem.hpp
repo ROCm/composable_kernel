@@ -54,4 +54,69 @@ struct BlockFmhaPipelineProblem
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 
+template <typename QDataType,
+          typename KDataType,
+          typename VDataType,
+          typename SaccDataType,
+          typename SMPLComputeDataType,
+          typename BiasDataType,
+          typename RandValOutputDataType,
+          typename LSEDataType,
+          typename PDataType,
+          typename OaccDataType,
+          typename ODataType,
+          typename BlockFmhaShape,
+          bool kIsGroupMode,
+          typename FmhaMask,
+          typename Traits>
+struct BlockFmhaFwdSplitKVPipelineProblem : BlockFmhaPipelineProblem<QDataType,
+                                                                     KDataType,
+                                                                     VDataType,
+                                                                     SaccDataType,
+                                                                     SMPLComputeDataType,
+                                                                     BiasDataType,
+                                                                     RandValOutputDataType,
+                                                                     LSEDataType,
+                                                                     PDataType,
+                                                                     OaccDataType,
+                                                                     ODataType,
+                                                                     BlockFmhaShape,
+                                                                     kIsGroupMode,
+                                                                     FmhaMask,
+                                                                     Traits>
+{
+    static constexpr bool kHasUnevenSplits = kIsGroupMode || Traits::kHasUnevenSplits;
+};
+
+template <typename LSEDataType_,
+          typename OaccDataType_,
+          typename ODataType_,
+          index_t HeadDimV_,
+          index_t kM0_,
+          index_t kN1_,
+          bool kIsGroupMode_,
+          typename Traits_>
+struct BlockFmhaSplitKVCombinePipelineProblem
+{
+    using LSEDataType  = remove_cvref_t<LSEDataType_>;
+    using OaccDataType = remove_cvref_t<OaccDataType_>;
+    using ODataType    = remove_cvref_t<ODataType_>;
+    using Traits       = remove_cvref_t<Traits_>;
+
+    static constexpr index_t kBlockSize = 256;
+    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+
+    static constexpr index_t kHeadDimV = HeadDimV_;
+    static constexpr index_t kM0       = kM0_;
+    static constexpr index_t kN1       = kN1_;
+
+    // attributes from traits
+    static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
+    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
+    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
+    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
+    static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    static constexpr index_t kMaxSplits     = Traits::kMaxSplits;
+};
+
 } // namespace ck_tile
