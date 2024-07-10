@@ -8,9 +8,7 @@ namespace ck_tile {
 // This class is used for codegen pattern matching
 enum class BlockFmhaBwdPipelineEnum
 {
-    KSKTSVR = 0,
-    QSKSVROGradS,
-    KSVR,
+    KRKTRVR = 0,
 };
 
 } // namespace ck_tile

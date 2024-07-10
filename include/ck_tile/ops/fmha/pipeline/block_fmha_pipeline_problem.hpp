@@ -21,6 +21,7 @@ template <typename QDataType_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
           typename FmhaMask_,
+          typename FmhaDropout_,
           typename Traits_>
 struct BlockFmhaPipelineProblem
 {
@@ -37,6 +38,7 @@ struct BlockFmhaPipelineProblem
     using ODataType             = remove_cvref_t<ODataType_>;
     using BlockFmhaShape        = remove_cvref_t<BlockFmhaShape_>;
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
+    using FmhaDropout           = remove_cvref_t<FmhaDropout_>;
     using Traits                = remove_cvref_t<Traits_>;
 
     static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
@@ -49,7 +51,6 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
     static constexpr auto BiasEnum          = Traits::BiasEnum;
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
-    static constexpr bool kHasDropout       = Traits::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
@@ -68,6 +69,7 @@ template <typename QDataType,
           typename BlockFmhaShape,
           bool kIsGroupMode,
           typename FmhaMask,
+          typename FmhaDropout,
           typename Traits>
 struct BlockFmhaFwdSplitKVPipelineProblem : BlockFmhaPipelineProblem<QDataType,
                                                                      KDataType,
@@ -83,6 +85,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem : BlockFmhaPipelineProblem<QDataType,
                                                                      BlockFmhaShape,
                                                                      kIsGroupMode,
                                                                      FmhaMask,
+                                                                     FmhaDropout,
                                                                      Traits>
 {
     static constexpr bool kHasUnevenSplits = kIsGroupMode || Traits::kHasUnevenSplits;

@@ -7,38 +7,34 @@
 
 namespace ck_tile {
 
-template <typename BlockFmhaShape_>
-struct FmhaBwdTilePartitioner
+template <ck_tile::index_t kN0>
+struct FmhaBwdKTilePartitioner
 {
-    using BlockFmhaShape = ck_tile::remove_cvref_t<BlockFmhaShape_>;
-
-    static constexpr ck_tile::index_t kN0 = BlockFmhaShape::kN0;
-
     CK_TILE_HOST static constexpr auto
     GridSize(ck_tile::index_t batch_size_, ck_tile::index_t nhead_, ck_tile::index_t seqlen_k_)
     {
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(seqlen_k_, kN0), nhead_, batch_size_);
+        return dim3(batch_size_, nhead_, ck_tile::integer_divide_ceil(seqlen_k_, kN0));
     }
 
     CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_k*/)
     {
-        const index_t i_block = blockIdx.x;
+        const index_t i_block = blockIdx.z;
         const index_t i_nhead = blockIdx.y;
-        const index_t i_batch = blockIdx.z;
+        const index_t i_batch = blockIdx.x;
 
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 };
 
-template <ck_tile::index_t kBlockSize>
-struct FmhaBwdOGradDotOTilePartitioner
+template <ck_tile::index_t kM0>
+struct FmhaBwdQTilePartitioner
 {
     CK_TILE_HOST static constexpr auto
     GridSize(ck_tile::index_t batch_size_, ck_tile::index_t nhead_, ck_tile::index_t seqlen_q_)
     {
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kBlockSize), nhead_, batch_size_);
+        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kM0), nhead_, batch_size_);
     }
 
     CK_TILE_DEVICE auto operator()(ck_tile::index_t /*seqlen_q*/)

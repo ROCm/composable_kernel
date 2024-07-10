@@ -15,7 +15,6 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
           bool kStoreLSE_,
-          bool kHasDropout_,
           bool kDoFp8StaticQuant_,
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaTraits
@@ -27,7 +26,6 @@ struct TileFmhaTraits
     static constexpr auto BiasEnum          = BiasEnum_;
     static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
-    static constexpr bool kHasDropout       = kHasDropout_;
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
 };
@@ -39,7 +37,6 @@ template <bool kPadSeqLenQ /* padding for seqlen_q */,
           BlockAttentionBiasEnum BiasEnum,
           bool kHasBiasGrad,
           bool kStoreLSE,
-          bool kHasDropout,
           bool kDoFp8StaticQuant,
           bool kHasUnevenSplits_ = true,
           index_t kBlockPerCu    = -1 /* overwrite occupancy if not -1 */>
@@ -50,7 +47,6 @@ struct TileFmhaFwdSplitKVTraits : TileFmhaTraits<kPadSeqLenQ,
                                                  BiasEnum,
                                                  kHasBiasGrad,
                                                  kStoreLSE,
-                                                 kHasDropout,
                                                  kDoFp8StaticQuant,
                                                  kBlockPerCu>
 {
@@ -83,6 +79,16 @@ struct TileFmhaBwdOGradDotOTraits
 {
     static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
     static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+};
+
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          index_t kBlockPerCu_ = 2 /* hint to occupancy */>
+struct TileFmhaBwdConvertQGradTraits
+{
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimQ   = kPadHeadDimQ_;
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 

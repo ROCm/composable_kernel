@@ -77,6 +77,7 @@ struct fmha_bwd_args
     void* dk_ptr;
     void* dv_ptr;
     void* dbias_ptr;
+    void* dq_acc_ptr;
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr;
@@ -120,12 +121,12 @@ struct fmha_bwd_args
     ck_tile::index_t batch_stride_dk;
     ck_tile::index_t batch_stride_dv;
     ck_tile::index_t batch_stride_dbias;
+    ck_tile::index_t split_stride_dq_acc;
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
     float p_drop;
     float p_undrop;
-    bool s_randval;
     std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
 
@@ -145,10 +146,10 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.do_ptr,
                                                   args.d_ptr,
                                                   args.rand_val_ptr,
-                                                  args.dq_ptr,
                                                   args.dk_ptr,
                                                   args.dv_ptr,
                                                   args.dbias_ptr,
+                                                  args.dq_acc_ptr,
                                                   args.seqstart_q_ptr,
                                                   args.seqstart_k_ptr,
                                                   args.seqlen_k_ptr,
@@ -175,11 +176,11 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.nhead_stride_lsed,
                                                   args.nhead_stride_dbias,
                                                   args.batch_stride_lsed,
+                                                  args.split_stride_dq_acc,
                                                   args.window_size_left,
                                                   args.window_size_right,
                                                   args.mask_type,
                                                   args.p_drop,
-                                                  args.s_randval,
                                                   args.drop_seed_offset);
         }
         else
@@ -192,10 +193,10 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.do_ptr,
                                                   args.d_ptr,
                                                   args.rand_val_ptr,
-                                                  args.dq_ptr,
                                                   args.dk_ptr,
                                                   args.dv_ptr,
                                                   args.dbias_ptr,
+                                                  args.dq_acc_ptr,
                                                   args.seqlen_q,
                                                   args.seqlen_k,
                                                   args.hdim_q,
@@ -230,11 +231,11 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.batch_stride_dk,
                                                   args.batch_stride_dv,
                                                   args.batch_stride_dbias,
+                                                  args.split_stride_dq_acc,
                                                   args.window_size_left,
                                                   args.window_size_right,
                                                   args.mask_type,
                                                   args.p_drop,
-                                                  args.s_randval,
                                                   args.drop_seed_offset);
         }
     }();
@@ -286,19 +287,54 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
     return ck_tile::make_tuple(kargs, grids);
 }
 
+template <typename FmhaBwdConvertQGradKernel>
+auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
+{
+    auto kargs = [&] {
+        // create group mode kernel arguments
+        if constexpr(FmhaBwdConvertQGradKernel::kIsGroupMode)
+        {
+            return FmhaBwdConvertQGradKernel::MakeKargs(args.dq_acc_ptr,
+                                                        args.dq_ptr,
+                                                        args.seqstart_q_ptr,
+                                                        args.seqlen_k_ptr,
+                                                        args.hdim_q,
+                                                        args.stride_q,
+                                                        args.nhead_stride_q,
+                                                        args.split_stride_dq_acc);
+        }
+        else
+        { // create batch mode kernel arguments
+            return FmhaBwdConvertQGradKernel::MakeKargs(args.dq_acc_ptr,
+                                                        args.dq_ptr,
+                                                        args.seqlen_q,
+                                                        args.seqlen_k,
+                                                        args.hdim_q,
+                                                        args.stride_q,
+                                                        args.nhead_stride_q,
+                                                        args.batch_stride_q,
+                                                        args.split_stride_dq_acc);
+        }
+    }();
+
+    dim3 grids = FmhaBwdConvertQGradKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q);
+    return ck_tile::make_tuple(kargs, grids);
+}
+
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
 template <ck_tile::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
           ck_tile::BlockFmhaBwdPipelineEnum FmhaBwdPipelineEnum_,
           typename FmhaMask_,
+          typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kHasDropout_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
-          bool kPadDv_>
+          bool kPadDv_,
+          bool kIsDeterministic_>
 struct fmha_bwd_dq_dk_dv_traits_
 {
     static constexpr ck_tile::index_t HDim    = HDim_;
@@ -306,13 +342,14 @@ struct fmha_bwd_dq_dk_dv_traits_
     static constexpr bool kIsGroupMode        = kIsGroupMode_;
     static constexpr auto FmhaBwdPipelineEnum = FmhaBwdPipelineEnum_;
     using FmhaMask                            = ck_tile::remove_cvref_t<FmhaMask_>;
+    using FmhaDropout                         = ck_tile::remove_cvref_t<FmhaDropout_>;
     static constexpr auto BiasEnum            = BiasEnum_;
     static constexpr bool kHasBiasGrad        = kHasBiasGrad_;
-    static constexpr bool kHasDropout         = kHasDropout_;
     static constexpr bool kPadS               = kPadS_;
     static constexpr bool kPadSK              = kPadSK_;
     static constexpr bool kPadD               = kPadD_;
     static constexpr bool kPadDv              = kPadDv_;
+    static constexpr bool kIsDeterministic    = kIsDeterministic_;
 };
 
 template <typename Traits_>
@@ -343,6 +380,31 @@ void fmha_bwd_dot_do_o_oneshot_(const ck_tile::stream_config&, fmha_bwd_args);
 template <typename Traits_>
 std::string fmha_bwd_dot_do_o_get_name_();
 
+template <ck_tile::index_t HDim_,
+          typename DataType_,
+          bool kIsGroupMode_,
+          bool kPadS_,
+          bool kPadD_,
+          bool kIsDeterministic_>
+struct fmha_bwd_convert_dq_traits_
+{
+    static constexpr ck_tile::index_t HDim = HDim_;
+    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
+    static constexpr bool kIsGroupMode     = kIsGroupMode_;
+    static constexpr bool kPadS            = kPadS_;
+    static constexpr bool kPadD            = kPadD_;
+    static constexpr bool kIsDeterministic = kIsDeterministic_;
+};
+
+template <typename Traits_>
+float fmha_bwd_convert_dq_(const ck_tile::stream_config&, fmha_bwd_args);
+
+template <typename Traits_>
+void fmha_bwd_convert_dq_oneshot_(const ck_tile::stream_config&, fmha_bwd_args);
+
+template <typename Traits_>
+std::string fmha_bwd_convert_dq_get_name_();
+
 // This is the public API, will be generated by script
 struct fmha_bwd_traits
 {
@@ -354,6 +416,8 @@ struct fmha_bwd_traits
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_dbias;
     bool has_dropout;
+    bool is_store_randval;
+    bool is_deterministic;
     // TODO: padding check is inside this api
 };
 float fmha_bwd(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);

@@ -24,7 +24,9 @@ template <typename QDataType_,
           typename BiasGradDataType_,
           typename BlockFmhaShape_,
           bool kIsGroupMode_,
+          bool kIsDeterministic_,
           typename FmhaMask_,
+          typename FmhaDropout_,
           typename Traits_>
 struct BlockFmhaBwdPipelineProblem
 {
@@ -45,10 +47,12 @@ struct BlockFmhaBwdPipelineProblem
     using BiasGradDataType      = remove_cvref_t<BiasGradDataType_>;
     using BlockFmhaShape        = remove_cvref_t<BlockFmhaShape_>;
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
+    using FmhaDropout           = remove_cvref_t<FmhaDropout_>;
     using Traits                = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kBlockSize = BlockFmhaShape::NumWarps * get_warp_size();
-    static constexpr bool kIsGroupMode  = kIsGroupMode_;
+    static constexpr index_t kBlockSize    = BlockFmhaShape::NumWarps * get_warp_size();
+    static constexpr bool kIsGroupMode     = kIsGroupMode_;
+    static constexpr bool kIsDeterministic = kIsDeterministic_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
@@ -57,7 +61,6 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
     static constexpr auto BiasEnum       = Traits::BiasEnum;
     static constexpr bool kHasBiasGrad   = Traits::kHasBiasGrad;
-    static constexpr bool kHasDropout    = Traits::kHasDropout;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 
@@ -85,6 +88,32 @@ struct BlockFmhaBwdOGradDotOPipelineProblem
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
+    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
+};
+
+template <typename AccDataType_,
+          typename QGradDataType_,
+          typename Shape_,
+          typename Traits_,
+          bool kIsGroupMode_,
+          bool kIsDeterministic_>
+struct BlockFmhaBwdConvertQGradPipelineProblem
+{
+    using AccDataType   = remove_cvref_t<AccDataType_>;
+    using QGradDataType = remove_cvref_t<QGradDataType_>;
+    using Shape         = remove_cvref_t<Shape_>;
+    using Traits        = remove_cvref_t<Traits_>;
+
+    static constexpr index_t kBlockSize    = Shape::NumWarps * get_warp_size();
+    static constexpr bool kIsGroupMode     = kIsGroupMode_;
+    static constexpr bool kIsDeterministic = kIsDeterministic_;
+
+    static_assert(0 < kBlockSize && kBlockSize % get_warp_size() == 0,
+                  "kBlockSize should be divisible by get_warp_size()");
+
+    // attributes from traits
+    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
+    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 

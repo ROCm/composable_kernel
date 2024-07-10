@@ -92,4 +92,20 @@ struct TileFmhaBwdShape
                                                                      // that need load V at once
 };
 
+template <typename BlockTile_, // sequence<...
+          typename BlockWarps_,
+          typename WarpTile_>
+struct TileFmhaBwdConvertQGradShape
+{
+    using BlockTile  = remove_cvref_t<BlockTile_>;
+    using BlockWarps = remove_cvref_t<BlockWarps_>;
+    using WarpTile   = remove_cvref_t<WarpTile_>;
+
+    static constexpr index_t NumWarps = reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+
+    static constexpr index_t kM0        = BlockTile::at(number<0>{}); // tile size along q seqlen
+    static constexpr index_t kN0        = BlockTile::at(number<1>{}); // tile size along k seqlen
+    static constexpr index_t kQKHeaddim = BlockTile::at(number<2>{}); // Q & K headdim
+};
+
 } // namespace ck_tile

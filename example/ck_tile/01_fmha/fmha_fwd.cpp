@@ -622,6 +622,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        bias.type,
                                        lse,
                                        p_drop > 0.0f,
+                                       s_randval,
                                        squant};
 
     auto p_compute_element_func = [&]() {
@@ -744,7 +745,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              mask.right,
                              static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
-                             s_randval,
                              {drop_seed, drop_offset}};
     }();
 

@@ -46,10 +46,12 @@ struct FmhaFwdSplitKVKernel
     static constexpr bool kPadHeadDimQ      = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
-    static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
-    using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
-    static constexpr bool kHasMask = FmhaMask::IsMasking;
+    using FmhaMask                    = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    using FmhaDropout                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaDropout>;
+    static constexpr bool kHasMask    = FmhaMask::IsMasking;
+    static constexpr bool kHasDropout = FmhaDropout::IsDropout;
+    static constexpr bool kIsStoreRandval = FmhaDropout::IsStoreRandval;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -86,7 +88,8 @@ struct FmhaFwdSplitKVKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" ) + (kDoFp8StaticQuant ? "_squant" : "" );
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" ) +
+            (kIsStoreRandval ? "_storerandval" : "" ) + (kDoFp8StaticQuant ? "_squant" : "" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -189,7 +192,6 @@ struct FmhaFwdSplitKVKernel
         }
         float rp_undrop             = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        bool is_store_randval       = false;
         uint64_t drop_seed          = 1;
         uint64_t drop_offset        = 0;
         void* rand_val_ptr          = nullptr;
@@ -282,7 +284,6 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
-              bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
@@ -350,11 +351,13 @@ struct FmhaFwdSplitKVKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, drop_seed_offset);
-            kargs.rand_val_ptr         = rand_val_ptr;
-            kargs.stride_randval       = stride_randval;
-            kargs.nhead_stride_randval = nhead_stride_randval;
-            kargs.batch_stride_randval = batch_stride_randval;
-            kargs.is_store_randval     = s_randval;
+            if constexpr(kIsStoreRandval)
+            {
+                kargs.rand_val_ptr         = rand_val_ptr;
+                kargs.stride_randval       = stride_randval;
+                kargs.nhead_stride_randval = nhead_stride_randval;
+                kargs.batch_stride_randval = batch_stride_randval;
+            }
         }
 
         return kargs;
@@ -402,7 +405,6 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
-              bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
@@ -469,10 +471,12 @@ struct FmhaFwdSplitKVKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, drop_seed_offset);
-            kargs.rand_val_ptr         = rand_val_ptr;
-            kargs.stride_randval       = stride_randval;
-            kargs.nhead_stride_randval = nhead_stride_randval;
-            kargs.is_store_randval     = s_randval;
+            if constexpr(kIsStoreRandval)
+            {
+                kargs.rand_val_ptr         = rand_val_ptr;
+                kargs.stride_randval       = stride_randval;
+                kargs.nhead_stride_randval = nhead_stride_randval;
+            }
         }
 
         return kargs;
@@ -536,7 +540,7 @@ struct FmhaFwdSplitKVKernel
             {
                 batch_offset_bias = query_start * kargs.stride_bias + key_start;
             }
-            if constexpr(kHasDropout)
+            if constexpr(kIsStoreRandval)
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
             }
@@ -571,7 +575,7 @@ struct FmhaFwdSplitKVKernel
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
             }
-            if constexpr(kHasDropout)
+            if constexpr(kIsStoreRandval)
             {
                 batch_offset_randval =
                     static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
@@ -747,7 +751,6 @@ struct FmhaFwdSplitKVKernel
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
         uint64_t drop_seed          = 0;
         uint64_t drop_offset        = 0;
-        bool is_store_randval       = false;
 
         if constexpr(kHasDropout)
         {
@@ -755,21 +758,19 @@ struct FmhaFwdSplitKVKernel
             p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
             drop_seed           = kargs.drop_seed;
             drop_offset         = kargs.drop_offset;
-            is_store_randval    = kargs.is_store_randval;
         }
-        BlockDropout dropout(i_batch,
-                             i_nhead,
-                             kargs.num_head_q,
-                             drop_seed,
-                             drop_offset,
-                             rp_undrop,
-                             p_undrop_in_uint8_t,
-                             is_store_randval);
+        FmhaDropout dropout(i_batch,
+                            i_nhead,
+                            kargs.num_head_q,
+                            drop_seed,
+                            drop_offset,
+                            rp_undrop,
+                            p_undrop_in_uint8_t);
 
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto randval_dram_window_lengths =
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-            if constexpr(kHasDropout)
+            if constexpr(kIsStoreRandval)
             {
                 RandValOutputDataType* rand_val_ptr =
                     reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +

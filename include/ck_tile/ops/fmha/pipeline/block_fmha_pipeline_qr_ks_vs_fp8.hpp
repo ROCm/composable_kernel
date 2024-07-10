@@ -28,6 +28,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
     using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType             = remove_cvref_t<typename Problem::ODataType>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
+    using FmhaDropout           = remove_cvref_t<typename Problem::FmhaDropout>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -124,7 +125,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
                float descale_qk,
                float descale_sv,
                void* smem_ptr,
-               BlockDropout& /*dropout*/) const // not supported
+               FmhaDropout& /*dropout*/) const // not supported
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&

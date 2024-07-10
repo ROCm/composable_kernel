@@ -143,7 +143,6 @@ struct fmha_fwd_args
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
     float p_drop;
-    bool s_randval;
     std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
 
@@ -190,7 +189,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.window_size_right,
                                          args.mask_type,
                                          args.p_drop,
-                                         args.s_randval,
                                          args.drop_seed_offset);
         }
         else
@@ -235,7 +233,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.window_size_right,
                                          args.mask_type,
                                          args.p_drop,
-                                         args.s_randval,
                                          args.drop_seed_offset);
         }
     }();
@@ -292,7 +289,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.window_size_right,
                                      args.mask_type,
                                      args.p_drop,
-                                     args.s_randval,
                                      args.drop_seed_offset);
         }
         else
@@ -341,7 +337,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.window_size_right,
                                      args.mask_type,
                                      args.p_drop,
-                                     args.s_randval,
                                      args.drop_seed_offset);
         }
     }();
@@ -427,9 +422,9 @@ template <ck_tile::index_t HDim_,
           bool kIsVLayoutRowMajor_,
           ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
           typename FmhaMask_,
+          typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
-          bool kHasDropout_,
           bool kDoFp8StaticQuant_,
           bool kPadS_,
           bool kPadSK_,
@@ -449,9 +444,9 @@ struct fmha_fwd_traits_
     static constexpr bool kIsVLayoutRowMajor         = kIsVLayoutRowMajor_;
     static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
+    using FmhaDropout                                = ck_tile::remove_cvref_t<FmhaDropout_>;
     static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kHasDropout                = kHasDropout_;
     static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
@@ -508,6 +503,7 @@ struct fmha_fwd_traits
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
     bool has_dropout;
+    bool is_store_randval;
     bool do_fp8_static_quant;
     // TODO: padding check is inside this api
 };
