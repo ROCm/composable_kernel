@@ -30,12 +30,12 @@ generate_cos_sin(ck_tile::index_t seqlen,
     std::generate(begin(angle), end(angle), std::bind(generator, std::ref(random_engine)));
 
     ck_tile::HostTensor<DataType> cos({num_rows, num_cols});
-    std::transform(begin(angle), end(angle), [](float origin_value) {
+    std::transform(begin(angle), end(angle), begin(cos), [](float origin_value) {
         return ck_tile::type_convert<DataType>(std::cos(origin_value));
     });
 
     ck_tile::HostTensor<DataType> sin({num_rows, num_cols});
-    std::transform(begin(angle), end(angle), [](float origin_value) {
+    std::transform(begin(angle), end(angle), begin(sin), [](float origin_value) {
         return ck_tile::type_convert<DataType>(std::sin(origin_value));
     });
 
@@ -59,7 +59,7 @@ index_cos_sin(const ck_tile::HostTensor<DataType>& cos,
     assert(cos.get_num_of_dimension() == 2 && sin.get_num_of_dimension() == 2);
     assert(cos.get_length(0) == sin.get_length(0) && cos.get_length(1) == sin.get_length(1));
 
-    assert(seqlen_offset + seqlen <= cos.get_length(0));
+    assert(static_cast<std::size_t>(seqlen_offset + seqlen) <= cos.get_length(0));
 
     const ck_tile::index_t num_rows = seqlen;
     const ck_tile::index_t num_cols = cos.get_length(1);

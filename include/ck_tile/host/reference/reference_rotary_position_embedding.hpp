@@ -15,7 +15,7 @@ namespace detail {
 
 }
 
-template <typename DataType, typename ComputeDataType>
+template <typename ComputeDataType, typename DataType>
 CK_TILE_HOST void reference_rotary_position_embedding(const HostTensor<DataType>& input_bhsd,
                                                       const HostTensor<DataType>& cos_sd,
                                                       const HostTensor<DataType>& sin_sd,
@@ -27,7 +27,7 @@ CK_TILE_HOST void reference_rotary_position_embedding(const HostTensor<DataType>
            cos_sd.get_length(1) == sin_sd.get_length(1));
 
     const index_t rotary_dim = cos_sd.get_length(1) * 2;
-    assert(rotary_dim <= input_bhsd.get_length(3));
+    assert(static_cast<std::size_t>(rotary_dim) <= input_bhsd.get_length(3));
 
     output_bhsd.ForEach([&](auto& self, auto i) {
         const index_t i_d = i[3];
@@ -39,10 +39,10 @@ CK_TILE_HOST void reference_rotary_position_embedding(const HostTensor<DataType>
 
         const index_t i_s = i[2];
 
-        const ComputeDataType cos =
-            (interleaved ? cos_sd(i_s, i_d / 2) : cos_sd(i_s, i_d % rotary_dim));
-        const ComputeDataType sin =
-            (interleaved ? sin_sd(i_s, i_d / 2) : sin_sd(i_s, i_d % rotary_dim));
+        const ComputeDataType cos = type_convert<ComputeDataType>(
+            interleaved ? cos_sd(i_s, i_d / 2) : cos_sd(i_s, i_d % rotary_dim));
+        const ComputeDataType sin = type_convert<ComputeDataType>(
+            interleaved ? sin_sd(i_s, i_d / 2) : sin_sd(i_s, i_d % rotary_dim));
         const ComputeDataType half_rotated_input = [&] {
             const index_t i_b = i[0];
             const index_t i_h = i[1];
