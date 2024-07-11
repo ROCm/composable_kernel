@@ -27,7 +27,7 @@ struct gpu_timer
 
     CK_TILE_HOST void start(const hipStream_t& s)
     {
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
+        HIP_CHECK_ERROR(hipStreamSynchronize(s));
         HIP_CHECK_ERROR(hipEventRecord(start_evt, s));
     }
 
@@ -51,15 +51,15 @@ struct gpu_timer
 struct cpu_timer
 {
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
-    CK_TILE_HOST void start(const hipStream_t&)
+    CK_TILE_HOST void start(const hipStream_t& s)
     {
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
+        HIP_CHECK_ERROR(hipStreamSynchronize(s));
         start_tick = std::chrono::high_resolution_clock::now();
     }
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
-    CK_TILE_HOST void stop(const hipStream_t&)
+    CK_TILE_HOST void stop(const hipStream_t& s)
     {
-        HIP_CHECK_ERROR(hipDeviceSynchronize());
+        HIP_CHECK_ERROR(hipStreamSynchronize(s));
         stop_tick = std::chrono::high_resolution_clock::now();
     }
     // return in ms
