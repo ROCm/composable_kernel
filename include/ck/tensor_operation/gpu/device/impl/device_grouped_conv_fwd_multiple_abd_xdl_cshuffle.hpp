@@ -71,6 +71,7 @@ template <typename GridwiseGemm,
           typename Block2ETileMap,
           typename ComputePtrOffsetOfG,
           typename ComputePtrOffsetOfN,
+          index_t NumGroupsToMerge,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
@@ -101,9 +102,12 @@ __global__ void
     defined(__gfx94__))
 
     // offset base pointer for each work-group
-    const index_t num_blocks_per_batch = __builtin_amdgcn_readfirstlane(gridDim.y / groups_count);
-    const index_t& num_blocks_per_n    = groups_count;
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_batch);
+    const index_t num_blocks_per_n =
+        __builtin_amdgcn_readfirstlane(groups_count / NumGroupsToMerge);
+    const index_t num_blocks_per_batch =
+        __builtin_amdgcn_readfirstlane(gridDim.y / num_blocks_per_n);
+    const index_t g_idx =
+        __builtin_amdgcn_readfirstlane(blockIdx.y * NumGroupsToMerge / num_blocks_per_batch);
     const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_n);
 
     const long_index_t e_batch_offset =
@@ -287,7 +291,8 @@ template <index_t NDimSpatial,
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
           typename BComputeDataType = AComputeDataType,
-          LoopScheduler LoopSched   = make_default_loop_scheduler()>
+          LoopScheduler LoopSched   = make_default_loop_scheduler(),
+          index_t NumGroupsToMerge  = 1>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
@@ -306,6 +311,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
+    static_assert(NumGroupsToMerge >= 1);
+
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
 
@@ -319,7 +326,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     static constexpr auto I3 = Number<3>{};
 
     static constexpr auto conv_to_gemm_transformer =
-        TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>{};
+        TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization, NumGroupsToMerge>{};
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
@@ -745,7 +752,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
             const index_t gdx = arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
-            const index_t gdy = arg.num_group_ * num_workgroups_per_Conv_N;
+            const index_t gdy = arg.num_group_ / NumGroupsToMerge * num_workgroups_per_Conv_N;
             const index_t gdz = 1;
 
             const auto K =
@@ -778,6 +785,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                         ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
+                        NumGroupsToMerge,
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
@@ -822,6 +830,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                         ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
+                        NumGroupsToMerge,
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
@@ -871,6 +880,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
 
+        const index_t G = arg.b_g_k_c_xs_lengths_[I0];
+        const index_t K = arg.b_g_k_c_xs_lengths_[I1];
+        const index_t C = arg.b_g_k_c_xs_lengths_[I2];
+
         // check device
         if(get_device_name() == "gfx908")
         {
@@ -919,6 +932,42 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 }
             }
         }
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        {
+            if(C != 1)
+            {
+                return false;
+            }
+            for(index_t i = 0; i < NDimSpatial; ++i)
+            {
+                const index_t filter_spatial_dim = arg.b_g_k_c_xs_lengths_[i + I3];
+
+                if(filter_spatial_dim != I3)
+                {
+                    return false;
+                }
+            }
+            if constexpr(!is_NSpatialGK_GKSpatial_NSpatialGC<ALayout, BLayout, ELayout>())
+            {
+                return false;
+            }
+        }
+
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            if(!(C == 1))
+            {
+                return false;
+            }
+            if(G % NumGroupsToMerge != 0)
+            {
+                return false;
+            }
+            if constexpr(!is_NSpatialGK_GKSpatial_NSpatialGC<ALayout, BLayout, ELayout>())
+            {
+                return false;
+            }
+        }
 
         // check vector access of A
         // FIXME: layout
@@ -928,11 +977,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                      is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
                      is_same_v<ALayout, ctc::NDHWGC>)
         {
-            const index_t C = arg.a_g_n_c_wis_lengths_[2];
-
+            // Check access per C
             if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
             {
-                return false;
+                // If not possible, check access per G
+                if(!(ABlockTransferSrcVectorDim == 1 && C == 1 &&
+                     is_NSpatialGK_GKSpatial_NSpatialGC<ALayout, BLayout, ELayout>() &&
+                     G % ABlockTransferSrcScalarPerVector == 0))
+                {
+                    return false;
+                }
             }
         }
         else
@@ -949,8 +1003,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                      is_same_v<BLayout, ctc::KZYXGC>)
 
         {
-            const index_t C = arg.b_g_k_c_xs_lengths_[2];
-
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
                 return false;
@@ -974,8 +1026,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                          is_same_v<DLayout, ctc::NWGK> || is_same_v<DLayout, ctc::NHWGK> ||
                          is_same_v<DLayout, ctc::NDHWGK> || is_same_v<DLayout, ctc::G_K>)
             {
-                const index_t K = arg.ds_g_n_k_wos_lengths_[i][2];
-
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
                     valid = false;
@@ -1020,8 +1070,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                      is_same_v<ELayout, ctc::NWGK> || is_same_v<ELayout, ctc::NHWGK> ||
                      is_same_v<ELayout, ctc::NDHWGK>)
         {
-            const index_t K = arg.e_g_n_k_wos_lengths_[2];
-
             if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
             {
                 return false;
@@ -1172,7 +1220,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             << BBlockTransferSrcScalarPerVector << ", "
             << CDEBlockTransferScalarPerVector_NPerBlock << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
-            << CShuffleNXdlPerWavePerShuffle
+            << CShuffleNXdlPerWavePerShuffle << ", "
+            << NumGroupsToMerge
             << ">";
         // clang-format on
 
