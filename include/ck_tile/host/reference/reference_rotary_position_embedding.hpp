@@ -53,8 +53,9 @@ CK_TILE_HOST void reference_rotary_position_embedding(const HostTensor<DataType>
 
             if(interleaved)
             {
-                const index_t pos = (i_d < half_hdim ? (i_d * 2 + 1) : (i_d - half_hdim) * 2);
-                const ComputeDataType sign = (i_d < half_hdim ? 1 : -1);
+                const bool is_even         = (i_d % 2 == 0);
+                const index_t pos          = i_d + (is_even ? 1 : -1);
+                const ComputeDataType sign = (is_even ? -1 : 1);
                 return sign * type_convert<ComputeDataType>(input_bhsd(i_b, i_h, i_s, pos));
             }
             else
