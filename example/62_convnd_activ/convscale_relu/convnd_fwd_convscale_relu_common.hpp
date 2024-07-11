@@ -252,7 +252,7 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t ds_size   = 3; // 3 element-wise scale multipliers
+    std::size_t ds_size   = 3 + 1; // 3 element-wise scale multipliers + 1 element-wise relu
     std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
     std::size_t num_btype = conv_param.GetInputByte<InDataType>() +
                             conv_param.GetWeightByte<WeiDataType>() + sizeof(float) +
