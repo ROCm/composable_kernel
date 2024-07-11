@@ -10,7 +10,7 @@ export CK_REPEAT=1
 COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 # mode=0
 # export HIP_VISIBLE_DEVICES=4
-
+set -x
 for prec in "fp16" "bf16" ; do
 for mode in 1 0 ; do
 for perm in 0 1 ; do
@@ -40,6 +40,7 @@ done
 done
 done
 
+
 for perm in 0 1 ; do
 for bias in "n" "e" "a" ; do
 for b in 1 2 ; do
@@ -49,3 +50,4 @@ done
 done
 done
 done
+set +x
