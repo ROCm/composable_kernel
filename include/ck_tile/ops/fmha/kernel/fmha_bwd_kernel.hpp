@@ -766,7 +766,7 @@ struct FmhaBwdDQDKDVKernel
                         make_naive_tensor_view<address_space_enum::global>(
                             dq_acc_ptr,
                             make_tuple(kargs.seqlen_q, kargs.hdim_q),
-                            make_tuple(kargs.hdim_q, 1),
+                            make_tuple(kargs.stride_q, 1),
                             number<FmhaPipeline::kAlignmentQGrad>{},
                             number<1>{});
 
@@ -1487,22 +1487,18 @@ struct FmhaBwdConvertQGradKernel
             {
                 const AccDataType* dq_acc_ptr =
                     reinterpret_cast<const AccDataType*>(kargs.dq_acc_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * (kargs.seqlen_q * kargs.hdim_q) +
-                    batch_offset_dq;
+                    static_cast<long_index_t>(i_nhead_) * (kargs.nhead_stride_dq) + batch_offset_dq;
 
-                const index_t nsplits  = ck_tile::integer_divide_ceil(kargs.seqlen_k, kN0);
-                constexpr auto dq_fold = 4;
+                const index_t nsplits = ck_tile::integer_divide_ceil(kargs.seqlen_k, kN0);
 
                 auto dq_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     dq_acc_ptr,
-                    make_tuple(nsplits, kargs.seqlen_q / dq_fold, kargs.hdim_q * dq_fold),
-                    make_tuple(kargs.split_stride_dq_acc, kargs.hdim_q * dq_fold, 1),
+                    make_tuple(nsplits, kargs.seqlen_q, kargs.hdim_q),
+                    make_tuple(kargs.split_stride_dq_acc, kargs.stride_dq, 1),
                     number<FmhaBwdConvertQGrad::kAlignmentQGradAcc>{},
                     number<1>{});
                 return pad_tensor_view(dq_acc_dram_naive,
-                                       make_tuple(number<1>{},
-                                                  number<kM0 / dq_fold>{},
-                                                  number<kQKHeaddim * dq_fold>{}),
+                                       make_tuple(number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
                                        sequence<false, kPadSeqLenQ, kPadHeadDimQ>{});
             }
             else
@@ -1538,12 +1534,10 @@ struct FmhaBwdConvertQGradKernel
         auto dq_acc_dram_window = [&]() {
             if constexpr(kIsDeterministic)
             {
-                constexpr auto dq_fold = 4;
-                return make_tile_window(dq_acc_dram,
-                                        make_tuple(number<1>{},
-                                                   number<kM0 / dq_fold>{},
-                                                   number<kQKHeaddim * dq_fold>{}),
-                                        {0, i_m0 / dq_fold, 0});
+                return make_tile_window(
+                    dq_acc_dram,
+                    make_tuple(number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
+                    {0, i_m0, 0});
             }
             else
             {

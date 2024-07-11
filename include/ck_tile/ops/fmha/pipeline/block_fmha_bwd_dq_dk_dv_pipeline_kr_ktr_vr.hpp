@@ -473,28 +473,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                                                dq_dram_block_window_tmp.get_window_lengths(),
                                                {seqlen_q_start, 0});
 
-        // Deterministic mode staff
-        auto dq_buffer_view = dq_dram_block_window_tmp.get_bottom_tensor_view().get_buffer_view();
-        auto dq_tensor_desc =
-            dq_dram_block_window_tmp.get_bottom_tensor_view().get_tensor_descriptor();
-        auto seqlen_q          = dq_tensor_desc.get_lengths()[number<0>{}];
-        auto hdim_q            = dq_tensor_desc.get_lengths()[number<1>{}];
-        constexpr auto dq_fold = 4;
-
-        auto dq_write_tensor_desc =
-            make_naive_tensor_descriptor(make_tuple(seqlen_q / dq_fold, hdim_q * dq_fold),
-                                         make_tuple(hdim_q * dq_fold, 1),
-                                         number<kAlignmentQGrad>{},
-                                         number<1>{});
-
-        auto dq_tensor_view = tensor_view<decltype(dq_buffer_view), decltype(dq_write_tensor_desc)>{
-            dq_buffer_view, dq_write_tensor_desc};
-
-        auto dq_dram_window_deterministic =
-            make_tile_window(dq_tensor_view,
-                             make_tuple(number<kM0 / dq_fold>{}, number<kQKHeaddim * dq_fold>{}),
-                             {seqlen_q_start / dq_fold, 0});
-
         using SPTBlockTileType     = decltype(gemm_0.MakeCBlockTile());
         using SPGradTBlockTileType = decltype(gemm_2.MakeCBlockTile());
         using QGradBlockTileType   = decltype(gemm_4.MakeCBlockTile());
@@ -807,19 +785,13 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             }
             if constexpr(kIsDeterministic)
             {
-                auto dq_write_reg_tensor = make_static_distributed_tensor<AccDataType>(
-                    Policy::template MakeQGradWriteBlockDescriptor<Problem>());
-
-                dq_write_reg_tensor.get_thread_buffer() = dq_acc.get_thread_buffer();
-
-                store_tile(dq_dram_window_deterministic, dq_write_reg_tensor);
-                move_tile_window(dq_dram_window_deterministic, {kM0 / dq_fold, 0});
+                store_tile(dq_dram_window, dq_acc);
             }
             else
             {
                 update_tile(dq_dram_window, dq_acc);
-                move_tile_window(dq_dram_window, {kM0, 0});
             }
+            move_tile_window(dq_dram_window, {kM0, 0});
 
             i_total_loops += 1;
             seqlen_q_step += kM0;
@@ -1047,12 +1019,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
         if constexpr(kIsDeterministic)
         {
-            auto dq_write_reg_tensor = make_static_distributed_tensor<AccDataType>(
-                Policy::template MakeQGradWriteBlockDescriptor<Problem>());
-
-            dq_write_reg_tensor.get_thread_buffer() = dq_acc.get_thread_buffer();
-
-            store_tile(dq_dram_window_deterministic, dq_write_reg_tensor);
+            store_tile(dq_dram_window, dq_acc);
         }
         else
         {

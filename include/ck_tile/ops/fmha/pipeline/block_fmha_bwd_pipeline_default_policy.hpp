@@ -167,7 +167,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                   Problem::kIsDeterministic ? true : false>;
+                                   false>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::GemmDataType,
@@ -534,91 +534,32 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAccDeterministicDramTileDistribution()
-    {
-        using WarpGemm = WarpGemmMfmaDispatcher<typename Problem::QGradDataType,
-                                                typename Problem::QGradDataType,
-                                                typename Problem::AccDataType,
-                                                Problem::Shape::WarpTile::at(number<0>{}),
-                                                Problem::Shape::WarpTile::at(number<1>{}),
-                                                Problem::Shape::WarpTile::at(number<2>{}),
-                                                true>;
-
-        using WarpGemmAttrImpl = typename WarpGemm::WarpGemmAttribute::Impl;
-
-        constexpr index_t MWarp = Problem::Shape::BlockWarps::at(number<0>{});
-        constexpr index_t NWarp = Problem::Shape::BlockWarps::at(number<1>{});
-
-        constexpr index_t kMPerBlock = Problem::Shape::kM0;
-        constexpr index_t kNPerBlock = Problem::Shape::kQKHeaddim;
-
-        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
-        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
-
-        constexpr auto dq_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<1>, sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<2, 3>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2, 3>,
-            sequence<0, 0, 0>>{};
-
-        constexpr auto dq_block_inner_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<1>,
-                  sequence<WarpGemmAttrImpl::kCM0PerLane, WarpGemmAttrImpl::kCMLane>,
-                  sequence<WarpGemmAttrImpl::kCNLane, WarpGemmAttrImpl::kCM1PerLane>>,
-            tuple<sequence<2, 3>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2, 3>,
-            sequence<0, 0, 1>>{};
-
-        constexpr auto dq_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            dq_block_outer_dstr_encoding, dq_block_inner_dstr_encoding);
-
-        constexpr auto dq_block_dstr = make_static_tile_distribution(dq_block_dstr_encode);
-
-        return dq_block_dstr;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradDeterministicDramTileDistribution()
-    {
-        using WarpGemm = WarpGemmMfmaDispatcher<typename Problem::QGradDataType,
-                                                typename Problem::QGradDataType,
-                                                typename Problem::AccDataType,
-                                                Problem::Shape::WarpTile::at(number<0>{}),
-                                                Problem::Shape::WarpTile::at(number<1>{}),
-                                                Problem::Shape::WarpTile::at(number<2>{}),
-                                                true>;
-
-        constexpr index_t MWarp = Problem::Shape::BlockWarps::at(number<0>{});
-        constexpr index_t NWarp = Problem::Shape::BlockWarps::at(number<1>{});
-
-        constexpr index_t kMPerBlock = Problem::Shape::kM0;
-        constexpr index_t kNPerBlock = Problem::Shape::kQKHeaddim;
-
-        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
-        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
-
-        constexpr auto dq_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto dq_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            dq_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-
-        constexpr auto dq_block_dstr = make_static_tile_distribution(dq_block_dstr_encode);
-
-        return dq_block_dstr;
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAccDramTileDistribution()
+    {
+        using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::Shape::kM0;
+        constexpr index_t kKPerBlock = Problem::Shape::kQKHeaddim;
+
+        constexpr index_t K1 = 16 / sizeof(AccDataType);
+        constexpr index_t K0 = kKPerBlock / K1;
+
+        constexpr index_t M2 = get_warp_size() / K0;
+        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = kMPerBlock / (M1 * M2);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<1>, sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<2>, sequence<2, 3>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2, 3>,
+                                       sequence<0, 0, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradDramTileDistribution()
     {
         using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
 
@@ -1079,7 +1020,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                   Problem::kIsDeterministic ? true : false>;
+                                   false>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
@@ -1554,7 +1495,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
                                    Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                   Problem::kIsDeterministic ? true : false>;
+                                   false>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
@@ -1579,54 +1520,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr auto ds_block_dstr = make_static_tile_distribution(ds_block_dstr_encode);
 
         return ds_block_dstr;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQGradWriteBlockDescriptor()
-    {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::QDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
-                                   true>;
-
-        using WarpGemmAttrImpl = typename WarpGemm::WarpGemmAttribute::Impl;
-
-        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
-        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
-
-        constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
-        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
-
-        constexpr auto dq_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto dq_block_inner_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<WarpGemmAttrImpl::kCM0PerLane, WarpGemmAttrImpl::kCMLane>,
-                  sequence<WarpGemmAttrImpl::kCNLane, WarpGemmAttrImpl::kCM1PerLane>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 1>>{};
-
-        constexpr auto dq_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            dq_block_outer_dstr_encoding, dq_block_inner_dstr_encoding);
-
-        constexpr auto dq_block_dstr = make_static_tile_distribution(dq_block_dstr_encode);
-
-        return dq_block_dstr;
     }
 
     template <typename Problem>

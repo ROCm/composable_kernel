@@ -52,7 +52,7 @@ struct BlockFmhaBwdConvertQGrad
             make_tile_window(dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
                              dq_acc_dram_block_window_tmp.get_window_lengths(),
                              dq_acc_dram_block_window_tmp.get_window_origin(),
-                             Policy::template MakePostQGradAccDramTileDistribution<Problem>());
+                             Policy::template MakePostQGradDramTileDistribution<Problem>());
 
         auto dq_acc   = load_tile(dq_acc_dram_window);
         const auto dq = cast_tile<QGradDataType>(dq_acc);
@@ -76,11 +76,11 @@ struct BlockFmhaBwdConvertQGrad
 
         static_assert(kM0 == QGradDramBlockWindowTmp{}.get_window_lengths()[number<0>{}], "wrong!");
 
-        auto dq_acc_dram_window = make_tile_window(
-            dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
-            dq_acc_dram_block_window_tmp.get_window_lengths(),
-            dq_acc_dram_block_window_tmp.get_window_origin(),
-            Policy::template MakePostQGradAccDeterministicDramTileDistribution<Problem>());
+        auto dq_acc_dram_window =
+            make_tile_window(dq_acc_dram_block_window_tmp.get_bottom_tensor_view(),
+                             dq_acc_dram_block_window_tmp.get_window_lengths(),
+                             dq_acc_dram_block_window_tmp.get_window_origin(),
+                             Policy::template MakePostQGradAccDramTileDistribution<Problem>());
 
         auto dq_acc = decltype(load_tile(dq_acc_dram_window)){};
         clear_tile(dq_acc);
@@ -118,7 +118,7 @@ struct BlockFmhaBwdConvertQGrad
 
         // declare dq
         constexpr auto dq_converted_dstr =
-            Policy::template MakePostQGradAccDeterministicDramTileDistribution<Problem>();
+            Policy::template MakePostQGradAccDramTileDistribution<Problem>();
         auto dq_converted = make_static_distributed_tensor<QGradDataType>(dq_converted_dstr);
 
         sweep_tile_span(dq_acc_spans[number<0>{}], [&](auto idx0) {
@@ -130,8 +130,7 @@ struct BlockFmhaBwdConvertQGrad
             });
         });
 
-        constexpr auto dq_dstr =
-            Policy::template MakePostQGradDeterministicDramTileDistribution<Problem>();
+        constexpr auto dq_dstr = Policy::template MakePostQGradDramTileDistribution<Problem>();
         auto dq                = make_static_distributed_tensor<QGradDataType>(dq_dstr);
         dq.get_thread_buffer() = dq_converted.get_thread_buffer();
 
