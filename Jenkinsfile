@@ -659,6 +659,9 @@ CRON_SETTINGS = BRANCH_NAME == "lwpck-1956" ? '''0 21 * * * % ROCMVERSION=6.1;hi
 
 pipeline {
     agent none
+    triggers {
+        parameterizedCron(CRON_SETTINGS)
+    }
     options {
         parallelsAlwaysFailFast()
     }
