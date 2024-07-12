@@ -36,7 +36,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_K1,
           typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
           typename ComputePtrOffsetOfBatch,
-          index_t NumBatchToMerge,
+          index_t NumGroupsToMerge,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
@@ -56,7 +56,7 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx94__))
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumBatchToMerge);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
     const long_index_t a_batch_offset =
@@ -92,7 +92,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_K1,
           typename CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
           typename ComputePtrOffsetOfBatch,
-          index_t NumBatchToMerge,
+          index_t NumGroupsToMerge,
           bool HasMainKBlockLoop,
           InMemoryDataOperationEnum CGlobalMemoryDataOperation,
           index_t MinimumOccupancy = 1,
@@ -113,7 +113,7 @@ __global__ void
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
     defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
     // offset base pointer for each work-group
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumBatchToMerge);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
     const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
     const long_index_t a_batch_offset =
@@ -189,7 +189,7 @@ template <ck::index_t NDimSpatial,
           index_t CBlockTransferScalarPerVector_NWaveNPerXdl,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          index_t NumBatchToMerge                     = 1,
+          index_t NumGroupsToMerge                    = 1,
           typename ComputeTypeA                       = InDataType,
           typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
@@ -238,7 +238,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                        NPerBlock,
                                        K1Number,
                                        KPerBlock / K1Number,
-                                       NumBatchToMerge,
+                                       NumGroupsToMerge,
                                        ConvBackwardWeightSpecialization>{};
 
     static constexpr auto conv_to_gemm_transformer_v1 =
@@ -638,7 +638,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
-                gemm_arg.M, gemm_arg.N, gemm_arg.KBatch, arg.Conv_G_ / NumBatchToMerge);
+                gemm_arg.M, gemm_arg.N, gemm_arg.KBatch, arg.Conv_G_ / NumGroupsToMerge);
 
             float ave_time = 0;
 
@@ -724,7 +724,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             remove_reference_t<
                                 DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            NumBatchToMerge,
+                            NumGroupsToMerge,
                             true,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -739,7 +739,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             remove_reference_t<
                                 DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            NumBatchToMerge,
+                            NumGroupsToMerge,
                             true,
                             InMemoryDataOperationEnum::Set,
                             minimum_occupancy>;
@@ -760,7 +760,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -777,7 +777,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -796,7 +796,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -817,7 +817,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -838,7 +838,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -859,7 +859,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -879,7 +879,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -900,7 +900,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -920,7 +920,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -937,7 +937,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -956,7 +956,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -977,7 +977,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -998,7 +998,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -1019,7 +1019,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -1039,7 +1039,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -1060,7 +1060,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                     remove_reference_t<
                                         DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                     ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                    NumBatchToMerge,
+                                    NumGroupsToMerge,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -1084,7 +1084,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -1100,7 +1100,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -1119,7 +1119,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -1135,7 +1135,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -1157,7 +1157,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -1173,7 +1173,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -1192,7 +1192,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -1208,7 +1208,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                 remove_reference_t<
                                     DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                                 ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                                NumBatchToMerge,
+                                NumGroupsToMerge,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -1232,7 +1232,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             remove_reference_t<
                                 DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            NumBatchToMerge,
+                            NumGroupsToMerge,
                             false,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -1247,7 +1247,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             remove_reference_t<
                                 DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
                             ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
-                            NumBatchToMerge,
+                            NumGroupsToMerge,
                             false,
                             InMemoryDataOperationEnum::Set,
                             minimum_occupancy>;
@@ -1389,7 +1389,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
         }
 
-        if constexpr(NumBatchToMerge > 1)
+        if constexpr(NumGroupsToMerge > 1)
         {
             // support only if whole M and N can be proccessed on one block
             if(!(GemmM <= MPerBlock && GemmN <= NPerBlock))
@@ -1400,7 +1400,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             {
                 return false;
             }
-            if(arg.Conv_G_ % NumBatchToMerge != 0)
+            if(arg.Conv_G_ % NumGroupsToMerge != 0)
             {
                 return false;
             }
@@ -1563,7 +1563,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
-            << NumBatchToMerge
+            << NumGroupsToMerge
             << ">";
         // clang-format on
 
