@@ -50,13 +50,6 @@ struct DeviceGemmMultipleD_ABScale : public BaseOperator
                         const ck::index_t StrideE,
                         const void* p_a_scale,
                         const void* p_b_scale,
-                        const index_t Scale_Block_M,
-                        const index_t Scale_Block_N,
-                        const index_t Scale_Block_K,
-                        const index_t Scale_Stride_AM,
-                        const index_t Scale_Stride_AK,
-                        const index_t Scale_Stride_BN,
-                        const index_t Scale_Stride_BK,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CDEElementwiseOperation cde_element_op) = 0;

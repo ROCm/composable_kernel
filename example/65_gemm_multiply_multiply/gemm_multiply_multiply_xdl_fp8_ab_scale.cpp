@@ -24,9 +24,9 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using FP8 = ck::f8_t;
-using F32 = float;
+using BF16 = ck::bhalf_t;
+using FP8  = ck::f8_t;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -38,7 +38,7 @@ using B1DataType       = F32;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using DsDataType       = ck::Tuple<>;
-using EDataType        = F16;
+using EDataType        = BF16;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -55,16 +55,24 @@ using CDEElementOp = PassThrough;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
+static constexpr ck::index_t Scale_Block_M = 128;
+static constexpr ck::index_t Scale_Block_N = 128;
+static constexpr ck::index_t Scale_Block_K = 128;
+
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
     // clang-format off
-///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|     AScale|      BData|     BScale|     DsData|     EData|     AccData|         CShuffle|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-///######|         |         |         |        |       Type|       Type|       Type|       Type|       Type|      Type|        Type|         DataType| Elementwise| Elementwise|  Elementwise| Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-///######|         |         |         |        |           |           |           |           |           |          |            |                 |   Operation|   Operation|    Operation|               |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-///######|         |         |         |        |           |           |           |           |           |          |            |                 |            |            |             |               |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |    S<C, D0, D1>|
-///###### RRR                                                                        
-      ///<      Row,      Row, DsLayout, ELayout, A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   256,   128,    64,  16,   4,  32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<0, 2, 1>,     S<0, 2, 1>,             1,               8,              4,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
-///###### RCR
-         <      Row,      Col, DsLayout, ELayout, A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   256,   128,    64,  16,  16,  32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<4, 64, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
+         <Row, Col, DsLayout, ELayout,
+          A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
+          AElementOp,  BElementOp, CDEElementOp, GemmSpec,
+          256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
+          128, 128,
+          128, 16, 16,
+          16,   16,
+          4,    4,
+          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+          1,    2,  S<1, 32, 1, 8>,  S<8, 8, 1>,
+          ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -81,16 +89,6 @@ int main(int argc, char* argv[])
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
     ck::index_t StrideE = N;
-
-    ck::index_t Scale_Block_M = 256;
-    ck::index_t Scale_Block_N = 256;
-    ck::index_t Scale_Block_K = 256;
-
-    ck::index_t Scale_Stride_AM = Scale_Block_K;
-    ck::index_t Scale_Stride_AK = 1;
-
-    ck::index_t Scale_Stride_BN = Scale_Block_K;
-    ck::index_t Scale_Stride_BK = 1;
 
     if(argc == 1)
     {
@@ -125,6 +123,9 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
+    ck::index_t Scale_Stride_AM = (K + Scale_Block_K - 1) / Scale_Block_K;
+    ck::index_t Scale_Stride_BN = (K + Scale_Block_K - 1) / Scale_Block_K;
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
@@ -140,16 +141,22 @@ int main(int argc, char* argv[])
         };
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
-    Tensor<A1DataType> a1_m_k(
-        f_host_tensor_descriptor(Scale_Block_M, Scale_Block_K, Scale_Stride_AM, A0Layout{}));
+    Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + Scale_Block_M - 1) / Scale_Block_M,
+                                                       (K + Scale_Block_K - 1) / Scale_Block_K,
+                                                       Scale_Stride_AM,
+                                                       A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
-    Tensor<B1DataType> b1_k_n(
-        f_host_tensor_descriptor(Scale_Block_K, Scale_Block_N, Scale_Stride_BN, B0Layout{}));
+    Tensor<B1DataType> b1_k_n(f_host_tensor_descriptor((K + Scale_Block_K - 1) / Scale_Block_K,
+                                                       (N + Scale_Block_N - 1) / Scale_Block_N,
+                                                       Scale_Stride_BN,
+                                                       B0Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
+    std::cout << "a1_m_k: " << a1_m_k.mDesc << std::endl;
     std::cout << "b0_k_n: " << b0_k_n.mDesc << std::endl;
+    std::cout << "b1_k_n: " << b1_k_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
 #if 1
@@ -159,15 +166,36 @@ int main(int argc, char* argv[])
     case 1:
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        break;
+    case 2:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
+    case 3:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
+        break;
+    case 4:
+        a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
+        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
     }
 #endif
-
-    a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-    b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+    // printf("AScale: %lf, %lf\n", a1_m_k(0, 0), b1_k_n(1, 0));
+    // printf("BScale: %lf, %lf\n", b1_k_n(0, 0), b1_k_n(0, 1));
 
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem a1_device_buf(sizeof(A1DataType) * a1_m_k.mDesc.GetElementSpaceSize());
@@ -203,13 +231,6 @@ int main(int argc, char* argv[])
                                            StrideE,
                                            a1_device_buf.GetDeviceBuffer(),
                                            b1_device_buf.GetDeviceBuffer(),
-                                           Scale_Block_M,
-                                           Scale_Block_N,
-                                           Scale_Block_K,
-                                           Scale_Stride_AM,
-                                           Scale_Stride_AK,
-                                           Scale_Stride_BN,
-                                           Scale_Stride_BK,
                                            a_element_op,
                                            b_element_op,
                                            cde_element_op);
@@ -287,7 +308,10 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result) ? 0 : 1;
+        return ck::utils::check_err(
+                   e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-2, 5e-2)
+                   ? 0
+                   : 1;
     }
 
     return 0;
