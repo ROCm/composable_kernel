@@ -908,7 +908,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 
-#if 1
+#if 0
         v_buf.FromDevice(v_host.data());
         for(int row = 0; row < shape_seqlen_k; ++row)
         {
@@ -935,6 +935,47 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << std::flush << std::endl;
         return true;
     }
+
+#if defined(ENABLE_HOST_DEBUG_PRINT)
+#if 0
+    ck_tile::HostTensor<KDataType> k_host_copy(
+        get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+    k_buf.FromDevice(k_host_copy.data());
+
+    for(int row = 0; row < shape_seqlen_k; ++row)
+    {
+        printf("[POYENC][HOST] k_host_copy[%3d] = ", row);
+        for(int col = 0; col < hdim_q; ++col)
+        {
+            printf("%11.7f", ck_tile::type_convert<float>(k_host_copy(0, 0, row, col)));
+        }
+        printf("\n");
+    }
+#endif
+#if 0
+    ck_tile::HostTensor<VDataType> v_host_copy(
+        is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
+                      : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
+    v_buf.FromDevice(v_host_copy.data());
+
+    for(int row = 0; row < shape_seqlen_k; ++row)
+    {
+        printf("[POYENC][HOST] v_host_copy[%3d] = ", row);
+        for(int col = 0; col < hdim_v; ++col)
+        {
+            if(vlayout == "r")
+            {
+                printf("%11.7f", ck_tile::type_convert<float>(v_host_copy(0, 0, row, col)));
+            }
+            else
+            {
+                printf("%11.7f", ck_tile::type_convert<float>(v_host_copy(0, 0, col, row)));
+            }
+        }
+        printf("\n");
+    }
+#endif
+#endif
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
@@ -985,6 +1026,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
+        // append (override) Knew to the end of K
+        if(0 < seqlen_knew)
+        {
+            const std::size_t knew_start = real_seqlen_k - seqlen_knew;
+            if(i_perm)
+            {
+                k_host_ref.ForEach([&](auto& self, auto i) {
+                    if(knew_start <= i[1])
+                    {
+                        self(i) = knew_host(b, i[0], i[1] - knew_start, i[2]);
+                    }
+                });
+            }
+            else
+            {
+                k_host_ref.ForEach([&](auto& self, auto i) {
+                    if(knew_start <= i[1])
+                    {
+                        self(i) = knew_host(b, i[1] - knew_start, i[0], i[2]);
+                    }
+                });
+            }
+        }
+
         if (is_v_rowmajor) {
             //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
             if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
@@ -994,6 +1059,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else {
             if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[1], i[2] + key_offset); });
             else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[1], i[0] / nr, i[2] + key_offset); });
+        }
+
+        // append (override) Vnew to the end of V
+        if(0 < seqlen_knew)
+        {
+            ck_tile::HostTensor<VDataType> vnew_host_ref({nhead, hdim_v, seqlen_knew});
+            if(is_v_rowmajor)
+            {
+                if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(b, i[0] / nr, i[2], i[1]); });
+                else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(b, i[2], i[0] / nr, i[1]); });
+            }
+            else
+            {
+                if(i_perm) vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(b, i[0] / nr, i[1], i[2]); });
+                else       vnew_host_ref.ForEach([&](auto& self, auto i) { self(i) = vnew_host(b, i[1], i[0] / nr, i[2]); });
+            }
+
+            const std::size_t knew_start = real_seqlen_k - seqlen_knew;
+            v_host_ref.ForEach([&](auto& self, auto i) {
+                if(knew_start <= i[2])
+                {
+                    self(i) = vnew_host_ref(i[0], i[1], i[2] - knew_start);
+                }
+            });
         }
         // clang-format on
 
