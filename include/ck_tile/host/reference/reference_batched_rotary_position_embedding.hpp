@@ -16,11 +16,11 @@ namespace detail {
 }
 
 template <typename ComputeDataType, typename DataType>
-CK_TILE_HOST void reference_rotary_position_embedding(const HostTensor<DataType>& input_bsd,
-                                                      const HostTensor<DataType>& cos_sd,
-                                                      const HostTensor<DataType>& sin_sd,
-                                                      bool interleaved,
-                                                      HostTensor<DataType>& output_bsd)
+CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<DataType>& input_bsd,
+                                                              const HostTensor<DataType>& cos_sd,
+                                                              const HostTensor<DataType>& sin_sd,
+                                                              bool interleaved,
+                                                              HostTensor<DataType>& output_bsd)
 {
     assert(cos_sd.get_num_of_dimension() == 2 && sin_sd.get_num_of_dimension() == 2);
     assert(cos_sd.get_length(0) == sin_sd.get_length(0) &&
