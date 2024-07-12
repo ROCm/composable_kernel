@@ -1,57 +1,38 @@
-============================
+.. meta::
+  :description: Composable Kernel documentation and API reference library
+  :keywords: composable kernel, CK, ROCm, API, documentation
+
+.. _composable-kernel:
+
+********************************************************************
 Composable Kernel User Guide
-============================
+********************************************************************
 
-------------
-Introduction
-------------
+The Composable Kernel (CK) library provides a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs and CPUs, through general purpose kernel languages like HIP C++. This document contains instructions for installing, using, and contributing to the Composable Kernel project. To learn more see :ref:`what-is-ck`.
 
-This document contains instructions for installing, using, and contributing to Composable Kernel (CK).
+The CK documentation is structured as follows:
 
------------
-Methodology
------------
+.. grid:: 2
+  :gutter: 3
 
-Composable Kernel (CK) library aims to provide a programming model for writing performance critical
-kernels for machine learning workloads across multiple architectures including GPUs, CPUs, etc,
-through general purpose kernel languages, like HIP C++.
+  .. grid-item-card:: Installation
 
-CK utilizes two concepts to achieve performance portability and code maintainability:
+    * :ref:`docker-hub`
 
-* A tile-based programming model
-* Algorithm complexity reduction for complex ML operators, using innovative technique we call
-  "Tensor Coordinate Transformation".
+  .. grid-item-card:: Conceptual
 
-.. image:: data/ck_component.png
-   :alt: CK Components
+    * :ref:`what-is-ck`
 
---------------
-Code Structure
---------------
+  .. grid-item-card:: API reference
 
-Current CK library are structured into 4 layers:
+    * :ref:`supported-primitives`
+    * :ref:`api-reference`
+    * :ref:`wrapper`
 
-* "Templated Tile Operators" layer
-* "Templated Kernel and Invoker" layer
-* "Instantiated Kernel and Invoker" layer
-* "Wrapper for tensor transform operations"
-* "Client API" layer
+  .. grid-item-card:: Tutorial
 
-.. image:: data/ck_layer.png
-   :alt: CK Layers
-   
-Documentation Roadmap
-^^^^^^^^^^^^^^^^^^^^^
-The following is a list of CK documents in the suggested reading order:
+    * :ref:`hello-world`
 
-.. toctree::
-   :maxdepth: 5
-   :caption: Contents:
-   :numbered:
+To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
-   tutorial_hello_world
-   dockerhub
-   wrapper
-   Supported_Primitives_Guide
-   API_Reference_Guide
-   Contributors_Guide
+You can find licensing information on the `Licensing <https://rocm.docs.amd.com/en/latest/about/license.html>`_ page.

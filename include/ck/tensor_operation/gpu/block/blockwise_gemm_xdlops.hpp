@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,7 +37,9 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          typename ComputeTypeA = FloatA,
+          typename ComputeTypeB = FloatB>
 struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 {
     static constexpr auto I0 = Number<0>{};
@@ -59,7 +61,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
 
-    static constexpr auto xdlops_gemm = XdlopsGemm<FloatA, MPerXDL, NPerXDL, KPack, FloatB>{};
+    static constexpr auto xdlops_gemm =
+        XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB>{};
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
 
@@ -295,9 +298,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
             b_thread_desc_.GetElementSpaceSize());
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -319,28 +322,27 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_buf);
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
-                    vector_type<FloatA, KPack> a_thread_vec;
-                    vector_type<FloatB, KPack> b_thread_vec;
+                    vector_type<ComputeTypeA, KPack> a_thread_vec;
+                    vector_type<ComputeTypeB, KPack> b_thread_vec;
 
                     static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<FloatA>()(i) = a_thread_buf
+                        a_thread_vec.template AsType<ComputeTypeA>()(i) = a_thread_buf
                             [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<FloatB>()(i) = b_thread_buf
+                        b_thread_vec.template AsType<ComputeTypeB>()(i) = b_thread_buf
                             [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
                     });
 
                     using mfma_input_type_a =
-                        typename vector_type<FloatA, xdlops_gemm.K1PerXdlops>::type;
+                        typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
                     using mfma_input_type_b =
-                        typename vector_type<FloatB, xdlops_gemm.K1PerXdlops>::type;
+                        typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.template Run(
-                        a_thread_vec.template AsType<mfma_input_type_a>(),
-                        b_thread_vec.template AsType<mfma_input_type_b>(),
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type_a>(),
+                                    b_thread_vec.template AsType<mfma_input_type_b>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
         });
@@ -360,7 +362,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
-                                                         FloatA,
+                                                         ComputeTypeA,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
                                                          Sequence<1, 1, 1, KPerThread>,
@@ -370,7 +372,7 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatB,
-                                                         FloatB,
+                                                         ComputeTypeB,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
                                                          Sequence<1, 1, 1, KPerThread>,
@@ -398,6 +400,8 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          typename ComputeTypeA  = FloatA,
+          typename ComputeTypeB  = FloatB,
           index_t NumMacClusters = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS>
 struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     : public BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
@@ -410,7 +414,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                  NPerXDL,
                                                                  MRepeat,
                                                                  NRepeat,
-                                                                 KPack>
+                                                                 KPack,
+                                                                 ComputeTypeA,
+                                                                 ComputeTypeB>
 {
     using Base = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
                                                                      FloatA,
@@ -422,7 +428,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                                      NPerXDL,
                                                                      MRepeat,
                                                                      NRepeat,
-                                                                     KPack>;
+                                                                     KPack,
+                                                                     ComputeTypeA,
+                                                                     ComputeTypeB>;
 
 #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
     using Base::a_block_desc_m0_m1_m2_k;
@@ -446,9 +454,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
             b_thread_desc_.GetElementSpaceSize());
 
         static_for<0, KPerThread, KPerInnerLoop>{}([&](auto k) {
@@ -479,28 +487,35 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             // sync point.
             if constexpr(k.value != 0 || KPerInnerLoop == KPerThread)
             {
+#ifdef __gfx12__
+                asm volatile("\
+	        s_barrier_signal -1 \n \
+		s_barrier_wait -1 \
+		" ::);
+#else
                 asm volatile("s_barrier" ::);
+#endif
                 __builtin_amdgcn_sched_barrier(0);
             }
             static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        vector_type<FloatA, KPack> a_thread_vec;
-                        vector_type<FloatB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeA, KPack> a_thread_vec;
+                        vector_type<ComputeTypeB, KPack> b_thread_vec;
 
                         static_for<0, KPack, 1>{}([&](auto i) {
-                            a_thread_vec.template AsType<FloatA>()(i) =
+                            a_thread_vec.template AsType<ComputeTypeA>()(i) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, 0, 0, k_ + i))>{}];
-                            b_thread_vec.template AsType<FloatB>()(i) =
+                            b_thread_vec.template AsType<ComputeTypeB>()(i) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, 0, 0, k_ + i))>{}];
                         });
 
                         using mfma_input_type_a =
-                            typename vector_type<FloatA, xdlops_gemm.K1PerXdlops>::type;
+                            typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops>::type;
                         using mfma_input_type_b =
-                            typename vector_type<FloatB, xdlops_gemm.K1PerXdlops>::type;
+                            typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
 
                         constexpr index_t c_offset =
                             c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
@@ -521,10 +536,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
                         // TODO: insert setprio in more precise manner since we
                         // could have more than >1 MFMA instructions in single call
-                        xdlops_gemm.template Run(
-                            a_thread_vec.template AsType<mfma_input_type_a>(),
-                            b_thread_vec.template AsType<mfma_input_type_b>(),
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type_a>(),
+                                        b_thread_vec.template AsType<mfma_input_type_b>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
                         {
                             __builtin_amdgcn_sched_barrier(0);
@@ -550,7 +564,7 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
         make_tuple(Number<NRepeat>{}, I1, I1, Number<KPerInnerLoop>{}));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
-                                                         FloatA,
+                                                         ComputeTypeA,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
                                                          Sequence<1, 1, 1, KPerInnerLoop>,
@@ -560,7 +574,7 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatB,
-                                                         FloatB,
+                                                         ComputeTypeB,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
                                                          Sequence<1, 1, 1, KPerInnerLoop>,
@@ -586,7 +600,9 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          LoopScheduler LoopSched>
+          LoopScheduler LoopSched,
+          typename ComputeTypeA = FloatA,
+          typename ComputeTypeB = FloatB>
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
     if constexpr(LoopSched == LoopScheduler::Default)
@@ -601,7 +617,9 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                    NPerXDL,
                                                                    MRepeat,
                                                                    NRepeat,
-                                                                   KPack>{};
+                                                                   KPack,
+                                                                   ComputeTypeA,
+                                                                   ComputeTypeB>{};
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {
@@ -615,7 +633,9 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
                                                                             NPerXDL,
                                                                             MRepeat,
                                                                             NRepeat,
-                                                                            KPack>{};
+                                                                            KPack,
+                                                                            ComputeTypeA,
+                                                                            ComputeTypeB>{};
     }
 };
 
@@ -778,11 +798,6 @@ struct BlockwiseGemmXdlops_v2
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
-    }
-
-    __host__ __device__ BlockwiseGemmXdlops_v2(const BlockwiseGemmXdlops_v2& other)
-        : a_thread_copy_(other.a_origin), b_thread_copy_(other.b_origin)
-    {
     }
 
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
@@ -953,10 +968,9 @@ struct BlockwiseGemmXdlops_v2
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.template Run(
-                        a_thread_vec.template AsType<mfma_input_type>(),
-                        b_thread_vec.template AsType<mfma_input_type>(),
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
         });

@@ -1,42 +1,43 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/ck.hpp"
 
+#include "ck/utility/data_type.hpp"
 #include "ck/utility/number.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/tuple_helper.hpp"
 #include "ck/utility/dynamic_buffer.hpp"
 #include "ck/utility/amd_address_space.hpp"
+#include "ck/utility/multi_index.hpp"
 
+// Disable from doxygen docs generation
+/// @cond INTERNAL
 namespace ck {
 namespace wrapper {
+/// @endcond
 
 /**
  * \brief Memory type, allowed members:
  * - Generic,
  * - Global,
- * - LDS,
- * - SGPR,
- * - VGPR,
+ * - Lds,
+ * - Sgpr,
+ * - Vgpr,
  */
 using MemoryTypeEnum = AddressSpaceEnum;
 
 // Disable from doxygen docs generation
-/// @cond
+/// @cond INTERNAL
 // forward declarations
-template <typename Shape, typename Strides>
+template <typename Shape, typename UnrolledDescriptorType>
 struct Layout;
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
-          index_t NumVectors,     // params for Register memory
-          index_t ScalarPerVector // param for Register memory
-          >
-
+          typename UnrolledDescriptorType>
 struct Tensor;
 
 template <typename FromType, typename ToType>
@@ -45,13 +46,18 @@ struct Slice
     __host__ __device__ constexpr Slice() : from_(), to_() {}
     __host__ __device__ constexpr Slice(FromType from, ToType to) : from_(from), to_(to) {}
 
+    /**
+     * \brief Calculate slice range.
+     *
+     * \param dim Dimension size.
+     * \return Slice range.
+     */
     template <typename T>
     __host__ __device__ constexpr auto range(const T& dim) const
     {
         if constexpr(is_same_v<FromType, index_t> || is_same_v<ToType, index_t> ||
-                     is_same_v<T, index_t>)
+                     is_same_v<std::remove_const_t<T>, index_t>)
         {
-            assert(dim >= to_ && from_ >= 0 && (to_ < 0 || to_ > from_) && "Invalid range");
             if(to_ < 0)
             {
                 return dim - from_ + to_ + 1;
@@ -64,9 +70,10 @@ struct Slice
         }
         else
         {
-            static_assert(dim >= to_ && from_ >= Number<0>{} && (to_ < 0 || to_ > from_),
+            static_assert(T{} >= ToType{} && FromType{} >= Number<0>{} &&
+                              (ToType{} < 0 || ToType{} > FromType{}),
                           "Invalid range");
-            if constexpr(to_ < 0)
+            if constexpr(ToType{} < 0)
             {
                 return dim - from_ + to_ + Number<1>{};
             }
@@ -98,33 +105,47 @@ using is_tuple = decltype(std::declval<T&>().IsTuple());
  * \param layout Tensor layout.
  * \return Constructed tensor.
  */
-template <MemoryTypeEnum MemoryType, typename ElementType, typename Shape, typename Strides>
-constexpr auto make_tensor(ElementType* pointer, const Layout<Shape, Strides>& layout)
+template <MemoryTypeEnum MemoryType,
+          typename ElementType,
+          typename Shape,
+          typename UnrolledDescriptorType>
+constexpr auto make_tensor(ElementType* pointer,
+                           const Layout<Shape, UnrolledDescriptorType>& layout)
 {
-    return Tensor<MemoryType, ElementType, Shape, Strides, 0 /*NumVectors*/, 0 /*ScalarPerVector*/>(
-        pointer, layout);
+    return Tensor<MemoryType, ElementType, Shape, UnrolledDescriptorType>(pointer, layout);
 }
 
 /**
  * \brief Make SGPR or VGPR tensor function.
  *
  * \tparam MemoryType Type of memory.
- * \tparam NumVectors Number of vectors.
- * \tparam ScalarPerVector Scalars per vector.
  * \tparam ElementType Memory data type.
- * \param layout Tensor layout.
  * \return Constructed tensor.
  */
 template <MemoryTypeEnum MemoryType,
-          index_t NumVectors,
-          index_t ScalarPerVector,
           typename ElementType,
           typename Shape,
-          typename Strides>
-constexpr auto make_register_tensor(const Layout<Shape, Strides>& layout)
+          typename UnrolledDescriptorType>
+constexpr auto make_register_tensor(const Layout<Shape, UnrolledDescriptorType>& layout)
 {
-    static_assert(!IsNestedTuple(Shape{}), "Register tensor with nested layout is not supported");
-    return Tensor<MemoryType, ElementType, Shape, Strides, NumVectors, ScalarPerVector>(layout);
+    return Tensor<MemoryType, ElementType, Shape, UnrolledDescriptorType>(layout);
+}
+
+/**
+ * \brief Clear tensor. (Only for Vpgr/Sgpr)
+ *
+ * \param tensor Tensor to be cleared.
+ */
+template <MemoryTypeEnum BufferAddressSpace,
+          typename ElementType,
+          typename Shape,
+          typename UnrolledDescriptorType>
+__host__ __device__ void
+clear(Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
+{
+    static_assert(
+        !Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>::IsDynamicBuffer);
+    return tensor.GetBuffer().Clear();
 }
 
 /**
@@ -136,12 +157,9 @@ constexpr auto make_register_tensor(const Layout<Shape, Strides>& layout)
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr const auto&
-layout(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-           tensor)
+layout(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return tensor.GetLayout();
 }
@@ -157,12 +175,9 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
-__host__ __device__ constexpr index_t
-size(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-         tensor)
+          typename UnrolledDescriptorType>
+__host__ __device__ constexpr auto
+size(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return size<Idxs...>(tensor.GetLayout());
 }
@@ -178,12 +193,9 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
-__host__ __device__ constexpr index_t
-rank(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-         tensor)
+          typename UnrolledDescriptorType>
+__host__ __device__ constexpr auto
+rank(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return rank<Idxs...>(tensor.GetLayout());
 }
@@ -199,33 +211,11 @@ template <index_t... Idxs,
           MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
-__host__ __device__ constexpr index_t
-depth(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-          tensor)
+          typename UnrolledDescriptorType>
+__host__ __device__ constexpr auto
+depth(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return depth<Idxs...>(tensor.GetLayout());
-}
-
-/**
- * \brief Get Tensor strides.
- *
- * \param tensor Tensor to get strides from.
- * \return Requsted strides.
- */
-template <MemoryTypeEnum BufferAddressSpace,
-          typename ElementType,
-          typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
-__host__ __device__ constexpr const auto&
-stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-           tensor)
-{
-    return stride(tensor.GetLayout());
 }
 
 /**
@@ -237,12 +227,9 @@ stride(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors,
 template <MemoryTypeEnum BufferAddressSpace,
           typename ElementType,
           typename Shape,
-          typename Strides,
-          index_t NumVectors,
-          index_t ScalarPerVector>
+          typename UnrolledDescriptorType>
 __host__ __device__ constexpr const auto&
-shape(const Tensor<BufferAddressSpace, ElementType, Shape, Strides, NumVectors, ScalarPerVector>&
-          tensor)
+shape(const Tensor<BufferAddressSpace, ElementType, Shape, UnrolledDescriptorType>& tensor)
 {
     return shape(tensor.GetLayout());
 }

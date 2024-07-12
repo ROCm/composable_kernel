@@ -55,3 +55,14 @@ _static/
 _templates/
 _toc.yml
 _doxygen/
+
+# JetBrains IDE
+.idea/
+cmake-build*/
+build*/
+
+# Python virtualenv
+.venv/
+
+# Python cache
+__pycache__/

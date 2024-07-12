@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,7 +43,15 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
             first = false;
         else
             os << delim;
-        os << static_cast<T>(v);
+
+        if constexpr(std::is_same_v<T, ck::f8_t> || std::is_same_v<T, ck::bf8_t>)
+        {
+            os << ck::type_convert<float>(v);
+        }
+        else
+        {
+            os << static_cast<T>(v);
+        }
     }
     return os;
 }
@@ -406,6 +414,37 @@ struct Tensor
                                        mDesc.GetLengths()[3],
                                        mDesc.GetLengths()[4],
                                        mDesc.GetLengths()[5])(num_thread);
+            break;
+        }
+        case 12: {
+            auto f = [&](auto i0,
+                         auto i1,
+                         auto i2,
+                         auto i3,
+                         auto i4,
+                         auto i5,
+                         auto i6,
+                         auto i7,
+                         auto i8,
+                         auto i9,
+                         auto i10,
+                         auto i11) {
+                (*this)(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11) =
+                    g(i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11);
+            };
+            make_ParallelTensorFunctor(f,
+                                       mDesc.GetLengths()[0],
+                                       mDesc.GetLengths()[1],
+                                       mDesc.GetLengths()[2],
+                                       mDesc.GetLengths()[3],
+                                       mDesc.GetLengths()[4],
+                                       mDesc.GetLengths()[5],
+                                       mDesc.GetLengths()[6],
+                                       mDesc.GetLengths()[7],
+                                       mDesc.GetLengths()[8],
+                                       mDesc.GetLengths()[9],
+                                       mDesc.GetLengths()[10],
+                                       mDesc.GetLengths()[11])(num_thread);
             break;
         }
         default: throw std::runtime_error("unspported dimension");

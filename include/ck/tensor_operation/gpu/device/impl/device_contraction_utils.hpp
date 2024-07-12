@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -35,38 +35,68 @@ auto CalculateMaxRead(const std::vector<index_t>& lengths, const std::vector<ind
     if(lengths.size() != NumDim1 + NumDim2)
     {
         std::ostringstream err;
-        err << "Incorrect number of lengths in " << __FILE__ << ":" << __LINE__
-            << ", in function: " << __func__;
+        err << "Incorrect number of lengths in "
+            << "device_contraction_utils.hpp"
+            << ":" << __LINE__ << ", in function: " << __func__;
         throw std::runtime_error(err.str());
     }
     if(strides.size() != NumDim1 + NumDim2)
     {
         std::ostringstream err;
-        err << "Incorrect number of strides in " << __FILE__ << ":" << __LINE__
-            << ", in function: " << __func__;
+        err << "Incorrect number of strides in "
+            << "device_contraction_utils.hpp"
+            << ":" << __LINE__ << ", in function: " << __func__;
         throw std::runtime_error(err.str());
     }
 
     // Determine the beginning and end idx of the group representing the FCD.
-    index_t begin_idx, end_idx;
-    if(strides[NumDim1 - 1] == 1)
+    index_t begin_idx, end_idx, continous_dim, consecutive_stride = 1;
+    if(strides[NumDim1 - 1] == 1 && strides[NumDim1 + NumDim2 - 1] == 1)
     {
-        begin_idx = 0;
-        end_idx   = NumDim1 - 1;
+        // MZ or KZ are ones
+        bool dims1_are_ones = true;
+        for(index_t dim_idx = 0; dim_idx < NumDim1; dim_idx++)
+        {
+            if(lengths[dim_idx] != 1)
+            {
+                dims1_are_ones = false;
+            }
+        }
+
+        if(dims1_are_ones)
+        {
+            begin_idx     = NumDim1;
+            end_idx       = NumDim1 + NumDim2 - 1;
+            continous_dim = 1;
+        }
+        else
+        {
+            begin_idx     = 0;
+            end_idx       = NumDim1 - 1;
+            continous_dim = 0;
+        }
+    }
+    else if(strides[NumDim1 - 1] == 1)
+    {
+        begin_idx     = 0;
+        end_idx       = NumDim1 - 1;
+        continous_dim = 0;
     }
     else if(strides[NumDim1 + NumDim2 - 1] == 1)
     {
-        begin_idx = NumDim1;
-        end_idx   = NumDim1 + NumDim2 - 1;
+        begin_idx     = NumDim1;
+        end_idx       = NumDim1 + NumDim2 - 1;
+        continous_dim = 1;
     }
     else
     {
         // The dimension consecutive in memory is not the last dimension of any group, so only
         // one element can be read/written at once.
-        return 1;
+        consecutive_stride = 1;
+        continous_dim      = 0;
+        return make_tuple(continous_dim, consecutive_stride);
     }
 
-    index_t consecutive_stride = 1;
     for(index_t dim_idx = end_idx; dim_idx >= begin_idx; --dim_idx)
     {
         if(strides[dim_idx] == consecutive_stride)
@@ -79,7 +109,7 @@ auto CalculateMaxRead(const std::vector<index_t>& lengths, const std::vector<ind
         }
     }
     const index_t max_subsequent_elems = consecutive_stride;
-    return max_subsequent_elems;
+    return make_tuple(continous_dim, max_subsequent_elems);
 }
 
 } // namespace device

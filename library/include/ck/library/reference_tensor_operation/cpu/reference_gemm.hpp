@@ -21,7 +21,7 @@ template <typename ADataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputeTypeA = ADataType,
+          typename ComputeTypeA = CDataType,
           typename ComputeTypeB = ComputeTypeA>
 struct ReferenceGemm : public device::BaseOperator
 {
@@ -63,12 +63,11 @@ struct ReferenceGemm : public device::BaseOperator
                 const int K = arg.a_m_k_.mDesc.GetLengths()[1];
 
                 AccDataType v_acc = 0;
+                ComputeTypeA v_a  = 0;
+                ComputeTypeB v_b  = 0;
 
                 for(int k = 0; k < K; ++k)
                 {
-                    ComputeTypeA v_a;
-                    ComputeTypeB v_b;
-
                     // use PassThrough instead of ConvertBF16RTN for reference calculation
                     if constexpr(is_same_v<AElementwiseOperation,
                                            ck::tensor_operation::element_wise::ConvertBF16RTN>)
@@ -94,7 +93,7 @@ struct ReferenceGemm : public device::BaseOperator
                         ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
-                CDataType v_c;
+                CDataType v_c = 0;
 
                 arg.c_element_op_(v_c, v_acc);
 

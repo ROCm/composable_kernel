@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -73,7 +73,7 @@ template <typename ADataType,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           PipelineVersion PipelineVer = PipelineVersion::v1,
-          typename BComputeDataType   = AComputeDataType_>
+          typename BComputeDataType_  = AComputeDataType_>
 struct GridwiseGemmMultipleD_xdl_cshuffle
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -103,8 +103,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 #if CK_WORKAROUND_DENORM_FIX
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
+    using BComputeDataType =
+        conditional_t<is_same_v<BComputeDataType_, ck::half_t>, ck::bhalf_t, BComputeDataType_>;
 #else
     using AComputeDataType = AComputeDataType_;
+    using BComputeDataType = BComputeDataType_;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -254,7 +257,70 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
+    template <typename ALayout, typename BLayout, typename ELayout>
+    __host__ __device__ static bool
+    CheckTensorTransfersValidity(index_t MRaw, index_t NRaw, index_t KRaw)
+    {
+        // Check if the vector dim is K1 or M|N
+        const auto A_vector_dim_size = ABlockTransferSrcVectorDim == 2 ? KRaw : MRaw;
+        const auto B_vector_dim_size = BBlockTransferSrcVectorDim == 2 ? KRaw : NRaw;
+        const auto E_vector_dim_size = NRaw;
+
+        // check vector load for A tensor
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
+        {
+            if(!(A_vector_dim_size == KRaw &&
+                 A_vector_dim_size % ABlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
+        {
+            if(!(A_vector_dim_size == MRaw &&
+                 A_vector_dim_size % ABlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+        {
+            if(!(B_vector_dim_size == NRaw &&
+                 B_vector_dim_size % BBlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+        {
+            if(!(B_vector_dim_size == KRaw &&
+                 B_vector_dim_size % BBlockTransferSrcScalarPerVector == 0))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ELayout>)
+        {
+            if(!(E_vector_dim_size == NRaw &&
+                 E_vector_dim_size % CDEShuffleBlockTransferScalarPerVector_NPerBlock == 0))
+                return false;
+        }
+        else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ELayout>)
+        {
+            if(!(E_vector_dim_size == NRaw &&
+                 CDEShuffleBlockTransferScalarPerVector_NPerBlock == 1))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     template <typename AGridDesc_M_K,
               typename BGridDesc_N_K,
               typename DsGridDesc_M_N,
@@ -264,7 +330,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                             const BGridDesc_N_K& b_grid_desc_n_k,
                                                             const DsGridDesc_M_N& ds_grid_desc_m_n,
                                                             const EGridDesc_M_N& e_grid_desc_m_n,
-                                                            const Block2ETileMap& block_2_etile_map)
+                                                            [[maybe_unused]] const Block2ETileMap&)
     {
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
@@ -282,7 +348,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         {
             return false;
         }
-
         bool valid = true;
 
         static_for<0, NumDTensor, 1>{}([&](auto i) {
@@ -303,17 +368,16 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
         // check gridwise gemm pipeline
         const auto num_k_loop = AK / KPerBlock;
-
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
             return false;
         }
 
         // check block-to-E-tile
-        if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
-        {
-            return false;
-        }
+        // if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
+        //{
+        // return false;
+        //}
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         // check tensor size: cannot be larger than 2GB each
@@ -910,6 +974,63 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
             remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 DsGridDesc_M_N{}))>;
+
+        DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
+
+        static_for<0, NumDTensor, 1>{}([&](auto j) {
+            ds_grid_desc_mblock_mperblock_nblock_nperblock(j) =
+                MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(ds_grid_desc_m_n[j]);
+        });
+
+        const auto e_grid_desc_mblock_mperblock_nblock_nperblock =
+            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(e_grid_desc_m_n);
+
+        Run<HasMainKBlockLoop>(p_a_grid,
+                               p_b_grid,
+                               p_ds_grid,
+                               p_e_grid,
+                               p_shared,
+                               a_element_op,
+                               b_element_op,
+                               cde_element_op,
+                               a_grid_desc_ak0_m_ak1,
+                               b_grid_desc_bk0_n_bk1,
+                               ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                               e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               block_2_etile_map);
+    }
+
+    template <bool HasMainKBlockLoop,
+              typename AGridDesc_MK,
+              typename BGridDesc_NK,
+              typename DsGridDesc_MN,
+              typename EGridDesc_MN,
+              typename Block2ETileMap>
+    __device__ static void Run(const void* __restrict__ p_a_grid_,
+                               const void* __restrict__ p_b_grid_,
+                               DsGridPointer p_ds_grid,
+                               void* __restrict__ p_e_grid_,
+                               void* __restrict__ p_shared,
+                               const AElementwiseOperation& a_element_op,
+                               const BElementwiseOperation& b_element_op,
+                               const CDEElementwiseOperation& cde_element_op,
+                               const AGridDesc_MK& a_grid_desc_m_k,
+                               const BGridDesc_NK& b_grid_desc_n_k,
+                               const DsGridDesc_MN& ds_grid_desc_m_n,
+                               const EGridDesc_MN& e_grid_desc_m_n,
+                               const Block2ETileMap& block_2_etile_map)
+    {
+        const auto p_a_grid = reinterpret_cast<const ADataType*>(p_a_grid_);
+        const auto p_b_grid = reinterpret_cast<const BDataType*>(p_b_grid_);
+        const auto p_e_grid = reinterpret_cast<EDataType*>(p_e_grid_);
+
+        // tensor descriptors for block/thread-wise copy
+        const auto a_grid_desc_ak0_m_ak1 = MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k);
+        const auto b_grid_desc_bk0_n_bk1 = MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
+
+        using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
+            remove_cvref_t<decltype(MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                DsGridDesc_MN{}))>;
 
         DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock ds_grid_desc_mblock_mperblock_nblock_nperblock;
 

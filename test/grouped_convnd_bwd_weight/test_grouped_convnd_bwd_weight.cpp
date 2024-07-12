@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -32,19 +32,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1, 2};
 
-    bool skip_case(const ck::utils::conv::ConvParam& params, const ck::index_t split_k)
+    bool skip_case(const ck::index_t split_k)
     {
-        // Odd K or C values are supported only by DL and WMMA
-        // kernels (only applies to fp16)
-        // DL and WMMA kernels currently support only `split_k=1`
-        if constexpr(std::is_same_v<InDataType, ck::half_t>)
-        {
-            if(split_k != 1 && (params.K_ % 2 != 0 || params.C_ % 2 != 0))
-            {
-                return true;
-            }
-        }
-
         // 1d NWGC is only supported by DL kernel
         // DL kernel is only supported for split_k=1
         if constexpr(std::is_same_v<InLayout, NWGC> && std::is_same_v<OutLayout, NWGK>)
@@ -55,17 +44,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             }
         }
 
-        const bool is_navi3x = ck::get_device_name() == "gfx1100" ||
-                               ck::get_device_name() == "gfx1101" ||
-                               ck::get_device_name() == "gfx1102";
-        if(is_navi3x)
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
-            // on navi3x only support for 3d is implemented
+            // on gfx11 only support for 3d is implemented
             if constexpr(NDimSpatial{} != 3)
             {
                 return true;
             }
-            // on navi3x only support for i8 and fp16 is implemented
+            // on gfx11 only support for i8 and fp16 is implemented
             if constexpr(!((std::is_same_v<InDataType, int8_t> &&
                             std::is_same_v<WeiDataType, int8_t> &&
                             std::is_same_v<OutDataType, int8_t>) ||
@@ -83,7 +69,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         }
         else
         {
-            // support for i8 is only implemented on navi3x
+            // support for i8 is only implemented on gfx11
             if constexpr(std::is_same_v<InDataType, int8_t> &&
                          std::is_same_v<WeiDataType, int8_t> && std::is_same_v<OutDataType, int8_t>)
             {
@@ -103,7 +89,7 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         {
             for(auto& param : conv_params)
             {
-                if(!skip_case(param, split_k))
+                if(!skip_case(split_k))
                 {
                     pass = pass && ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
                                                                                       InLayout,
@@ -192,6 +178,8 @@ TYPED_TEST(TestGroupedConvndBwdWeight2d, Test2D)
     this->conv_params.push_back({2, 1, 1, 1, 32, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 64, 3, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 1, 1, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 16, 16, 1, 1, {3, 3}, {28, 28}, {2, 2}, {1, 1}, {1, 1}, {1, 1}});
     this->Run();
 }
 
@@ -210,5 +198,7 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
         {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 16, 16, 1, 1, {3, 3, 3}, {28, 28, 28}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
 }

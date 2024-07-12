@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iomanip>
 #include <vector>
 #include <iostream>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_elementwise_3d_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/gpu/transpose_3d.hpp"
@@ -117,6 +117,7 @@ int main()
               << best_op_name << std::endl;
 
     // run the best intance
+    if(found)
     {
         auto& op_ptr = op_ptrs[best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()

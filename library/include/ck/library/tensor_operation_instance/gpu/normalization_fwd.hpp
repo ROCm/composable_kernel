@@ -20,15 +20,15 @@ namespace instance {
 // FP16
 void add_device_normalization_fwd_rank_2_1_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, PassThrough, 2, 1>>>&);
+        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F16, PassThrough, 2, 1>>>&);
 
 void add_device_normalization_fwd_rank_4_3_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, PassThrough, 4, 3>>>&);
+        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F16, PassThrough, 4, 3>>>&);
 
 void add_device_normalization_fwd_rank_5_3_f16_instances(
     std::vector<
-        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F32, PassThrough, 5, 3>>>&);
+        std::unique_ptr<DeviceNormalizationFwd<F16, F16, F16, F16, F16, PassThrough, 5, 3>>>&);
 #endif
 #ifdef CK_ENABLE_FP32
 // FP32
@@ -76,7 +76,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceNormal
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<XDataType, F16> && is_same_v<GammaDataType, F16> &&
                      is_same_v<BetaDataType, F16> && is_same_v<YDataType, F16> &&
-                     is_same_v<SaveMeanInvStdDataType, F32>)
+                     is_same_v<SaveMeanInvStdDataType, F16>)
         {
             if constexpr(Rank == 2 && NumReduceDim == 1)
             {

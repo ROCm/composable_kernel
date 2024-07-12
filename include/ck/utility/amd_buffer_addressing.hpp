@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include "data_type.hpp"
@@ -297,6 +297,17 @@ enum struct AmdBufferCoherenceEnum
     GLC              = 1,
     SLC              = 2,
     GLC_SLC          = 3,
+    // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
+    // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
+    // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
+    WAVE_NT0   = 0,
+    WAVE_NT1   = 2,
+    GROUP_NT0  = 1,
+    GROUP_NT1  = 3,
+    DEVICE_NT0 = 8,
+    DEVICE_NT1 = 10,
+    SYSTEM_NT0 = 9,
+    SYSTEM_NT1 = 11,
 };
 
 template <index_t N, AmdBufferCoherenceEnum coherence = AmdBufferCoherenceEnum::DefaultCoherence>
@@ -417,7 +428,8 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, f8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
     using r_t     = typename vector_type<T, N>::type;
@@ -979,7 +991,8 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
     asm volatile("s_mov_b32 m0, %0; \n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
-                 "s"(src_resource));
+                 "s"(src_resource)
+                 : "memory");
 #else
     // LDS pointer must be attributed with the LDS address space.
     __attribute__((address_space(3))) uint32_t* lds_ptr =

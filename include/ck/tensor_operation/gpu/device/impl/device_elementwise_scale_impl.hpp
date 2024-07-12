@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,6 +19,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/**
+ * \note This structure is deprecated (left for backwards compatibility). Please use
+ *       DeviceElementwiseImpl from device_elementwise_dynamic_vector_dims_impl.hpp.
+ */
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
@@ -322,6 +326,19 @@ struct DeviceElementwiseImpl : public DeviceElementwise<InDataTypeTuple,
     {
         return std::make_unique<Invoker>();
     };
+
+    std::string GetTypeString() const override
+    {
+        auto str = std::stringstream();
+
+        // clang-format off
+        str << "DeviceElementwiseNormalizationImpl<";
+        str << NumDim << ", ";
+        str << MPerThread << ">";
+        // clang-format on
+
+        return str.str();
+    }
 }; // namespace device
 
 } // namespace device

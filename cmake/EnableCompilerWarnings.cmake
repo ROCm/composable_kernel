@@ -2,7 +2,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2017 Advanced Micro Devices, Inc.
+# Copyright (c) 2017-2024 Advanced Micro Devices, Inc.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -66,7 +66,7 @@ else()
             -Wunreachable-code
             -Wunused
             -Wno-reserved-identifier
-            -Werror
+	    -Werror
             -Wno-option-ignored
             -Wsign-compare
             -Wno-extra-semi-stmt
@@ -95,6 +95,8 @@ else()
                 -Wno-weak-vtables
                 -Wno-covered-switch-default
                 -Wno-unsafe-buffer-usage
+                -Wno-unused-lambda-capture
+                -Wno-nvcc-compat
             )
         else()
             if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "GNU" AND ${COMPILER} MATCHES "CXX")

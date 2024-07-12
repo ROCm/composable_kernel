@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -108,7 +108,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  out_element_op,
+                                                  {},
+                                                  {},
+                                                  {});
 
         ref_invoker.Run(ref_argument);
     }
@@ -184,6 +187,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                         wei_element_op,
                                         out_element_op,
                                         split_k);
+
+        const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+        DeviceMem workspace_dev(workspace_sz);
+        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
