@@ -84,6 +84,9 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                                          BScaleDataType,
                                          DsDataType,
                                          CDataType,
+                                         ScaleBlockM,
+                                         ScaleBlockN,
+                                         ScaleBlockK,
                                          AElementwiseOperation,
                                          BElementwiseOperation,
                                          CElementwiseOperation>
