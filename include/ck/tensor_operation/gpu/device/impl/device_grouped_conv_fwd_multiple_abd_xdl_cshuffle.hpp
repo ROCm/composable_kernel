@@ -71,7 +71,6 @@ template <typename GridwiseGemm,
           typename Block2ETileMap,
           typename ComputePtrOffsetOfG,
           typename ComputePtrOffsetOfN,
-          index_t NumGroupsToMerge,
           bool HasMainKBlockLoop,
           bool isMultiA,
           bool isMultiB>
@@ -87,7 +86,6 @@ __global__ void
             const AElementwiseOperation a_element_op,
             const BElementwiseOperation b_element_op,
             const CDEElementwiseOperation cde_element_op,
-            const index_t groups_count,
             const AGridDesc_AK0_M_AK1 a_grid_desc_k0_m_k1,
             const BGridDesc_BK0_N_BK1 b_grid_desc_k0_n_k1,
             const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
@@ -102,13 +100,8 @@ __global__ void
     defined(__gfx94__))
 
     // offset base pointer for each work-group
-    const index_t num_blocks_per_n =
-        __builtin_amdgcn_readfirstlane(groups_count / NumGroupsToMerge);
-    const index_t num_blocks_per_group =
-        __builtin_amdgcn_readfirstlane(gridDim.y / num_blocks_per_n);
-    const index_t g_idx =
-        __builtin_amdgcn_readfirstlane((blockIdx.y / num_blocks_per_group) * NumGroupsToMerge);
-    const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.y / num_blocks_per_n);
+    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+    const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
     const long_index_t e_group_offset =
         amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
     const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
@@ -203,7 +196,6 @@ __global__ void
     ignore = p_bs_grid;
     ignore = p_ds_grid;
     ignore = p_e_grid;
-    ignore = groups_count;
     ignore = a_grid_desc_k0_m_k1;
     ignore = b_grid_desc_k0_n_k1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
@@ -556,7 +548,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 static_for<0, NumATensor, 1>{}([&](auto i) {
                     // Init compute_ptr_offset_of_groups_ for multiple AB
-                    compute_ptr_offset_of_groups_.BatchStrideA_(i) = a_g_n_c_wis_strides[0];
+                    compute_ptr_offset_of_groups_.BatchStrideA_(i) =
+                        a_g_n_c_wis_strides[0] * NumGroupsToMerge;
 
                     // Use GemmADataType/GemmBDataType to iterate over tuple (even if passed data
                     // type is not tuple)
@@ -584,7 +577,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 });
                 static_for<0, NumBTensor, 1>{}([&](auto i) {
                     // Init compute_ptr_offset_of_groups_ for multiple AB
-                    compute_ptr_offset_of_groups_.BatchStrideB_(i) = b_g_k_c_xs_strides[0];
+                    compute_ptr_offset_of_groups_.BatchStrideB_(i) =
+                        b_g_k_c_xs_strides[0] * NumGroupsToMerge;
 
                     using DataType = remove_cvref_t<tuple_element_t<i.value, GemmBDataType>>;
                     // It is possible that one of the AB is a pointer and one is a tuple.
@@ -604,8 +598,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
-                compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides[0];
-                compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides[0];
+                compute_ptr_offset_of_groups_.BatchStrideA_ =
+                    a_g_n_c_wis_strides[0] * NumGroupsToMerge;
+                compute_ptr_offset_of_groups_.BatchStrideB_ =
+                    b_g_k_c_xs_strides[0] * NumGroupsToMerge;
                 compute_ptr_offset_of_n_.BatchStrideA_ = a_g_n_c_wis_strides[1] * conv_N_per_block_;
 
                 // p_as and p_bs are pointers
@@ -622,7 +618,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
 
                 // D batch stride
-                compute_ptr_offset_of_groups_.BatchStrideDs_(i) = ds_g_n_k_wos_strides[i][0];
+                compute_ptr_offset_of_groups_.BatchStrideDs_(i) =
+                    ds_g_n_k_wos_strides[i][0] * NumGroupsToMerge;
                 compute_ptr_offset_of_n_.BatchStrideDs_(i) =
                     ds_g_n_k_wos_strides[i][1] * conv_N_per_block_;
 
@@ -630,7 +627,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
                     e_g_n_k_wos_lengths, ds_g_n_k_wos_strides[i], conv_N_per_block_);
             });
-            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides[0];
+            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides[1] * conv_N_per_block_;
 
             // populate desc for Ds/E
@@ -751,8 +748,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
             const index_t gdx = arg.block_2_etile_map_.CalculateGridSize(arg.e_grid_desc_m_n_);
-            const index_t gdy = (arg.num_group_ / NumGroupsToMerge) * num_workgroups_per_Conv_N;
-            const index_t gdz = 1;
+            const index_t gdy = arg.num_group_ / NumGroupsToMerge;
+            const index_t gdz = num_workgroups_per_Conv_N;
 
             const auto K =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
@@ -784,7 +781,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                         ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
-                        NumGroupsToMerge,
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
@@ -802,7 +798,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         arg.a_element_op_,
                         arg.b_element_op_,
                         arg.cde_element_op_,
-                        arg.a_g_n_c_wis_lengths_[0], // Group count
                         as_grid_desc_ak0_m_ak1,
                         bs_grid_desc_bk0_n_bk1,
                         arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -829,7 +824,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                         ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
-                        NumGroupsToMerge,
                         has_main_loop,
                         isMultiA,
                         isMultiB>;
@@ -847,7 +841,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         arg.a_element_op_,
                         arg.b_element_op_,
                         arg.cde_element_op_,
-                        arg.a_g_n_c_wis_lengths_[0], // Group count
                         arg.a_grid_desc_ak0_m_ak1_,
                         arg.b_grid_desc_bk0_n_bk1_,
                         arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
