@@ -1000,16 +1000,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                  ? 0
                  : (seqlen_kpads[0] < 0 ? seqstart_k_host[wb] : seqstart_k_with_padding_host[wb]));
 
-        const auto v_host_ref_lengths =
-            std::array<ck_tile::index_t, 3>{nhead, hdim_v, real_seqlen_k};
-        const auto v_host_ref_strides =
-            is_v_rowmajor
-                ? std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, 1, hdim_v}
-                : std::array<ck_tile::index_t, 3>{hdim_v * real_seqlen_k, real_seqlen_k, 1};
-
         ck_tile::HostTensor<QDataType> q_host_ref({nhead, real_seqlen_q, hdim_q});
         ck_tile::HostTensor<KDataType> k_host_ref({nhead, real_seqlen_k, hdim_q});
-        ck_tile::HostTensor<VDataType> v_host_ref(v_host_ref_lengths, v_host_ref_strides);
+        ck_tile::HostTensor<VDataType> v_host_ref({nhead, hdim_v, real_seqlen_k});
         ck_tile::HostTensor<ODataType> o_host_ref({nhead, real_seqlen_q, hdim_v});
 
         ck_tile::HostTensor<SMPLComputeDataType> s_host_ref({nhead, real_seqlen_q, real_seqlen_k});
@@ -1023,6 +1016,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
         else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
 
+        /// TODO: optionally apply RoPE to the q_host_ref
+
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
@@ -1032,6 +1027,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::HostTensor<KDataType> knew_host_ref({nhead, real_seqlen_k, hdim_q});
             if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(b, i[0] / nr, i[1], i[2]); });
             else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(b, i[1], i[0] / nr, i[2]); });
+
+            /// TODO: optionally apply RoPE to the knew_host_ref
 
             const std::size_t knew_start = real_seqlen_k - seqlen_knew;
             k_host_ref.ForEach([&](auto& self, auto i) {
