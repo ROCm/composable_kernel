@@ -149,6 +149,9 @@ TYPED_TEST(TestGroupedConvndFwd2dLargeCases, Test2DLargeCases)
 {
     // Case larger than 2GB
     this->conv_params.push_back(
-        {2, 1, 64, 4, 192, {2, 2}, {224, 224}, {224, 224}, {0, 0}, {0, 0}, {0, 0}});
+        {2, 1, 64, 4, 192, {2, 2}, {224, 224}, {224, 224}, {1, 1}, {0, 0}, {0, 0}});
+    // With supported NumGroupsToMerge > 1
+    this->conv_params.push_back(
+        {2, 32, 64, 1, 1, {2, 2}, {672, 672}, {672, 672}, {1, 1}, {0, 0}, {0, 0}});
     this->template Run<2>();
 }

@@ -62,10 +62,9 @@ struct TransformConvFwdToGemm
             calculate_element_space_size_impl(a_g_n_c_wis_lengths, a_g_n_c_wis_strides, I1);
         const long_index_t c_element_space_size =
             calculate_element_space_size_impl(c_g_n_k_wos_lengths, c_g_n_k_wos_strides, I1);
-        const long_index_t element_space_size =
-            NumGroupsToMerge * math::max(a_element_space_size * sizeof(ADataType),
-                                         c_element_space_size * sizeof(CDataType));
-        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+        const long_index_t element_space_size = math::max(a_element_space_size * sizeof(ADataType),
+                                                          c_element_space_size * sizeof(CDataType));
+        constexpr long_index_t TwoGB          = (long_index_t{1} << 31);
 
         const index_t N = a_g_n_c_wis_lengths[I1];
 
