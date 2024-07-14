@@ -12,6 +12,7 @@ from typing import List, Optional
 import codegen.ops
 from codegen.cmake_config import *
 
+
 class HandlerId(IntEnum):
     LIST_BLOBS = 0
     WRITE_BLOBS = 1
@@ -21,7 +22,7 @@ ops = []
 for importer, module_name, _ in pkgutil.iter_modules(codegen.ops.__path__):
     full_module_name = '%s.%s' % (codegen.ops.__name__, module_name)
     if full_module_name not in sys.modules:
-        ops.append(importer.find_module(module_name).load_module(module_name))
+        ops.append(importer.find_spec(module_name).loader.load_module(module_name))
 unwanted_prefix = 'fmha_'
 handlers = dict(
     [(op.__name__[len(unwanted_prefix):] if op.__name__.startswith(unwanted_prefix) else op.__name__,
