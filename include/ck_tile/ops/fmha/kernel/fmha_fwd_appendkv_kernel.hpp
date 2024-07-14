@@ -521,6 +521,59 @@ struct FmhaFwdAppendKVKernel
                                        sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
         }();
+        constexpr auto rotary_cos_sin_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{});
+        const auto rotary_cos_dram_window = [&]() {
+            if constexpr(kApplyRoPE)
+            {
+                const auto rotary_cos_dram = [&]() {
+                    const auto rotary_cos_dram_native =
+                        make_naive_tensor_view<address_space_enum::global>(
+                            reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
+                            make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                            make_tuple(kargs.rotary_dim / 2, 1),
+                            number<8>{},
+                            number<1>{});
+
+                    return pad_tensor_view(rotary_cos_dram_native,
+                                           rotary_cos_sin_dram_window_lengths,
+                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                }();
+
+                return make_tile_window(
+                    rotary_cos_dram, rotary_cos_sin_dram_window_lengths, {0, 0});
+            }
+            else
+            {
+                return make_null_tile_window(rotary_cos_sin_dram_window_lengths);
+            }
+        }();
+        const auto rotary_sin_dram_window = [&]() {
+            if constexpr(kApplyRoPE)
+            {
+                const auto rotary_sin_dram = [&]() {
+                    const auto rotary_sin_dram_native =
+                        make_naive_tensor_view<address_space_enum::global>(
+                            reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
+                            make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                            make_tuple(kargs.rotary_dim / 2, 1),
+                            number<8>{},
+                            number<1>{});
+
+                    return pad_tensor_view(rotary_sin_dram_native,
+                                           rotary_cos_sin_dram_window_lengths,
+                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                }();
+
+                return make_tile_window(
+                    rotary_sin_dram, rotary_cos_sin_dram_window_lengths, {0, 0});
+            }
+            else
+            {
+                return make_null_tile_window(rotary_cos_sin_dram_window_lengths);
+            }
+        }();
+
         auto q_dram_window = make_tile_window(
             q_dram,
             make_tuple(number<FmhaPipeline::kTileSizeS>{}, number<FmhaPipeline::kTileSizeD>{}),
@@ -559,12 +612,30 @@ struct FmhaFwdAppendKVKernel
         }
 #endif
 
-        FmhaPipeline{}(q_dram_window,
-                       k_dram_window,
-                       knew_dram_window,
-                       v_dram_window,
-                       vnew_dram_window,
-                       smem_ptr);
+        if constexpr(kApplyRoPE)
+        {
+            FmhaPipeline{}(q_dram_window,
+                           k_dram_window,
+                           knew_dram_window,
+                           v_dram_window,
+                           vnew_dram_window,
+                           rotary_cos_dram_window,
+                           rotary_sin_dram_window,
+                           smem_ptr,
+                           kargs.rotary_dim,
+                           kargs.is_rotary_interleaved);
+        }
+        else
+        {
+            FmhaPipeline{}(q_dram_window,
+                           k_dram_window,
+                           knew_dram_window,
+                           v_dram_window,
+                           vnew_dram_window,
+                           rotary_cos_dram_window,
+                           rotary_sin_dram_window,
+                           smem_ptr);
+        }
     }
 };
 

@@ -84,7 +84,9 @@ struct BlockFmhaFwdAppendKVPipeline
               typename KElementFunction,
               typename KnewElementFunction,
               typename VElementFunction,
-              typename VnewElementFunction>
+              typename VnewElementFunction,
+              typename RotaryCosBlockWindowTemp,
+              typename RotarySinBlockWindowTemp>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -96,7 +98,11 @@ struct BlockFmhaFwdAppendKVPipeline
                const VElementFunction& v_element_func,
                const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp, // N1*K1 tile
                const VnewElementFunction& vnew_element_func,
-               void* smem_ptr) const
+               const RotaryCosBlockWindowTemp rotary_cos_block_window_tmp,
+               const RotarySinBlockWindowTemp rotary_sin_block_window_tmp,
+               void* smem_ptr,
+               index_t rotary_dim         = 0,
+               bool is_rotary_interleaved = false) const
     {
         (void)q_dram_block_window_tmp;
         (void)q_element_func;
@@ -108,7 +114,11 @@ struct BlockFmhaFwdAppendKVPipeline
         (void)v_element_func;
         (void)vnew_dram_block_window_tmp;
         (void)vnew_element_func;
+        (void)rotary_cos_block_window_tmp;
+        (void)rotary_sin_block_window_tmp;
         (void)smem_ptr;
+        (void)rotary_dim;
+        (void)is_rotary_interleaved;
 
         auto knew_dram_block_window =
             make_tile_window(knew_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -167,13 +177,19 @@ struct BlockFmhaFwdAppendKVPipeline
               typename KDramBlockWindowTmp,
               typename KnewDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename VnewDramBlockWindowTmp>
+              typename VnewDramBlockWindowTmp,
+              typename RotaryCosBlockWindowTemp,
+              typename RotarySinBlockWindowTemp>
     CK_TILE_HOST_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
                                         KDramBlockWindowTmp& k_dram_block_window_tmp,
                                         const KnewDramBlockWindowTmp& knew_dram_block_window_tmp,
                                         VDramBlockWindowTmp& v_dram_block_window_tmp,
                                         const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp,
-                                        void* smem_ptr) const
+                                        const RotaryCosBlockWindowTemp& rotary_cos_block_window_tmp,
+                                        const RotarySinBlockWindowTemp& rotary_sin_block_window_tmp,
+                                        void* smem_ptr,
+                                        index_t rotary_dim         = 0,
+                                        bool is_rotary_interleaved = false) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -185,7 +201,11 @@ struct BlockFmhaFwdAppendKVPipeline
                           identity{},
                           vnew_dram_block_window_tmp,
                           identity{},
-                          smem_ptr);
+                          rotary_cos_block_window_tmp,
+                          rotary_sin_block_window_tmp,
+                          smem_ptr,
+                          rotary_dim,
+                          is_rotary_interleaved);
     }
 };
 
