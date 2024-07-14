@@ -41,6 +41,7 @@ struct BlockFmhaFwdAppendKVPipelineProblem
     static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
+    static constexpr bool kApplyRoPE     = Traits::kApplyRoPE;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 

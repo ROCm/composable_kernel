@@ -31,6 +31,7 @@ struct FmhaFwdAppendKVKernel
     static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
+    static constexpr bool kApplyRoPE   = FmhaPipeline::kApplyRoPE;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -43,8 +44,9 @@ struct FmhaFwdAppendKVKernel
 
     __host__ static std::string GetName()
     {
-// sync with generate.py
-// clang-format off
+        // sync with generate.py
+        // clang-format off
+
         #define _SS_  std::string
         #define _TS_  std::to_string
         auto pn = [&] () {
@@ -59,7 +61,8 @@ struct FmhaFwdAppendKVKernel
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
             "b" + _TS_(FmhaPipeline::kTileSizeS) + "x" + _TS_(FmhaPipeline::kTileSizeSk) + "x" + _TS_(FmhaPipeline::kTileSizeD) + "x" +
                   _TS_(FmhaPipeline::kTileSizeDv) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
-            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn);
+            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
+            + (kApplyRoPE ? "_rope" : "");
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -109,14 +112,24 @@ struct FmhaFwdAppendKVKernel
         ck_tile::index_t batch_stride_vnew;
     };
 
-    struct BatchModeKargs : CommonKargs
+    struct CommonRoPEKargs
+    {
+        const void* rotary_cos_ptr;
+        const void* rotary_sin_ptr;
+        ck_tile::index_t rotary_dim;
+        bool is_rotary_interleaved;
+    };
+
+    struct BatchModeKargs : CommonKargs,
+                            std::conditional_t<kApplyRoPE, CommonRoPEKargs, EmptyKargs<0>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
     };
 
-    struct GroupModeKargs : CommonKargs
+    struct GroupModeKargs : CommonKargs,
+                            std::conditional_t<kApplyRoPE, CommonRoPEKargs, EmptyKargs<0>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -139,6 +152,10 @@ struct FmhaFwdAppendKVKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
+              const void* rotary_cos_ptr,
+              const void* rotary_sin_ptr,
+              ck_tile::index_t rotary_dim,
+              bool is_rotary_interleaved,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_knew,
@@ -179,9 +196,18 @@ struct FmhaFwdAppendKVKernel
                      nhead_stride_vnew,
                      batch_stride_knew,
                      batch_stride_vnew}, // args for common karg
+                    {},                  // placeholder for rope
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v};
+
+        if constexpr(kApplyRoPE)
+        {
+            kargs.rotary_cos_ptr        = rotary_cos_ptr;
+            kargs.rotary_sin_ptr        = rotary_sin_ptr;
+            kargs.rotary_dim            = rotary_dim;
+            kargs.is_rotary_interleaved = is_rotary_interleaved;
+        }
 
         return kargs;
     }
@@ -201,6 +227,10 @@ struct FmhaFwdAppendKVKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
+              const void* rotary_cos_ptr,
+              const void* rotary_sin_ptr,
+              ck_tile::index_t rotary_dim,
+              bool is_rotary_interleaved,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_knew,
@@ -238,9 +268,18 @@ struct FmhaFwdAppendKVKernel
                      nhead_stride_vnew,
                      batch_stride_knew,
                      batch_stride_vnew}, // args for common karg
+                    {},                  // placeholder for rope
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
+
+        if constexpr(kApplyRoPE)
+        {
+            kargs.rotary_cos_ptr        = rotary_cos_ptr;
+            kargs.rotary_sin_ptr        = rotary_sin_ptr;
+            kargs.rotary_dim            = rotary_dim;
+            kargs.is_rotary_interleaved = is_rotary_interleaved;
+        }
 
         return kargs;
     }

@@ -479,6 +479,10 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                      args.hdim_v,
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
+                                     args.rotary_cos_ptr,
+                                     args.rotary_sin_ptr,
+                                     args.rotary_dim,
+                                     args.is_rotary_interleaved,
                                      args.stride_q,
                                      args.stride_k,
                                      args.stride_knew,
@@ -506,6 +510,10 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                      args.hdim_v,
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
+                                     args.rotary_cos_ptr,
+                                     args.rotary_sin_ptr,
+                                     args.rotary_dim,
+                                     args.is_rotary_interleaved,
                                      args.stride_q,
                                      args.stride_k,
                                      args.stride_knew,
@@ -623,11 +631,11 @@ template <ck_tile::index_t HDim_,
           ck_tile::index_t kTileSizeD_,
           ck_tile::index_t kTileSizeDv_,
           bool kIsVLayoutRowMajor_,
-          // bool kApplyRotray_,
           bool kPadS_,
           bool kPadSk_,
           bool kPadD_,
-          bool kPadDv_>
+          bool kPadDv_,
+          bool kApplyRoPE_>
 struct fmha_fwd_appendkv_traits_
 {
     static constexpr ck_tile::index_t HDim        = HDim_;
@@ -638,11 +646,11 @@ struct fmha_fwd_appendkv_traits_
     static constexpr ck_tile::index_t kTileSizeD  = kTileSizeD_;
     static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
     static constexpr bool kIsVLayoutRowMajor      = kIsVLayoutRowMajor_;
-    // static constexpr bool kApplyRotray       = kApplyRotray_;
-    static constexpr bool kPadS  = kPadS_;
-    static constexpr bool kPadSk = kPadSk_;
-    static constexpr bool kPadD  = kPadD_;
-    static constexpr bool kPadDv = kPadDv_;
+    static constexpr bool kPadS                   = kPadS_;
+    static constexpr bool kPadSk                  = kPadSk_;
+    static constexpr bool kPadD                   = kPadD_;
+    static constexpr bool kPadDv                  = kPadDv_;
+    static constexpr bool kApplyRoPE              = kApplyRoPE_;
 };
 
 template <typename Traits_>
@@ -673,6 +681,7 @@ struct fmha_fwd_appendkv_traits
     std::string data_type;
     bool is_group_mode;
     bool is_v_rowmajor;
+    bool apply_rope;
 };
 float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,

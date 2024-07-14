@@ -676,7 +676,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(0 < seqlen_knew)
     {
         auto appendkv_traits = fmha_fwd_appendkv_traits{
-            hdim_q, hdim_v, data_type, mode == mode_enum::group, is_v_rowmajor};
+            hdim_q, hdim_v, data_type, mode == mode_enum::group, is_v_rowmajor, 0 < rotary_dim};
 
         auto appendkv_args = [&, k_paddings_ = seqlen_kpads]() {
             // setup stride_* arguments
