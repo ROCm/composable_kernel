@@ -4,6 +4,7 @@
 #include "fmha_fwd.hpp"
 #include "ck_tile/host.hpp"
 #include "mask.hpp"
+#include "rotary.hpp"
 #include "utils.hpp"
 
 #include <array>
@@ -121,6 +122,9 @@ auto create_args(int argc, char* argv[])
         .insert("num_splits",
                 "1",
                 "# of splits for key/value. 0 to determine actual number by heuristic")
+        .insert(
+            "rotary_dim", "0", "RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all")
+        .insert("rotary_interleaved", "1", "weather to apply interleaving RoPE")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -378,6 +382,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
+    const ck_tile::index_t rotary_dim = arg_parser.get_int("rotary_dim");
+    if(!(rotary_dim < hdim_q) || !(rotary_dim < hdim_v))
+    {
+        std::cerr << "rotary_dim should be less than head dim for q/q" << std::endl;
+        return false;
+    }
+
+    const bool is_rotary_interleaved = arg_parser.get_bool("rotary_interleaved");
+
     int num_splits = arg_parser.get_int("num_splits");
 #if !CK_TILE_FMHA_FWD_SPLITKV_API
     if(num_splits != 1)
@@ -508,6 +521,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                    : std::array<ck_tile::index_t, 2>{batch, nhead})
             : std::array<ck_tile::index_t, 2>{1, 1});
 
+    auto [rotary_cos_host, rotary_sin_host] =
+        generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
+
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
                        : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
@@ -610,6 +626,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_buf(seqlen_kpads[0] < 0 ? 0 : seqlen_ks.size() * sizeof(int32_t));
+    ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem rotary_sin_buf(rotary_sin_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
 
@@ -623,6 +641,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
                                             : seqstart_k_with_padding_host.data());
     seqlen_k_buf.ToDevice(seqlen_kpads[0] < 0 ? nullptr : seqlen_ks.data());
+    rotary_cos_buf.ToDevice(rotary_cos_host.data());
+    rotary_sin_buf.ToDevice(rotary_sin_host.data());
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
@@ -716,10 +736,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           seqlen_knew,
                                           hdim_q,
                                           hdim_v,
-                                          nullptr,
-                                          nullptr,
-                                          0,
-                                          false,
+                                          rotary_cos_buf.GetDeviceBuffer(),
+                                          rotary_sin_buf.GetDeviceBuffer(),
+                                          rotary_dim,
+                                          is_rotary_interleaved,
                                           stride_q,
                                           stride_k,
                                           stride_knew,
@@ -1016,25 +1036,49 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
         else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
 
-        /// TODO: optionally apply RoPE to the q_host_ref
+        // optionally apply RoPE to the q_host_ref
+        if(0 < rotary_dim)
+        {
+            decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
+            ck_tile::reference_batched_rotary_position_embedding<float>(
+                q_host_ref, rotary_cos_host, rotary_sin_host, is_rotary_interleaved, q_host_ref_ro);
+
+            q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
+        }
+ 
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
-        // append (override) Knew to the end of K
+        // copy Knew to the end of K
         if(0 < seqlen_knew)
         {
             ck_tile::HostTensor<KDataType> knew_host_ref({nhead, real_seqlen_k, hdim_q});
             if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(b, i[0] / nr, i[1], i[2]); });
             else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(b, i[1], i[0] / nr, i[2]); });
 
-            /// TODO: optionally apply RoPE to the knew_host_ref
+            // optionally apply RoPE to the knew_host_ref
+            auto* real_knew_host_ref = &knew_host_ref;
+            std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
+            if(0 < rotary_dim)
+            {
+                knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
+
+                ck_tile::reference_batched_rotary_position_embedding<float>(
+                    knew_host_ref,
+                    rotary_cos_host,
+                    rotary_sin_host,
+                    is_rotary_interleaved,
+                    knew_host_ref_ro.value());
+
+                real_knew_host_ref = &knew_host_ref_ro.value();
+            }
 
             const std::size_t knew_start = real_seqlen_k - seqlen_knew;
             k_host_ref.ForEach([&](auto& self, auto i) {
                 if(knew_start <= i[1])
                 {
-                    self(i) = knew_host_ref(i[0], i[1] - knew_start, i[2]);
+                    self(i) = (*real_knew_host_ref)(i[0], i[1] - knew_start, i[2]);
                 }
             });
         }
@@ -1050,7 +1094,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[1], i[0] / nr, i[2] + key_offset); });
         }
 
-        // append (override) Vnew to the end of V
+        // copy Vnew to the end of V
         if(0 < seqlen_knew)
         {
             ck_tile::HostTensor<VDataType> vnew_host_ref({nhead, hdim_v, seqlen_knew});
