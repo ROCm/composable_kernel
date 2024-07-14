@@ -14,20 +14,27 @@
 
 template <typename DataType>
 std::tuple<ck_tile::HostTensor<DataType>, ck_tile::HostTensor<DataType>>
-generate_cos_sin(ck_tile::index_t seqlen,
-                 ck_tile::index_t rotary_dim,
-                 std::optional<unsigned> seed = std::nullopt)
+generate_rotary_cos_sin(ck_tile::index_t seqlen_k,
+                        ck_tile::index_t rotary_dim,
+                        std::optional<unsigned> seed = std::nullopt)
 {
+    // return dummy tensors if we won't apply RoPE at all
+    if(rotary_dim <= 0)
+    {
+        ck_tile::HostTensor<DataType> dummy({1, 1});
+        return std::make_tuple(dummy, dummy);
+    }
+
     std::mt19937 random_engine(seed.has_value() ? *seed : std::random_device{}());
     std::uniform_real_distribution<float> generator(0.0f, 1.0f);
 
-    const ck_tile::index_t num_rows = seqlen * 2;
+    const ck_tile::index_t num_rows = seqlen_k * 2;
     const ck_tile::index_t num_cols = rotary_dim / 2;
 
     using std::begin, std::end;
 
     ck_tile::HostTensor<float> angle({num_rows, num_cols});
-    std::generate(begin(angle), end(angle), std::bind(generator, std::ref(random_engine)));
+    std::generate(begin(angle), end(angle), [&] { return generator(random_engine) * 2 * M_PI; });
 
     ck_tile::HostTensor<DataType> cos({num_rows, num_cols});
     std::transform(begin(angle), end(angle), begin(cos), [](float origin_value) {
