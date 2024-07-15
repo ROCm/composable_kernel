@@ -20,6 +20,7 @@ struct FmhaFwdTypeConfig<ck_tile::half_t>
     using QDataType             = ck_tile::half_t;
     using KDataType             = ck_tile::half_t;
     using VDataType             = ck_tile::half_t;
+    using RoPEComputeDataType   = float;
     using BiasDataType          = ck_tile::half_t;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
@@ -36,6 +37,7 @@ struct FmhaFwdTypeConfig<ck_tile::bf16_t>
     using QDataType             = ck_tile::bf16_t;
     using KDataType             = ck_tile::bf16_t;
     using VDataType             = ck_tile::bf16_t;
+    using RoPEComputeDataType   = float;
     using BiasDataType          = ck_tile::bf16_t;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
@@ -52,6 +54,7 @@ struct FmhaFwdTypeConfig<ck_tile::fp8_t>
     using QDataType             = ck_tile::fp8_t;
     using KDataType             = ck_tile::fp8_t;
     using VDataType             = ck_tile::fp8_t;
+    using RoPEComputeDataType   = float;
     using BiasDataType          = float;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
@@ -68,6 +71,7 @@ struct FmhaFwdTypeConfig<ck_tile::bf8_t>
     using QDataType             = ck_tile::bf8_t;
     using KDataType             = ck_tile::bf8_t;
     using VDataType             = ck_tile::bf8_t;
+    using RoPEComputeDataType   = float;
     using BiasDataType          = ck_tile::bf8_t;
     using RandValOutputDataType = uint8_t;
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))

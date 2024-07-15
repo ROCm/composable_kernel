@@ -420,6 +420,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using QDataType             = typename TypeConfig::QDataType;
     using KDataType             = typename TypeConfig::KDataType;
     using VDataType             = typename TypeConfig::VDataType;
+    using RoPEComputeDataType   = typename TypeConfig::RoPEComputeDataType;
     using BiasDataType          = typename TypeConfig::BiasDataType;
     using RandValOutputDataType = typename TypeConfig::RandValOutputDataType;
     using LSEDataType           = typename TypeConfig::LSEDataType;
@@ -1041,12 +1042,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
-            ck_tile::reference_batched_rotary_position_embedding<float>(
+            ck_tile::reference_batched_rotary_position_embedding<RoPEComputeDataType>(
                 q_host_ref, rotary_cos_host, rotary_sin_host, is_rotary_interleaved, q_host_ref_ro);
 
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
         }
- 
+
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
@@ -1064,7 +1065,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             {
                 knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
 
-                ck_tile::reference_batched_rotary_position_embedding<float>(
+                ck_tile::reference_batched_rotary_position_embedding<RoPEComputeDataType>(
                     knew_host_ref,
                     rotary_cos_host,
                     rotary_sin_host,
