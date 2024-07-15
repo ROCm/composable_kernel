@@ -180,3 +180,13 @@ int env_get_int(const char* var_name, int default_int)
         r = std::atoi(v);
     return r;
 }
+
+// return random integers generated uniformly in range [low, high]
+template <typename Int = int>
+auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
+    -> std::enable_if_t<std::is_integral_v<Int>, Int>
+{
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::uniform_int_distribution<Int> dist(low, high);
+    return dist(engine);
+}

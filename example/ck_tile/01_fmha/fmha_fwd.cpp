@@ -286,11 +286,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    auto [seqlen_qs, seqlen_ks, seqlen_kpads] = decode_seqlen(mode,
-                                                              batch,
-                                                              arg_parser.get_str("s"),
-                                                              arg_parser.get_str("s_k"),
-                                                              arg_parser.get_str("s_kpad"));
+    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
+    if(*seed == 0)
+    {
+        seed.reset();
+    }
 
     ck_tile::index_t seqlen_knew = arg_parser.get_int("s_k_new");
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
@@ -300,6 +300,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 #endif
+    if(seqlen_knew < 0)
+    {
+        seqlen_knew = randint<ck_tile::index_t>(1, arg_parser.get_int("s"), seed);
+    }
+
+    auto [seqlen_qs, seqlen_ks, seqlen_kpads] = decode_seqlen(mode,
+                                                              batch,
+                                                              arg_parser.get_str("s"),
+                                                              arg_parser.get_str("s_k"),
+                                                              arg_parser.get_str("s_kpad"));
 
 #if 0
     // clang-format off
@@ -376,11 +386,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     std::string init_method      = arg_parser.get_str("init");
-    std::optional<uint32_t> seed = arg_parser.get_uint32("seed");
-    if(*seed == 0)
-    {
-        seed.reset();
-    }
 
     const ck_tile::index_t rotary_dim = arg_parser.get_int("rotary_dim");
     if(!(rotary_dim <= hdim_q))
