@@ -309,7 +309,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               batch,
                                                               arg_parser.get_str("s"),
                                                               arg_parser.get_str("s_k"),
-                                                              arg_parser.get_str("s_kpad"));
+                                                              arg_parser.get_str("s_kpad"),
+                                                              0 < seqlen_knew ? seqlen_knew : 1);
 
 #if 0
     // clang-format off
@@ -385,7 +386,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         s_randval = true;
     }
 
-    std::string init_method      = arg_parser.get_str("init");
+    std::string init_method = arg_parser.get_str("init");
 
     const ck_tile::index_t rotary_dim = arg_parser.get_int("rotary_dim");
     if(!(rotary_dim <= hdim_q))

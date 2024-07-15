@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <optional>
 #include <ostream>
+#include <sstream>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -40,13 +41,17 @@ std::vector<int32_t> to_seqstarts(ck_tile::span<const int32_t> seqlens)
 std::vector<int32_t> generate_seqlens(mode_enum mode,
                                       unsigned count,
                                       int32_t seqlen_avg,
+                                      int32_t seqlen_min = -1, // if not negative, clamp min
                                       int32_t seqlen_max = -1, // if not negative, clamp max
                                       std::optional<unsigned> seed = std::nullopt)
 {
     assert(0 < count);
 
-    std::vector<int32_t> seqlens(
-        count, seqlen_max > 0 ? (seqlen_avg < seqlen_max ? seqlen_avg : seqlen_max) : seqlen_avg);
+    seqlen_min = (0 < seqlen_min ? seqlen_min : seqlen_avg);
+    seqlen_max = (0 < seqlen_max ? seqlen_max : seqlen_avg);
+    assert(seqlen_min <= seqlen_max);
+
+    std::vector<int32_t> seqlens(count, std::clamp(seqlen_avg, seqlen_min, seqlen_max));
 
     if(mode == mode_enum::group && 1 < count)
     {
@@ -62,15 +67,15 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
         for(unsigned repeat = seqlen_avg * (count / 2); 0 < repeat; --repeat)
         {
             const size_type to_decrease = next_idx();
-            // make sure each elements of seqlens is always greater than 0
-            if(seqlens[to_decrease] == 1)
+            // make sure each elements of seqlens is always greater than seqlen_min
+            if(seqlens[to_decrease] == seqlen_min)
             {
                 continue;
             }
 
             const size_type to_increase = (to_decrease + next_step()) % count;
 
-            if(seqlen_max > 0 && seqlens[to_increase] >= seqlen_max)
+            if(seqlens[to_increase] >= seqlen_max)
             {
                 continue;
             }
@@ -81,15 +86,6 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
     }
 
     return seqlens;
-}
-
-std::vector<int32_t> generate_seqstarts(mode_enum mode,
-                                        unsigned count,
-                                        int32_t seqlen_avg,
-                                        int32_t seqlen_max           = -1,
-                                        std::optional<unsigned> seed = std::nullopt)
-{
-    return to_seqstarts(generate_seqlens(mode, count, seqlen_avg, seqlen_max, seed));
 }
 
 /*
@@ -112,15 +108,23 @@ decode_seqlen(mode_enum mode,
               std::string q_val,
               std::string k_val,
               std::string k_pad_val,
-              std::optional<unsigned> seed = std::nullopt)
+              ck_tile::index_t seqlen_k_min = 1,
+              std::optional<unsigned> seed  = std::nullopt)
 {
 #define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
     if(mode == mode_enum::batch)
     {
         ck_tile::index_t q = _S2I_(q_val);
         ck_tile::index_t k = _S2I_(k_val);
-        auto s_q           = std::vector<ck_tile::index_t>(batch, q);
-        auto s_k           = std::vector<ck_tile::index_t>(batch, k < 0 ? q : k);
+        if(k < seqlen_k_min)
+        {
+            std::ostringstream msg;
+            msg << "seqlen_k (=" << k << ") is less than minimum seqlen_k (=" << seqlen_k_min
+                << ")";
+            throw std::runtime_error(msg.str());
+        }
+        auto s_q    = std::vector<ck_tile::index_t>(batch, q);
+        auto s_k    = std::vector<ck_tile::index_t>(batch, k < 0 ? q : k);
         auto s_kpad = std::vector<ck_tile::index_t>(batch, -1); // TODO: batch not support k_padding
         return std::make_tuple(s_q, s_k, s_kpad);
     }
@@ -146,6 +150,14 @@ decode_seqlen(mode_enum mode,
             ck_tile::index_t kp = _S2I_(k_pad_val.substr(
                 pos_kp, found_kp == std::string::npos ? found_kp : found_kp - pos_kp));
 
+            if(k < seqlen_k_min)
+            {
+                std::ostringstream msg;
+                msg << "seqlen_k (=" << k << ") is less than minimum seqlen_k (=" << seqlen_k_min
+                    << ")";
+                throw std::runtime_error(msg.str());
+            }
+
             s_q.push_back(q);
             s_k.push_back(k < 0 ? q : k);
             s_kpad.push_back(kp);
@@ -160,8 +172,9 @@ decode_seqlen(mode_enum mode,
         }
         if(idx < batch)
         {
-            auto rem_q = generate_seqlens(mode, batch - idx, s_q.back(), s_kpad.back(), seed);
-            auto rem_k = generate_seqlens(mode, batch - idx, s_k.back(), s_kpad.back(), seed);
+            auto rem_q = generate_seqlens(mode, batch - idx, s_q.back(), 1, s_kpad.back(), seed);
+            auto rem_k =
+                generate_seqlens(mode, batch - idx, s_k.back(), seqlen_k_min, s_kpad.back(), seed);
 
             s_q.insert(s_q.end(), rem_q.begin(), rem_q.end());
             s_k.insert(s_k.end(), rem_k.begin(), rem_k.end());
