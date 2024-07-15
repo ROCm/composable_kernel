@@ -294,7 +294,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t seqlen_knew = arg_parser.get_int("s_k_new");
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
-    if(0 < seqlen_knew)
+    if(seqlen_knew != 0)
     {
         std::cerr << "append-kv is not supported" << std::endl;
         return false;
