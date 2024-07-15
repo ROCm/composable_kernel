@@ -384,7 +384,11 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                              Policy::template MakeBiasTileDistribution<Problem>());
 
         BiasDataType* biast_lds_ptr = static_cast<BiasDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQT<Problem>()));
+            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQT<Problem>() +
+            Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeOGradT<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeLSE<Problem>() +
+            Policy::template GetSmemSizeD<Problem>()));
 
         auto biast_lds = make_tensor_view<address_space_enum::lds>(
             biast_lds_ptr, Policy::template MakeBiasTLdsBlockDescriptor<Problem>());
@@ -555,9 +559,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
-
-                const auto bias_tile = load_tile(bias_dram_window);
-                block_sync_lds();
+                const auto bias_tile  = load_tile(bias_dram_window);
                 auto bias_shuffle_tmp = make_static_distributed_tensor<BiasDataType>(
                     Policy::template MakeShuffledBiasTileDistribution<Problem>());
                 shuffle_tile(bias_shuffle_tmp, bias_tile);
@@ -571,6 +573,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                     st_acc,
                     biast_tile);
                 move_tile_window(bias_dram_window, {kM0, 0});
+                __builtin_amdgcn_sched_barrier(0);
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
@@ -725,6 +728,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                 shuffle_tile(dbiast_shuffle_tmp, dbiast_tile);
                 store_tile(dbias_dram_window, dbiast_shuffle_tmp);
                 move_tile_window(dbias_dram_window, {kM0, 0});
+                __builtin_amdgcn_sched_barrier(0);
             }
 
             // STAGE 6, SGrad^T@Q^T Gemm3
@@ -807,9 +811,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
-
-            const auto bias_tile = load_tile(bias_dram_window);
-            block_sync_lds();
+            const auto bias_tile  = load_tile(bias_dram_window);
             auto bias_shuffle_tmp = make_static_distributed_tensor<BiasDataType>(
                 Policy::template MakeShuffledBiasTileDistribution<Problem>());
             shuffle_tile(bias_shuffle_tmp, bias_tile);

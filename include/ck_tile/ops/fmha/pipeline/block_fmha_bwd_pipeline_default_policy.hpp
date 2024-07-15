@@ -331,21 +331,17 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetTransposedAlignmentBias()
     {
-        using BiasDataType = remove_cvref_t<typename Problem::BiasDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t kTotalPixels = kMPerBlock * kNPerBlock / kBlockSize;
 
-        constexpr index_t kMaxVecLoad = 16 / sizeof(BiasDataType);
-        constexpr index_t kMinVecLoad = 4 / sizeof(BiasDataType);
-
-        constexpr index_t kVecLoad = ((kTotalPixels / kMaxVecLoad) >= kMinVecLoad)
-                                         ? kMaxVecLoad
-                                         : (kTotalPixels / kMinVecLoad);
-        return kVecLoad;
+        // TODO: not correct!
+        if constexpr(kTotalPixels > 32)
+            return 8;
+        else
+            return 4;
     }
 
     template <typename Problem>
@@ -617,7 +613,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackBias()
     {
-        return GetAlignmentBias<Problem>();
+        // TODO: this is for 3d layout
+        using BiasDataType = remove_cvref_t<typename Problem::BiasDataType>;
+        return 16 / sizeof(BiasDataType);
     }
 
     template <typename Problem>
@@ -1682,7 +1680,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t smem_size_stage0_1 = smem_size_v;
         constexpr index_t smem_size_stage1   = smem_size_qt + smem_size_q + +smem_size_dot +
                                              smem_size_do + smem_size_lse + smem_size_d +
-                                             smem_size_ds;
+                                             max(smem_size_bias, smem_size_ds);
         constexpr index_t smem_size_stage2 = smem_size_qt + smem_size_bias;
         constexpr index_t smem_size_stage3 = smem_size_qt;
         constexpr index_t smem_size_stage4 = smem_size_qt + smem_size_do + smem_size_d;
