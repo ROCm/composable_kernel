@@ -311,6 +311,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               arg_parser.get_str("s_k"),
                                                               arg_parser.get_str("s_kpad"),
                                                               0 < seqlen_knew ? seqlen_knew : 1);
+    // compute kvcache seqlen_k (before appending knew/vnew)
+    auto cache_seqlen_ks = seqlen_ks;
+    std::transform(cache_seqlen_ks.begin(),
+                   cache_seqlen_ks.end(),
+                   cache_seqlen_ks.begin(),
+                   [&](auto seqlen_k) { return seqlen_k - seqlen_knew; });
 
 #if 0
     // clang-format off
@@ -633,6 +639,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_buf(seqlen_kpads[0] < 0 ? 0 : seqlen_ks.size() * sizeof(int32_t));
+    ck_tile::DeviceMem cache_seqlen_k_buf(cache_seqlen_ks.size() * sizeof(int32_t));
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem rotary_sin_buf(rotary_sin_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
@@ -648,6 +655,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
                                             : seqstart_k_with_padding_host.data());
     seqlen_k_buf.ToDevice(seqlen_kpads[0] < 0 ? nullptr : seqlen_ks.data());
+    cache_seqlen_k_buf.ToDevice(cache_seqlen_ks.data());
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
@@ -732,14 +740,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           vnew_buf.GetDeviceBuffer(),
                                           seqstart_q.GetDeviceBuffer(),
                                           seqstart_k.GetDeviceBuffer(),
-                                          k_paddings_[0] < 0 ? nullptr
-                                                             : seqlen_k_buf.GetDeviceBuffer(),
+                                          cache_seqlen_k_buf.GetDeviceBuffer(),
                                           batch,
                                           nhead,
                                           nhead_k,
                                           shape_seqlen_q,
                                           max_seqlen_q,
-                                          shape_seqlen_k,
+                                          shape_seqlen_k -
+                                              seqlen_knew /* kvcache seqlen_k for batch mode */,
                                           seqlen_knew,
                                           hdim_q,
                                           hdim_v,

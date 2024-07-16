@@ -311,6 +311,7 @@ struct FmhaFwdAppendKVKernel
 
 #if defined(ENABLE_KERNEL_DEBUG_PRINT)
 #define PRINTF(expr) printf("[POYENC][DEVICE] " #expr ": %2d\n", (expr));
+#if 0
         if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
         {
             PRINTF(kargs.stride_k);
@@ -329,6 +330,7 @@ struct FmhaFwdAppendKVKernel
             PRINTF(kargs.nhead_stride_vnew);
             PRINTF(kargs.batch_stride_vnew);
         }
+#endif
 #endif
 
         long_index_t batch_offset_q = 0;
@@ -424,7 +426,7 @@ struct FmhaFwdAppendKVKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.hdim_q),
                 make_tuple(kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
@@ -452,17 +454,17 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.seqlen_k, kargs.hdim_v),
+                    make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.hdim_v),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                const auto v_dram_transposed =
-                    transform_tensor_view(v_dram_naive,
-                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_pass_through_transform(kargs.seqlen_k)),
-                                          make_tuple(sequence<1>{}, sequence<0>{}),
-                                          make_tuple(sequence<0>{}, sequence<1>{}));
+                const auto v_dram_transposed = transform_tensor_view(
+                    v_dram_naive,
+                    make_tuple(make_pass_through_transform(kargs.hdim_v),
+                               make_pass_through_transform(kargs.seqlen_k + kargs.seqlen_knew)),
+                    make_tuple(sequence<1>{}, sequence<0>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return pad_tensor_view(v_dram_transposed,
                                        make_tuple(number<FmhaPipeline::kTileSizeDv>{},
@@ -473,7 +475,7 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     v_ptr,
-                    make_tuple(kargs.hdim_v, kargs.seqlen_k),
+                    make_tuple(kargs.hdim_v, kargs.seqlen_k + kargs.seqlen_knew),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -530,7 +532,7 @@ struct FmhaFwdAppendKVKernel
                     const auto rotary_cos_dram_native =
                         make_naive_tensor_view<address_space_enum::global>(
                             reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
-                            make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                            make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.hdim_q),
                             make_tuple(kargs.rotary_dim / 2, 1),
                             number<8>{},
                             number<1>{});
@@ -555,7 +557,7 @@ struct FmhaFwdAppendKVKernel
                     const auto rotary_sin_dram_native =
                         make_naive_tensor_view<address_space_enum::global>(
                             reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
-                            make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                            make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.hdim_q),
                             make_tuple(kargs.rotary_dim / 2, 1),
                             number<8>{},
                             number<1>{});
@@ -582,7 +584,7 @@ struct FmhaFwdAppendKVKernel
         auto k_dram_window = make_tile_window(
             k_dram,
             make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {kargs.seqlen_k - kargs.seqlen_knew, 0});
+            {kargs.seqlen_k, 0});
 
         auto knew_dram_window = make_tile_window(
             knew_dram,
@@ -592,7 +594,7 @@ struct FmhaFwdAppendKVKernel
         auto v_dram_window = make_tile_window(
             v_dram,
             make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kTileSizeSk>{}),
-            {0, kargs.seqlen_k - kargs.seqlen_knew});
+            {0, kargs.seqlen_k});
 
         auto vnew_dram_window = make_tile_window(
             vnew_dram,
@@ -602,9 +604,11 @@ struct FmhaFwdAppendKVKernel
 #if defined(ENABLE_KERNEL_DEBUG_PRINT)
         if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
         {
-            printf("[POYENC][DEVICE] kargs.seqlen_k - kargs.seqlen_knew: %d\n",
-                   kargs.seqlen_k - kargs.seqlen_knew);
-            printf("[POYENC][DEVICE] i_sk: %d\n", i_sk);
+            printf("[POYENC][DEVICE] kargs.seqlen_k: %d\n", kargs.seqlen_k);
+            printf("[POYENC][DEVICE] k_dram.get_length(0): %d\n",
+                   k_dram.get_tensor_descriptor().get_length(number<0>{}));
+            printf("[POYENC][DEVICE] k_dram.get_length(1): %d\n",
+                   k_dram.get_tensor_descriptor().get_length(number<1>{}));
             printf("[POYENC][DEVICE] v_dram.get_length(0): %d\n",
                    v_dram.get_tensor_descriptor().get_length(number<0>{}));
             printf("[POYENC][DEVICE] v_dram.get_length(1): %d\n",
