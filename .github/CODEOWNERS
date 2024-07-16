@@ -1,8 +1,8 @@
-* @junliume @illsilin @carlushuang @aosewski @poyenc
+* @junliume @illsilin @carlushuang @aosewski @poyenc @geyyer @bartekxk
 # Documentation files
-docs/ @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc
-*.md @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc
-*.rst @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc
-.readthedocs.yaml @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc
+docs/ @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc @geyyer @bartekxk
+*.md @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc @geyyer @bartekxk
+*.rst @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc @geyyer @bartekxk
+.readthedocs.yaml @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc @geyyer @bartekxk
 # Header directory for Doxygen documentation
-library/include/ @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc
+library/include/ @ROCm/rocm-documentation @junliume @illsilin @carlushuang @aosewski @poyenc @geyyer @bartekxk
