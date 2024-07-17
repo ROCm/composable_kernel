@@ -76,23 +76,63 @@ CK_TILE_DEVICE void set_tile(null_tensor&, const T&)
 
 // TODO: prefer to use per-dword value to set a tensor, in case compiler not doing well with
 // sub-dword tensor...
-template <typename DstrTensors, index_t v>
-CK_TILE_DEVICE void set_tile(DstrTensors& dstr_tensor, number<v>)
+template <typename DstrTensors, index_t v, bool skip_subdword_opt = false>
+CK_TILE_DEVICE void
+set_tile(DstrTensors& dstr_tensor, number<v>, bool_constant<skip_subdword_opt> = {})
 {
-    constexpr index_t tensor_bytes =
-        DstrTensors::get_thread_buffer_size() * sizeof(typename DstrTensors::DataType);
-    if constexpr(v == 0 && tensor_bytes % 4 == 0)
+    using elem_type             = typename DstrTensors::DataType;
+    constexpr index_t elem_size = sizeof(elem_type);
+
+    constexpr index_t tensor_bytes = DstrTensors::get_thread_buffer_size() * elem_size;
+
+    // # bytes per write = 4
+    if constexpr(v == 0 && tensor_bytes % 4 == 0 && !skip_subdword_opt)
     {
+#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
+        auto& buffer = dstr_tensor.get_thread_buffer();
+
+        static_for<0, tensor_bytes / 4, 1>{}([&](auto i_write) {
+            if constexpr(elem_size == 1)
+            {
+                // # elements per write = 4
+                constexpr auto values = ext_vector_t<elem_type, 4>{0, 0, 0, 0};
+
+                buffer[i_write * 4 + 0] = values.x;
+                buffer[i_write * 4 + 1] = values.y;
+                buffer[i_write * 4 + 2] = values.z;
+                buffer[i_write * 4 + 3] = values.w;
+            }
+            else if constexpr(elem_size == 2)
+            {
+                // # elements per write = 2
+                constexpr auto values = ext_vector_t<elem_type, 2>{0, 0};
+
+                buffer[i_write * 2 + 0] = values.x;
+                buffer[i_write * 2 + 1] = values.y;
+            }
+            else if constexpr(elem_size == 4)
+            {
+                // # elements per write = 1
+                constexpr elem_type value = 0;
+
+                buffer[i_write] = value;
+            }
+            else
+            {
+                static_assert(false, "type not supported");
+            }
+        });
+#else
         using dvec_t = array<index_t, tensor_bytes / 4>;
         auto& tensor = reinterpret_cast<dvec_t&>(dstr_tensor.get_thread_buffer());
         for(auto i = 0; i < tensor.size(); i++)
             tensor.get(i) = v;
+#endif
     }
     else
     {
-        tile_elementwise_inout(
-            [](auto& x) { x = type_convert<typename DstrTensors::DataType, index_t>(v); },
-            dstr_tensor);
+        tile_elementwise_inout([](auto& x) { x = type_convert<elem_type, index_t>(v); },
+                               dstr_tensor);
     }
 }
 

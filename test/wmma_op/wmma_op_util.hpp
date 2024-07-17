@@ -11,6 +11,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/utility/amd_wmma.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace wmma_op_util {
@@ -373,7 +374,8 @@ struct TestWmma
             a, b, c_host, a_element_op, b_element_op, c_element_op);
 
         // Act
-        bool is_supported = ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
+        bool is_supported = ck::is_gfx11_supported() &&
+                            ck::wmma_op_util::RunDeviceGEMM(wmma_kernel, a, b, c_device);
 
         if(is_supported)
         {
