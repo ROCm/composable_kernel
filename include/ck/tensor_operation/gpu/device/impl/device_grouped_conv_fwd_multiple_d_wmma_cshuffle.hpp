@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -163,7 +163,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                                                         conv_filter_strides,
                                                                         conv_filter_dilations,
                                                                         input_left_pads,
-                                                                        input_right_pads);
+                                                                        input_right_pads,
+                                                                        a_g_n_c_wis_lengths[I1]);
 
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
@@ -255,8 +256,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                             const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
     {
         const auto out_gemmmraw_gemmnraw_desc =
-            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(e_g_n_k_wos_lengths,
-                                                                        e_g_n_k_wos_strides);
+            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(
+                e_g_n_k_wos_lengths, e_g_n_k_wos_strides, e_g_n_k_wos_lengths[I1]);
 
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
@@ -581,7 +582,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(ck::is_gfx11_supported())
+        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {

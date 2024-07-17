@@ -26,7 +26,12 @@ struct __attribute__((packed)) buffer_resource
 CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr, uint32_t size = 0xffffffff)
 {
     buffer_resource res{ptr, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD};
-    return __builtin_bit_cast(int32x4_t, res);
+    int32x4_t r = __builtin_bit_cast(int32x4_t, res);
+    r.x         = __builtin_amdgcn_readfirstlane(r.x);
+    r.y         = __builtin_amdgcn_readfirstlane(r.y);
+    r.z         = __builtin_amdgcn_readfirstlane(r.z);
+    r.w         = __builtin_amdgcn_readfirstlane(r.w);
+    return r;
 }
 
 namespace impl {
@@ -49,233 +54,318 @@ template<> struct buffer_load_trait<4 , thread_buffer<bf16_t, 2>> { using payloa
 } // namespace impl
 
 // TODO: glc/slc/...
-template <index_t bytes>
+template <index_t bytes, bool pre_nop = false>
 struct buffer_load;
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
 // TODO: strict aliasing rule seems fail when reinterpret_cast between vector type
 // (exp_vector_type(xxx))
-template <>
-struct buffer_load<16>
+template <bool pre_nop>
+struct buffer_load<16, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/ = 0)
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 16);
         using mbuf_t = typename impl::buffer_load_trait<16, T>::payload_t;
-        asm volatile("buffer_load_dwordx4 %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<mbuf_t&>(value))
-                     : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-                     : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
+        else
+            asm volatile("buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load<8>
+template <bool pre_nop>
+struct buffer_load<8, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/ = 0)
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 8);
         using mbuf_t = typename impl::buffer_load_trait<8, T>::payload_t;
-        asm volatile("buffer_load_dwordx2 %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<mbuf_t&>(value))
-                     : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-                     : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "buffer_load_dwordx2 %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
+        else
+            asm volatile("buffer_load_dwordx2 %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load<4>
+template <bool pre_nop>
+struct buffer_load<4, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/ = 0)
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         using mbuf_t = typename impl::buffer_load_trait<4, T>::payload_t;
-        asm volatile("buffer_load_dword %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<mbuf_t&>(value))
-                     : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-                     : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "buffer_load_dword %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
+        else
+            asm volatile("buffer_load_dword %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load<2>
+template <bool pre_nop>
+struct buffer_load<2, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/ = 0)
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4); // subdword is buggy, use dword buf and convert manually
         using mbuf_t = typename impl::buffer_load_trait<2, T>::payload_t;
-        asm volatile("buffer_load_ushort %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<mbuf_t&>(value))
-                     : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-                     : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "buffer_load_ushort %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
+        else
+            asm volatile("buffer_load_ushort %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load<1>
+template <bool pre_nop>
+struct buffer_load<1, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t /*flag*/ = 0)
+                                   index_t /*flag*/       = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         using mbuf_t = typename impl::buffer_load_trait<1, T>::payload_t;
-        asm volatile("buffer_load_ubyte %0, %1, %2, %3 offen offset:%4"
-                     : "+v"(reinterpret_cast<mbuf_t&>(value))
-                     : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-                     : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "buffer_load_ubyte %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
+        else
+            asm volatile("buffer_load_ubyte %0, %1, %2, 0 offen offset:%3"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset)
+                         : "memory");
     }
 };
 
-template <index_t bytes>
+template <index_t bytes, bool pre_nop = false>
 struct buffer_load_if;
 
-template <>
-struct buffer_load_if<16>
+template <bool pre_nop>
+struct buffer_load_if<16, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0)
+                                   index_t flag           = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 16);
         auto saved_exec = __builtin_amdgcn_read_exec();
         using mbuf_t    = typename impl::buffer_load_trait<16, T>::payload_t;
         static_assert(sizeof(mbuf_t) == sizeof(T));
-        asm volatile(
-            "v_cmpx_le_u32 exec, 1, %5\n"
-            "buffer_load_dwordx4 %0, %1, %2, %3 offen offset:%4\n"
-            "s_mov_b64 exec %6"
-            : "+v"(reinterpret_cast<mbuf_t&>(value))
-            : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
-            : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
+        else
+            asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_dwordx4 %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load_if<8>
+template <bool pre_nop>
+struct buffer_load_if<8, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0)
+                                   index_t flag           = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 8);
         auto saved_exec = __builtin_amdgcn_read_exec();
         using mbuf_t    = typename impl::buffer_load_trait<8, T>::payload_t;
-        asm volatile(
-            "v_cmpx_le_u32 exec, 1, %5\n"
-            "buffer_load_dwordx2 %0, %1, %2, %3 offen offset:%4\n"
-            "s_mov_b64 exec %6"
-            : "+v"(reinterpret_cast<mbuf_t&>(value))
-            : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
-            : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_dwordx2 %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
+        else
+            asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_dwordx2 %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load_if<4>
+template <bool pre_nop>
+struct buffer_load_if<4, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0)
+                                   index_t flag           = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
         using mbuf_t    = typename impl::buffer_load_trait<4, T>::payload_t;
-        asm volatile(
-            "v_cmpx_le_u32 exec, 1, %5\n"
-            "buffer_load_dword %0, %1, %2, %3 offen offset:%4\n"
-            "s_mov_b64 exec %6"
-            : "+v"(reinterpret_cast<mbuf_t&>(value))
-            : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
-            : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_dword %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
+        else
+            asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_dword %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load_if<2>
+template <bool pre_nop>
+struct buffer_load_if<2, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0)
+                                   index_t flag           = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
         using mbuf_t    = typename impl::buffer_load_trait<2, T>::payload_t;
-        asm volatile(
-            "v_cmpx_le_u32 exec, 1, %5\n"
-            "buffer_load_ushort %0, %1, %2, %3 offen offset:%4\n"
-            "s_mov_b64 exec %6"
-            : "+v"(reinterpret_cast<mbuf_t&>(value))
-            : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
-            : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_ushort %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
+        else
+            asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_ushort %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
     }
 };
 
-template <>
-struct buffer_load_if<1>
+template <bool pre_nop>
+struct buffer_load_if<1, pre_nop>
 {
     template <typename T>
     CK_TILE_DEVICE void operator()(T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
-                                   index_t flag = 0)
+                                   index_t flag           = 0,
+                                   bool_constant<pre_nop> = {})
     {
         static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
         using mbuf_t    = typename impl::buffer_load_trait<1, T>::payload_t;
-        asm volatile(
-            "v_cmpx_le_u32 exec, 1, %5\n"
-            "buffer_load_ubyte %0, %1, %2, %3 offen offset:%4\n"
-            "s_mov_b64 exec %6"
-            : "+v"(reinterpret_cast<mbuf_t&>(value))
-            : "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset), "v"(flag), "s"(saved_exec)
-            : "memory");
+        if constexpr(pre_nop)
+            asm volatile("s_nop 4\n"
+                         "v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_ubyte %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
+        else
+            asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                         "buffer_load_ubyte %0, %1, %2, 0 offen offset:%3\n"
+                         "s_mov_b64 exec %5"
+                         : "+v"(reinterpret_cast<mbuf_t&>(value))
+                         : "v"(v_offset), "s"(res), "n"(i_offset), "v"(flag), "s"(saved_exec)
+                         : "memory");
     }
 };
 #pragma clang diagnostic pop // "-Wundefined-reinterpret-cast"
@@ -289,17 +379,16 @@ struct buffer_store<16>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 16);
         using mbuf_t = fp32x4_t;
-        asm volatile(
-            "buffer_store_dwordx4 %0, %1, %2, %3 offen offset:%4"
-            :
-            : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-            : "memory");
+        asm volatile("buffer_store_dwordx4 %0, %1, %2, 0 offen offset:%3"
+                     :
+                     : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -310,17 +399,16 @@ struct buffer_store<8>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 8);
         using mbuf_t = fp32x2_t;
-        asm volatile(
-            "buffer_store_dwordx2 %0, %1, %2, %3 offen offset:%4"
-            :
-            : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-            : "memory");
+        asm volatile("buffer_store_dwordx2 %0, %1, %2, 0 offen offset:%3"
+                     :
+                     : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -331,17 +419,16 @@ struct buffer_store<4>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 4);
         using mbuf_t = float;
-        asm volatile(
-            "buffer_store_dword %0, %1, %2, %3 offen offset:%4"
-            :
-            : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-            : "memory");
+        asm volatile("buffer_store_dword %0, %1, %2, 0 offen offset:%3"
+                     :
+                     : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -352,17 +439,16 @@ struct buffer_store<2>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 2);
         using mbuf_t = short;
-        asm volatile(
-            "buffer_store_short %0, %1, %2, %3 offen offset:%4"
-            :
-            : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-            : "memory");
+        asm volatile("buffer_store_short %0, %1, %2, 0 offen offset:%3"
+                     :
+                     : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -373,17 +459,16 @@ struct buffer_store<1>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 4);
         using mbuf_t = float;
-        asm volatile(
-            "buffer_store_byte %0, %1, %2, %3 offen offset:%4"
-            :
-            : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "s"(s_offset), "n"(i_offset)
-            : "memory");
+        asm volatile("buffer_store_byte %0, %1, %2, 0 offen offset:%3"
+                     :
+                     : "v"(bit_cast<mbuf_t>(value)), "v"(v_offset), "s"(res), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -397,21 +482,20 @@ struct buffer_store_if<16>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t flag = 1)
     {
         static_assert(sizeof(T) == 16);
         auto save_exec = __builtin_amdgcn_read_exec();
         using mbuf_t   = fp32x4_t;
-        asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
-                     "buffer_store_dwordx4 %0, %1, %2, %3 offen offset:%4\n"
-                     "s_mov_b64 exec %6"
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "buffer_store_dwordx4 %0, %1, %2, 0 offen offset:%3\n"
+                     "s_mov_b64 exec %5"
                      :
                      : "v"(bit_cast<mbuf_t>(value)),
                        "v"(v_offset),
                        "s"(res),
-                       "s"(s_offset),
                        "n"(i_offset),
                        "v"(flag),
                        "s"(save_exec)
@@ -426,7 +510,7 @@ struct buffer_store_if<8>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t flag = 1)
     {
@@ -434,14 +518,13 @@ struct buffer_store_if<8>
         auto save_exec = __builtin_amdgcn_read_exec();
         // TODO: ugly. rocm-6.0/6.1 seems neet bit_cast to same base type to avoid scratch
         using mbuf_t = ext_vector_t<typename T::value_type, T::size()>;
-        asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
-                     "buffer_store_dwordx2 %0, %1, %2, %3 offen offset:%4\n"
-                     "s_mov_b64 exec %6"
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "buffer_store_dwordx2 %0, %1, %2, 0 offen offset:%3\n"
+                     "s_mov_b64 exec %5"
                      :
                      : "v"(bit_cast<mbuf_t>(value)),
                        "v"(v_offset),
                        "s"(res),
-                       "s"(s_offset),
                        "n"(i_offset),
                        "v"(flag),
                        "s"(save_exec)
@@ -456,21 +539,20 @@ struct buffer_store_if<4>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t flag = 1)
     {
         static_assert(sizeof(T) == 4);
         auto save_exec = __builtin_amdgcn_read_exec();
         using mbuf_t   = float;
-        asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
-                     "buffer_store_dword %0, %1, %2, %3 offen offset:%4\n"
-                     "s_mov_b64 exec %6"
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "buffer_store_dword %0, %1, %2, 0 offen offset:%3\n"
+                     "s_mov_b64 exec %5"
                      :
                      : "v"(bit_cast<mbuf_t>(value)),
                        "v"(v_offset),
                        "s"(res),
-                       "s"(s_offset),
                        "n"(i_offset),
                        "v"(flag),
                        "s"(save_exec)
@@ -485,21 +567,20 @@ struct buffer_store_if<2>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t flag = 1)
     {
         static_assert(sizeof(T) == 2);
         auto save_exec = __builtin_amdgcn_read_exec();
         using mbuf_t   = short;
-        asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
-                     "buffer_store_short %0, %1, %2, %3 offen offset:%4\n"
-                     "s_mov_b64 exec %6"
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "buffer_store_short %0, %1, %2, 0 offen offset:%3\n"
+                     "s_mov_b64 exec %5"
                      :
                      : "v"(bit_cast<mbuf_t>(value)),
                        "v"(v_offset),
                        "s"(res),
-                       "s"(s_offset),
                        "n"(i_offset),
                        "v"(flag),
                        "s"(save_exec)
@@ -514,21 +595,20 @@ struct buffer_store_if<1>
     CK_TILE_DEVICE void operator()(const T& value,
                                    int32x4_t res /*buffer resource*/,
                                    index_t v_offset,
-                                   index_t s_offset,
+                                   index_t /*s_offset*/,
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t flag = 1)
     {
         static_assert(sizeof(T) == 4);
         auto save_exec = __builtin_amdgcn_read_exec();
         using mbuf_t   = float;
-        asm volatile("v_cmpx_le_u32 exec, 1, %5\n"
-                     "buffer_store_byte %0, %1, %2, %3 offen offset:%4\n"
-                     "s_mov_b64 exec %6"
+        asm volatile("v_cmpx_le_u32 exec, 1, %4\n"
+                     "buffer_store_byte %0, %1, %2, 0 offen offset:%3\n"
+                     "s_mov_b64 exec %5"
                      :
                      : "v"(bit_cast<mbuf_t>(value)),
                        "v"(v_offset),
                        "s"(res),
-                       "s"(s_offset),
                        "n"(i_offset),
                        "v"(flag),
                        "s"(save_exec)
@@ -552,8 +632,9 @@ namespace impl{
 template<index_t N>
 CK_TILE_DEVICE void insert_dummy_dep_per_dword(array<float, N>& b)
 {
-    static_for<0, b.size(), 1>{}([&](auto i){
-        asm volatile(" " : : "v"(b.get(i)) : "memory");
+    constexpr auto kSize = remove_cvref_t<decltype(b)>::size(); 
+    static_for<0, kSize, 1>{}([&](auto i){
+        asm volatile(" " : : "v"(b.get(number<i>{})) : "memory");
     });
 }
 #if 1
@@ -895,17 +976,26 @@ llvm_amdgcn_raw_buffer_atomic_max_fp64(double vdata,
                                        int soffset,    // dst_wave_addr_offset
                                        int glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fmax.f64");
 
-CK_TILE_DEVICE void async_buffer_load_dword(void* smem,
-                                            int32x4_t rsrc,
-                                            index_t voffset,
-                                            index_t soffset,
-                                            index_t ioffset /*max 0xFFF*/,
-                                            index_t /*flag*/ = 0)
+template <bool pre_nop = false>
+CK_TILE_DEVICE void async_buffer_load_dword_v(void* smem,
+                                              int32x4_t rsrc,
+                                              index_t voffset,
+                                              index_t /*soffset*/,
+                                              index_t ioffset /*max 0xFFF*/,
+                                              index_t /*flag*/       = 0,
+                                              bool_constant<pre_nop> = {})
 {
-    asm volatile("buffer_load_dword %1, %2, %3 offen offset:%4 lds"
-                 : "=r"(smem) /*dummy dependency for smem*/
-                 : "v"(voffset), "s"(rsrc), "s"(soffset), "n"(ioffset)
-                 : "memory");
+    if constexpr(pre_nop)
+        asm volatile("s_nop 4\n"
+                     "buffer_load_dword %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
+    else
+        asm volatile("buffer_load_dword %1, %2, 0 offen offset:%3 lds"
+                     : "=r"(smem) /*dummy dependency for smem*/
+                     : "v"(voffset), "s"(rsrc), "n"(ioffset)
+                     : "memory");
 }
 
 CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
@@ -1217,12 +1307,14 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool oob_conditional_check          = true>
+          bool oob_conditional_check          = true,
+          bool pre_nop                        = false>
 CK_TILE_DEVICE void amd_buffer_load_raw_impl(thread_buffer<T, N>& dst,
                                              int32x4_t src_wave_buffer_resource,
                                              index_t src_thread_addr_offset,
                                              index_t src_wave_addr_offset,
-                                             index_t flag = 0)
+                                             index_t flag           = 0,
+                                             bool_constant<pre_nop> = {})
 {
     constexpr index_t bytes = sizeof(T) * N;
     static_assert(bytes == 1 || bytes == 2 || bytes == 4 || bytes == 8 || bytes == 16,
@@ -1231,32 +1323,46 @@ CK_TILE_DEVICE void amd_buffer_load_raw_impl(thread_buffer<T, N>& dst,
     using type = thread_buffer<T, N>;
     if constexpr(oob_conditional_check)
     {
-        buffer_load_if<sizeof(type)>{}(
-            dst, src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0, flag);
+        buffer_load_if<sizeof(type), pre_nop>{}(dst,
+                                                src_wave_buffer_resource,
+                                                src_thread_addr_offset,
+                                                src_wave_addr_offset,
+                                                0,
+                                                flag,
+                                                bool_constant<pre_nop>{});
     }
     else
     {
-        buffer_load<sizeof(type)>{}(
-            dst, src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0, flag);
+        buffer_load<sizeof(type), pre_nop>{}(dst,
+                                             src_wave_buffer_resource,
+                                             src_thread_addr_offset,
+                                             src_wave_addr_offset,
+                                             0,
+                                             flag,
+                                             bool_constant<pre_nop>{});
     }
 }
 
 template <typename T,
           index_t N,
-          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
+          bool pre_nop                        = false>
 CK_TILE_DEVICE void amd_async_buffer_load_impl(T* smem,
                                                int32x4_t src_wave_buffer_resource,
                                                index_t src_thread_addr_offset,
                                                index_t src_wave_addr_offset,
-                                               index_t src_immediate_addr_offset = 0)
+                                               index_t src_immediate_addr_offset = 0,
+                                               bool_constant<pre_nop>            = {})
 {
     static_assert(sizeof(T) * N == 4, "wrong! not implemented vector size");
 
-    async_buffer_load_dword(smem,
-                            src_wave_buffer_resource,
-                            src_thread_addr_offset,
-                            src_wave_addr_offset,
-                            src_immediate_addr_offset);
+    async_buffer_load_dword_v(smem,
+                              src_wave_buffer_resource,
+                              src_thread_addr_offset,
+                              src_wave_addr_offset,
+                              src_immediate_addr_offset,
+                              0,
+                              bool_constant<pre_nop>{});
 }
 
 template <index_t N,
@@ -1903,20 +2009,50 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool oob_conditional_check          = true>
+          bool oob_conditional_check          = true,
+          bool pre_nop                        = false>
 CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
                                         const T* p_src_wave,
                                         index_t src_thread_element_offset,
                                         index_t src_element_space_size,
-                                        index_t is_valid_element = 0)
+                                        index_t is_valid_element = 0,
+                                        bool_constant<pre_nop>   = {})
 {
     const int32x4_t src_wave_buffer_resource =
         make_wave_buffer_resource(p_src_wave, src_element_space_size * sizeof(T));
 
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
 
-    amd_buffer_load_raw_impl<T, N, coherence, oob_conditional_check>(
-        dst, src_wave_buffer_resource, src_thread_addr_offset, 0, is_valid_element);
+    amd_buffer_load_raw_impl<T, N, coherence, oob_conditional_check, pre_nop>(
+        dst,
+        src_wave_buffer_resource,
+        src_thread_addr_offset,
+        0,
+        is_valid_element,
+        bool_constant<pre_nop>{});
+}
+
+// This version support buffer resource as input arg
+template <typename T,
+          index_t N,
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
+          bool oob_conditional_check          = true,
+          bool pre_nop                        = false>
+CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
+                                        const int32x4_t src_wave_buffer_resource,
+                                        index_t src_thread_element_offset,
+                                        index_t is_valid_element = 0,
+                                        bool_constant<pre_nop>   = {})
+{
+    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+
+    amd_buffer_load_raw_impl<T, N, coherence, oob_conditional_check, pre_nop>(
+        dst,
+        src_wave_buffer_resource,
+        src_thread_addr_offset,
+        0,
+        is_valid_element,
+        bool_constant<pre_nop>{});
 }
 
 // unfortunately async copy can not make sure invalid data is zero inside LDS
@@ -1925,11 +2061,13 @@ CK_TILE_DEVICE void amd_buffer_load_raw(thread_buffer<T, N>& dst,
 // buffer_load OOB still working.
 template <typename T,
           index_t N,
-          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
-CK_TILE_DEVICE void amd_async_buffer_load_with_oob(T* smem,
-                                                   const T* p_src_wave,
-                                                   index_t src_thread_element_offset,
-                                                   index_t src_element_space_size)
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
+          bool pre_nop                        = false>
+CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
+                                                       const T* p_src_wave,
+                                                       index_t src_thread_element_offset,
+                                                       index_t src_element_space_size,
+                                                       bool_constant<pre_nop> = {})
 {
     const int32x4_t src_wave_buffer_resource =
         make_wave_buffer_resource(p_src_wave, src_element_space_size * sizeof(T));
@@ -1937,7 +2075,23 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob(T* smem,
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
 
     amd_async_buffer_load_impl<T, N, coherence>(
-        smem, src_wave_buffer_resource, src_thread_addr_offset, 0, 0);
+        smem, src_wave_buffer_resource, src_thread_addr_offset, 0, 0, bool_constant<pre_nop>{});
+}
+
+// This version support buffer resource as input arg
+template <typename T,
+          index_t N,
+          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
+          bool pre_nop                        = false>
+CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
+                                                       const int32x4_t src_wave_buffer_resource,
+                                                       index_t src_thread_element_offset,
+                                                       bool_constant<pre_nop> = {})
+{
+    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+
+    amd_async_buffer_load_impl<T, N, coherence>(
+        smem, src_wave_buffer_resource, src_thread_addr_offset, 0, 0, bool_constant<pre_nop>{});
 }
 
 // buffer_store requires:
@@ -2103,7 +2257,8 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
     asm volatile("s_mov_b32 m0, %0; \n\t"
                  "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
                  "v"(global_offset_bytes),
-                 "s"(src_resource));
+                 "s"(src_resource)
+                 : "memory");
 #else
     // LDS pointer must be attributed with the LDS address space.
     __attribute__((address_space(3))) uint32_t* lds_ptr =

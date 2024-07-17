@@ -61,10 +61,13 @@ CK_TILE_DEVICE index_t get_block_id() { return blockIdx.x; }
 CK_TILE_DEVICE void block_sync_lds()
 {
 #if CK_TILE_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
-    asm volatile("\
-    s_waitcnt lgkmcnt(0) \n \
-    s_barrier \
-    " ::);
+    // asm volatile("\
+    // s_waitcnt lgkmcnt(0) \n \
+    // s_barrier \
+    // " ::);
+
+    __builtin_amdgcn_s_waitcnt(0xc07f);
+    __builtin_amdgcn_s_barrier();
 #else
     __syncthreads();
 #endif
@@ -79,14 +82,12 @@ CK_TILE_DEVICE void block_sync_lds_direct_load()
     " ::);
 }
 
-CK_TILE_DEVICE void s_nop()
+CK_TILE_DEVICE void s_nop(index_t cnt = 0)
 {
 #if 1
-    asm volatile("\
-    s_nop 0 \n \
-    " ::);
+    asm volatile("s_nop %0" : : "n"(cnt) :);
 #else
-    __builtin_amdgcn_sched_barrier(0);
+    __builtin_amdgcn_sched_barrier(cnt);
 #endif
 }
 

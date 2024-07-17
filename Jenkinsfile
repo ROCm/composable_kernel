@@ -493,6 +493,7 @@ def Build_CK(Map conf=[:]){
 
         def variant = env.STAGE_NAME
         def retimage
+
         gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
@@ -660,9 +661,6 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCM
 
 pipeline {
     agent none
-    triggers {
-        parameterizedCron(CRON_SETTINGS)
-    }
     options {
         parallelsAlwaysFailFast()
     }
@@ -888,10 +886,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx908;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1100;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx908;gfx90a" \
+                                           -DGPU_TARGETS="gfx1100;gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
