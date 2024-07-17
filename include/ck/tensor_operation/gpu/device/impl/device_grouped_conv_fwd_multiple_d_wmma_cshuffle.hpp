@@ -240,27 +240,13 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         return out_gemmm_gemmn_desc;
     }
 
-    static auto MakeDsGridDescriptor_M_N(
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
+    static auto MakeDsGridDescriptor_M_N(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         return generate_tuple(
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-                GemmToConvFwdTransformer conv_to_gemm_transformer_d{a_g_n_c_wis_lengths,
-                                                                    a_g_n_c_wis_strides,
-                                                                    b_g_k_c_xs_lengths,
-                                                                    b_g_k_c_xs_strides,
-                                                                    ds_g_n_k_wos_lengths[i],
-                                                                    ds_g_n_k_wos_strides[i],
-                                                                    conv_filter_strides,
-                                                                    conv_filter_dilations,
-                                                                    input_left_pads,
-                                                                    input_right_pads};
-
-                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(ds_g_n_k_wos_lengths[i],
-                                                                  ds_g_n_k_wos_strides[i]);
+                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer);
             },
             Number<NumDTensor>{});
     }
@@ -271,7 +257,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         decltype(DeviceOp::MakeAGridDescriptor<ALayout>(dummy_conv_to_gemm_transformer));
     using BGridDesc =
         decltype(DeviceOp::MakeBGridDescriptor<BLayout>(dummy_conv_to_gemm_transformer));
-    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
+    using DsGridDesc_M_N =
+        remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(dummy_conv_to_gemm_transformer))>;
     using EGridDesc_M_N =
         remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>(dummy_conv_to_gemm_transformer))>;
 
@@ -415,8 +402,25 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
             });
 
             // D desc
-            ds_grid_desc_m_n_ =
-                DeviceOp::MakeDsGridDescriptor_M_N(ds_g_n_k_wos_lengths, ds_g_n_k_wos_strides);
+            ds_grid_desc_m_n_ = generate_tuple(
+                [&](auto i) {
+                    using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+
+                    GemmToConvFwdTransformer conv_to_gemm_transformer_d{a_g_n_c_wis_lengths,
+                                                                        a_g_n_c_wis_strides,
+                                                                        b_g_k_c_xs_lengths,
+                                                                        b_g_k_c_xs_strides,
+                                                                        ds_g_n_k_wos_lengths[i],
+                                                                        ds_g_n_k_wos_strides[i],
+                                                                        conv_filter_strides,
+                                                                        conv_filter_dilations,
+                                                                        input_left_pads,
+                                                                        input_right_pads};
+
+                    return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(ds_g_n_k_wos_lengths[i],
+                                                                      ds_g_n_k_wos_strides[i]);
+                },
+                Number<NumDTensor>{});
 
             // populate desc for Ds/E
             e_grid_desc_mblock_mperblock_nblock_nperblock_ =
