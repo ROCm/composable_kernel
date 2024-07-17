@@ -331,7 +331,10 @@ bfloat16_t sqrt(bfloat16_t x)
 };
 
 CK_TILE_DEVICE
-bfloat16_t exp(bfloat16_t x) { return static_cast<bfloat16_t>(__expf(static_cast<float>(x))); };
+bfloat16_t exp(bfloat16_t x)
+{
+    return static_cast<bfloat16_t>(__ocml_exp_f32(static_cast<float>(x)));
+};
 
 CK_TILE_DEVICE
 bfloat16_t exp2(bfloat16_t x) { return static_cast<bfloat16_t>(exp2f(static_cast<float>(x))); };
