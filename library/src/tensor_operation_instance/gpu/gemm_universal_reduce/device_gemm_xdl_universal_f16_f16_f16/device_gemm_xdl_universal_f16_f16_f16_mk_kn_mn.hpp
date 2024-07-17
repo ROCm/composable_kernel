@@ -35,7 +35,9 @@ static constexpr auto GemmMNKPadding = GemmSpecialization::MNKPadding;
 static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 
-template <GemmSpecialization GemmSpec>
+template <GemmSpecialization GemmSpec,
+          typename DsLayout   = ck::Tuple<>,
+          typename DsDataType = ck::Tuple<>>
 using device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_comp_instances = std::tuple<
     // clang-format off
         //#########################| ALayout| BLayout|  DsLayout| CLayout|AData| BData|     DsData| CData| AccData| Cshuffle|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                         Block-wiseGemm|               Block-wiseGemm|
@@ -56,7 +58,10 @@ using device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_comp_instances = std
     // clang-format on
     >;
 
-template <BlockGemmPipelineScheduler BlkGemmPipeSched, GemmSpecialization GemmSpec>
+template <BlockGemmPipelineScheduler BlkGemmPipeSched,
+          GemmSpecialization GemmSpec,
+          typename DsLayout   = ck::Tuple<>,
+          typename DsDataType = ck::Tuple<>>
 using device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_mem_instances = std::tuple<
     // clang-format off
         //#########################| ALayout| BLayout| DsLayout| CLayout|AData| BData|    DsData| CData| AccData| Cshuffle|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|    Block-wiseGemm|               Block-wiseGemm|
