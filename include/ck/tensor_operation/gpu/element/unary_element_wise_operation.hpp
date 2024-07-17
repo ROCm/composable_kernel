@@ -431,7 +431,7 @@ struct Relu
 // https://paperswithcode.com/method/gelu
 // y = 0.5*x*(1+tanh(sqrt(2/pi)*(x+0.044715*x^3)))
 // host code use higher accuracy "exp" and "div"
-// gpu code use lower accuracy "__expf" and "rcp" function
+// gpu code use lower accuracy "_ocml_exp_f32" and "rcp" function
 struct FastGelu
 {
     template <typename Y, typename X>
@@ -451,7 +451,7 @@ struct FastGelu
         y               = x / (1.f + emu);
     }
 
-    // device code, use lower precision "__expf" and "rcp"
+    // device code, use lower precision "__ocml_exp_f32" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
@@ -459,7 +459,7 @@ struct FastGelu
         const float c1  = -2.0 * 0.035677f;
         const float c2  = -2.0 * 0.797885f;
         const float u   = x * (c1 * x * x + c2);
-        const float emu = __expf(u);
+        const float emu = __ocml_exp_f32(u);
 
         y = x * ck::math::rcp(1.f + emu);
     }
