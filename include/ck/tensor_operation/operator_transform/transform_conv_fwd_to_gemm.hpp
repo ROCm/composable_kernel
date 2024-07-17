@@ -96,22 +96,22 @@ struct TransformConvFwdToGemm
     }
 
     public:
-    constexpr TransformConvFwdToGemm() {}
+    __host__ __device__ constexpr TransformConvFwdToGemm() {}
 
     template <typename ConvDimsType,
               typename ConvSpatialDimsType,
               index_t NDim                                   = NDimSpatial,
               typename std::enable_if<NDim == 1, bool>::type = false>
-    TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
-                           const ConvDimsType& a_g_n_c_wis_strides,
-                           const ConvDimsType& b_g_k_c_xs_lengths,
-                           const ConvDimsType& b_g_k_c_xs_strides,
-                           const ConvDimsType& c_g_n_k_wos_lengths,
-                           const ConvDimsType& c_g_n_k_wos_strides,
-                           const ConvSpatialDimsType& conv_filter_strides,
-                           const ConvSpatialDimsType& conv_filter_dilations,
-                           const ConvSpatialDimsType& input_left_pads,
-                           const ConvSpatialDimsType& input_right_pads)
+    __host__ __device__ TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
+                                               const ConvDimsType& a_g_n_c_wis_strides,
+                                               const ConvDimsType& b_g_k_c_xs_lengths,
+                                               const ConvDimsType& b_g_k_c_xs_strides,
+                                               const ConvDimsType& c_g_n_k_wos_lengths,
+                                               const ConvDimsType& c_g_n_k_wos_strides,
+                                               const ConvSpatialDimsType& conv_filter_strides,
+                                               const ConvSpatialDimsType& conv_filter_dilations,
+                                               const ConvSpatialDimsType& input_left_pads,
+                                               const ConvSpatialDimsType& input_right_pads)
         : Di_{I1},
           Hi_{I1},
           Wi_{a_g_n_c_wis_lengths[I3]},
@@ -121,15 +121,12 @@ struct TransformConvFwdToGemm
           Z_{I1},
           Y_{I1},
           X_{b_g_k_c_xs_lengths[I3]},
-          K_{b_g_k_c_xs_lengths[I1]},
+          K_{c_g_n_k_wos_lengths[I2]},
           C_{b_g_k_c_xs_lengths[I2]},
-
           DiStride_{I1},
           HiStride_{I1},
           WiStride_{a_g_n_c_wis_strides[I3]},
-          // DoStride{I1}, HoStride{I1},
           WoStride_{c_g_n_k_wos_strides[I3]},
-          // Z_Stride{I1}, Y_Stride{I1},
           XStride_{b_g_k_c_xs_strides[I3]},
           CStrideTensorA_{a_g_n_c_wis_strides[I2]},
           CStrideTensorB_{b_g_k_c_xs_strides[I2]},
@@ -139,7 +136,6 @@ struct TransformConvFwdToGemm
           GStrideTensorA_{a_g_n_c_wis_strides[I0]},
           GStrideTensorB_{b_g_k_c_xs_strides[I0]},
           GStrideTensorC_{c_g_n_k_wos_strides[I0]},
-
           ConvStrideD_{I1},
           ConvStrideH_{I1},
           ConvStrideW_{conv_filter_strides[I0]},
@@ -166,7 +162,7 @@ struct TransformConvFwdToGemm
         }
         else
         {
-            N_ = a_g_n_c_wis_lengths[I1];
+            N_ = c_g_n_k_wos_lengths[I1];
         }
         NDoHoWo_ = N_ * Wo_;
     }
@@ -175,16 +171,16 @@ struct TransformConvFwdToGemm
               typename ConvSpatialDimsType,
               index_t NDim                                   = NDimSpatial,
               typename std::enable_if<NDim == 2, bool>::type = false>
-    TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
-                           const ConvDimsType& a_g_n_c_wis_strides,
-                           const ConvDimsType& b_g_k_c_xs_lengths,
-                           const ConvDimsType& b_g_k_c_xs_strides,
-                           const ConvDimsType& c_g_n_k_wos_lengths,
-                           const ConvDimsType& c_g_n_k_wos_strides,
-                           const ConvSpatialDimsType& conv_filter_strides,
-                           const ConvSpatialDimsType& conv_filter_dilations,
-                           const ConvSpatialDimsType& input_left_pads,
-                           const ConvSpatialDimsType& input_right_pads)
+    __host__ __device__ TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
+                                               const ConvDimsType& a_g_n_c_wis_strides,
+                                               const ConvDimsType& b_g_k_c_xs_lengths,
+                                               const ConvDimsType& b_g_k_c_xs_strides,
+                                               const ConvDimsType& c_g_n_k_wos_lengths,
+                                               const ConvDimsType& c_g_n_k_wos_strides,
+                                               const ConvSpatialDimsType& conv_filter_strides,
+                                               const ConvSpatialDimsType& conv_filter_dilations,
+                                               const ConvSpatialDimsType& input_left_pads,
+                                               const ConvSpatialDimsType& input_right_pads)
         : Di_{I1},
           Hi_{a_g_n_c_wis_lengths[I3]},
           Wi_{a_g_n_c_wis_lengths[I4]},
@@ -194,26 +190,21 @@ struct TransformConvFwdToGemm
           Z_{I1},
           Y_{b_g_k_c_xs_lengths[I3]},
           X_{b_g_k_c_xs_lengths[I4]},
-          K_{b_g_k_c_xs_lengths[I1]},
+          K_{c_g_n_k_wos_lengths[I2]},
           C_{b_g_k_c_xs_lengths[I2]},
-
           DiStride_{I1},
           HiStride_{a_g_n_c_wis_strides[I3]},
           WiStride_{a_g_n_c_wis_strides[I4]},
-          // DoStride{I1}, HoStride{I1},
           WoStride_{c_g_n_k_wos_strides[I4]},
-          // Z_Stride{I1}, Y_Stride{I1},
           XStride_{b_g_k_c_xs_strides[I4]},
           CStrideTensorA_{a_g_n_c_wis_strides[I2]},
           CStrideTensorB_{b_g_k_c_xs_strides[I2]},
           KStrideTensorB_{b_g_k_c_xs_strides[I1]},
           KStrideTensorC_{c_g_n_k_wos_strides[I2]},
           NStrideTensorA_{a_g_n_c_wis_strides[I1]},
-
           GStrideTensorA_{a_g_n_c_wis_strides[I0]},
           GStrideTensorB_{b_g_k_c_xs_strides[I0]},
           GStrideTensorC_{c_g_n_k_wos_strides[I0]},
-
           ConvStrideD_{I1},
           ConvStrideH_{conv_filter_strides[I0]},
           ConvStrideW_{conv_filter_strides[I1]},
@@ -240,7 +231,7 @@ struct TransformConvFwdToGemm
         }
         else
         {
-            N_ = a_g_n_c_wis_lengths[I1];
+            N_ = c_g_n_k_wos_lengths[I1];
         }
         NDoHoWo_ = N_ * Ho_ * Wo_;
     }
@@ -249,16 +240,16 @@ struct TransformConvFwdToGemm
               typename ConvSpatialDimsType,
               index_t NDim                                   = NDimSpatial,
               typename std::enable_if<NDim == 3, bool>::type = false>
-    TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
-                           const ConvDimsType& a_g_n_c_wis_strides,
-                           const ConvDimsType& b_g_k_c_xs_lengths,
-                           const ConvDimsType& b_g_k_c_xs_strides,
-                           const ConvDimsType& c_g_n_k_wos_lengths,
-                           const ConvDimsType& c_g_n_k_wos_strides,
-                           const ConvSpatialDimsType& conv_filter_strides,
-                           const ConvSpatialDimsType& conv_filter_dilations,
-                           const ConvSpatialDimsType& input_left_pads,
-                           const ConvSpatialDimsType& input_right_pads)
+    __host__ __device__ TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
+                                               const ConvDimsType& a_g_n_c_wis_strides,
+                                               const ConvDimsType& b_g_k_c_xs_lengths,
+                                               const ConvDimsType& b_g_k_c_xs_strides,
+                                               const ConvDimsType& c_g_n_k_wos_lengths,
+                                               const ConvDimsType& c_g_n_k_wos_strides,
+                                               const ConvSpatialDimsType& conv_filter_strides,
+                                               const ConvSpatialDimsType& conv_filter_dilations,
+                                               const ConvSpatialDimsType& input_left_pads,
+                                               const ConvSpatialDimsType& input_right_pads)
         : Di_{a_g_n_c_wis_lengths[I3]},
           Hi_{a_g_n_c_wis_lengths[I4]},
           Wi_{a_g_n_c_wis_lengths[I5]},
@@ -268,26 +259,21 @@ struct TransformConvFwdToGemm
           Z_{b_g_k_c_xs_lengths[I3]},
           Y_{b_g_k_c_xs_lengths[I4]},
           X_{b_g_k_c_xs_lengths[I5]},
-          K_{b_g_k_c_xs_lengths[I1]},
+          K_{c_g_n_k_wos_lengths[I2]},
           C_{b_g_k_c_xs_lengths[I2]},
-
           DiStride_{a_g_n_c_wis_strides[I3]},
           HiStride_{a_g_n_c_wis_strides[I4]},
           WiStride_{a_g_n_c_wis_strides[I5]},
-          // DoStride{I1}, HoStride{I1},
           WoStride_{c_g_n_k_wos_strides[I5]},
-          // Z_Stride{I1}, Y_Stride{I1},
           XStride_{b_g_k_c_xs_strides[I5]},
           CStrideTensorA_{a_g_n_c_wis_strides[I2]},
           CStrideTensorB_{b_g_k_c_xs_strides[I2]},
           KStrideTensorB_{b_g_k_c_xs_strides[I1]},
           KStrideTensorC_{c_g_n_k_wos_strides[I2]},
           NStrideTensorA_{a_g_n_c_wis_strides[I1]},
-
           GStrideTensorA_{a_g_n_c_wis_strides[I0]},
           GStrideTensorB_{b_g_k_c_xs_strides[I0]},
           GStrideTensorC_{c_g_n_k_wos_strides[I0]},
-
           ConvStrideD_{conv_filter_strides[I0]},
           ConvStrideH_{conv_filter_strides[I1]},
           ConvStrideW_{conv_filter_strides[I2]},
@@ -314,7 +300,7 @@ struct TransformConvFwdToGemm
         }
         else
         {
-            N_ = a_g_n_c_wis_lengths[I1];
+            N_ = c_g_n_k_wos_lengths[I1];
         }
         NDoHoWo_ = N_ * Do_ * Ho_ * Wo_;
     }
@@ -327,7 +313,7 @@ struct TransformConvFwdToGemm
                                            is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
                                            is_same_v<ALayout, tensor_layout::convolution::GNWC>),
                                       bool>::type = false>
-    auto MakeADescriptor_M_K() const
+    __host__ __device__ auto MakeADescriptor_M_K() const
     {
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
@@ -533,7 +519,7 @@ struct TransformConvFwdToGemm
                                        is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
                                        is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
                   bool>::type = false>
-    auto MakeADescriptor_M_K() const
+    __host__ __device__ auto MakeADescriptor_M_K() const
 
     {
         if constexpr(ConvForwardSpecialization ==
@@ -765,7 +751,7 @@ struct TransformConvFwdToGemm
                                        is_same_v<ALayout, tensor_layout::convolution::NDHWGC> ||
                                        is_same_v<ALayout, tensor_layout::convolution::GNDHWC>),
                   bool>::type = false>
-    auto MakeADescriptor_M_K() const
+    __host__ __device__ auto MakeADescriptor_M_K() const
 
     {
         if constexpr(ConvForwardSpecialization ==
@@ -1060,7 +1046,7 @@ struct TransformConvFwdToGemm
                                           is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
                                           is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
                                       bool>::type = false>
-    auto MakeBDescriptor_N_K() const
+    __host__ __device__ auto MakeBDescriptor_N_K() const
     {
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter3x3)
@@ -1118,7 +1104,7 @@ struct TransformConvFwdToGemm
                                     is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
                                     is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
                                 bool>::type = false>
-    auto MakeBDescriptor_N_K() const
+    __host__ __device__ auto MakeBDescriptor_N_K() const
     {
         const auto wei_k_yx_c_desc = make_naive_tensor_descriptor(
             make_tuple(K_, ZYX_, C_), make_tuple(KStrideTensorB_, XStride_, CStrideTensorB_));
@@ -1137,7 +1123,7 @@ struct TransformConvFwdToGemm
                                           is_same_v<CLayout, tensor_layout::convolution::GNHWK> ||
                                           is_same_v<CLayout, tensor_layout::convolution::GNDHWK>,
                                       bool>::type = false>
-    auto MakeCDescriptor_M_N() const
+    __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         return make_naive_tensor_descriptor_packed(make_tuple(NDoHoWo_, K_));
     }
@@ -1152,7 +1138,7 @@ struct TransformConvFwdToGemm
                                     is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
                                     is_same_v<CLayout, tensor_layout::convolution::NDHWGK>,
                                 bool>::type = false>
-    auto MakeCDescriptor_M_N() const
+    __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         if constexpr(NumGroupsToMerge == 1)
         {
@@ -1200,7 +1186,7 @@ struct TransformConvFwdToGemm
     template <typename CLayout,
               typename std::enable_if<is_same_v<CLayout, tensor_layout::convolution::G_K>,
                                       bool>::type = false>
-    auto MakeCDescriptor_M_N() const
+    __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         const auto out_gemmm_gemmn_desc =
             make_naive_tensor_descriptor(make_tuple(NDoHoWo_, K_), make_tuple(I0, KStrideTensorC_));
@@ -1216,11 +1202,8 @@ struct TransformConvFwdToGemm
     const index_t Do_, Ho_, Wo_;
     const index_t Z_, Y_, X_;
     const index_t K_, C_;
-
     const index_t DiStride_, HiStride_, WiStride_;
-    // DoStride, HoStride,
     const index_t WoStride_;
-    // Z_Stride, Y_Stride,
     const index_t XStride_;
     const index_t CStrideTensorA_, CStrideTensorB_, KStrideTensorB_, KStrideTensorC_;
     const index_t NStrideTensorA_;

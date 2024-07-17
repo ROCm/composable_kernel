@@ -369,16 +369,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     MakeAGridDescriptor_M_K(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         const auto in_gemmmraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
-                                                                        a_g_n_c_wis_strides,
-                                                                        b_g_k_c_xs_lengths,
-                                                                        b_g_k_c_xs_strides,
-                                                                        e_g_n_k_wos_lengths,
-                                                                        e_g_n_k_wos_strides,
-                                                                        conv_filter_strides,
-                                                                        conv_filter_dilations,
-                                                                        input_left_pads,
-                                                                        input_right_pads);
+            conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>();
 
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
@@ -391,8 +382,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     MakeBGridDescriptor_N_K(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>(b_g_k_c_xs_lengths,
-                                                                        b_g_k_c_xs_strides);
+            conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>();
 
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
@@ -405,8 +395,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     MakeEGridDescriptor_M_N(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         const auto out_gemmmraw_gemmnraw_desc =
-            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(e_g_n_k_wos_lengths,
-                                                                        e_g_n_k_wos_strides);
+            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>();
 
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
@@ -532,7 +521,6 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                         conv_filter_dilations,
                                         input_left_pads,
                                         input_right_pads},
-              conv_N_per_block_{conv_to_gemm_transformer_.N_},
               a_grid_desc_m_k_{
                   DeviceOp::MakeAGridDescriptor_M_K<ALayout>(conv_to_gemm_transformer_)},
               b_grid_desc_n_k_{
