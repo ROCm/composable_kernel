@@ -37,7 +37,7 @@ static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_instances = std::tuple<
+using device_gemm_xdl_universal_reduce_bf16_i8_bf16_mk_kn_mn_comp_instances = std::tuple<
     // clang-format off
         //#########################| ALayout| BLayout| DsLayout| CLayout|AData| BData|    DsData|  CData| AccData| Cshuffle|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|                          Block-wiseGemm|                Block-wiseGemm|
         //#########################|        |        |         |        | Type|  Type|      Type|   Type|    Type|     Type| Elementwise| Elementwise| Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|                                Pipeline|                      Pipeline|
@@ -56,7 +56,7 @@ using device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_comp_instances = std::tupl
     >;
 
 template <BlockGemmPipelineScheduler BlkGemmPipeSched, GemmSpecialization GemmSpec>
-using device_gemm_xdl_universal_bf16_i8_bf16_mk_kn_mn_mem_instances = std::tuple<
+using device_gemm_xdl_universal_reduce_bf16_i8_bf16_mk_kn_mn_mem_instances = std::tuple<
     // clang-format off
         //#########################| ALayout| BLayout| DsLayout| CLayout|AData| BData|     DsData| CData| AccData| Cshuffle|           A|           B|           C|          GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1|MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|     CBlockTransferClusterLengths|  CBlockTransfer|    Block-wiseGemm|                Block-wiseGemm|
         //#########################|        |        |         |        | Type|  Type|       Type|  Type|    Type|     Type| Elementwise| Elementwise| Elementwise|Specialization|  Size| Block| Block| Block|    |    | XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave| _MBlock_MXdlPerWave_MWaveMPerXdl| ScalarPerVector|          Pipeline|                      Pipeline|
