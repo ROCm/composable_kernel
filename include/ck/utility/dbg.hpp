@@ -8,6 +8,9 @@
 namespace ck {
 namespace dbg {
 
+#define VAR(v, i) __typeof(i) v=(i)
+#define FORE(i, c) for(VAR(i, (c).begin()); i != (c).end(); ++i)
+
 template <typename TH> void _dbg(const char *sdbg, TH h) {
   std::cerr << sdbg << "=" << h << "\n";
 }
@@ -19,7 +22,7 @@ void _dbg(const char *sdbg, TH h, TA... t) {
   std::cerr << "=" << h << ",";
   _dbg(sdbg + 1, t...);
 }
-#ifdef LOCAL
+
 #define debug(...) _dbg(#__VA_ARGS__, __VA_ARGS__)
 #define debugv(x)                                                              \
   {                                                                            \
@@ -29,12 +32,7 @@ void _dbg(const char *sdbg, TH h, TA... t) {
       std::cerr << "\n";                                                       \
     }                                                                          \
   }
-#else
-#define debug(...) (__VA_ARGS__)
-#define debugv(x)
-#define std ::cerr if (0) cout
-#endif
 
 } // namespace dbg
-} // namespace ck
- 
+} // namespace cki
+
