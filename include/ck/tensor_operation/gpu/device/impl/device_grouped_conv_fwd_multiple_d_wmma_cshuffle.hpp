@@ -417,8 +417,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                                                         input_left_pads,
                                                                         input_right_pads};
 
-                    return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(ds_g_n_k_wos_lengths[i],
-                                                                      ds_g_n_k_wos_strides[i]);
+                    return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
                 },
                 Number<NumDTensor>{});
 
