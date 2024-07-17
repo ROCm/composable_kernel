@@ -839,7 +839,7 @@ inline __device__ T rcp(T x)
 template <typename T>
 inline __device__ T exp(T x)
 {
-    return ck::type_convert<T>(__expf(ck::type_convert<float>(x)));
+    return ck::type_convert<T>(__ocml_exp_f32(ck::type_convert<float>(x)));
 };
 
 template <>
@@ -851,7 +851,7 @@ inline __device__ half_t exp<half_t>(half_t x)
 template <>
 inline __device__ float exp<float>(float x)
 {
-    return __expf(x);
+    return __ocml_exp_f32(x);
 };
 
 template <>

@@ -519,7 +519,7 @@ CK_TILE_DEVICE
 double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
 
 CK_TILE_DEVICE
-float exp(float x) { return __expf(x); };
+float exp(float x) { return __ocml_exp_f32(x); };
 
 CK_TILE_HOST
 float exp(float x) { return std::expf(x); }

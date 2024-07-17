@@ -374,7 +374,7 @@ half_t sqrt(half_t x)
 };
 
 CK_TILE_DEVICE
-half_t exp(half_t x) { return static_cast<half_t>(__expf(static_cast<float>(x))); };
+half_t exp(half_t x) { return static_cast<half_t>(__ocml_exp_f32(static_cast<float>(x))); };
 
 CK_TILE_DEVICE
 half_t exp2(half_t x) { return static_cast<half_t>(exp2f(static_cast<float>(x))); };
