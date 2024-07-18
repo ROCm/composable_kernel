@@ -175,31 +175,32 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
     using OutElementwiseOperation = CElementwiseOperation;
 
     static constexpr auto DsVectorLengthSequence = generate_sequence_v2(
-			                  [](auto i) {
-					  using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-					  if constexpr(std::is_same<CLayout, DLayout>::value)
-					  return Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{};
-					  else
-					  return Number<0>{};
-					  }, Number<NumDTensor>{});
+        [](auto i) {
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+            if constexpr(std::is_same<CLayout, DLayout>::value)
+                return Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{};
+            else
+                return Number<0>{};
+        },
+        Number<NumDTensor>{});
 
-    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<CDataType,       // InDataType,
-                                                              DsDataType,      // DsDatatype
-                                                              GemmAccDataType, // AccDataType,
-                                                              CDataType,       // OutDataType,
-                                                              3,               // Rank
-                                                              1,               // NumReduceDim
-                                                              ReduceAdd,
-                                                              PassThrough,
-                                                              OutElementwiseOperation,
-                                                              256, // BlockSize_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,   // MThreadSliceSize_,
-                                                              1,   // KThreadSliceSize_,
-                                                              0,   // InSrcVectorDim_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,   // InSrcVectorSize_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,    // OutDstVectorSize_
-							      decltype(DsVectorLengthSequence)
-                                                              >;
+    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<
+        CDataType,       // InDataType,
+        DsDataType,      // DsDatatype
+        GemmAccDataType, // AccDataType,
+        CDataType,       // OutDataType,
+        3,               // Rank
+        1,               // NumReduceDim
+        ReduceAdd,
+        PassThrough,
+        OutElementwiseOperation,
+        256,                                            // BlockSize_,
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // MThreadSliceSize_,
+        1,                                              // KThreadSliceSize_,
+        0,                                              // InSrcVectorDim_,
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // InSrcVectorSize_,
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // OutDstVectorSize_
+        decltype(DsVectorLengthSequence)>;
 
     // Invoker
     struct Invoker : public BaseInvoker

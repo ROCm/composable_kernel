@@ -61,8 +61,7 @@ template <typename InDataType,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
           index_t OutDstVectorSize,
-	  typename DsVectorSize
-	  >
+          typename DsVectorSize>
 struct GridwiseReduction_mk_to_m_threadwise_multi_d
 {
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
@@ -205,8 +204,8 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                                                         decltype(ds_grid_desc_m[I]),
                                                         decltype(reduced_data_desc),
                                                         Sequence<MThreadSliceSize>, // SliceLengths
-                                                        Sequence<0>, // DimAccessOrder
-                                                        InSrcVectorDim,           // SrcVectorDim
+                                                        Sequence<0>,    // DimAccessOrder
+                                                        InSrcVectorDim, // SrcVectorDim
                                                         DsVectorSize{}[I],
                                                         1, // SrcScalarStrideInVector
                                                         true>{

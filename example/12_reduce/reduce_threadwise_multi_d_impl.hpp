@@ -113,7 +113,7 @@ int reduce_threadwise_multi_d_impl(bool do_verification,
                                                                    0,   // InSrcVectorDim
                                                                    1,   // InSrceVectorSize
                                                                    1,
-								   Sequence<1>>;  // OutDstVectorSize
+                                                                   Sequence<1>>; // OutDstVectorSize
 
     Tensor<InOutDataType> in(inLengths);
 
