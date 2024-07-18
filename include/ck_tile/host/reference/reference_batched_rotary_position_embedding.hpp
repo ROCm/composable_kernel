@@ -11,10 +11,6 @@
 
 namespace ck_tile {
 
-namespace detail {
-
-}
-
 template <typename ComputeDataType, typename DataType>
 CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<DataType>& input_bsd,
                                                               const HostTensor<DataType>& cos_sd,
