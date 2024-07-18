@@ -27,7 +27,7 @@ struct ProblemSizeSplitK final
 {
     ck::index_t M = 256;
     ck::index_t N = 1024;
-    ck::index_t K = 512;
+    ck::index_t K = 1024;
 
     ck::index_t StrideA = K;
     ck::index_t StrideB = K;
