@@ -30,7 +30,7 @@ struct ProblemSizeSplitK final
     ck::index_t K = 512;
 
     ck::index_t StrideA = K;
-    ck::index_t StrideB = K;
+    ck::index_t StrideB = N;
     ck::index_t StrideC = N;
 
     ck::index_t KBatch = 2;
