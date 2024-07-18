@@ -316,15 +316,6 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                         ck::utility::flush_icache();
                         // rotating mem
                         rotating_mem.Next();
-                        // clear c mem
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
-                        {
-                            if(arg.IsAtomicAdd())
-                                hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                                 0,
-                                                                 arg.M * arg.N * sizeof(CDataType),
-                                                                 stream_config.stream_id_));
-                        }
                     };
 
                     ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
@@ -338,15 +329,6 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 }
                 else
                 {
-                    if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
-                    {
-                        if(arg.IsAtomicAdd())
-                            hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                             0,
-                                                             arg.M * arg.N * sizeof(CDataType),
-                                                             stream_config.stream_id_));
-                    }
-
                     ave_time = launch_and_time_kernel(
                         stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
                 }

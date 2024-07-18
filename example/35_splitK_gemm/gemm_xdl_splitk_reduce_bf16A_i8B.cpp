@@ -30,7 +30,7 @@ using DeviceGemmV2Instance =
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3R1<
         ALayout,   BLayout,   DsLayout,  CLayout,
         ADataType,   BDataType, DsDataType,  CDataType, AccDataType,  CShuffleDataType, 
-        PassThrough, PassThrough, PassThrough, GemmDefault, 
+        AElementOp, BElementOp, CElementOp, GemmDefault, 
         256,   
         128,  128,  64,
         8,    4,
