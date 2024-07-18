@@ -114,7 +114,7 @@ if(NOT PROFILER_ONLY)
   if(NOT ENABLE_ASAN_PACKAGING)
     #build CK for all supported targets
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
+        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
   else()
     #build CK only for xnack-supported targets
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
