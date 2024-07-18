@@ -1104,7 +1104,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }
 
-        if constexpr(!(is_same<remove_cvref_t<CDataType>, half_t>::value || is_same<remove_cvref_t<CDataType>, float>::value))
+        if constexpr(!(is_same<remove_cvref_t<CDataType>, half_t>::value ||
+                       is_same<remove_cvref_t<CDataType>, float>::value))
         {
             if(!karg.IsReduceAdd())
             {

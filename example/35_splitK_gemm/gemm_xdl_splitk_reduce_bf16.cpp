@@ -44,8 +44,13 @@ using DeviceGemmV2Instance =
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, PassThrough>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        PassThrough>;
 
 #include "run_gemm_splitk_reduce_multi_d_example.inc"
 
