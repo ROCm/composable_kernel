@@ -14,12 +14,12 @@ struct BlockFmhaBwdConvertQGrad
     using AccDataType   = remove_cvref_t<typename Problem::AccDataType>;
     using QGradDataType = remove_cvref_t<typename Problem::QGradDataType>;
 
-    static constexpr index_t kM0 = Problem::Shape::kM0;
-    static constexpr index_t kN0 = Problem::Shape::kN0;
+    static constexpr index_t kM0 = Problem::kM0;
+    static constexpr index_t kN0 = Problem::kN0;
 
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
-    static constexpr index_t kQKHeaddim  = Problem::Shape::kQKHeaddim;
+    static constexpr index_t kQKHeaddim  = Problem::kQKHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;

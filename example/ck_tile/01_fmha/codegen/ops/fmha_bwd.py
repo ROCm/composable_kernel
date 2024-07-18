@@ -622,15 +622,6 @@ def get_bwd_dot_do_o_blobs() -> List[FmhaBwdOGradDotOKernel]:
 FMHA_BWD_CONVERT_DQ_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 
-using fmha_block_tile_{F_idx}  = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_hdim}>;
-using fmha_block_warps_{F_idx} = ck_tile::sequence<{F_rm}, {F_rn}, {F_rk}>;
-using fmha_warp_tile_{F_idx}   = ck_tile::sequence<{F_wm}, {F_wn}, {F_wk}>;
-
-using fmha_bwd_convert_dq_shape_{F_idx} =
-    ck_tile::TileFmhaBwdConvertQGradShape<fmha_block_tile_{F_idx},
-                                          fmha_block_warps_{F_idx},
-                                          fmha_warp_tile_{F_idx}>;
-
 using fmha_bwd_convert_dq_trait_{F_idx} =
     ck_tile::TileFmhaBwdConvertQGradTraits<{F_spad}, {F_dpad}, {F_occupancy}>;
 
@@ -638,10 +629,13 @@ using fmha_bwd_convert_dq_pipeline_problem_{F_idx} =
     ck_tile::BlockFmhaBwdConvertQGradPipelineProblem<
         typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::AccDataType,
         typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::QGradDataType,
-        fmha_bwd_convert_dq_shape_{F_idx},
-        fmha_bwd_convert_dq_trait_{F_idx},
+        /* BlockSize = */ 256,
+        {F_bm0},
+        {F_bn0},
+        {F_hdim},
         {F_mode},
-        {F_deterministic}>;
+        {F_deterministic},
+        fmha_bwd_convert_dq_trait_{F_idx}>;
 
 using fmha_bwd_convert_dq_{F_idx} =
     typename ck_tile::BlockFmhaBwdConvertQGrad<fmha_bwd_convert_dq_pipeline_problem_{F_idx}>;
@@ -699,12 +693,6 @@ class FmhaBwdConvertQGradKernel:
     F_dtype         : str  # data type
     F_bm0           : int  # tile size along q seqlen (block size)
     F_bn0           : int  # tile size along k seqlen
-    F_rm            : int  # number of warps along k seqlen (block warps) in gemm4
-    F_rn            : int  # number of warps along q seqlen (block warps) in gemm4
-    F_rk            : int  # number of warps along gemm-k (not used) in gemm4
-    F_wm            : int  # warp size along m in gemm4
-    F_wn            : int  # warp size along n in gemm4
-    F_wk            : int  # warp size along k in gemm4
     F_spad          : str  # true/false
     F_dpad          : str  #
     F_mode          : str  # value from MODE_MAP
@@ -720,12 +708,6 @@ class FmhaBwdConvertQGradKernel:
                 F_dtype         = DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_bm0,
                 F_bn0           = self.F_bn0,
-                F_rm            = self.F_rm,
-                F_rn            = self.F_rn,
-                F_rk            = self.F_rk,
-                F_wm            = self.F_wm,
-                F_wn            = self.F_wn,
-                F_wk            = self.F_wk,
                 F_spad          = BOOL_MAP[self.F_spad],
                 F_dpad          = BOOL_MAP[self.F_dpad],
                 F_mode          = MODE_MAP[self.F_mode],
@@ -741,8 +723,7 @@ class FmhaBwdConvertQGradKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_r{self.F_rm}x{self.F_rn}x{self.F_rk}" +\
-        f"_w{self.F_wm}x{self.F_wn}x{self.F_wk}_{self.F_mode}_o{self.F_occupancy}"
+        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
         if self.F_deterministic == 't' : n += f'_deterministic'
         return n
@@ -769,7 +750,6 @@ def get_bwd_convert_dq_blobs() -> List[FmhaBwdConvertQGradKernel]:
             if (mode == "group" and spad == "f"):
                 continue
             k = FmhaBwdConvertQGradKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_bm0=64, F_bn0=tile.F_bn0,
-                                F_rm=tile.F_rm2, F_rn=tile.F_rn2, F_rk=tile.F_rk2, F_wm=tile.F_wm0, F_wn=tile.F_wn0, F_wk=tile.F_wk0,
                                 F_spad=spad, F_dpad=dpad, F_mode=mode, F_occupancy=get_occupancy(dtype, hdim), F_deterministic=deterministic)
             gen.append(k)
 

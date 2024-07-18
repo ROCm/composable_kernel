@@ -93,23 +93,28 @@ struct BlockFmhaBwdOGradDotOPipelineProblem
 
 template <typename AccDataType_,
           typename QGradDataType_,
-          typename Shape_,
-          typename Traits_,
+          index_t kBlockSize_,
+          index_t kM0_,
+          index_t kN0_,
+          index_t kQKHeaddim_,
           bool kIsGroupMode_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          typename Traits_>
 struct BlockFmhaBwdConvertQGradPipelineProblem
 {
     using AccDataType   = remove_cvref_t<AccDataType_>;
     using QGradDataType = remove_cvref_t<QGradDataType_>;
-    using Shape         = remove_cvref_t<Shape_>;
     using Traits        = remove_cvref_t<Traits_>;
 
-    static constexpr index_t kBlockSize    = Shape::NumWarps * get_warp_size();
+    static_assert(0 < kBlockSize_ && kBlockSize_ % get_warp_size() == 0,
+                  "kBlockSize should be divisible by get_warp_size()");
+
+    static constexpr index_t kBlockSize    = kBlockSize_;
+    static constexpr index_t kM0           = kM0_;
+    static constexpr index_t kN0           = kN0_;
+    static constexpr index_t kQKHeaddim    = kQKHeaddim_;
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
-
-    static_assert(0 < kBlockSize && kBlockSize % get_warp_size() == 0,
-                  "kBlockSize should be divisible by get_warp_size()");
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;

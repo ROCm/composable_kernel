@@ -561,8 +561,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::Shape::kM0;
-        constexpr index_t kKPerBlock = Problem::Shape::kQKHeaddim;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kKPerBlock = Problem::kQKHeaddim;
 
         constexpr index_t K1 = 16 / sizeof(AccDataType);
         constexpr index_t K0 = kKPerBlock / K1;
@@ -586,8 +586,8 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::Shape::kM0;
-        constexpr index_t kKPerBlock = Problem::Shape::kQKHeaddim;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kKPerBlock = Problem::kQKHeaddim;
 
         constexpr index_t K1 = 16 / sizeof(AccDataType);
         constexpr index_t K0 = kKPerBlock / K1;
