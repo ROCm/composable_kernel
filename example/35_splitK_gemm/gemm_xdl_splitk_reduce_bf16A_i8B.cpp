@@ -21,7 +21,7 @@ using DsLayout = ck::Tuple<>;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = PassThrough;
+using CDEElementOp = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
@@ -30,7 +30,7 @@ using DeviceGemmV2Instance =
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3R1<
         ALayout,   BLayout,   DsLayout,  CLayout,
         ADataType,   BDataType, DsDataType,  CDataType, AccDataType,  CShuffleDataType, 
-        AElementOp, BElementOp, CElementOp, GemmDefault, 
+        AElementOp, BElementOp, CDEElementOp, GemmDefault, 
         256,   
         128,  128,  64,
         8,    4,
@@ -45,7 +45,7 @@ using DeviceGemmV2Instance =
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, PassThrough>;
 
 #include "run_gemm_splitk_reduce_multi_d_example.inc"
 
