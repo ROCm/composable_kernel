@@ -54,7 +54,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     {
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
-        return sizeof(KDataType) * Problem::kTileSizeSk * (Problem::kTileSizeD / 2);
+        return sizeof(KDataType) * Problem::kTileSizeSk * (Problem::kTileSizeD);
     }
 
     template <typename Problem>
