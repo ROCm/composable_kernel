@@ -17,7 +17,7 @@ using ALayout  = Row;
 using BLayout  = Row;
 using CLayout  = Row;
 using D0Layout = CLayout;
-using DsLayout = ck::Tuple<D0Layout>;
+using DsLayout = ck::Tuple<>;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
