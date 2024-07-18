@@ -593,8 +593,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
-        return Argument{
-            p_a, p_b, p_ds, p_c, M, N, K, StrideA, StrideB, StrideDs, StrideC, KBatch};
+        return Argument{p_a, p_b, p_ds, p_c, M, N, K, StrideA, StrideB, StrideDs, StrideC, KBatch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
