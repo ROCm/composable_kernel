@@ -36,6 +36,7 @@ template <typename ALayout,
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
+          typename ReduceDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -97,7 +98,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         BDataType,
         GemmAccDataType,
         CShuffleDataType,
-        CDataType,
+        ReduceDataType,
         AElementwiseOperation,
         BElementwiseOperation,
         PassThrough,
@@ -153,7 +154,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                  index_t k_batch_)
             : GridwiseGemm::Argument(p_a_grid_,
                                      p_b_grid_,
-                                     p_c_grid_,
+                                     reinterpret_cast<ReduceDataType*>(p_c_grid_),
                                      M_,
                                      N_,
                                      K_,
@@ -185,7 +186,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         Number<NumDTensor>{});
 
     using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<
-        CDataType,       // InDataType,
+        ReduceDataType,  // InDataType,
         DsDataType,      // DsDatatype
         GemmAccDataType, // AccDataType,
         CDataType,       // OutDataType,
@@ -247,19 +248,18 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
             auto reduce = DeviceReduceInstance{};
 
-            auto argument_ptr =
-                reduce.MakeArgumentPointer(in_lengths,
-                                           in_strides,
-                                           DsLengths,
-                                           DsStrides,
-                                           out_lengths,
-                                           out_strides,
-                                           reduce_dims,
-                                           arg.IsReduceAdd() ? arg.p_workspace_ : arg.p_c_grid,
-                                           arg.p_ds,
-                                           arg.p_c_grid,
-                                           PassThrough{},
-                                           OutElementwiseOperation{});
+            auto argument_ptr = reduce.MakeArgumentPointer(in_lengths,
+                                                           in_strides,
+                                                           DsLengths,
+                                                           DsStrides,
+                                                           out_lengths,
+                                                           out_strides,
+                                                           reduce_dims,
+                                                           arg.p_workspace_,
+                                                           arg.p_ds,
+                                                           arg.p_c_grid,
+                                                           PassThrough{},
+                                                           OutElementwiseOperation{});
 
             auto invoker_ptr = reduce.MakeInvokerPointer();
 
@@ -282,14 +282,15 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         {
             auto arg = *dynamic_cast<const typename GridwiseGemm::Argument*>(&arg_);
 
-            if(arg.IsReduceAdd())
+            if(!(!(arg.IsReduceAdd() || NumDTensor > 0) &&
+                 std::is_same<CDataType, ReduceDataType>::value))
             {
                 if(arg.p_workspace_ == nullptr)
                 {
                     throw std::runtime_error("using reduce , but empty workspace!");
                 }
 
-                arg.p_c_grid = static_cast<CDataType*>(arg.p_workspace_);
+                arg.p_c_grid = reinterpret_cast<ReduceDataType*>(arg.p_workspace_);
             }
 
             if(stream_config.log_level_ > 0)
@@ -532,7 +533,8 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 }
             }
 
-            if(arg.IsReduceAdd() || NumDTensor > 0)
+            if(!(!(arg.IsReduceAdd() || NumDTensor > 0) &&
+                 std::is_same<CDataType, ReduceDataType>::value))
             {
                 // reduce c data
                 ave_time += RunReduce(arg_, stream_config);
@@ -685,9 +687,11 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
     {
         auto arg = *dynamic_cast<const Argument*>(p_arg);
 
-        if(arg.IsReduceAdd())
+        if(!(!(arg.IsReduceAdd() || NumDTensor > 0) &&
+             std::is_same<CDataType, ReduceDataType>::value))
         {
-            return arg.M * arg.N * arg.KBatch * sizeof(CDataType);
+            std::cout << "using workspace" << std::endl;
+            return arg.M * arg.N * arg.KBatch * sizeof(ReduceDataType);
         }
 
         return 0;

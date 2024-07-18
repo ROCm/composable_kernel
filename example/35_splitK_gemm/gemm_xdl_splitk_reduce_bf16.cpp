@@ -10,6 +10,7 @@ using BDataType        = ck::bhalf_t;
 using AccDataType      = float;
 using CShuffleDataType = ck::bhalf_t;
 using CDataType        = ck::bhalf_t;
+using ReduceDataType   = ck::bhalf_t;
 using D0DataType       = ck::bhalf_t;
 using DsDataType       = ck::Tuple<>;
 
@@ -29,7 +30,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 using DeviceGemmV2Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffleV3R1<
         ALayout,   BLayout,   DsLayout,  CLayout,
-        ADataType,   BDataType, DsDataType,  CDataType, AccDataType,  CShuffleDataType, 
+        ADataType,   BDataType, DsDataType,  CDataType, AccDataType,  CShuffleDataType, ReduceDataType,
         AElementOp, BElementOp, CDEElementOp, GemmDefault, 
         256,
         128,  128,  64,
