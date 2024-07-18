@@ -174,6 +174,15 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
     using ReduceAdd               = ck::reduce::Add;
     using OutElementwiseOperation = CElementwiseOperation;
 
+    static constexpr auto DsVectorLengthSequence = generate_sequence_v2(
+			                  [](auto i) {
+					  using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+					  if constexpr(std::is_same<CLayout, DLayout>::value)
+					  return Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{};
+					  else
+					  return Number<0>{};
+					  }, Number<NumDTensor>{});
+
     using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<CDataType,       // InDataType,
                                                               DsDataType,      // DsDatatype
                                                               GemmAccDataType, // AccDataType,
@@ -188,7 +197,8 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                                               1,   // KThreadSliceSize_,
                                                               0,   // InSrcVectorDim_,
                                                               CShuffleBlockTransferScalarPerVector_NPerBlock,   // InSrcVectorSize_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock    // OutDstVectorSize_
+                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,    // OutDstVectorSize_
+							      decltype(DsVectorLengthSequence)
                                                               >;
 
     // Invoker
@@ -226,11 +236,11 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 if constexpr(std::is_same<DLayout, ck::tensor_layout::gemm::RowMajor>::value)
                 {
-                    DsStrides[i] = {arg.N, 1};
+                    DsStrides[i] = {arg.StrideDs[i], 1};
                 }
                 else
                 {
-                    DsStrides[i] = {1, arg.M};
+                    DsStrides[i] = {1, arg.StrideDs[i]};
                 }
             });
 
