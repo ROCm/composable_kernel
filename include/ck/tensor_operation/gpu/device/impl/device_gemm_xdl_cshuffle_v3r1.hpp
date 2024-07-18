@@ -174,22 +174,23 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
     using ReduceAdd               = ck::reduce::Add;
     using OutElementwiseOperation = CElementwiseOperation;
 
-    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<CDataType,       // InDataType,
-                                                              DsDataType,      // DsDatatype
-                                                              GemmAccDataType, // AccDataType,
-                                                              CDataType,       // OutDataType,
-                                                              3,               // Rank
-                                                              1,               // NumReduceDim
-                                                              ReduceAdd,
-                                                              PassThrough,
-                                                              OutElementwiseOperation,
-                                                              256, // BlockSize_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,   // MThreadSliceSize_,
-                                                              1,   // KThreadSliceSize_,
-                                                              0,   // InSrcVectorDim_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,   // InSrcVectorSize_,
-                                                              CShuffleBlockTransferScalarPerVector_NPerBlock    // OutDstVectorSize_
-                                                              >;
+    using DeviceReduceInstance = DeviceReduceThreadWiseMultiD<
+        CDataType,       // InDataType,
+        DsDataType,      // DsDatatype
+        GemmAccDataType, // AccDataType,
+        CDataType,       // OutDataType,
+        3,               // Rank
+        1,               // NumReduceDim
+        ReduceAdd,
+        PassThrough,
+        OutElementwiseOperation,
+        256,                                            // BlockSize_,
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // MThreadSliceSize_,
+        1,                                              // KThreadSliceSize_,
+        0,                                              // InSrcVectorDim_,
+        CShuffleBlockTransferScalarPerVector_NPerBlock, // InSrcVectorSize_,
+        CShuffleBlockTransferScalarPerVector_NPerBlock  // OutDstVectorSize_
+        >;
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -583,8 +584,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
-        return Argument{
-            p_a, p_b, p_ds, p_c, M, N, K, StrideA, StrideB, StrideDs, StrideC, KBatch};
+        return Argument{p_a, p_b, p_ds, p_c, M, N, K, StrideA, StrideB, StrideDs, StrideC, KBatch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

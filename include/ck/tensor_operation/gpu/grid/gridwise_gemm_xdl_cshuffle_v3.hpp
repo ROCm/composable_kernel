@@ -593,10 +593,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 c_reduce_offset = blockIdx.z * karg.M * karg.N;
             }
-	    else
-	    {
-	        c_reduce_offset = 0;
-	    }
+            else
+            {
+                c_reduce_offset = 0;
+            }
         }
 
         index_t a_k_split_offset;
