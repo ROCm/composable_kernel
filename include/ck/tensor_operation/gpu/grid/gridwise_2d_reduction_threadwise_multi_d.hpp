@@ -60,7 +60,8 @@ template <typename InDataType,
           index_t KThreadSliceSize,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
-          index_t OutDstVectorSize>
+          index_t OutDstVectorSize,
+          typename DsVectorSize>
 struct GridwiseReduction_mk_to_m_threadwise_multi_d
 {
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
@@ -203,9 +204,9 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                                                         decltype(ds_grid_desc_m[I]),
                                                         decltype(reduced_data_desc),
                                                         Sequence<MThreadSliceSize>, // SliceLengths
-                                                        Sequence<0>, // DimAccessOrder
-                                                        0,           // SrcVectorDim
-                                                        1,
+                                                        Sequence<0>,    // DimAccessOrder
+                                                        InSrcVectorDim, // SrcVectorDim
+                                                        DsVectorSize{}[I],
                                                         1, // SrcScalarStrideInVector
                                                         true>{
                     ds_grid_desc_m[I], make_multi_index(thread_global_1d_id * MThreadSliceSize)};
@@ -220,7 +221,9 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                                   ds_thread_buf(I));
         });
 
-        if constexpr(NumDTensor > 0)
+        StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true> out_value_buf;
+
+        // if constexpr(NumDTensor > 0)
         {
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 const auto c_ds_buf_refs = concat_tuple_of_reference(
@@ -229,11 +232,11 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                         [&](auto Id) -> const auto& { return ds_thread_buf[Id][I]; },
                         Number<NumDTensor>{}));
 
-                unpack2(out_elementwise_op, tie(accu_value_buf(I)), c_ds_buf_refs);
+                unpack2(out_elementwise_op, tie(out_value_buf(I)), c_ds_buf_refs);
             });
         }
 
-        auto threadwise_dst_store = ThreadwiseTensorSliceTransfer_v1r3<AccDataType,
+        auto threadwise_dst_store = ThreadwiseTensorSliceTransfer_v1r3<OutDataType,
                                                                        OutDataType,
                                                                        decltype(reduced_data_desc),
                                                                        OutGridDesc_M,
@@ -250,7 +253,7 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
             PassThrough{});
 
         threadwise_dst_store.Run(
-            reduced_data_desc, make_tuple(I0), accu_value_buf, out_grid_desc_m, dst_global_buf);
+            reduced_data_desc, make_tuple(I0), out_value_buf, out_grid_desc_m, dst_global_buf);
     }
 };
 

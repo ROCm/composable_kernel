@@ -32,7 +32,8 @@ template <typename InDataType,
           index_t KThreadSliceSize,
           index_t InSrcVectorDim,
           index_t InSrcVectorSize,
-          index_t OutDstVectorSize>
+          index_t OutDstVectorSize,
+          typename DsVectorSizeSequence>
 struct DeviceReduceThreadWiseMultiD : public DeviceReduceMultiD<InDataType,
                                                                 DsDataType,
                                                                 AccDataType,
@@ -188,7 +189,8 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduceMultiD<InDataType,
                                                      KThreadSliceSize,
                                                      InSrcVectorDim,
                                                      InSrcVectorSize,
-                                                     OutDstVectorSize>;
+                                                     OutDstVectorSize,
+                                                     DsVectorSizeSequence>;
 
     using DsGridPointer = typename GridwiseReduce::DsGridPointer;
 

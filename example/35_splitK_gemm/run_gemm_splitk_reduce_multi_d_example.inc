@@ -198,7 +198,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     auto a_element_op = AElementOp{};
     auto b_element_op = BElementOp{};
-    auto c_element_op = CElementOp{};
+    auto c_element_op = CDEElementOp{};
 
     // do GEMM
     auto gemm        = DeviceGemmV2Instance{};
@@ -206,6 +206,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     float ave_time   = 0;
     auto get_argment = [&]() {
         if constexpr(DsDataType::Size() > 0)
+	{
             return gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                      {d0_m_n_device_buf.GetDeviceBuffer()},
@@ -218,11 +219,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      {StrideD0},
                                      StrideC,
                                      KBatch,
-                                     KBatch > 1,
                                      a_element_op,
                                      b_element_op,
                                      c_element_op);
+	}
         else
+	{
             return gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                      {},
@@ -235,10 +237,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      {},
                                      StrideC,
                                      KBatch,
-                                     KBatch > 1,
                                      a_element_op,
                                      b_element_op,
                                      c_element_op);
+        }
     };
     auto argument = get_argment();
 
@@ -269,9 +271,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         if constexpr(DsDataType::Size() > 0)
         {
-            auto element_wise_op = Add{};
             c_m_n_host_result.ForEach(
-                [&](auto& self, auto idx) { element_wise_op(self(idx), self(idx), d0_m_n(idx)); });
+                [&](auto& self, auto idx) { c_element_op(self(idx), self(idx), d0_m_n(idx)); });
         }
 
         pass &= ck::utils::check_err(c_m_n_device_result,
