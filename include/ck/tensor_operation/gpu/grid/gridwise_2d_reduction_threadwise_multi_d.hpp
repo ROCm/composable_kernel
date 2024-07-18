@@ -222,7 +222,7 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
 
         StaticBuffer<AddressSpaceEnum::Vgpr, OutDataType, MThreadSliceSize, true> out_value_buf;
 
-        //if constexpr(NumDTensor > 0)
+        // if constexpr(NumDTensor > 0)
         {
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 const auto c_ds_buf_refs = concat_tuple_of_reference(
