@@ -178,7 +178,6 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
                                             {},
                                             StrideC,
                                             kbatch_curr,
-                                            kbatch_curr > 1,
                                             a_element_op,
                                             b_element_op,
                                             c_element_op);

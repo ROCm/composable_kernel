@@ -219,7 +219,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      {StrideD0},
                                      StrideC,
                                      KBatch,
-                                     KBatch > 1,
                                      a_element_op,
                                      b_element_op,
                                      c_element_op);
@@ -238,7 +237,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      {},
                                      StrideC,
                                      KBatch,
-                                     KBatch > 1,
                                      a_element_op,
                                      b_element_op,
                                      c_element_op);

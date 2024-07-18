@@ -537,7 +537,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
               p_c_grid{p_c_grid_},
-              is_reduce(k_batch_ > 1 ? is_reduce_ : false)
+              is_reduce(is_reduce_)
         {
         }
 
@@ -554,7 +554,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
-        bool is_reduce = false;
+        bool is_reduce;
     };
 
     struct SplitKBatchOffset
@@ -593,11 +593,15 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 c_reduce_offset = blockIdx.z * karg.M * karg.N;
             }
+	    else
+	    {
+	        c_reduce_offset = 0;
+	    }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
-        index_t c_reduce_offset = 0;
+        index_t c_reduce_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()

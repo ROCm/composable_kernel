@@ -150,8 +150,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                  index_t StrideB_,
                  std::array<ck::index_t, NumDTensor> StrideDs_,
                  index_t StrideC_,
-                 index_t k_batch_,
-                 bool is_reduce_)
+                 index_t k_batch_)
             : GridwiseGemm::Argument(p_a_grid_,
                                      p_b_grid_,
                                      p_c_grid_,
@@ -162,7 +161,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                      StrideB_,
                                      StrideC_,
                                      k_batch_,
-                                     is_reduce_),
+                                     true),
               p_ds(p_ds_),
               StrideDs(StrideDs_)
         {
@@ -185,11 +184,11 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                                               PassThrough,
                                                               OutElementwiseOperation,
                                                               256, // BlockSize_,
-                                                              4,   // MThreadSliceSize_,
+                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,   // MThreadSliceSize_,
                                                               1,   // KThreadSliceSize_,
                                                               0,   // InSrcVectorDim_,
-                                                              1,   // InSrcVectorSize_,
-                                                              1    // OutDstVectorSize_
+                                                              CShuffleBlockTransferScalarPerVector_NPerBlock,   // InSrcVectorSize_,
+                                                              CShuffleBlockTransferScalarPerVector_NPerBlock    // OutDstVectorSize_
                                                               >;
 
     // Invoker
@@ -586,13 +585,12 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                              std::array<ck::index_t, NumDTensor> StrideDs,
                              index_t StrideC,
                              index_t KBatch,
-                             bool IsReduce,
                              AElementwiseOperation,
                              BElementwiseOperation,
                              CElementwiseOperation)
     {
         return Argument{
-            p_a, p_b, p_ds, p_c, M, N, K, StrideA, StrideB, StrideDs, StrideC, KBatch, IsReduce};
+            p_a, p_b, p_ds, p_c, M, N, K, StrideA, StrideB, StrideDs, StrideC, KBatch};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -610,7 +608,6 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                                       std::array<ck::index_t, NumDTensor> StrideDs,
                                                       index_t StrideC,
                                                       index_t KBatch,
-                                                      bool IsReduce,
                                                       AElementwiseOperation,
                                                       BElementwiseOperation,
                                                       CElementwiseOperation) override
@@ -626,8 +623,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                           StrideB,
                                           StrideDs,
                                           StrideC,
-                                          KBatch,
-                                          IsReduce);
+                                          KBatch);
     }
 
     // polymorphic

@@ -66,7 +66,6 @@ struct DeviceGemmV2R1 : public BaseOperator
                         std::array<ck::index_t, NumDTensor> DsStrides,
                         ck::index_t StrideC,
                         ck::index_t KSplit,
-                        bool IsReduce,
                         AElementwiseOperation a_element_op,
                         BElementwiseOperation b_element_op,
                         CElementwiseOperation c_element_op) = 0;
