@@ -7,13 +7,12 @@
 #include "ck/ck.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
-#include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
 using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using ConvScaleAdd = ck::tensor_operation::element_wise::ConvScaleAdd;
@@ -179,11 +178,6 @@ bool run_grouped_conv_fwd(bool do_verification,
         wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-1.0, 1.0});
         bias.GenerateTensorValue(GeneratorTensor_3<DsDataType>{-3.0, 3.0});
         break;
-    case 11: // used for debugging
-        in.GenerateTensorValue(GeneratorTensor_1<InDataType>{1});
-        wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
-        bias.GenerateTensorValue(GeneratorTensor_1<DsDataType>{1});
-        break;
     }
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
@@ -223,16 +217,11 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-// random scale values
-#if 0
+    // random scale values
     float scale_in  = float(std::rand()) / float(RAND_MAX);
     float scale_wei = float(std::rand()) / float(RAND_MAX);
     float scale_out = float(std::rand()) / float(RAND_MAX);
-#else
-    float scale_in  = 1.0f;
-    float scale_wei = 1.0f;
-    float scale_out = 1.0f;
-#endif
+
     std::cout << std::endl;
     std::cout << "scale_in: " << scale_in << std::endl;
     std::cout << "scale_wei: " << scale_wei << std::endl;
@@ -314,24 +303,11 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         out_device_buf.FromDevice(out_device.mData.data());
 
-#if 1
-        // LogRangeAsType<InDataType>(std::cout << "input : ", in.mData, ",") << std::endl;
-        // LogRangeAsType<WeiDataType>(std::cout << "weight: ", wei.mData, ",") << std::endl;
-        // LogRangeAsType<OutDataType>(std::cout << "host_output  : ", out_host.mData, ",")
-        //     << std::endl;
-        // LogRangeAsType<OutDataType>(std::cout << "device_output: ", out_device.mData, ",")
-        //     << std::endl;
-#endif
-
-#if 0
         return ck::utils::check_err(out_device,
                                     out_host,
                                     "Error: incorrect results!",
                                     get_rtol<OutDataType>(),
                                     get_atol<OutDataType>());
-#else
-        return ck::utils::check_err(out_device, out_host, "Error: incorrect results!");
-#endif
     }
 
     return true;
