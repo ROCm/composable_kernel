@@ -194,8 +194,6 @@ int main(int argc, char* argv[])
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
     }
 #endif
-    // printf("AScale: %lf, %lf\n", a1_m_k(0, 0), b1_k_n(1, 0));
-    // printf("BScale: %lf, %lf\n", b1_k_n(0, 0), b1_k_n(0, 1));
 
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem a1_device_buf(sizeof(A1DataType) * a1_m_k.mDesc.GetElementSpaceSize());
