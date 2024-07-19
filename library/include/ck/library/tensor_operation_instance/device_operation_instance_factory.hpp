@@ -108,6 +108,7 @@ using FastGelu            = ck::tensor_operation::element_wise::FastGelu;
 using MultiplyFastGelu    = ck::tensor_operation::element_wise::MultiplyFastGelu;
 using AddMultiply         = ck::tensor_operation::element_wise::AddMultiply;
 using MultiplyAdd         = ck::tensor_operation::element_wise::MultiplyAdd;
+using MultiplyMultiply    = ck::tensor_operation::element_wise::MultiplyMultiply;
 using ScaleAdd            = ck::tensor_operation::element_wise::ScaleAdd;
 using Gelu                = ck::tensor_operation::element_wise::Gelu;
 using Swish               = ck::tensor_operation::element_wise::Swish;
