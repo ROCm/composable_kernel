@@ -657,6 +657,13 @@ struct ConvScaleAdd
         float x;
         Add{}.template operator()<float>(x, c * scale_in_ * scale_wei_, d);
         e = type_convert<f8_t>(x * scale_out_);
+        if(x * scale_out_ > 1.0f)
+        {
+            printf("ConvScaleAdd: float=%f   f8_t=%f    e=%f\n",
+                   x * scale_out_,
+                   type_convert<float>(type_convert<f8_t>(x * scale_out_)),
+                   type_convert<float>(e));
+        }
     };
 
     float scale_in_;

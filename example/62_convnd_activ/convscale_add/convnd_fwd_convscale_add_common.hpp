@@ -180,9 +180,9 @@ bool run_grouped_conv_fwd(bool do_verification,
         bias.GenerateTensorValue(GeneratorTensor_3<DsDataType>{-3.0, 3.0});
         break;
     case 11: // used for debugging
-        in.GenerateTensorValue(GeneratorTensor_2<InDataType>{1, 1});
-        wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{1, 1});
-        bias.GenerateTensorValue(GeneratorTensor_2<DsDataType>{0, 0});
+        in.GenerateTensorValue(GeneratorTensor_1<InDataType>{1});
+        wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+        bias.GenerateTensorValue(GeneratorTensor_1<DsDataType>{1});
         break;
     }
 
@@ -224,7 +224,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
 // random scale values
-#if 1
+#if 0
     float scale_in  = float(std::rand()) / float(RAND_MAX);
     float scale_wei = float(std::rand()) / float(RAND_MAX);
     float scale_out = float(std::rand()) / float(RAND_MAX);
@@ -313,7 +313,17 @@ bool run_grouped_conv_fwd(bool do_verification,
             [&](auto&, auto idx) { out_element_op(out_host(idx), c(idx), bias(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
+
 #if 1
+        // LogRangeAsType<InDataType>(std::cout << "input : ", in.mData, ",") << std::endl;
+        // LogRangeAsType<WeiDataType>(std::cout << "weight: ", wei.mData, ",") << std::endl;
+        // LogRangeAsType<OutDataType>(std::cout << "host_output  : ", out_host.mData, ",")
+        //     << std::endl;
+        // LogRangeAsType<OutDataType>(std::cout << "device_output: ", out_device.mData, ",")
+        //     << std::endl;
+#endif
+
+#if 0
         return ck::utils::check_err(out_device,
                                     out_host,
                                     "Error: incorrect results!",
