@@ -8,7 +8,6 @@
 #include "ck/tensor_operation/gpu/device/device_conv_tensor_rearrange.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_tensor_rearrange.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
 #include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm.hpp"
@@ -65,8 +64,8 @@ struct DeviceColumnToImageImpl
 
     static constexpr auto spatial_offset = Number<3>{};
 
-    static constexpr auto conv_to_gemm_transformer =
-        TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>{};
+    using GemmToConvFwdTransformer =
+        TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>;
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpecialization::MKPadding, index_t, index_t, index_t>{
             MPerBlock, 0 /* NPerBlock*/, KPerBlock};
@@ -234,21 +233,21 @@ struct DeviceColumnToImageImpl
                                                 : independent_filter_stride;
         }
 
+        GemmToConvFwdTransformer conv_to_gemm_transformer{a_g_n_c_wis_lengths,
+                                                          image_g_n_c_wis_strides,
+                                                          b_g_k_c_xs_lengths,
+                                                          {}, // not needed for A Descriptor
+                                                          c_g_n_k_wos_lengths,
+                                                          {}, // not needed for A Descriptor
+                                                          // conv_filter_strides,
+                                                          independent_filter_strides,
+                                                          conv_filter_dilations,
+                                                          input_left_pads_with_offset,
+                                                          input_right_pads};
+
         // Calculate image form descriptor for the modified convolution problem
         const auto in_gemmmraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeADescriptor_M_K<ImageLayout>(
-                a_g_n_c_wis_lengths,
-                image_g_n_c_wis_strides,
-                b_g_k_c_xs_lengths,
-                {}, // not needed for A Descriptor
-                c_g_n_k_wos_lengths,
-                {}, // not needed for A Descriptor
-                // conv_filter_strides,
-                independent_filter_strides,
-                conv_filter_dilations,
-                input_left_pads_with_offset,
-                input_right_pads,
-                N);
+            conv_to_gemm_transformer.template MakeADescriptor_M_K<ImageLayout>();
 
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
