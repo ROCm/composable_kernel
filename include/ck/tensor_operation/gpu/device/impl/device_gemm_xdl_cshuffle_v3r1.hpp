@@ -36,7 +36,6 @@ template <typename ALayout,
           typename CDataType,
           typename GemmAccDataType,
           typename CShuffleDataType,
-          typename ReduceDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
@@ -71,6 +70,7 @@ template <typename ALayout,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
+          typename ReduceDataType                     = CDataType,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
@@ -181,7 +181,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             if constexpr(std::is_same<CLayout, DLayout>::value)
                 return Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{};
             else
-                return Number<0>{};
+                return Number<1>{};
         },
         Number<NumDTensor>{});
 
