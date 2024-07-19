@@ -3,6 +3,25 @@
 
 #pragma once
 
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
+    defined(__gfx942__)
+#define __gfx9__
+#endif
+#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#define __gfx94__
+#endif
+#if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
+    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__)
+#define __gfx103__
+#endif
+#if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__)
+#define __gfx11__
+#endif
+#if defined(__gfx1200__) || defined(__gfx1201__)
+#define __gfx12__
+#endif
+
+#include "hip/hip_version.h"
 #ifndef CK_TILE_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -109,15 +128,13 @@
 // buffer atomic add: floating point
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
-#elif defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__) // for GPU code
+#elif defined(__gfx9__) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
 #endif
 
-#if(defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) || \
-    defined(__gfx942__)) // for GPU code
+#if(defined(__gfx90a__) || defined(__gfx94__)) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 1
 #else
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_MAX_FLOAT64 0
@@ -131,19 +148,26 @@
 #define CK_TILE_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
 
+#ifndef CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
+#if HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 1 && HIP_VERSION_PATCH >= 40091
+#define CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE 1
+#else
+#define CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif
 
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0xffffffff
-#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__) ||                          \
-    defined(__gfx942__) // for GPU code
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || \
+    defined(__gfx9__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x00020000
-#elif defined(__gfx1030__) // for GPU code
+#elif defined(__gfx103__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) // for GPU code
+#elif defined(__gfx11__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
@@ -153,4 +177,17 @@
 
 #ifndef CK_TILE_USE_SUBDWORD_TILE_CAST
 #define CK_TILE_USE_SUBDWORD_TILE_CAST 0
+#endif
+
+#ifndef CK_TILE_USE_PK_FP16_TILE_CAST
+#define CK_TILE_USE_PK_FP16_TILE_CAST 0
+#endif
+
+// TODO: better solve this inside compiler
+#ifndef CK_TILE_FMHA_FWD_FAST_EXP2
+#define CK_TILE_FMHA_FWD_FAST_EXP2 0
+#endif
+
+#ifndef CK_TILE_BUFFER_LOAD_RAW_BF16_WA
+#define CK_TILE_BUFFER_LOAD_RAW_BF16_WA 1
 #endif

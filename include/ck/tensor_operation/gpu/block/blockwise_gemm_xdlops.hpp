@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -340,10 +340,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.template Run(
-                        a_thread_vec.template AsType<mfma_input_type_a>(),
-                        b_thread_vec.template AsType<mfma_input_type_b>(),
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type_a>(),
+                                    b_thread_vec.template AsType<mfma_input_type_b>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
         });
@@ -488,7 +487,14 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             // sync point.
             if constexpr(k.value != 0 || KPerInnerLoop == KPerThread)
             {
+#ifdef __gfx12__
+                asm volatile("\
+	        s_barrier_signal -1 \n \
+		s_barrier_wait -1 \
+		" ::);
+#else
                 asm volatile("s_barrier" ::);
+#endif
                 __builtin_amdgcn_sched_barrier(0);
             }
             static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
@@ -530,10 +536,9 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
                         // TODO: insert setprio in more precise manner since we
                         // could have more than >1 MFMA instructions in single call
-                        xdlops_gemm.template Run(
-                            a_thread_vec.template AsType<mfma_input_type_a>(),
-                            b_thread_vec.template AsType<mfma_input_type_b>(),
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type_a>(),
+                                        b_thread_vec.template AsType<mfma_input_type_b>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                         if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
                         {
                             __builtin_amdgcn_sched_barrier(0);
@@ -795,11 +800,6 @@ struct BlockwiseGemmXdlops_v2
                       "wrong!");
     }
 
-    __host__ __device__ BlockwiseGemmXdlops_v2(const BlockwiseGemmXdlops_v2& other)
-        : a_thread_copy_(other.a_origin), b_thread_copy_(other.b_origin)
-    {
-    }
-
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4()
     {
@@ -968,10 +968,9 @@ struct BlockwiseGemmXdlops_v2
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.template Run(
-                        a_thread_vec.template AsType<mfma_input_type>(),
-                        b_thread_vec.template AsType<mfma_input_type>(),
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
         });

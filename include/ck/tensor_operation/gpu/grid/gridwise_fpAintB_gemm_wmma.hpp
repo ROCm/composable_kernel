@@ -50,8 +50,7 @@ __global__ void
                                  const CElementwiseOperation c_element_op,
                                  const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx1100__) || defined(__gfx1101__) || \
-    defined(__gfx1102__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::SharedMemTrait::lds_size];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
@@ -80,7 +79,7 @@ __global__ void
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = block_2_ctile_map;
-#endif // end of if (defined(__gfx1100__))
+#endif // end of if (defined(__gfx11__))
 }
 
 // Assume B is Col-Major
@@ -303,12 +302,16 @@ struct GridwiseFpAintBGemm_Wmma
             if constexpr(AEnableLds)
             {
                 // AK0_M_AK1 -> AK0_MRepeat_Mwaves_AKRow_MPerWmma_AK1
-                constexpr auto A_K0   = ABlockDesc_{}.GetLength(I0);
-                constexpr auto A_K1   = ABlockDesc_{}.GetLength(I2);
+                constexpr auto A_K0 = ABlockDesc_{}.GetLength(I0);
+                constexpr auto A_K1 = ABlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto A_KRow = I2;
+#else
                 constexpr auto A_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     ABlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0>{}, A_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<A_K0 / A_KRow>{}, A_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<MRepeat>{}, Number<MWaves>{}, Number<MPerWmma>{})),
                                make_pass_through_transform(Number<A_K1>{})),
@@ -361,12 +364,16 @@ struct GridwiseFpAintBGemm_Wmma
             if constexpr(BEnableLds)
             {
                 // BK0_N_BK1 -> BK0_NRepeat_Nwaves_NPerWmma_BK1
-                constexpr auto B_K0   = BBlockDesc_{}.GetLength(I0);
-                constexpr auto B_K1   = BBlockDesc_{}.GetLength(I2);
+                constexpr auto B_K0 = BBlockDesc_{}.GetLength(I0);
+                constexpr auto B_K1 = BBlockDesc_{}.GetLength(I2);
+#ifdef __gfx12__
+                constexpr auto B_KRow = I2;
+#else
                 constexpr auto B_KRow = I1;
+#endif
                 return transform_tensor_descriptor(
                     BBlockDesc_{},
-                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0>{}, B_KRow)),
+                    make_tuple(make_unmerge_transform(make_tuple(Number<B_K0 / B_KRow>{}, B_KRow)),
                                make_unmerge_transform(make_tuple(
                                    Number<NRepeat>{}, Number<NWaves>{}, Number<NPerWmma>{})),
                                make_pass_through_transform(Number<B_K1>{})),

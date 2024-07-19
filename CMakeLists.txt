@@ -23,10 +23,10 @@ endif()
 
 set(version 1.1.0)
 # Check support for CUDA/HIP in Cmake
-project(composable_kernel VERSION ${version} LANGUAGES CXX)
+project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
-find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
+find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -111,13 +111,21 @@ message("checking which targets are supported")
 #These targets will be filtered and only supported ones will be used
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
+  if(NOT ENABLE_ASAN_PACKAGING)
+    #build CK for all supported targets
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
+  else()
+    #build CK only for xnack-supported targets
+    rocm_check_target_ids(DEFAULT_GPU_TARGETS
+        TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
+    set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
+  endif()
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)
     if(GPU_TARGETS)
-        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx90, gfx94, gfx10, or gfx11")
+        message(FATAL_ERROR "For PROFILE_ONLY build, please do not set GPU_TARGETS, use GPU_ARCH = gfx90, gfx94, gfx10, gfx11 or gfx12")
     endif()
     if(GPU_ARCH MATCHES "gfx90")
         rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx908;gfx90a")
@@ -127,20 +135,20 @@ else()
         rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1030")
     elseif(GPU_ARCH MATCHES "gfx11")
         rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1100;gfx1101;gfx1102")
+    elseif(GPU_ARCH MATCHES "gfx12")
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS TARGETS "gfx1200;gfx1201")
     else()
-        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx90, gfx94, gfx10, or gfx11")
+        message(FATAL_ERROR "For PROFILE_ONLY build, please specify GPU_ARCH as gfx90, gfx94, gfx10, gfx11 or gfx12")
     endif()
     set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
 endif()
 
 message("Supported GPU_TARGETS= ${DEFAULT_GPU_TARGETS}")
 
-set(AMDGPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
-
 if(GPU_TARGETS)
     message("Building CK for the following targets: ${GPU_TARGETS}")
 else()
-    message("Building CK for the following targets: ${AMDGPU_TARGETS}")
+    message("Building CK for the default targets: ${DEFAULT_GPU_TARGETS}")
 endif()
 
 if (GPU_TARGETS)
@@ -148,7 +156,7 @@ if (GPU_TARGETS)
         add_definitions(-DCK_USE_XDL)
         set(CK_USE_XDL "ON")
     endif()
-    if (GPU_TARGETS MATCHES "gfx11")
+    if (GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12")
         add_definitions(-DCK_USE_WMMA)
         set(CK_USE_WMMA "ON")
     endif()
@@ -202,7 +210,7 @@ endif()
 
 
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_NAVI3X "Whether to enable LDS cumode and Wavefront32 mode for NAVI3X silicons." OFF)
+option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -210,10 +218,10 @@ if(USE_BITINT_EXTENSION_INT4)
     message("CK compiled with USE_BITINT_EXTENSION_INT4 set to ${USE_BITINT_EXTENSION_INT4}")
 endif()
 
-if(USE_OPT_NAVI3X)
+if(USE_OPT_GFX11)
     add_compile_options(-mcumode)
     add_compile_options(-mno-wavefrontsize64)
-    message("CK compiled with USE_OPT_NAVI3X set to ${USE_OPT_NAVI3X}")
+    message("CK compiled with USE_OPT_GFX11 set to ${USE_OPT_GFX11}")
 endif()
 
 ## Threads
@@ -225,7 +233,13 @@ link_libraries(Threads::Threads)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-message("CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
+message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
+## HIP
+set(CMAKE_HIP_PLATFORM amd)
+set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
+set(CMAKE_HIP_EXTENSIONS ON)
+message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -435,6 +449,13 @@ if(BUILD_DEV)
     add_compile_options(-Weverything)
 endif()
 message("CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+
+if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    add_compile_options(-fcolor-diagnostics)
+endif()
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 4.9)
+    add_compile_options(-fdiagnostics-color=always)
+endif()
 
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 

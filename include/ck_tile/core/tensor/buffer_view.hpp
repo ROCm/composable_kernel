@@ -6,6 +6,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
@@ -67,6 +68,8 @@ struct buffer_view<address_space_enum::generic,
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
     {
     }
+
+    CK_TILE_HOST_DEVICE void init_raw() {}
 
     CK_TILE_DEVICE static constexpr address_space_enum get_address_space()
     {
@@ -223,23 +226,34 @@ struct buffer_view<address_space_enum::global,
 
     T* p_data_ = nullptr;
     BufferSizeType buffer_size_;
+    int32x4_t cached_buf_res_;
     remove_cvref_t<T> invalid_element_value_ = T{0};
 
     CK_TILE_HOST_DEVICE constexpr buffer_view()
-        : p_data_{}, buffer_size_{}, invalid_element_value_{}
+        : p_data_{}, buffer_size_{}, cached_buf_res_{0}, invalid_element_value_{}
     {
     }
 
     CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
-        : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{0}
+        : p_data_{p_data}, buffer_size_{buffer_size}, cached_buf_res_{0}, invalid_element_value_{0}
     {
     }
 
     CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data,
                                               BufferSizeType buffer_size,
                                               T invalid_element_value)
-        : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
+        : p_data_{p_data},
+          buffer_size_{buffer_size},
+          cached_buf_res_{0},
+          invalid_element_value_{invalid_element_value}
     {
+    }
+
+    // this is non constexpr intentially (will call some intrinsic internally)
+    // Must call for buffers that need *_raw load/store
+    CK_TILE_HOST_DEVICE void init_raw()
+    {
+        cached_buf_res_ = make_wave_buffer_resource(p_data_, buffer_size_ * sizeof(type));
     }
 
     CK_TILE_DEVICE static constexpr address_space_enum get_address_space()
@@ -332,12 +346,15 @@ struct buffer_view<address_space_enum::global,
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
               bool oob_conditional_check = true,
+              bool pre_nop               = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto
-    get_raw(remove_cvref_t<X>& dst, index_t i, bool is_valid_element) const
+    CK_TILE_DEVICE constexpr auto get_raw(remove_cvref_t<X>& dst,
+                                          index_t i,
+                                          bool is_valid_element,
+                                          bool_constant<pre_nop> = {}) const
     {
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
 
@@ -348,18 +365,21 @@ struct buffer_view<address_space_enum::global,
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence, oob_conditional_check>(
-            dst, p_data_, i, buffer_size_, is_valid_element);
+        amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence, oob_conditional_check, pre_nop>(
+            dst, cached_buf_res_, i, is_valid_element, bool_constant<pre_nop>{});
     }
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              bool pre_nop = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto
-    async_get(remove_cvref_t<T>* smem, index_t i, bool /*is_valid_element*/) const
+    CK_TILE_DEVICE constexpr auto async_get_raw(remove_cvref_t<T>* smem,
+                                                index_t i,
+                                                bool /*is_valid_element*/,
+                                                bool_constant<pre_nop> = {}) const
     {
         // X is vector of T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -370,8 +390,8 @@ struct buffer_view<address_space_enum::global,
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-        amd_async_buffer_load_with_oob<remove_cvref_t<T>, t_per_x, Coherence>(
-            smem, p_data_, i, buffer_size_);
+        amd_async_buffer_load_with_oob_raw<remove_cvref_t<T>, t_per_x, Coherence>(
+            smem, cached_buf_res_, i, bool_constant<pre_nop>{});
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -507,10 +527,10 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
         if constexpr(use_amd_buffer_addressing)
         {
-            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
             amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, buffer_size_);
         }
@@ -518,7 +538,7 @@ struct buffer_view<address_space_enum::global,
         {
             if(is_valid_element)
             {
-                atomic_add<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
+                atomic_add_g<remove_cvref_t<T>, t_per_x>(&p_data_[i], x);
             }
         }
     }
@@ -547,16 +567,16 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
         if constexpr(use_amd_buffer_addressing)
         {
-            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-
             amd_buffer_atomic_max<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i, is_valid_element, buffer_size_);
         }
         else if(is_valid_element)
         {
-            atomic_max<X>(c_style_pointer_cast<X*>(&p_data_[i]), x);
+            atomic_max_g<remove_cvref_t<T>, t_per_x>(&p_data_[i], x);
         }
     }
 
@@ -625,6 +645,8 @@ struct buffer_view<address_space_enum::lds,
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
     {
     }
+
+    CK_TILE_HOST_DEVICE void init_raw() {}
 
     CK_TILE_DEVICE static constexpr address_space_enum get_address_space()
     {
@@ -907,6 +929,8 @@ struct buffer_view<address_space_enum::vgpr,
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
     {
     }
+
+    CK_TILE_HOST_DEVICE void init_raw() {}
 
     CK_TILE_DEVICE static constexpr address_space_enum get_address_space()
     {

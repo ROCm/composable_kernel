@@ -70,8 +70,9 @@ __global__ void
             const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
             const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) || \
-    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||         \
+    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__) || \
+    defined(__gfx12__))
 
     const index_t num_blocks_per_batch =
         __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
@@ -648,7 +649,7 @@ struct DeviceBatchedGemmMultipleD_Dl : public DeviceBatchedGemmMultiD<ALayout,
     static bool IsSupportedArgument(const Argument& arg)
     {
         if(ck::get_device_name() == "gfx906" || ck::is_xdl_supported() ||
-           ck::is_navi2_supported() || ck::is_navi3_supported())
+           ck::is_gfx103_supported() || ck::is_gfx11_supported() || ck::is_gfx12_supported())
         {
             bool pass = true;
             pass      = pass && arg.K_ % K1 == 0;

@@ -168,7 +168,7 @@ struct DeviceGemmDpp : public DeviceGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& karg)
     {
-        if(ck::is_navi2_supported() || ck::is_navi3_supported())
+        if(ck::is_gfx103_supported() || ck::is_gfx11_supported())
         {
             return GridwiseGemm::CheckValidity(karg);
         }

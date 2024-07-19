@@ -55,7 +55,7 @@ struct alignas(1) float8_e4m3_t
 {
     static constexpr int exponent = 4;
     static constexpr int mantissa = 3;
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     static constexpr int bias = 1 << (exponent - 1); // NANOO
 #else
     static constexpr int bias = (1 << (exponent - 1)) - 1; // IEEE
@@ -113,7 +113,7 @@ struct alignas(1) float8_e5m2_t
 {
     static constexpr int exponent = 5;
     static constexpr int mantissa = 2;
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     static constexpr int bias = 1 << (exponent - 1); // NANOO
 #else
     static constexpr int bias = (1 << (exponent - 1)) - 1; // IEEE
@@ -470,7 +470,7 @@ CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_sr_raw(float x)
 {
     constexpr int seed = 42;
     uint32_t rng       = prand_generator_t<float, seed>{}(reinterpret_cast<uintptr_t>(&x), x);
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     float max_fp8 = 240.0f;
     x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
     union
@@ -500,7 +500,7 @@ CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_sr_raw(float x)
 {
     constexpr int seed = 42;
     uint32_t rng       = prand_generator_t<float, seed>{}(reinterpret_cast<uintptr_t>(&x), x);
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     union
     {
         float fval;
@@ -526,7 +526,7 @@ CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_sr_raw(float x)
 
 CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_rtn_raw(float x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     float max_fp8 = 240.0f;
     x             = x > max_fp8 ? max_fp8 : (x < -max_fp8 ? -max_fp8 : x);
     union
@@ -554,7 +554,7 @@ CK_TILE_HOST_DEVICE fp8_raw_t float_to_fp8_rtn_raw(float x)
 }
 CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_rtn_raw(float x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     union
     {
         float fval;
@@ -598,7 +598,7 @@ CK_TILE_HOST_DEVICE bf8_raw_t float_to_bf8_raw(float x, constant<rounding>)
 
 CK_TILE_HOST_DEVICE float fp8_to_float_raw(fp8_raw_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     float fval;
     uint32_t i32val = static_cast<uint32_t>(x);
     fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
@@ -612,7 +612,7 @@ CK_TILE_HOST_DEVICE float fp8_to_float_raw(fp8_raw_t x)
 
 CK_TILE_HOST_DEVICE float bf8_to_float_raw(bf8_raw_t x)
 {
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     float fval;
     uint32_t i32val = static_cast<uint32_t>(x);
     fval            = __builtin_amdgcn_cvt_f32_bf8(i32val, 0);
@@ -656,7 +656,7 @@ struct numeric_traits<fp8_t>
 {
     static constexpr int exp  = 4;
     static constexpr int mant = 3;
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     static constexpr int bias = 8;
 #else
     static constexpr int bias = 7;
@@ -668,7 +668,7 @@ struct numeric_traits<bf8_t>
 {
     static constexpr int exp  = 5;
     static constexpr int mant = 2;
-#if defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__)
+#if defined(__gfx94__)
     static constexpr int bias = 16;
 #else
     static constexpr int bias = 15; // IEEE
@@ -835,7 +835,7 @@ CK_TILE_DEVICE
 fp8_t sqrt(fp8_t x) { return static_cast<fp8_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x))); };
 
 CK_TILE_DEVICE
-fp8_t exp(fp8_t x) { return static_cast<fp8_t>(__expf(static_cast<float>(x))); };
+fp8_t exp(fp8_t x) { return static_cast<fp8_t>(__ocml_exp_f32(static_cast<float>(x))); };
 
 CK_TILE_DEVICE
 fp8_t exp2(fp8_t x) { return static_cast<fp8_t>(exp2f(static_cast<float>(x))); };
@@ -860,7 +860,7 @@ CK_TILE_DEVICE
 bf8_t sqrt(bf8_t x) { return static_cast<bf8_t>(__builtin_amdgcn_sqrtf(static_cast<float>(x))); };
 
 CK_TILE_DEVICE
-bf8_t exp(bf8_t x) { return static_cast<bf8_t>(__expf(static_cast<float>(x))); };
+bf8_t exp(bf8_t x) { return static_cast<bf8_t>(__ocml_exp_f32(static_cast<float>(x))); };
 
 CK_TILE_DEVICE
 bf8_t exp2(bf8_t x) { return static_cast<bf8_t>(exp2f(static_cast<float>(x))); };
