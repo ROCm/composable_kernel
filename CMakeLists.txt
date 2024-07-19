@@ -111,8 +111,16 @@ message("checking which targets are supported")
 #These targets will be filtered and only supported ones will be used
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
+  if(NOT ENABLE_ASAN_PACKAGING)
+    #build CK for all supported targets
     rocm_check_target_ids(DEFAULT_GPU_TARGETS
         TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+  else()
+    #build CK only for xnack-supported targets
+    rocm_check_target_ids(DEFAULT_GPU_TARGETS
+        TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
+    set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
+  endif()
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)
