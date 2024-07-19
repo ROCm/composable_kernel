@@ -333,19 +333,26 @@ struct BlockDropout
                 uint2 rowcol = make_uint2(block_row_start, block_col_start);
 
                 // generate random number
-                uint8_t random_uint8_t[16];
-                uint8_t* random_uint8_t_ = random_uint8_t;
-                ph.get_random_16x8(random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol));
-
+                uint8_t* random_uint8_t_;
                 if constexpr(!IsWG32)
                 {
+                    uint8_t random_uint8_t[4];
                     // m0t0 ~m0t15/m0t32~m0t47: 0
                     // m0t16~m0t31/m0t48~m0t63: 1
                     // m1t0 ~m1t15/m1t32~m1t47: 2
                     // m1t16~m1t31/m1t48~m1t63: 3
-                    int start_idx = ((get_lane_id() >> 4) & 1) + (((start_m0_idx >> 4) & 1) << 1);
-                    uint32_t* random_uint32_t = reinterpret_cast<uint32_t*>(random_uint8_t);
-                    random_uint8_t_ = reinterpret_cast<uint8_t*>(&random_uint32_t[start_idx]);
+                    const index_t start_idx =
+                        ((get_lane_id() >> 4) & 1) + (((start_m0_idx >> 4) & 1) << 1);
+                    ph.get_random_4x8(
+                        random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol), start_idx);
+                    random_uint8_t_ = random_uint8_t;
+                }
+                else
+                {
+                    uint8_t random_uint8_t[16];
+                    ph.get_random_16x8(random_uint8_t,
+                                       reinterpret_cast<unsigned long long&>(rowcol));
+                    random_uint8_t_ = random_uint8_t;
                 }
 
                 constexpr auto randval_spans = decltype(randval)::get_distributed_spans();
