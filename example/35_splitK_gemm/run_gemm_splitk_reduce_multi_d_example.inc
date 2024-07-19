@@ -206,7 +206,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     float ave_time   = 0;
     auto get_argment = [&]() {
         if constexpr(DsDataType::Size() > 0)
-	{
+        {
             return gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                      {d0_m_n_device_buf.GetDeviceBuffer()},
@@ -222,9 +222,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      a_element_op,
                                      b_element_op,
                                      c_element_op);
-	}
+        }
         else
-	{
+        {
             return gemm.MakeArgument(static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
                                      static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
                                      {},

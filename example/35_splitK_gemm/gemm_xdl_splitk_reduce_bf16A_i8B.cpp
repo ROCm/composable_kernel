@@ -20,8 +20,8 @@ using CLayout  = Row;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<>;
 
-using AElementOp = PassThrough;
-using BElementOp = PassThrough;
+using AElementOp   = PassThrough;
+using BElementOp   = PassThrough;
 using CDEElementOp = PassThrough;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
@@ -45,8 +45,13 @@ using DeviceGemmV2Instance =
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3, ReduceDataType>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, PassThrough>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        PassThrough>;
 
 #include "run_gemm_splitk_reduce_multi_d_example.inc"
 
