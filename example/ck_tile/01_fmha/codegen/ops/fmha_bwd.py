@@ -104,8 +104,7 @@ using fmha_bwd_dv_epilogue_{F_idx} = ck_tile::Default2DEpilogue<
                                       false>>;
 
 using fmha_bwd_dq_dk_dv_kernel_{F_idx} =
-    ck_tile::FmhaBwdDQDKDVKernel<ck_tile::FmhaBwdKTilePartitioner<{F_bn0}>,
-                                 fmha_bwd_pipeline_{F_idx},
+    ck_tile::FmhaBwdDQDKDVKernel<fmha_bwd_pipeline_{F_idx},
                                  fmha_bwd_dk_epilogue_{F_idx},
                                  fmha_bwd_dv_epilogue_{F_idx}>;
 
@@ -517,8 +516,7 @@ using fmha_bwd_dot_do_o_{F_idx} =
     typename ck_tile::BlockFmhaBwdOGradDotO<fmha_bwd_dot_do_o_pipeline_problem_{F_idx}>;
 
 using fmha_bwd_dot_do_o_kernel_{F_idx} =
-    ck_tile::FmhaBwdOGradDotOKernel<ck_tile::FmhaBwdQTilePartitioner</* BlockSize = */ 64>,
-                                    fmha_bwd_dot_do_o_{F_idx}>;
+    ck_tile::FmhaBwdOGradDotOKernel<fmha_bwd_dot_do_o_{F_idx}>;
 
 using dot_do_o_trait_{F_idx} =
     fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
@@ -641,8 +639,7 @@ using fmha_bwd_convert_dq_{F_idx} =
     typename ck_tile::BlockFmhaBwdConvertQGrad<fmha_bwd_convert_dq_pipeline_problem_{F_idx}>;
 
 using fmha_bwd_convert_dq_kernel_{F_idx} =
-    ck_tile::FmhaBwdConvertQGradKernel<ck_tile::FmhaBwdQTilePartitioner<{F_bm0}>,
-                                       fmha_bwd_convert_dq_{F_idx}>;
+    ck_tile::FmhaBwdConvertQGradKernel<fmha_bwd_convert_dq_{F_idx}>;
 
 using convert_dq_trait_{F_idx} = fmha_bwd_convert_dq_traits_<{F_hdim},
                                                              {F_dtype},
