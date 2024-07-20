@@ -66,6 +66,19 @@ BIAS_CHECK_MAP = {
     "alibi" : "bias_enum::alibi"
 }
 
+ROPE_MAP = {
+    "no" : "ck_tile::BlockRotaryEmbeddingEnum::NONE",
+    "inter"  : "ck_tile::BlockRotaryEmbeddingEnum::INTERLEAVED",
+    "half" : "ck_tile::BlockRotaryEmbeddingEnum::HALF_ROTATED"
+}
+
+# TODO: avoid duplication
+ROPE_CHECK_MAP = {
+    "no" : "rope_enum::none",
+    "inter"  : "rope_enum::interleaved",
+    "half" : "rope_enum::half_rotated"
+}
+
 MODE_MAP = {
     "batch" : "false",
     "group" : "true"

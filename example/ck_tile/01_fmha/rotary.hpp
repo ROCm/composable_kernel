@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
+#pragma once
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 
@@ -11,6 +13,14 @@
 #include <optional>
 #include <random>
 #include <tuple>
+
+// keep sync with BlockRotaryEmbeddingEnum
+enum class rope_enum
+{
+    none         = 0,
+    interleaved  = 1,
+    half_rotated = 2,
+};
 
 template <typename DataType>
 std::tuple<ck_tile::HostTensor<DataType>, ck_tile::HostTensor<DataType>>
@@ -47,13 +57,6 @@ generate_rotary_cos_sin(ck_tile::index_t seqlen_k,
     });
 
     return std::make_tuple(cos, sin);
-}
-
-ck_tile::index_t generate_seqlen_offset(ck_tile::index_t seqlen,
-                                        std::optional<unsigned> seed = std::nullopt)
-{
-    std::mt19937 random_engine(seed.has_value() ? *seed : std::random_device{}());
-    return std::uniform_int_distribution<ck_tile::index_t>{0, seqlen}(random_engine);
 }
 
 template <typename DataType>

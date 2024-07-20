@@ -5,10 +5,13 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
-#include "mask.hpp"
+#include "ck_tile/ops/fmha.hpp"
+
 #include "bias.hpp"
+#include "mask.hpp"
+#include "rotary.hpp"
+
 #include <type_traits>
 
 template <typename DataType>
@@ -176,7 +179,6 @@ struct fmha_fwd_appendkv_args
     const void* rotary_cos_ptr;
     const void* rotary_sin_ptr;
     ck_tile::index_t rotary_dim;
-    bool is_rotary_interleaved;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -486,7 +488,6 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                      args.rotary_cos_ptr,
                                      args.rotary_sin_ptr,
                                      args.rotary_dim,
-                                     args.is_rotary_interleaved,
                                      args.stride_q,
                                      args.stride_k,
                                      args.stride_knew,
@@ -517,7 +518,6 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                      args.rotary_cos_ptr,
                                      args.rotary_sin_ptr,
                                      args.rotary_dim,
-                                     args.is_rotary_interleaved,
                                      args.stride_q,
                                      args.stride_k,
                                      args.stride_knew,
@@ -537,10 +537,13 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
     }();
 
     dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_knew, args.hdim_v);
-    printf("[POYENC][HOST] grid size: %2d,%2d,%2d\n",
-           static_cast<int>(grids.x),
-           static_cast<int>(grids.y),
-           static_cast<int>(grids.z));
+    HOST_DEBUG_STMTS
+    {
+        printf("[HOST] grid size: %2d,%2d,%2d\n",
+               static_cast<int>(grids.x),
+               static_cast<int>(grids.y),
+               static_cast<int>(grids.z));
+    }
     return ck_tile::make_tuple(kargs, grids);
 }
 
@@ -639,7 +642,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSk_,
           bool kPadD_,
           bool kPadDv_,
-          bool kApplyRoPE_>
+          ck_tile::BlockRotaryEmbeddingEnum RotaryEnum_>
 struct fmha_fwd_appendkv_traits_
 {
     static constexpr ck_tile::index_t HDim        = HDim_;
@@ -654,7 +657,7 @@ struct fmha_fwd_appendkv_traits_
     static constexpr bool kPadSk                  = kPadSk_;
     static constexpr bool kPadD                   = kPadD_;
     static constexpr bool kPadDv                  = kPadDv_;
-    static constexpr bool kApplyRoPE              = kApplyRoPE_;
+    static constexpr auto RotaryEnum              = RotaryEnum_;
 };
 
 template <typename Traits_>
@@ -685,7 +688,7 @@ struct fmha_fwd_appendkv_traits
     std::string data_type;
     bool is_group_mode;
     bool is_v_rowmajor;
-    bool apply_rope;
+    rope_enum rope_type;
 };
 float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
                         fmha_fwd_appendkv_args,

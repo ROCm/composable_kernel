@@ -31,7 +31,7 @@ struct FmhaFwdAppendKVKernel
     static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
-    static constexpr bool kApplyRoPE   = FmhaPipeline::kApplyRoPE;
+    static constexpr bool kApplyRoPE   = FmhaPipeline::RotaryEnum != BlockRotaryEmbeddingEnum::NONE;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -62,7 +62,7 @@ struct FmhaFwdAppendKVKernel
             "b" + _TS_(FmhaPipeline::kTileSizeS) + "x" + _TS_(FmhaPipeline::kTileSizeSk) + "x" + _TS_(FmhaPipeline::kTileSizeD) + "x" +
                   _TS_(FmhaPipeline::kTileSizeDv) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
-            + (kApplyRoPE ? "_rope" : "");
+            + (!kApplyRoPE ? _SS_("") : (_SS_("_") + BlockRotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name));
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -117,7 +117,6 @@ struct FmhaFwdAppendKVKernel
         const void* rotary_cos_ptr;
         const void* rotary_sin_ptr;
         ck_tile::index_t rotary_dim;
-        bool is_rotary_interleaved;
     };
 
     struct BatchModeKargs : CommonKargs,
@@ -155,7 +154,6 @@ struct FmhaFwdAppendKVKernel
               const void* rotary_cos_ptr,
               const void* rotary_sin_ptr,
               ck_tile::index_t rotary_dim,
-              bool is_rotary_interleaved,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_knew,
@@ -203,10 +201,9 @@ struct FmhaFwdAppendKVKernel
 
         if constexpr(kApplyRoPE)
         {
-            kargs.rotary_cos_ptr        = rotary_cos_ptr;
-            kargs.rotary_sin_ptr        = rotary_sin_ptr;
-            kargs.rotary_dim            = rotary_dim;
-            kargs.is_rotary_interleaved = is_rotary_interleaved;
+            kargs.rotary_cos_ptr = rotary_cos_ptr;
+            kargs.rotary_sin_ptr = rotary_sin_ptr;
+            kargs.rotary_dim     = rotary_dim;
         }
 
         return kargs;
@@ -230,7 +227,6 @@ struct FmhaFwdAppendKVKernel
               const void* rotary_cos_ptr,
               const void* rotary_sin_ptr,
               ck_tile::index_t rotary_dim,
-              bool is_rotary_interleaved,
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_knew,
@@ -275,10 +271,9 @@ struct FmhaFwdAppendKVKernel
 
         if constexpr(kApplyRoPE)
         {
-            kargs.rotary_cos_ptr        = rotary_cos_ptr;
-            kargs.rotary_sin_ptr        = rotary_sin_ptr;
-            kargs.rotary_dim            = rotary_dim;
-            kargs.is_rotary_interleaved = is_rotary_interleaved;
+            kargs.rotary_cos_ptr = rotary_cos_ptr;
+            kargs.rotary_sin_ptr = rotary_sin_ptr;
+            kargs.rotary_dim     = rotary_dim;
         }
 
         return kargs;
@@ -626,8 +621,7 @@ struct FmhaFwdAppendKVKernel
                            rotary_cos_dram_window,
                            rotary_sin_dram_window,
                            smem_ptr,
-                           kargs.rotary_dim,
-                           kargs.is_rotary_interleaved);
+                           kargs.rotary_dim);
         }
         else
         {

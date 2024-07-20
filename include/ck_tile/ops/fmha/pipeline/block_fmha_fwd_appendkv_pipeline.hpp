@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_rotary_embedding_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_appendkv_pipeline_default_policy.hpp"
 
 namespace ck_tile {
@@ -31,7 +32,7 @@ struct BlockFmhaFwdAppendKVPipeline
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr bool kApplyRoPE   = Problem::kApplyRoPE;
+    static constexpr auto RotaryEnum   = Problem::RotaryEnum;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -101,8 +102,7 @@ struct BlockFmhaFwdAppendKVPipeline
                const RotaryCosBlockWindowTemp rotary_cos_block_window_tmp,
                const RotarySinBlockWindowTemp rotary_sin_block_window_tmp,
                void* smem_ptr,
-               index_t rotary_dim         = 0,
-               bool is_rotary_interleaved = false) const
+               index_t rotary_dim = 0) const
     {
 
         auto* const ksmem = reinterpret_cast<KDataType*>(smem_ptr);
@@ -125,7 +125,6 @@ struct BlockFmhaFwdAppendKVPipeline
         (void)rotary_sin_block_window_tmp;
         (void)smem_ptr;
         (void)rotary_dim;
-        (void)is_rotary_interleaved;
 
         auto knew_dram_block_window =
             make_tile_window(knew_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -140,7 +139,7 @@ struct BlockFmhaFwdAppendKVPipeline
 
         auto knew_tile = load_tile(knew_dram_window);
 
-        if constexpr(kApplyRoPE)
+        if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
         {
             auto rotary_cos_window = make_tile_window(
                 rotary_cos_block_window_tmp.get_bottom_tensor_view(),
@@ -188,12 +187,54 @@ struct BlockFmhaFwdAppendKVPipeline
                 }
             }
 #endif
+#define DUMP_KNEW 0
             constexpr index_t KPerThread = 16 / sizeof(KDataType);
             static_assert(kTileSizeD % KPerThread == 0);
             constexpr index_t KThreadPerBlock = kTileSizeD / KPerThread;
             index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
+
             if((start_x + KPerThread) <= rotary_dim)
             {
+                bool is_left = (start_x + KPerThread) <= (rotary_dim / 2);
+
+                auto knew_other_dram_window = knew_dram_window;
+                DEVICE_DEBUG_STMTS
+                {
+                    auto origin = knew_other_dram_window.get_window_origin();
+                    printf("after move window, origin = (%3d, %3d)\n",
+                           origin.at(number<0>{}),
+                           origin.at(number<1>{}));
+                }
+                move_tile_window(knew_other_dram_window,
+                                 {0, is_left ? rotary_dim / 2 : -(rotary_dim / 2)});
+                DEVICE_DEBUG_STMTS
+                {
+                    auto origin = knew_other_dram_window.get_window_origin();
+                    printf("after move window, origin = (%3d, %3d)\n",
+                           origin.at(number<0>{}),
+                           origin.at(number<1>{}));
+                }
+                auto knew_other_tile = load_tile(knew_other_dram_window);
+
+#if !DUMP_KNEW
+                {
+                    constexpr auto spans = decltype(knew_other_tile)::get_distributed_spans();
+                    sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                knew_other_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                            const auto row         = tile_idx.at(number<0>{});
+                            const auto col         = tile_idx.at(number<1>{});
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                            ksmem[row * kTileSizeD + col] = knew_other_tile(i_j_idx);
+                        });
+                    });
+                }
+#endif
+
+#if !defined(DUMP_KNEW)
                 constexpr index_t thread_buffer_size = decltype(knew_tile.thread_buf_)::size();
                 static_assert(thread_buffer_size % KPerThread == 0);
                 static_for<0, thread_buffer_size, 2>{}([&](auto idx) {
@@ -206,10 +247,12 @@ struct BlockFmhaFwdAppendKVPipeline
                     knew_tile.thread_buf_[idx]     = left * cos - right * sin;
                     knew_tile.thread_buf_[idx + 1] = right * cos + left * sin;
                 });
+#endif
             }
 #if defined(ENABLE_DEVICE_DEBUG_STMTS)
             DEVICE_DEBUG_STMTS { printf("[DEVICE] kTileSizeD: %3d\n", kTileSizeD); }
 
+#if DUMP_KNEW
             {
                 constexpr auto spans = decltype(knew_tile)::get_distributed_spans();
                 sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
@@ -225,6 +268,7 @@ struct BlockFmhaFwdAppendKVPipeline
                     });
                 });
             }
+#endif
 
             block_sync_lds();
 
@@ -232,7 +276,12 @@ struct BlockFmhaFwdAppendKVPipeline
             {
                 for(int row = 0; row < 7; ++row)
                 {
+#if DUMP_KNEW
                     printf("[DEVICE] knew_tile[%3d] = ", row);
+#else
+                    printf("[DEVICE] knew_other_tile[%3d] = ", row);
+#endif
+
                     for(int col = 0; col < kTileSizeD; ++col)
                     {
                         printf("%11.7f", type_convert<float>(ksmem[row * kTileSizeD + col]));
@@ -297,8 +346,7 @@ struct BlockFmhaFwdAppendKVPipeline
                                         const RotaryCosBlockWindowTemp& rotary_cos_block_window_tmp,
                                         const RotarySinBlockWindowTemp& rotary_sin_block_window_tmp,
                                         void* smem_ptr,
-                                        index_t rotary_dim         = 0,
-                                        bool is_rotary_interleaved = false) const
+                                        index_t rotary_dim = 0) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -313,8 +361,7 @@ struct BlockFmhaFwdAppendKVPipeline
                           rotary_cos_block_window_tmp,
                           rotary_sin_block_window_tmp,
                           smem_ptr,
-                          rotary_dim,
-                          is_rotary_interleaved);
+                          rotary_dim);
     }
 };
 

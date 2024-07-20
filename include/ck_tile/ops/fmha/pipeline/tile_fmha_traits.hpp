@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_rotary_embedding_enum.hpp"
 
 namespace ck_tile {
 
@@ -80,7 +81,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadSeqLenK_ /* padding for seqlen_k */,
           bool kPadHeadDimQ_ /* paddding for hdim_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
-          bool kApplyRoPE_ /* apply RoPE to Q/K or not */,
+          BlockRotaryEmbeddingEnum RotaryEnum_, /* how we apply the rotary embedding */
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaFwdAppendKVTraits
 {
@@ -88,7 +89,7 @@ struct TileFmhaFwdAppendKVTraits
     static constexpr bool kPadSeqLenK    = kPadSeqLenK_;
     static constexpr bool kPadHeadDimQ   = kPadHeadDimQ_;
     static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
-    static constexpr bool kApplyRoPE     = kApplyRoPE_;
+    static constexpr auto RotaryEnum     = RotaryEnum_;
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 

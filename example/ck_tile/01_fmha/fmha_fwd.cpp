@@ -558,7 +558,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             printf("\n");
         }
 #endif
-#if 1
+#if 0
         printf("rotary_sin's shape: (%2zu, %2zu)\n",
                rotary_sin_host.get_length(0),
                rotary_sin_host.get_length(1));
@@ -727,7 +727,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(0 < seqlen_knew)
     {
         auto appendkv_traits = fmha_fwd_appendkv_traits{
-            hdim_q, hdim_v, data_type, mode == mode_enum::group, is_v_rowmajor, 0 < rotary_dim};
+            hdim_q,
+            hdim_v,
+            data_type,
+            mode == mode_enum::group,
+            is_v_rowmajor,
+            (0 < rotary_dim
+                 ? (is_rotary_interleaved ? rope_enum::interleaved : rope_enum::half_rotated)
+                 : rope_enum::none)};
 
         auto appendkv_args = [&, k_paddings_ = seqlen_kpads]() {
             // setup stride_* arguments
@@ -790,7 +797,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           rotary_cos_buf.GetDeviceBuffer(),
                                           rotary_sin_buf.GetDeviceBuffer(),
                                           rotary_dim,
-                                          is_rotary_interleaved,
                                           stride_q,
                                           stride_k,
                                           stride_knew,
