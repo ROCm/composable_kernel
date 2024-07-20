@@ -750,7 +750,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
             HotLoopScheduler::template GemmStagedScheduler<3>();
             __builtin_amdgcn_sched_barrier(0);
-            // STAGE7 SGrad@K^T
+            // STAGE7 SGrad@K^T Gemm4
             auto dq_acc = QGradBlockTileType{};
             clear_tile(dq_acc);
 
@@ -806,6 +806,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         auto st_acc = SPTBlockTileType{};
         clear_tile(st_acc);
 
+        // STAGE 1, Q@K Gemm0
         gemm_0(st_acc, q_reg_tensor, k_reg_tensor);
 
         // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
@@ -980,7 +981,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
         HotLoopScheduler::template GemmStagedScheduler<3>();
         // STAGE 7, SGrad@K^T Gemm4
-
         auto dq_acc = QGradBlockTileType{};
         clear_tile(dq_acc);
 
