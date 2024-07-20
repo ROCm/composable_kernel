@@ -533,7 +533,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
         __builtin_amdgcn_sched_barrier(0);
         // Hot loop
-        do
+        while(i_total_loops < (num_total_loop - 1))
         {
             // STAGE 1, Q@K Gemm0
             auto st_acc = SPTBlockTileType{};
@@ -799,7 +799,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
             i_total_loops += 1;
             seqlen_q_step += kM0;
-        } while(i_total_loops < (num_total_loop - 1));
+        }
         __builtin_amdgcn_sched_barrier(0);
 
         // Tail
