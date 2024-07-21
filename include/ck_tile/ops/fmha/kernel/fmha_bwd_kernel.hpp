@@ -915,27 +915,29 @@ struct FmhaBwdDQDKDVKernel
         }();
 
         // dropout
-        float rp_undrop             = 1;
-        float scale_rp_undrop       = 1;
-        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        uint64_t drop_seed          = 0;
-        uint64_t drop_offset        = 0;
-
+        float rp_undrop       = 1;
+        float scale_rp_undrop = 1;
         if constexpr(kHasDropout)
         {
-            rp_undrop           = kargs.rp_undrop;
-            scale_rp_undrop     = kargs.scale_rp_undrop;
-            p_undrop_in_uint8_t = kargs.p_undrop_in_uint8_t;
-            drop_seed           = kargs.drop_seed;
-            drop_offset         = kargs.drop_offset;
+            rp_undrop       = kargs.rp_undrop;
+            scale_rp_undrop = kargs.scale_rp_undrop;
         }
-        FmhaDropout dropout(i_batch,
-                            i_nhead,
-                            kargs.num_head_q,
-                            drop_seed,
-                            drop_offset,
-                            rp_undrop,
-                            p_undrop_in_uint8_t);
+        auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
+            if constexpr(kHasDropout)
+            {
+                return FmhaDropout{i_batch_,
+                                   i_nhead_,
+                                   kargs.num_head_q,
+                                   kargs.drop_seed,
+                                   kargs.drop_offset,
+                                   kargs.rp_undrop,
+                                   kargs.p_undrop_in_uint8_t};
+            }
+            else
+            {
+                return FmhaDropout{};
+            };
+        }();
 
         auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
             constexpr auto randval_dram_window_lengths =

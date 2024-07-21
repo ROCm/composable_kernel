@@ -8,8 +8,15 @@
 
 namespace ck_tile {
 
-struct NullBlockDropout
+template <bool IsDropout_, bool IsWG32_, bool IsStoreRandval_>
+struct BlockDropout;
+
+template <bool IsWG32_, bool IsStoreRandval_>
+struct BlockDropout<false, IsWG32_, IsStoreRandval_>
 {
+    static constexpr bool IsDropout      = false;
+    static constexpr bool IsStoreRandval = IsStoreRandval_;
+
     template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
     __host__ __device__ static constexpr auto
     MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
@@ -22,10 +29,10 @@ struct NullBlockDropout
     }
 };
 
-template <bool IsDropout_ = true, bool IsWG32_ = true, bool IsStoreRandval_ = false>
-struct BlockDropout
+template <bool IsWG32_, bool IsStoreRandval_>
+struct BlockDropout<true, IsWG32_, IsStoreRandval_>
 {
-    static constexpr bool IsDropout = IsDropout_;
+    static constexpr bool IsDropout = true;
     // true:  32*32 warp gemm
     // false: 16*16 warp gemm
     static constexpr bool IsWG32         = IsWG32_;
