@@ -44,8 +44,7 @@ CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<D
         const ComputeDataType half_rotated_input = [&] {
             const index_t i_b = i[0];
 
-            const index_t hdim      = input_bsd.get_length(2);
-            const index_t half_hdim = hdim / 2;
+            const index_t hdim = input_bsd.get_length(2);
 
             if(interleaved)
             {
@@ -56,8 +55,9 @@ CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<D
             }
             else
             {
-                const index_t pos          = (i_d + half_hdim) % hdim;
-                const ComputeDataType sign = (pos < half_hdim ? 1 : -1);
+                const index_t half_rdim    = (rotary_dim / 2);
+                const index_t pos          = (i_d + half_rdim) % rotary_dim;
+                const ComputeDataType sign = (pos < half_rdim ? 1 : -1);
                 return sign * type_convert<ComputeDataType>(input_bsd(i_b, i_s, pos));
             }
         }();
