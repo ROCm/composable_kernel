@@ -137,17 +137,34 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         }
     }
 
-    // 4 vals per load
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeRotaryCosSinInterleaveDramTileDistribution()
+    CK_TILE_DEVICE static constexpr auto MakeRotaryCosSinTileDistribution()
     {
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::kTileSizeSk;
-        constexpr index_t kKPerBlock = Problem::kTileSizeD / 2;
+        constexpr index_t kKPerBlock = [&]() {
+            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            {
+                return Problem::kTileSizeD;
+            }
+            else
+            {
+                return Problem::kTileSizeD / 2;
+            }
+        }();
 
-        constexpr index_t KPerThread      = 8 / sizeof(KDataType);
+        constexpr index_t KPerThread = [&]() {
+            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            {
+                return 16 / sizeof(KDataType);
+            }
+            else
+            {
+                return 8 / sizeof(KDataType);
+            }
+        }();
         constexpr index_t KThreadPerBlock = kKPerBlock / KPerThread;
         constexpr index_t NThreadPerWarp  = get_warp_size() / KThreadPerBlock;
         constexpr index_t NumWarps        = kBlockSize / get_warp_size();
@@ -161,11 +178,6 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
-    }
-
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr auto MakeRotaryCosSinContiguousDramTileDistribution()
-    {
     }
 };
 

@@ -553,6 +553,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
             printf("[HOST] rotary_cos[%3zu] = ", row);
             for(size_t col = 0; col < rotary_cos_host.get_length(1); ++col)
             {
+                if(0 < col && col % 8 == 0)
+                {
+                    printf("|");
+                }
                 printf("%11.7f", ck_tile::type_convert<float>(rotary_cos_host(row, col)));
             }
             printf("\n");
@@ -1119,6 +1123,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
             // optionally apply RoPE to the knew_host_ref
             auto* real_knew_host_ref = &knew_host_ref;
             std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
+            #if 0
+            HOST_DEBUG_STMTS {
+                for(size_t row = 0; row < real_knew_host_ref->get_length(1); ++row)
+                {
+                    printf("[HOST] real_knew_host[%3zu] = ", row);
+                    for(size_t col = 0; col < real_knew_host_ref->get_length(2); ++col)
+                    {
+                        if (0 < col && col % 8 == 0) {
+                            printf("|");
+                        }
+
+                        printf("%11.7f", 
+                        ck_tile::type_convert<float>((*real_knew_host_ref)(0, row, col)));
+                        
+                    }
+                    printf("\n");
+                }
+            }
+            #endif
             if(0 < rotary_dim)
             {
                 knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
@@ -1132,19 +1155,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 real_knew_host_ref = &knew_host_ref_ro.value();
             }
-
+            #if 0
             HOST_DEBUG_STMTS {
                 for(size_t row = 0; row < real_knew_host_ref->get_length(1); ++row)
                 {
                     printf("[HOST] real_knew_host_ref[%3zu] = ", row);
                     for(size_t col = 0; col < real_knew_host_ref->get_length(2); ++col)
                     {
+                        if (0 < col && col % 8 == 0) {
+                            printf("|");
+                        }
+
                         printf("%11.7f", 
                         ck_tile::type_convert<float>((*real_knew_host_ref)(0, row, col)));
+                        
                     }
                     printf("\n");
                 }
             }
+            #endif
 
             const std::size_t knew_start = real_seqlen_k - seqlen_knew;
             k_host_ref.ForEach([&](auto& self, auto i) {

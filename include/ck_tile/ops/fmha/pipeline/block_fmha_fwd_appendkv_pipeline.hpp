@@ -104,27 +104,59 @@ struct BlockFmhaFwdAppendKVPipeline
                void* smem_ptr,
                index_t rotary_dim = 0) const
     {
-
+#if defined(ENABLE_DEVICE_DEBUG_STMTS)
         auto* const ksmem = reinterpret_cast<KDataType*>(smem_ptr);
         if(threadIdx.x == 0)
         {
             printf("\n");
         }
+#endif
 
-        (void)q_dram_block_window_tmp;
-        (void)q_element_func;
-        (void)k_dram_block_window_tmp;
-        (void)k_element_func;
-        (void)knew_dram_block_window_tmp;
-        (void)knew_element_func;
-        (void)v_dram_block_window_tmp;
-        (void)v_element_func;
-        (void)vnew_dram_block_window_tmp;
-        (void)vnew_element_func;
-        (void)rotary_cos_block_window_tmp;
-        (void)rotary_sin_block_window_tmp;
-        (void)smem_ptr;
-        (void)rotary_dim;
+        auto print_tile = [&](const auto& tile, index_t num_display_rows = -1) {
+            (void)tile;
+#if defined(ENABLE_DEVICE_DEBUG_STMTS)
+            using Dstr                 = decltype(tile.get_tile_distribution());
+            constexpr index_t num_rows = Dstr::get_lengths()[number<0>{}];
+            constexpr index_t num_cols = Dstr::get_lengths()[number<1>{}];
+            {
+                constexpr auto spans = std::decay_t<decltype(tile)>::get_distributed_spans();
+                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            tile.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                        const auto row         = tile_idx.at(number<0>{});
+                        const auto col         = tile_idx.at(number<1>{});
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                        ksmem[row * num_cols + col] = tile[i_j_idx];
+                    });
+                });
+            }
+
+            block_sync_lds();
+
+            DEVICE_DEBUG_STMTS
+            {
+                for(int row = 0;
+                    row < (0 < num_display_rows ? std::min(num_display_rows, num_rows) : num_rows);
+                    ++row)
+                {
+                    printf("[DEVICE] tile[%3d] = ", row);
+
+                    for(int col = 0; col < num_cols; ++col)
+                    {
+                        if(0 < col && col % 8 == 0)
+                        {
+                            printf("|");
+                        }
+                        printf("%11.7f", type_convert<float>(ksmem[row * num_cols + col]));
+                    }
+                    printf("\n");
+                }
+            }
+#endif
+        };
 
         auto knew_dram_block_window =
             make_tile_window(knew_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -141,17 +173,17 @@ struct BlockFmhaFwdAppendKVPipeline
 
         if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
         {
-            auto rotary_cos_window = make_tile_window(
-                rotary_cos_block_window_tmp.get_bottom_tensor_view(),
-                rotary_cos_block_window_tmp.get_window_lengths(),
-                rotary_cos_block_window_tmp.get_window_origin(),
-                Policy::template MakeRotaryCosSinInterleaveDramTileDistribution<Problem>());
+            auto rotary_cos_window =
+                make_tile_window(rotary_cos_block_window_tmp.get_bottom_tensor_view(),
+                                 rotary_cos_block_window_tmp.get_window_lengths(),
+                                 rotary_cos_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeRotaryCosSinTileDistribution<Problem>());
 
-            auto rotary_sin_window = make_tile_window(
-                rotary_sin_block_window_tmp.get_bottom_tensor_view(),
-                rotary_sin_block_window_tmp.get_window_lengths(),
-                rotary_sin_block_window_tmp.get_window_origin(),
-                Policy::template MakeRotaryCosSinInterleaveDramTileDistribution<Problem>());
+            auto rotary_sin_window =
+                make_tile_window(rotary_sin_block_window_tmp.get_bottom_tensor_view(),
+                                 rotary_sin_block_window_tmp.get_window_lengths(),
+                                 rotary_sin_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeRotaryCosSinTileDistribution<Problem>());
 
             if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
             {
@@ -174,8 +206,10 @@ struct BlockFmhaFwdAppendKVPipeline
                         const auto cos = type_convert<float>(rotary_cos_tile.thread_buf_[idx / 2]);
                         const auto sin = type_convert<float>(rotary_sin_tile.thread_buf_[idx / 2]);
 
-                        knew_tile.thread_buf_[idx]     = left * cos - right * sin;
-                        knew_tile.thread_buf_[idx + 1] = right * cos + left * sin;
+                        knew_tile.thread_buf_[idx] =
+                            type_convert<KDataType>(left * cos - right * sin);
+                        knew_tile.thread_buf_[idx + 1] =
+                            type_convert<KDataType>(right * cos + left * sin);
                     });
                 }
             }
@@ -186,65 +220,38 @@ struct BlockFmhaFwdAppendKVPipeline
                 constexpr index_t KThreadPerBlock = kTileSizeD / KPerThread;
                 index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
 
-                bool is_left = (start_x + KPerThread) <= (rotary_dim / 2);
-
                 if((start_x + KPerThread) <= rotary_dim)
                 {
+                    bool is_left = (start_x + KPerThread) <= (rotary_dim / 2);
+
                     auto knew_other_dram_window = knew_dram_window;
-                    DEVICE_DEBUG_STMTS
-                    {
-                        auto origin = knew_other_dram_window.get_window_origin();
-                        printf("after move window, origin = (%3d, %3d)\n",
-                               origin.at(number<0>{}),
-                               origin.at(number<1>{}));
-                    }
                     move_tile_window(knew_other_dram_window,
                                      {0, is_left ? rotary_dim / 2 : -(rotary_dim / 2)});
-                    DEVICE_DEBUG_STMTS
-                    {
-                        auto origin = knew_other_dram_window.get_window_origin();
-                        printf("after move window, origin = (%3d, %3d)\n",
-                               origin.at(number<0>{}),
-                               origin.at(number<1>{}));
-                    }
+
                     auto knew_other_tile = load_tile(knew_other_dram_window);
-                }
-            }
 
-#if defined(ENABLE_DEVICE_DEBUG_STMTS)
-            {
-                constexpr auto spans = decltype(knew_tile)::get_distributed_spans();
-                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            knew_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+                    move_tile_window(rotary_cos_window, {0, is_left ? 0 : -(rotary_dim / 2)});
+                    auto rotary_cos_tile = load_tile(rotary_cos_window);
 
-                        const auto row         = tile_idx.at(number<0>{});
-                        const auto col         = tile_idx.at(number<1>{});
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    move_tile_window(rotary_sin_window, {0, is_left ? 0 : -(rotary_dim / 2)});
+                    auto rotary_sin_tile = load_tile(rotary_sin_window);
 
-                        ksmem[row * kTileSizeD + col] = knew_tile(i_j_idx);
+                    constexpr index_t thread_buffer_size = decltype(knew_tile.thread_buf_)::size();
+                    static_assert(thread_buffer_size % KPerThread == 0);
+                    static_for<0, thread_buffer_size, 1>{}([&](auto idx) {
+                        const auto curr  = type_convert<float>(knew_tile.thread_buf_[idx]);
+                        const auto other = type_convert<float>(knew_other_tile.thread_buf_[idx]);
+
+                        const auto cos = type_convert<float>(rotary_cos_tile.thread_buf_[idx]);
+                        const auto sin = type_convert<float>(rotary_sin_tile.thread_buf_[idx]);
+
+                        knew_tile.thread_buf_[idx] =
+                            type_convert<KDataType>(curr * cos + other * (is_left ? -sin : sin));
                     });
-                });
-            }
-
-            block_sync_lds();
-
-            DEVICE_DEBUG_STMTS
-            {
-                for(int row = 0; row < 7; ++row)
-                {
-                    printf("[DEVICE] knew_tile[%3d] = ", row);
-
-                    for(int col = 0; col < kTileSizeD; ++col)
-                    {
-                        printf("%11.7f", type_convert<float>(ksmem[row * kTileSizeD + col]));
-                    }
-                    printf("\n");
                 }
             }
-#endif
         }
+        print_tile(knew_tile, 7);
         store_tile(k_dram_block_window_tmp, knew_tile);
 
         auto vnew_dram_block_window =
