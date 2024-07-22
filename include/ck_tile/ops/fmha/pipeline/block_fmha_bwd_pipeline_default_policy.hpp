@@ -1297,36 +1297,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        sequence<0, 2, 4>>{});
     }
 
-    template <typename Problem, typename BlockGemm>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLSEDRegBlockDescriptor()
-    {
-        constexpr auto config   = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG                = remove_cvref_t<decltype(config.template at<0>())>;
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
-
-        constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-
-        constexpr index_t N1 = WG::WarpGemmAttribute::Impl::kCNLane;
-        constexpr index_t N0 = NWarp;
-
-        // M4 *2 and M2 /2 when swizzle mode enabled
-        constexpr index_t SwizzleConfig = WG::kM == 16 ? 1 : 2;
-        constexpr index_t M4            = WG::WarpGemmAttribute::Impl::kCM1PerLane * SwizzleConfig;
-        constexpr index_t M3            = WG::WarpGemmAttribute::Impl::kCMLane;
-        constexpr index_t M2            = WG::WarpGemmAttribute::Impl::kCM0PerLane / SwizzleConfig;
-        constexpr index_t M1            = MWarp;
-        constexpr index_t M0            = kMPerBlock / (M1 * WG::WarpGemmAttribute::Impl::kM);
-
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<N0, N1>,
-                                       tuple<sequence<M0, M1, M2, M3, M4>>,
-                                       tuple<sequence<1, 0>, sequence<1, 0>>,
-                                       tuple<sequence<1, 0>, sequence<3, 1>>,
-                                       sequence<1, 1, 1>,
-                                       sequence<0, 2, 4>>{});
-    }
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradLdsBlockDescriptor()
     {
