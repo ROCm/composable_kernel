@@ -194,7 +194,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
 
         const auto q_origin = q_dram_window.get_window_origin();
 
-        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}));
+        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}) / kM0);
         index_t seqlen_k_start = row_tile_idx_iter.start;
 
         // check early exit if masked and no work to do.

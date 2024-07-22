@@ -654,6 +654,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if(mask.type == mask_enum::no_mask)
         {
+            // FIXME: Tile size doesn't matter here because reference_batched_masking only calls mask.ElementwiseMask(), but we have no way of getting the tile size in this part of the code
+            typename FmhaMasks::NoMask<>::mask_def_t mask_def(0, 0);  // FIXME: This is bug prone. Need a better way of defining a mask def for non-masks (IsMasking=false)
             ck_tile::reference_batched_masking<AccDataType>(
                 s_host_ref, FmhaMasks::NoMask<>(mask_def, real_seqlen_q, real_seqlen_k));
         }

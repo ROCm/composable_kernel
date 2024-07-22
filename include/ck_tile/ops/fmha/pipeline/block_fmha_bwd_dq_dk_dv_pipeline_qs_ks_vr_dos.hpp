@@ -263,7 +263,7 @@ struct BlockFmhaBwdDQDKDVPipelineQSKSVROGradS
         __builtin_amdgcn_sched_barrier(0);
         const auto k_origin = k_dram_window.get_window_origin();
 
-        auto col_tile_idx_iter = mask.GetTileIndexIteratorAlongY(k_origin.at(number<0>{}));
+        auto col_tile_idx_iter = mask.GetTileIndexIteratorAlongY(k_origin.at(number<0>{}) / kN0);
         index_t seqlen_q_start = col_tile_idx_iter.start;
 
         // check early exit if masked and no work to do.

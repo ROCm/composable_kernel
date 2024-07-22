@@ -16,6 +16,9 @@
 #include <utility>
 #include <vector>
 
+#include <iterator>
+#include "ck/utility/type_convert.hpp"
+
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 {
@@ -841,6 +844,29 @@ bool run(const ck_tile::ArgParser& arg_parser)
                       << "\tseqlen_k: " << real_seqlen_k << std::endl
                       << "\tseqstart_q: " << seqstart_q_host << std::endl
                       << "\tseqstart_k: " << seqstart_k_host << std::endl;
+
+            // Print correctness map
+            std::cerr << o_host_result.get_lengths() << std::endl;
+            const auto is_infinity_error = [=](auto o, auto r) {
+                const bool either_not_finite      = !std::isfinite(o) || !std::isfinite(r);
+                const bool both_infinite_and_same = std::isinf(o) && std::isinf(r) && (o == r);
+                return either_not_finite && !(false && both_infinite_and_same);
+            };
+            double err     = 0;
+            for(std::size_t i = 0; i < o_host_ref.size(); ++i)
+            {
+                if (i % o_host_result.get_lengths()[2] == 0) {
+                    std::cout << std::endl;
+                }
+                const double o = ck::type_convert<float>(*std::next(std::begin(o_host_result), i));
+                const double r = ck::type_convert<float>(*std::next(std::begin(o_host_ref), i));
+                err            = std::abs(o - r);
+                if(err > atol + rtol * std::abs(r) || is_infinity_error(o, r)) {
+                    std::cout << "0 ";
+                } else {
+                    std::cout << "1 ";
+                }
+            }
 
             break;
         }

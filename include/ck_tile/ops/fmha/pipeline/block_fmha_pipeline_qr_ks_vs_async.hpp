@@ -10,6 +10,8 @@
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
+#include <cstdio>
+
 namespace ck_tile {
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
@@ -253,7 +255,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin = q_dram_window.get_window_origin();
 
-        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}));
+        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}) / kM0);
         index_t seqlen_k_start = row_tile_idx_iter.start;
 
         // check early exit

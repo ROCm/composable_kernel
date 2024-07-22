@@ -7,6 +7,8 @@
 #include "ck_tile/host/host_tensor.hpp"
 #include <thread>
 
+#include <cstdio>
+
 namespace ck_tile {
 
 template <typename CDataType, typename MaskingType>
@@ -20,8 +22,11 @@ CK_TILE_HOST void reference_batched_masking(HostTensor<CDataType>& c_b_m_n, cons
         {
             for(int m = 0; m < M; ++m)
             {
-                if(!mask.ElementwiseMask(m, n))
+                if(!mask.ElementwiseMask(m, n)) {
+                    printf("(%d, %d): %d\n", m, n, mask.ElementwiseMask(m, n));
                     c_b_m_n(batch, m, n) = -ck_tile::numeric<CDataType>::infinity();
+                }
+
             }
         }
     };
