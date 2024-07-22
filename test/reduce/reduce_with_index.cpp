@@ -10,37 +10,22 @@ using namespace ck;
 
 struct ReduceParam
 {
-    bool do_verification;
-    bool propagateNan;
-    bool useIndex;
-    bool time_kernel;
-    bool do_dumpout;
-    int init_method;
-    float alpha;
-    float beta;
-    std::vector<size_t> inLengths;
-    std::vector<int> reduceDims;
-    ReduceTensorOp reduceOpId;
+    bool do_verification{true};
+    bool propagateNan{false};
+    bool useIndex{true};
+    bool time_kernel{false};
+    bool do_dumpout{false};
+    int init_method{2};
+    float alpha{1.0f};
+    float beta{0.0f};
+    std::vector<size_t> inLengths{64, 4, 280, 82};
+    std::vector<int> reduceDims{0, 1, 2, 3};
+    ReduceTensorOp reduceOpId{ReduceTensorOp::AMAX};
 };
 
 std::vector<std::vector<int>> settGenericReduceDim()
 {
     return {{0, 1, 2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}, {0}, {1}, {2}, {3}};
-}
-
-ReduceParam sett0()
-{
-    return {/*do_verification*/ true,
-            /*propagateNan*/ false,
-            /*useIndex*/ true,
-            /*time_kernel*/ false,
-            /*do_dumpout*/ false,
-            /*init_method*/ 2,
-            /*alpha*/ 1.0f,
-            /*beta*/ 0.0f,
-            /*inLengths*/ {64, 4, 280, 82},
-            /*reduceDims*/ {0, 1, 2, 3},
-            /*reduceOpId*/ ReduceTensorOp::AMAX};
 }
 
 template <typename T>
@@ -56,17 +41,19 @@ class ReduceWithIndexTest : public ::testing::Test
     static void SetUpTestSuite()
     {
         // set testcase variables
-        ReduceParam _sett0 = sett0();
-        // + reduce dims: Generic;
+        ReduceParam _sett0;
         // set testcase variables
         const auto settReduceDim = settGenericReduceDim();
 
         for(std::size_t i(0); i < settReduceDim.size(); ++i)
         {
-            _sett0.reduceOpId = ReduceTensorOp::AMAX;
             _sett0.reduceDims = settReduceDim[i];
-            params.push_back(_sett0);
+            _sett0.reduceOpId = ReduceTensorOp::AMAX;
+            params.emplace_back(_sett0);
             _sett0.reduceOpId = ReduceTensorOp::MIN;
+            params.push_back(_sett0);
+            _sett0.reduceOpId = ReduceTensorOp::MAX;
+            params.push_back(_sett0);
         }
     };
 
