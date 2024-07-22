@@ -501,9 +501,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsBlockDescriptor()
     {
-        using QGradDataType            = remove_cvref_t<typename Problem::QGradDataType>;
+        using OGradDataType            = remove_cvref_t<typename Problem::OGradDataType>;
         constexpr index_t Banks        = 32; // TODO: need change based on arch
-        constexpr index_t PixelsPerRow = Banks * 4 / sizeof(QGradDataType);
+        constexpr index_t PixelsPerRow = Banks * 4 / sizeof(OGradDataType);
         constexpr index_t kKPack       = GetSmemKPackOGrad<Problem>();
         constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kVHeaddim;
         constexpr index_t kKPerBlock   = [&]() {

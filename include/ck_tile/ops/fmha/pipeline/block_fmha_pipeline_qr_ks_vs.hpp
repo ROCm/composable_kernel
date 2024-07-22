@@ -100,6 +100,8 @@ struct BlockFmhaPipelineQRKSVS
 
     static constexpr const char* name = "qr";
 
+    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -139,7 +141,7 @@ struct BlockFmhaPipelineQRKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               BlockDropout& dropout) const
+               DropoutType& dropout) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -245,7 +247,7 @@ struct BlockFmhaPipelineQRKSVS
             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
+        auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
@@ -489,7 +491,7 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
-                dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, seqlen_k_start + row_tile_idx_iter.current * kN0, p_compute, randval_dram_window);
             }
 
@@ -630,7 +632,7 @@ struct BlockFmhaPipelineQRKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               BlockDropout& dropout) const
+               DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},

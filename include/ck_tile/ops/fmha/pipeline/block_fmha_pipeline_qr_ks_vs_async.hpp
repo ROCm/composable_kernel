@@ -83,6 +83,12 @@ struct BlockFmhaPipelineQRKSVSAsync
             return Problem::kBlockPerCu;
         else
         {
+            // minimize occupancy
+            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)
+            {
+                return 1;
+            }
+
             if constexpr(kK0BlockLength <= 32)
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS &&
@@ -113,6 +119,8 @@ struct BlockFmhaPipelineQRKSVSAsync
     }();
 
     static constexpr const char* name = "qr_async";
+
+    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -153,7 +161,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               BlockDropout& dropout) const
+               DropoutType& dropout) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -220,6 +228,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             q_dram_block_window_tmp.get_window_lengths(),
             q_dram_block_window_tmp.get_window_origin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        q_dram_window.init_raw();
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
@@ -292,6 +301,17 @@ struct BlockFmhaPipelineQRKSVSAsync
             k_dram_block_window.get_window_origin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
+        k_dram_window.init_raw();
+        constexpr auto k_oob_ck = bool_constant<true>{};
+        constexpr auto k_pre_np = [&]() {
+            if constexpr(kPadSeqLenK &&
+                         (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
+                return bool_constant<true>{};
+            else
+                return bool_constant<false>{};
+        }();
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window  = make_tile_window(
             bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -299,7 +319,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
+        auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
@@ -309,7 +329,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         // prefetch K tile
-        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
+        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -338,7 +358,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                     async_load_tile_raw(k_lds_store(number<LdsSeq.at(number<i_k0 + 1>{})>{}),
-                                        k_dram_window);
+                                        k_dram_window,
+                                        k_oob_ck,
+                                        k_pre_np);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
@@ -576,15 +598,21 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 auto randval_ptr =
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
-                dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr,
                     seqlen_k_start + row_tile_idx_iter.current * kN0,
                     p_compute,
                     randval_dram_window);
             }
 
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+            const auto p = [&]() {
+                if constexpr(std::is_same_v<PDataType, fp16_t>)
+                    return impl::cast_tile_pk_fp16_fp32<PDataType>(
+                        tile_elementwise_in(p_compute_element_func, p_compute));
+                else
+                    return cast_tile<PDataType>(
+                        tile_elementwise_in(p_compute_element_func, p_compute));
+            }();
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
@@ -642,16 +670,13 @@ struct BlockFmhaPipelineQRKSVSAsync
                 move_tile_window(v_dram_window, {0, kN0 * (n0_step - 1)});  // -1 we've already looped through current tile for KV gemm
                 move_tile_window(bias_dram_window, {0, kN0 * n0_step});
 
-                k_dram_window =
-                    make_tile_window(k_dram_block_window.get_bottom_tensor_view(),
-                                     k_dram_block_window.get_window_lengths(),
-                                     k_dram_block_window.get_window_origin(),
-                                     Policy::template MakeKDramTileDistribution<Problem>());
+                k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
+                async_load_tile_raw(
+                    k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail
@@ -735,7 +760,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               BlockDropout& dropout) const
+               DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
