@@ -42,7 +42,6 @@ class ReduceWithIndexTest : public ::testing::Test
     {
         // set testcase variables
         ReduceParam _sett0;
-        // set testcase variables
         const auto settReduceDim = settGenericReduceDim();
 
         for(std::size_t i(0); i < settReduceDim.size(); ++i)
@@ -73,7 +72,6 @@ class ReduceWithIndexTest : public ::testing::Test
                 param.useIndex,
                 param.alpha,
                 param.beta);
-            // EXPECT_TRUE
             EXPECT_TRUE(success);
         }
     }
