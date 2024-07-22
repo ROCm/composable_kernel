@@ -312,13 +312,13 @@ class FmhaBwdDQDKDVTileSize:
     F_bhdv      : int  # v head_dim
     F_rm0       : int  # number of warps along q seqlen (block warps) in gemm0/gemm2
     F_rn0       : int  # number of warps along k seqlen (block warps) in gemm0/gemm2
-    F_rk0       : int  # number of warps along gemm-k (not used) in gemm0/gemm2
+    F_rk0       : int  # number of warps along headdim_qk/v (not used) in gemm0/gemm2
     F_rm1       : int  # number of warps along k seqlen (block warps) in gemm1/gemm3
-    F_rn1       : int  # number of warps along q seqlen (block warps) in gemm1/gemm3
-    F_rk1       : int  # number of warps along gemm-k (not used) in gemm1/gemm3
-    F_rm2       : int  # number of warps along k seqlen (block warps) in gemm4
-    F_rn2       : int  # number of warps along q seqlen (block warps) in gemm4
-    F_rk2       : int  # number of warps along gemm-k (not used) in gemm4
+    F_rn1       : int  # number of warps along headdim_qk/v (block warps) in gemm1/gemm3
+    F_rk1       : int  # number of warps along q seqlen (not used) in gemm1/gemm3
+    F_rm2       : int  # number of warps along q seqlen (block warps) in gemm4
+    F_rn2       : int  # number of warps along headdim_qk (block warps) in gemm4
+    F_rk2       : int  # number of warps along k seqlen (not used) in gemm4
     F_wm0       : int  # warp size along m in gemm0/gemm2/gemm4
     F_wn0       : int  # warp size along n in gemm0/gemm2/gemm4
     F_wk0       : int  # warp size along k in gemm0/gemm2/gemm4
