@@ -1,248 +1,163 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <getopt.h>
 
 #include "ck/library/utility/host_common_util.hpp"
 #include "profiler/profile_reduce_impl.hpp"
-
+#include <gtest/gtest.h>
 using namespace ck;
 
-static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
-                                       {"reduceDimensions", required_argument, nullptr, 'R'},
-                                       {"scales", required_argument, nullptr, 'S'},
-                                       {"help", no_argument, nullptr, '?'},
-                                       {nullptr, 0, nullptr, 0}};
-
-class SimpleAppArgs
+struct ReduceParam
 {
-    private:
-    int option_index = 0;
-
-    public:
+    bool do_verification;
+    bool propagateNan;
+    bool useIndex;
+    bool time_kernel;
+    bool do_dumpout;
+    int init_method;
+    float alpha;
+    float beta;
     std::vector<size_t> inLengths;
     std::vector<int> reduceDims;
-    std::vector<float> scales;
-
-    int data_type;
-    int init_method = 1;
-
-    public:
-    void show_usage(const char* cmd)
-    {
-        std::cout << "Usage of " << cmd << std::endl;
-        std::cout << "--inLengths or -D, comma separated list of input tensor dimension lengths "
-                     "(only 4-d tensor supported)"
-                  << std::endl;
-        std::cout << "--reduceDimensions or -R comma seperated list of dimension indexes to reduce "
-                     "(only 1 or 3 or 4 dimensions supported)"
-                  << std::endl;
-        std::cout << "--scales or -S, comma separated two float values for alpha and beta"
-                  << std::endl;
-        std::cout << "Arg1 -- data type (0: fp16, 1: fp32, 3: int8, 5: bp16, 6: fp64)" << std::endl;
-        std::cout << "Arg2 -- init method(0=no init, 1=single integer value, 2=scope integer "
-                     "value, 3=decimal value)"
-                  << std::endl;
-    };
-
-    int processArgs(int argc, char* argv[])
-    {
-        using ck::host_common::getTypeValuesFromString;
-
-        int ch;
-
-        while(1)
-        {
-            ch = getopt_long(argc, argv, "D:R:S:", long_options, &option_index);
-            if(ch == -1)
-                break;
-            switch(ch)
-            {
-            case 'D':
-                if(!optarg)
-                    throw std::runtime_error("Invalid option format!");
-
-                inLengths = getTypeValuesFromString<size_t>(optarg);
-                break;
-            case 'R':
-                if(!optarg)
-                    throw std::runtime_error("Invalid option format!");
-
-                reduceDims = getTypeValuesFromString<int>(optarg);
-                break;
-            case 'S':
-                if(!optarg)
-                    throw std::runtime_error("Invalid option format!");
-
-                scales = getTypeValuesFromString<float>(optarg);
-                break;
-            case '?':
-                if(std::string(long_options[option_index].name) == "help")
-                {
-                    show_usage(argv[0]);
-                    return (-1);
-                };
-                break;
-            default: show_usage(argv[0]); return (-1);
-            };
-        };
-
-        if(optind + 2 > argc)
-            throw std::runtime_error("Invalid cmd-line arguments, more argumetns are needed!");
-
-        data_type   = std::atoi(argv[optind++]);
-        init_method = std::atoi(argv[optind]);
-
-        if(scales.empty())
-        {
-            scales.push_back(1.0f);
-            scales.push_back(0.0f);
-        };
-
-        if(inLengths.size() != 4 ||
-           (reduceDims.size() != 1 && reduceDims.size() != 3 && reduceDims.size() != 4))
-            return (-1);
-
-        if(data_type != 0 && data_type != 1 && data_type != 3 && data_type != 5 && data_type != 6)
-            return (-1);
-
-        return (0);
-    };
+    ReduceTensorOp reduceOpId;
 };
 
-bool test_reduce_no_index(int data_type,
-                          int init_method,
-                          std::vector<int> reduceDims,
-                          std::vector<size_t> inLengths,
-                          ReduceTensorOp reduceOpId,
-                          bool propagateNan,
-                          float alpha,
-                          float beta)
+std::vector<std::vector<int>> settGenericReduceDim()
 {
-    using ck::profiler::profile_reduce_impl;
+    return {{0, 1, 2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}, {0}, {1}, {2}, {3}};
+}
 
-    bool result = true;
+ReduceParam sett0()
+{
+    return {/*do_verification*/ true,
+            /*propagateNan*/ false,
+            /*useIndex*/ false,
+            /*time_kernel*/ false,
+            /*do_dumpout*/ false,
+            /*init_method*/ 2,
+            /*alpha*/ 1.0f,
+            /*beta*/ 0.0f,
+            /*inLengths*/ {64, 4, 280, 82},
+            /*reduceDims*/ {0, 1, 2, 3},
+            /*reduceOpId*/ ReduceTensorOp::AMAX};
+}
 
-    if(data_type == 0)
-    {
-        result = profile_reduce_impl<float, float, float>(true,
-                                                          init_method,
-                                                          false,
-                                                          false,
-                                                          inLengths,
-                                                          reduceDims,
-                                                          reduceOpId,
-                                                          propagateNan,
-                                                          false,
-                                                          alpha,
-                                                          beta);
-    }
-    else if(data_type == 1)
-    {
-        result = profile_reduce_impl<ck::half_t, float, ck::half_t>(true,
-                                                                    init_method,
-                                                                    false,
-                                                                    false,
-                                                                    inLengths,
-                                                                    reduceDims,
-                                                                    reduceOpId,
-                                                                    propagateNan,
-                                                                    false,
-                                                                    alpha,
-                                                                    beta);
-    }
-    else if(data_type == 3)
-    {
-        result = profile_reduce_impl<int8_t, int32_t, int8_t>(true,
-                                                              init_method,
-                                                              false,
-                                                              false,
-                                                              inLengths,
-                                                              reduceDims,
-                                                              reduceOpId,
-                                                              propagateNan,
-                                                              false,
-                                                              alpha,
-                                                              beta);
-    }
-    else if(data_type == 5)
-    {
-        result = profile_reduce_impl<ck::bhalf_t, float, ck::bhalf_t>(true,
-                                                                      init_method,
-                                                                      false,
-                                                                      false,
-                                                                      inLengths,
-                                                                      reduceDims,
-                                                                      reduceOpId,
-                                                                      propagateNan,
-                                                                      false,
-                                                                      alpha,
-                                                                      beta);
-    }
-    else if(data_type == 6)
-    {
-        result = profile_reduce_impl<double, double, double>(true,
-                                                             init_method,
-                                                             false,
-                                                             false,
-                                                             inLengths,
-                                                             reduceDims,
-                                                             reduceOpId,
-                                                             propagateNan,
-                                                             false,
-                                                             alpha,
-                                                             beta);
-    }
+template <typename T>
+class ReduceNoIndexTest : public ::testing::Test
+{
+    protected:
+    using InDataType  = std::tuple_element_t<0, T>;
+    using AccDataType = std::tuple_element_t<1, T>;
+    using OutDataType = std::tuple_element_t<2, T>;
 
-    return (result);
+    static std::vector<ReduceParam> params;
+
+    static void SetUpTestSuite()
+    {
+        // set testcase variables
+        ReduceParam _sett0 = sett0();
+        // + reduce dims: Generic;
+        // set testcase variables
+        const auto settReduceDim = settGenericReduceDim();
+
+        for(std::size_t i(0); i < settReduceDim.size(); ++i)
+        {
+            _sett0.reduceOpId = ReduceTensorOp::AMAX;
+            _sett0.reduceDims = settReduceDim[i];
+            params.push_back(_sett0);
+            _sett0.reduceOpId = ReduceTensorOp::MIN;
+        }
+    };
+
+    void Run()
+    {
+        for(auto param : this->params)
+        {
+            bool success = ck::profiler::profile_reduce_impl<InDataType, AccDataType, OutDataType>(
+                param.do_verification,
+                param.init_method,
+                param.do_dumpout,
+                param.time_kernel,
+                param.inLengths,
+                param.reduceDims,
+                param.reduceOpId,
+                param.propagateNan,
+                param.useIndex,
+                param.alpha,
+                param.beta);
+            // EXPECT_TRUE
+            EXPECT_TRUE(success);
+        }
+    }
 };
 
-constexpr ReduceTensorOp reduceOpId = ReduceTensorOp::AVG;
-constexpr bool propagateNan         = false;
+template <typename T>
+std::vector<ReduceParam> ReduceNoIndexTest<T>::params = {};
 
-int main(int argc, char* argv[])
+using Reduce_float_types       = ::testing::Types<std::tuple<float, float, float>>;
+using Reduce_double_types      = ::testing::Types<std::tuple<double, double, double>>;
+using Reduce_int8t_types       = ::testing::Types<std::tuple<int8_t, int8_t, int8_t>>;
+using Reduce_half_types        = ::testing::Types<std::tuple<ck::half_t, ck::half_t, ck::half_t>>;
+using Reduce_bhalf_float_Types = ::testing::Types<std::tuple<ck::bhalf_t, float, ck::bhalf_t>>;
+
+template <typename TType>
+class ReduceNoIndexFloat : public ReduceNoIndexTest<TType>
 {
-    SimpleAppArgs args;
+};
 
-    bool result = true;
+template <typename TType>
+class ReduceNoIndexDouble : public ReduceNoIndexTest<TType>
+{
+};
 
-    if(argc == 1)
-    {
-        int data_type   = 1;
-        int init_method = 2;
-        std::vector<size_t> inLengths{64, 4, 280, 80};
-        std::vector<std::vector<int>> v_reduceDims{
-            {0, 1, 2, 3}, {0, 1, 2}, {1, 2, 3}, {0, 1, 3}, {0, 2, 3}, {0}, {1}, {2}, {3}};
+template <typename TType>
+class ReduceNoIndexInt8 : public ReduceNoIndexTest<TType>
+{
+};
 
-        for(auto& reduceDims : v_reduceDims)
-            result = result && test_reduce_no_index(data_type,
-                                                    init_method,
-                                                    reduceDims,
-                                                    inLengths,
-                                                    reduceOpId,
-                                                    propagateNan,
-                                                    1.0f,
-                                                    0.0f);
-    }
-    else
-    {
-        if(args.processArgs(argc, argv) < 0)
-        {
-            throw std::runtime_error(
-                "Invalid input arguments, test_reduce_no_index could not be executed!");
-        };
+template <typename TType>
+class ReduceNoIndexHalf : public ReduceNoIndexTest<TType>
+{
+};
 
-        result = test_reduce_no_index(args.data_type,
-                                      args.init_method,
-                                      args.reduceDims,
-                                      args.inLengths,
-                                      reduceOpId,
-                                      propagateNan,
-                                      args.scales[0],
-                                      args.scales[1]);
-    }
+template <typename TType>
+class ReduceNoIndexBHalfFloat : public ReduceNoIndexTest<TType>
+{
+};
 
-    std::cout << "test_reduce_no_index ..... " << (result ? "SUCCESS" : "FAILURE") << std::endl;
+TYPED_TEST_SUITE(ReduceNoIndexFloat, Reduce_float_types);
+TYPED_TEST_SUITE(ReduceNoIndexDouble, Reduce_double_types);
+TYPED_TEST_SUITE(ReduceNoIndexInt8, Reduce_int8t_types);
+TYPED_TEST_SUITE(ReduceNoIndexHalf, Reduce_half_types);
+TYPED_TEST_SUITE(ReduceNoIndexBHalfFloat, Reduce_bhalf_float_Types);
 
-    return (result ? 0 : -1);
+TYPED_TEST(ReduceNoIndexFloat, ReduceNoIndexTestFloat)
+{
+    // trigger Run() -> Generic
+    this->Run();
+}
+
+TYPED_TEST(ReduceNoIndexDouble, ReduceNoIndexTestDouble)
+{
+    // trigger Run() -> Generic
+    this->Run();
+}
+
+TYPED_TEST(ReduceNoIndexInt8, ReduceNoIndexTestInt8)
+{
+    // trigger Run() -> Generic
+    this->Run();
+}
+
+TYPED_TEST(ReduceNoIndexHalf, ReduceNoIndexTestHalf)
+{
+    // trigger Run() -> Generic
+    this->Run();
+}
+
+TYPED_TEST(ReduceNoIndexBHalfFloat, ReduceNoIndexTestBHalfFloat)
+{
+    // trigger Run() -> Generic
+    this->Run();
 }
