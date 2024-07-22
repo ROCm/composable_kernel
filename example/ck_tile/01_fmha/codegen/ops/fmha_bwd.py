@@ -94,14 +94,14 @@ using fmha_bwd_pipeline_{F_idx} = {F_pipeline}<fmha_bwd_pipeline_problem_{F_idx}
 using fmha_bwd_dk_epilogue_{F_idx} = ck_tile::Default2DEpilogue<
     ck_tile::Default2DEpilogueProblem<typename FmhaBwdTypeConfig<{F_dtype}>::AccDataType,
                                       typename FmhaBwdTypeConfig<{F_dtype}>::KGradDataType,
-                                      false,
-                                      false>>;
+                                      {F_skpad},
+                                      {F_dpad}>>;
 
 using fmha_bwd_dv_epilogue_{F_idx} = ck_tile::Default2DEpilogue<
     ck_tile::Default2DEpilogueProblem<typename FmhaBwdTypeConfig<{F_dtype}>::AccDataType,
                                       typename FmhaBwdTypeConfig<{F_dtype}>::VGradDataType,
-                                      false,
-                                      false>>;
+                                      {F_skpad},
+                                      {F_dvpad}>>;
 
 using fmha_bwd_dq_dk_dv_kernel_{F_idx} =
     ck_tile::FmhaBwdDQDKDVKernel<fmha_bwd_pipeline_{F_idx},
