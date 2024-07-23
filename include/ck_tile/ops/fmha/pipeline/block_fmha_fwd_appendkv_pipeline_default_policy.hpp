@@ -34,7 +34,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         {
             constexpr index_t kBlockSize   = Problem::kBlockSize;
             constexpr index_t kNPerBlock   = Problem::kN0;
-            constexpr index_t kKPerBlock   = Problem::kTileSizeDv;
+            constexpr index_t kKPerBlock   = Problem::kN1;
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
 
             // TODO: not correct!
@@ -188,7 +188,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::kTileSizeDv;
+        constexpr index_t kNPerBlock = Problem::kN1;
         constexpr index_t kKPerBlock = Problem::kN0;
 
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)

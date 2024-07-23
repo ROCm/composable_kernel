@@ -13,7 +13,7 @@ template <typename QDataType_,
           index_t kM0_,
           index_t kN0_,
           index_t kK0_,
-          index_t kTileSizeDv_,
+          index_t kN1_,
           bool IsVLayoutRowMajor_,
           bool kIsGroupMode_,
           typename Traits_>
@@ -27,10 +27,10 @@ struct BlockFmhaFwdAppendKVPipelineProblem
     static constexpr index_t kBlockSize = 256;
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
-    static constexpr index_t kM0         = kM0_;
-    static constexpr index_t kN0         = kN0_;
-    static constexpr index_t kK0         = kK0_;
-    static constexpr index_t kTileSizeDv = kTileSizeDv_;
+    static constexpr index_t kM0 = kM0_;
+    static constexpr index_t kN0 = kN0_;
+    static constexpr index_t kK0 = kK0_;
+    static constexpr index_t kN1 = kN1_;
 
     using VLayout = std::conditional_t<IsVLayoutRowMajor_,
                                        ck_tile::tensor_layout::gemm::RowMajor,

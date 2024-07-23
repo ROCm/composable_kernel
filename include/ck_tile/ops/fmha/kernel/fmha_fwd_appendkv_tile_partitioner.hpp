@@ -7,15 +7,15 @@
 
 namespace ck_tile {
 
-template <index_t kM0_, index_t kN0_, index_t kK0_, index_t kTileSizeDv_>
+template <index_t kM0_, index_t kN0_, index_t kK0_, index_t kN1_>
 struct FmhaFwdAppendKVTilePartitioner
 {
-    static constexpr ck_tile::index_t kM0         = kM0_;
-    static constexpr ck_tile::index_t kN0         = kN0_;
-    static constexpr ck_tile::index_t kK0         = kK0_;
-    static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
+    static constexpr ck_tile::index_t kM0 = kM0_;
+    static constexpr ck_tile::index_t kN0 = kN0_;
+    static constexpr ck_tile::index_t kK0 = kK0_;
+    static constexpr ck_tile::index_t kN1 = kN1_;
 
-    static_assert(kK0 == kTileSizeDv);
+    static_assert(kK0 == kN1);
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
                                                 ck_tile::index_t nhead,

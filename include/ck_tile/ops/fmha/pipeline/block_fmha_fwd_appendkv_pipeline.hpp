@@ -22,10 +22,10 @@ struct BlockFmhaFwdAppendKVPipeline
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0         = Problem::kM0;
-    static constexpr index_t kN0         = Problem::kN0;
-    static constexpr index_t kK0         = Problem::kK0;
-    static constexpr index_t kTileSizeDv = Problem::kTileSizeDv;
+    static constexpr index_t kM0 = Problem::kM0;
+    static constexpr index_t kN0 = Problem::kN0;
+    static constexpr index_t kK0 = Problem::kK0;
+    static constexpr index_t kN1 = Problem::kN1;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
@@ -94,8 +94,8 @@ struct BlockFmhaFwdAppendKVPipeline
                KDramBlockWindow& k_dram_block_window,             // N0*K0 tile
                const KnewDramBlockWindow& knew_dram_block_window, // N0*K0 tile
                const KnewElementFunction& knew_element_func,
-               VDramBlockWindow& v_dram_block_window,             // N1*K1 tile
-               const VnewDramBlockWindow& vnew_dram_block_window, // N1*K1 tile
+               VDramBlockWindow& v_dram_block_window,             // N1*N0 tile
+               const VnewDramBlockWindow& vnew_dram_block_window, // N1*N0 tile
                const VnewElementFunction& vnew_element_func,
                const QRotaryCosDramBlockWindow q_rotary_cos_dram_block_window,
                const QRotarySinDramBlockWindow q_rotary_sin_dram_block_window,
