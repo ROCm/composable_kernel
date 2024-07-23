@@ -868,6 +868,23 @@ make_tile_window(const TensorView_& tensor_view,
         tensor_view, window_lengths, origin};
 }
 
+template <typename TensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          index_t NumCoord = 1>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView_, WindowLengths_>& tile_window,
+                 const StaticTileDistribution_& tile_distribution)
+{
+    return tile_window_with_static_distribution<TensorView_,
+                                                WindowLengths_,
+                                                StaticTileDistribution_,
+                                                NumCoord>{tile_window.get_bottom_tensor_view(),
+                                                          tile_window.get_window_lengths(),
+                                                          tile_window.get_window_origin(),
+                                                          tile_distribution};
+}
+
 template <typename TensorView_, typename WindowLengths_>
 CK_TILE_DEVICE void move_tile_window(
     tile_window_with_static_lengths<TensorView_, WindowLengths_>& window,
