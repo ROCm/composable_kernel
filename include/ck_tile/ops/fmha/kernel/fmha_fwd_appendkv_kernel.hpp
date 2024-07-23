@@ -518,56 +518,110 @@ struct FmhaFwdAppendKVKernel
                                        sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
         }();
-        constexpr auto rotary_cos_sin_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD / 2>{});
-        const auto rotary_cos_dram_window = [&]() {
+
+        constexpr auto q_rotary_cos_sin_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kTileSizeS>{}, number<FmhaPipeline::kTileSizeD / 2>{});
+        const auto q_rotary_cos_dram_window = [&]() {
             if constexpr(kApplyRoPE)
             {
-                const auto rotary_cos_dram = [&]() {
-                    const auto rotary_cos_dram_native =
-                        make_naive_tensor_view<address_space_enum::global>(
-                            reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
-                            make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
-                            make_tuple(kargs.rotary_dim / 2, 1),
-                            number<8>{},
-                            number<1>{});
+                const auto rotary_cos_dram_native =
+                    make_naive_tensor_view<address_space_enum::global>(
+                        reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
+                        make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
+                        make_tuple(kargs.rotary_dim / 2, 1),
+                        number<8>{},
+                        number<1>{});
 
+                const auto rotary_cos_dram = [&]() {
                     return pad_tensor_view(rotary_cos_dram_native,
-                                           rotary_cos_sin_dram_window_lengths,
-                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                                           q_rotary_cos_sin_dram_window_lengths,
+                                           sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }();
 
                 return make_tile_window(
-                    rotary_cos_dram, rotary_cos_sin_dram_window_lengths, {0, 0});
+                    rotary_cos_dram, q_rotary_cos_sin_dram_window_lengths, {0, 0});
             }
             else
             {
-                return make_null_tile_window(rotary_cos_sin_dram_window_lengths);
+                return make_null_tile_window(q_rotary_cos_sin_dram_window_lengths);
             }
         }();
-        const auto rotary_sin_dram_window = [&]() {
+        const auto q_rotary_sin_dram_window = [&]() {
             if constexpr(kApplyRoPE)
             {
-                const auto rotary_sin_dram = [&]() {
-                    const auto rotary_sin_dram_native =
-                        make_naive_tensor_view<address_space_enum::global>(
-                            reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
-                            make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
-                            make_tuple(kargs.rotary_dim / 2, 1),
-                            number<8>{},
-                            number<1>{});
+                const auto rotary_sin_dram_native =
+                    make_naive_tensor_view<address_space_enum::global>(
+                        reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
+                        make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
+                        make_tuple(kargs.rotary_dim / 2, 1),
+                        number<8>{},
+                        number<1>{});
 
+                const auto rotary_sin_dram = [&]() {
                     return pad_tensor_view(rotary_sin_dram_native,
-                                           rotary_cos_sin_dram_window_lengths,
-                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
+                                           q_rotary_cos_sin_dram_window_lengths,
+                                           sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }();
 
                 return make_tile_window(
-                    rotary_sin_dram, rotary_cos_sin_dram_window_lengths, {0, 0});
+                    rotary_sin_dram, q_rotary_cos_sin_dram_window_lengths, {0, 0});
             }
             else
             {
-                return make_null_tile_window(rotary_cos_sin_dram_window_lengths);
+                return make_null_tile_window(q_rotary_cos_sin_dram_window_lengths);
+            }
+        }();
+
+        constexpr auto knew_rotary_cos_sin_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD / 2>{});
+        const auto knew_rotary_cos_dram_window = [&]() {
+            if constexpr(kApplyRoPE)
+            {
+                const auto rotary_cos_dram_native =
+                    make_naive_tensor_view<address_space_enum::global>(
+                        reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
+                        make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
+                        make_tuple(kargs.rotary_dim / 2, 1),
+                        number<8>{},
+                        number<1>{});
+
+                const auto rotary_cos_dram = [&]() {
+                    return pad_tensor_view(rotary_cos_dram_native,
+                                           knew_rotary_cos_sin_dram_window_lengths,
+                                           sequence<kPadSeqLenK, kPadHeadDimQ>{});
+                }();
+
+                return make_tile_window(
+                    rotary_cos_dram, knew_rotary_cos_sin_dram_window_lengths, {0, 0});
+            }
+            else
+            {
+                return make_null_tile_window(knew_rotary_cos_sin_dram_window_lengths);
+            }
+        }();
+        const auto knew_rotary_sin_dram_window = [&]() {
+            if constexpr(kApplyRoPE)
+            {
+                const auto rotary_sin_dram_native =
+                    make_naive_tensor_view<address_space_enum::global>(
+                        reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
+                        make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
+                        make_tuple(kargs.rotary_dim / 2, 1),
+                        number<8>{},
+                        number<1>{});
+
+                const auto rotary_sin_dram = [&]() {
+                    return pad_tensor_view(rotary_sin_dram_native,
+                                           knew_rotary_cos_sin_dram_window_lengths,
+                                           sequence<kPadSeqLenK, kPadHeadDimQ>{});
+                }();
+
+                return make_tile_window(
+                    rotary_sin_dram, knew_rotary_cos_sin_dram_window_lengths, {0, 0});
+            }
+            else
+            {
+                return make_null_tile_window(knew_rotary_cos_sin_dram_window_lengths);
             }
         }();
 
@@ -618,8 +672,10 @@ struct FmhaFwdAppendKVKernel
                            knew_dram_window,
                            v_dram_window,
                            vnew_dram_window,
-                           rotary_cos_dram_window,
-                           rotary_sin_dram_window,
+                           q_rotary_cos_dram_window,
+                           q_rotary_sin_dram_window,
+                           knew_rotary_cos_dram_window,
+                           knew_rotary_sin_dram_window,
                            smem_ptr,
                            kargs.rotary_dim);
         }
@@ -630,8 +686,10 @@ struct FmhaFwdAppendKVKernel
                            knew_dram_window,
                            v_dram_window,
                            vnew_dram_window,
-                           rotary_cos_dram_window,
-                           rotary_sin_dram_window,
+                           q_rotary_cos_dram_window,
+                           q_rotary_sin_dram_window,
+                           knew_rotary_cos_dram_window,
+                           knew_rotary_sin_dram_window,
                            smem_ptr);
         }
     }

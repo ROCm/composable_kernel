@@ -1098,7 +1098,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
 
         // optionally apply RoPE to the q_host_ref
-        if(false && 0 < rotary_dim)
+        if(0 < rotary_dim)
         {
             decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
@@ -1107,6 +1107,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
         }
+        #if 1
+        HOST_DEBUG_STMTS {
+            printf("\n");
+            for(size_t row = 0; row < q_host_ref.get_length(1) && row < 8; ++row)
+            {
+                printf("[HOST] q_host_ref[%3zu] = ", row);
+                for(size_t col = 0; col < q_host_ref.get_length(2); ++col)
+                {
+                    if (0 < col && col % 8 == 0) {
+                        printf("|");
+                    }
+
+                    printf("%11.7f", 
+                    ck_tile::type_convert<float>(q_host_ref(0, row, col)));
+                    
+                }
+                printf("\n");
+            }
+        }
+        #endif
 
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
@@ -1114,8 +1134,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // copy Knew to the end of K
         if(0 < seqlen_knew)
         {
-            printf("\n");
-            
             ck_tile::HostTensor<KDataType> knew_host_ref({nhead, seqlen_knew, hdim_q});
             if(i_perm) knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(b, i[0] / nr, i[1], i[2]); });
             else       knew_host_ref.ForEach([&](auto& self, auto i) { self(i) = knew_host(b, i[1], i[0] / nr, i[2]); });
@@ -1125,6 +1143,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
             #if 0
             HOST_DEBUG_STMTS {
+                printf("\n");
                 for(size_t row = 0; row < real_knew_host_ref->get_length(1); ++row)
                 {
                     printf("[HOST] real_knew_host[%3zu] = ", row);
@@ -1157,6 +1176,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
             #if 0
             HOST_DEBUG_STMTS {
+                printf("\n");
                 for(size_t row = 0; row < real_knew_host_ref->get_length(1); ++row)
                 {
                     printf("[HOST] real_knew_host_ref[%3zu] = ", row);

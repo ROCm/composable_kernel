@@ -84,8 +84,10 @@ struct BlockFmhaFwdAppendKVPipeline
               typename QElementFunction,
               typename KnewElementFunction,
               typename VnewElementFunction,
-              typename RotaryCosDramBlockWindow,
-              typename RotarySinDramBlockWindow>
+              typename QRotaryCosDramBlockWindow,
+              typename QRotarySinDramBlockWindow,
+              typename KnewRotaryCosDramBlockWindow,
+              typename KnewRotarySinDramBlockWindow>
     CK_TILE_HOST_DEVICE auto
     operator()(QDramBlockWindow& q_dram_block_window, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -95,8 +97,10 @@ struct BlockFmhaFwdAppendKVPipeline
                VDramBlockWindow& v_dram_block_window,             // N1*K1 tile
                const VnewDramBlockWindow& vnew_dram_block_window, // N1*K1 tile
                const VnewElementFunction& vnew_element_func,
-               const RotaryCosDramBlockWindow rotary_cos_dram_block_window,
-               const RotarySinDramBlockWindow rotary_sin_dram_block_window,
+               const QRotaryCosDramBlockWindow q_rotary_cos_dram_block_window,
+               const QRotarySinDramBlockWindow q_rotary_sin_dram_block_window,
+               const KnewRotaryCosDramBlockWindow knew_rotary_cos_dram_block_window,
+               const KnewRotarySinDramBlockWindow knew_rotary_sin_dram_block_window,
                void* smem_ptr,
                index_t rotary_dim = 0) const
     {
@@ -169,15 +173,15 @@ struct BlockFmhaFwdAppendKVPipeline
         if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
         {
             auto rotary_cos_window =
-                make_tile_window(rotary_cos_dram_block_window.get_bottom_tensor_view(),
-                                 rotary_cos_dram_block_window.get_window_lengths(),
-                                 rotary_cos_dram_block_window.get_window_origin(),
+                make_tile_window(knew_rotary_cos_dram_block_window.get_bottom_tensor_view(),
+                                 knew_rotary_cos_dram_block_window.get_window_lengths(),
+                                 knew_rotary_cos_dram_block_window.get_window_origin(),
                                  Policy::template MakeRotaryCosSinTileDistribution<Problem>());
 
             auto rotary_sin_window =
-                make_tile_window(rotary_sin_dram_block_window.get_bottom_tensor_view(),
-                                 rotary_sin_dram_block_window.get_window_lengths(),
-                                 rotary_sin_dram_block_window.get_window_origin(),
+                make_tile_window(knew_rotary_sin_dram_block_window.get_bottom_tensor_view(),
+                                 knew_rotary_sin_dram_block_window.get_window_lengths(),
+                                 knew_rotary_sin_dram_block_window.get_window_origin(),
                                  Policy::template MakeRotaryCosSinTileDistribution<Problem>());
 
             // We assume that each thread owns contiguous elements on head dimention. And we will
@@ -274,15 +278,85 @@ struct BlockFmhaFwdAppendKVPipeline
                 auto q = load_tile(q_window);
                 return tile_elementwise_in(q_element_func, q);
             }();
-            print_tile(q_tile, 8);
-            /// TODO: add rotary_cos/rotary_sin windows for Q (tile size: M0xK0)
+
+            auto rotary_cos_window =
+                make_tile_window(q_rotary_cos_dram_block_window.get_bottom_tensor_view(),
+                                 q_rotary_cos_dram_block_window.get_window_lengths(),
+                                 q_rotary_cos_dram_block_window.get_window_origin(),
+                                 Policy::template MakeRotaryCosSinTileDistribution<Problem>());
+
+            auto rotary_sin_window =
+                make_tile_window(q_rotary_sin_dram_block_window.get_bottom_tensor_view(),
+                                 q_rotary_sin_dram_block_window.get_window_lengths(),
+                                 q_rotary_sin_dram_block_window.get_window_origin(),
+                                 Policy::template MakeRotaryCosSinTileDistribution<Problem>());
+
             // We assume that each thread owns contiguous elements on head dimention. And we will
-            // use the distribution to enable/disable threads in order to override knew_tile content
-            if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED) {}
+            // use the distribution to enable/disable threads in order to override q_tile content
+            if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+            {
+                auto rotary_cos_tile = load_tile(rotary_cos_window);
+                auto rotary_sin_tile = load_tile(rotary_sin_window);
+
+                constexpr index_t KPerThread = 16 / sizeof(QDataType);
+                static_assert(kTileSizeD % KPerThread == 0);
+                constexpr index_t KThreadPerBlock = kTileSizeD / KPerThread;
+                index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
+
+                if((start_x + KPerThread) <= rotary_dim)
+                {
+                    constexpr index_t thread_buffer_size = decltype(q_tile.thread_buf_)::size();
+                    static_assert(thread_buffer_size % KPerThread == 0);
+                    static_for<0, thread_buffer_size, 2>{}([&](auto idx) {
+                        const auto left  = type_convert<float>(q_tile.thread_buf_[idx]);
+                        const auto right = type_convert<float>(q_tile.thread_buf_[idx + 1]);
+
+                        const auto cos = type_convert<float>(rotary_cos_tile.thread_buf_[idx / 2]);
+                        const auto sin = type_convert<float>(rotary_sin_tile.thread_buf_[idx / 2]);
+
+                        q_tile.thread_buf_[idx] = type_convert<KDataType>(left * cos - right * sin);
+                        q_tile.thread_buf_[idx + 1] =
+                            type_convert<KDataType>(right * cos + left * sin);
+                    });
+                }
+            }
             else // RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED
             {
-            }
+                constexpr index_t KPerThread = 8 / sizeof(QDataType);
+                static_assert(kTileSizeD % KPerThread == 0);
+                constexpr index_t KThreadPerBlock = kTileSizeD / KPerThread;
+                index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
 
+                if((start_x + KPerThread) <= rotary_dim)
+                {
+                    const bool is_left = (start_x + KPerThread) <= (rotary_dim / 2);
+
+                    auto q_other_window = q_window;
+                    move_tile_window(q_other_window,
+                                     {0, is_left ? rotary_dim / 2 : -(rotary_dim / 2)});
+                    auto q_other_tile = load_tile(q_other_window);
+
+                    move_tile_window(rotary_cos_window, {0, is_left ? 0 : -(rotary_dim / 2)});
+                    auto rotary_cos_tile = load_tile(rotary_cos_window);
+
+                    move_tile_window(rotary_sin_window, {0, is_left ? 0 : -(rotary_dim / 2)});
+                    auto rotary_sin_tile = load_tile(rotary_sin_window);
+
+                    constexpr index_t thread_buffer_size = decltype(q_tile.thread_buf_)::size();
+                    static_assert(thread_buffer_size % KPerThread == 0);
+                    static_for<0, thread_buffer_size, 1>{}([&](auto idx) {
+                        const auto curr  = type_convert<float>(q_tile.thread_buf_[idx]);
+                        const auto other = type_convert<float>(q_other_tile.thread_buf_[idx]);
+
+                        const auto cos = type_convert<float>(rotary_cos_tile.thread_buf_[idx]);
+                        const auto sin = type_convert<float>(rotary_sin_tile.thread_buf_[idx]);
+
+                        q_tile.thread_buf_[idx] =
+                            type_convert<KDataType>(curr * cos + other * (is_left ? -sin : sin));
+                    });
+                }
+            }
+            print_tile(q_tile, 8);
             store_tile(q_dram_block_window, q_tile);
         }
     }
@@ -292,16 +366,20 @@ struct BlockFmhaFwdAppendKVPipeline
               typename KnewDramBlockWindow,
               typename VDramBlockWindow,
               typename VnewDramBlockWindow,
-              typename RotaryCosDramBlockWindow,
-              typename RotarySinDramBlockWindow>
+              typename QRotaryCosDramBlockWindow,
+              typename QRotarySinDramBlockWindow,
+              typename KnewRotaryCosDramBlockWindow,
+              typename KnewRotarySinDramBlockWindow>
     CK_TILE_HOST_DEVICE auto
     operator()(QDramBlockWindow& q_dram_block_window,
                KDramBlockWindow& k_dram_block_window,
                const KnewDramBlockWindow& knew_dram_block_window,
                VDramBlockWindow& v_dram_block_window,
                const VnewDramBlockWindow& vnew_dram_block_window,
-               const RotaryCosDramBlockWindow& rotary_cos_dram_block_window,
-               const RotarySinDramBlockWindow& rotary_sin_dram_block_window,
+               const QRotaryCosDramBlockWindow& q_rotary_cos_dram_block_window,
+               const QRotarySinDramBlockWindow& q_rotary_sin_dram_block_window,
+               const KnewRotaryCosDramBlockWindow& knew_rotary_cos_dram_block_window,
+               const KnewRotarySinDramBlockWindow& knew_rotary_sin_dram_block_window,
                void* smem_ptr,
                index_t rotary_dim = 0) const
     {
@@ -313,8 +391,10 @@ struct BlockFmhaFwdAppendKVPipeline
                           v_dram_block_window,
                           vnew_dram_block_window,
                           identity{},
-                          rotary_cos_dram_block_window,
-                          rotary_sin_dram_block_window,
+                          q_rotary_cos_dram_block_window,
+                          q_rotary_sin_dram_block_window,
+                          knew_rotary_cos_dram_block_window,
+                          knew_rotary_sin_dram_block_window,
                           smem_ptr,
                           rotary_dim);
     }
