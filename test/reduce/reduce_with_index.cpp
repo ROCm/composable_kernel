@@ -46,7 +46,7 @@ class ReduceWithIndexTest : public ::testing::Test
 
         for(std::size_t i(0); i < setReduceDim.size(); ++i)
         {
-            set.reduceDims = settReduceDim[i];
+            set.reduceDims = setReduceDim[i];
             set.reduceOpId = ReduceTensorOp::AMAX;
             params.emplace_back(set);
             set.reduceOpId = ReduceTensorOp::MIN;
