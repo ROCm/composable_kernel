@@ -1,7 +1,9 @@
+set(KERNEL fmha_fwd_d64_fp16_batch_shb_b128x64x32x64x32x64_r4x1x1_w32x32x16_qr_async_vc_psskddv)
+
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api fwd,fwd_splitkv --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
+  --api fwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt --filter ${KERNEL}
 )
 
 execute_process(
@@ -17,7 +19,7 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt FMHA_BWD_GEN_BLOBS)
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api fwd,fwd_splitkv --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  --api fwd --output_dir ${CMAKE_CURRENT_BINARY_DIR} --filter ${KERNEL}
 )
 
 add_custom_command(
