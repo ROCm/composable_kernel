@@ -82,21 +82,17 @@ struct BlockFmhaFwdAppendKVPipeline
               typename VDramBlockWindowTmp,
               typename VnewDramBlockWindowTmp,
               typename QElementFunction,
-              typename KElementFunction,
               typename KnewElementFunction,
-              typename VElementFunction,
               typename VnewElementFunction,
               typename RotaryCosBlockWindowTemp,
               typename RotarySinBlockWindowTemp>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
-               KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-               const KElementFunction& k_element_func,
+               KDramBlockWindowTmp& k_dram_block_window_tmp,             // N0*K0 tile
                const KnewDramBlockWindowTmp& knew_dram_block_window_tmp, // N0*K0 tile
                const KnewElementFunction& knew_element_func,
-               VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-               const VElementFunction& v_element_func,
+               VDramBlockWindowTmp& v_dram_block_window_tmp,             // N1*K1 tile
                const VnewDramBlockWindowTmp& vnew_dram_block_window_tmp, // N1*K1 tile
                const VnewElementFunction& vnew_element_func,
                const RotaryCosBlockWindowTemp rotary_cos_block_window_tmp,
@@ -169,7 +165,10 @@ struct BlockFmhaFwdAppendKVPipeline
                              knew_dram_block_window.get_window_origin(),
                              Policy::template MakeKnewDramTileDistribution<Problem>());
 
-        auto knew_tile = load_tile(knew_dram_window);
+        auto knew_tile = [&]() {
+            auto knew = load_tile(knew_dram_window);
+            return tile_elementwise_in(knew_element_func, knew);
+        }();
 
         if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
         {
@@ -267,7 +266,10 @@ struct BlockFmhaFwdAppendKVPipeline
                              vnew_dram_block_window.get_window_origin(),
                              Policy::template MakeVnewDramTileDistribution<Problem>());
 
-        auto vnew_tile = load_tile(vnew_dram_window);
+        auto vnew_tile = [&]() {
+            auto vnew = load_tile(vnew_dram_window);
+            return tile_elementwise_in(vnew_element_func, vnew);
+        }();
         store_tile(v_dram_block_window_tmp, vnew_tile);
     }
 
@@ -291,11 +293,9 @@ struct BlockFmhaFwdAppendKVPipeline
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
-                          identity{},
                           knew_dram_block_window_tmp,
                           identity{},
                           v_dram_block_window_tmp,
-                          identity{},
                           vnew_dram_block_window_tmp,
                           identity{},
                           rotary_cos_block_window_tmp,
