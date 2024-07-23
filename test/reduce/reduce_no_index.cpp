@@ -23,7 +23,7 @@ struct ReduceParam
     ReduceTensorOp reduceOpId{ReduceTensorOp::AMAX};
 };
 
-std::vector<std::vector<int>> settGenericReduceDim()
+std::vector<std::vector<int>> SetGenericReduceDim()
 {
     return {{0, 1, 2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}, {0}, {1}, {2}, {3}};
 }
@@ -41,18 +41,18 @@ class ReduceWithIndexTest : public ::testing::Test
     static void SetUpTestSuite()
     {
         // set testcase variables
-        ReduceParam _sett0;
-        const auto settReduceDim = settGenericReduceDim();
+        ReduceParam set;
+        const auto setReduceDim = SetGenericReduceDim();
 
-        for(std::size_t i(0); i < settReduceDim.size(); ++i)
+        for(std::size_t i(0); i < setReduceDim.size(); ++i)
         {
-            _sett0.reduceDims = settReduceDim[i];
-            _sett0.reduceOpId = ReduceTensorOp::AMAX;
-            params.emplace_back(_sett0);
-            _sett0.reduceOpId = ReduceTensorOp::MIN;
-            params.emplace_back(_sett0);
-            _sett0.reduceOpId = ReduceTensorOp::MAX;
-            params.emplace_back(_sett0);
+            set.reduceDims = settReduceDim[i];
+            set.reduceOpId = ReduceTensorOp::AMAX;
+            params.emplace_back(set);
+            set.reduceOpId = ReduceTensorOp::MIN;
+            params.emplace_back(set);
+            set.reduceOpId = ReduceTensorOp::MAX;
+            params.emplace_back(set);
         }
     };
 
