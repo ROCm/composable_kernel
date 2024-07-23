@@ -79,7 +79,7 @@ struct FmhaFwdAppendKVKernel
     // user need to use MakeKargs() function to create kargs.
     struct CommonKargs
     {
-        const void* q_ptr;
+        void* q_ptr;
         void* k_ptr;
         const void* knew_ptr;
         void* v_ptr;
@@ -139,7 +139,7 @@ struct FmhaFwdAppendKVKernel
 
     template <bool Cond = !kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
+    MakeKargs(void* q_ptr,
               void* k_ptr,
               const void* knew_ptr,
               void* v_ptr,
@@ -211,7 +211,7 @@ struct FmhaFwdAppendKVKernel
 
     template <bool Cond = kIsGroupMode>
     __host__ static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
+    MakeKargs(void* q_ptr,
               void* k_ptr,
               const void* knew_ptr,
               void* v_ptr,
@@ -384,9 +384,9 @@ struct FmhaFwdAppendKVKernel
         }
 
         // for simplicity, batch stride we just modify the pointer
-        const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) +
-                                 static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q +
-                                 batch_offset_q;
+        QDataType* q_ptr = reinterpret_cast<QDataType*>(kargs.q_ptr) +
+                           static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q +
+                           batch_offset_q;
         KDataType* k_ptr =
             reinterpret_cast<KDataType*>(kargs.k_ptr) +
             static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k +

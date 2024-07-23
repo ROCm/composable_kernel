@@ -156,7 +156,7 @@ struct fmha_fwd_args
 
 struct fmha_fwd_appendkv_args
 {
-    const void* q_ptr;
+    void* q_ptr;
     void* k_ptr;
     const void* knew_ptr;
     void* v_ptr;

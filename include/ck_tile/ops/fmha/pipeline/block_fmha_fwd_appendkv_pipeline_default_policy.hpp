@@ -58,6 +58,40 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
+    {
+        using QDataType = remove_cvref_t<typename Problem::QDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::kTileSizeS;
+        constexpr index_t kKPerBlock = Problem::kTileSizeD;
+
+        constexpr index_t KPerThread = [&]() {
+            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            {
+                return 8 / sizeof(QDataType);
+            }
+            else
+            {
+                return 16 / sizeof(QDataType);
+            }
+        }();
+        constexpr index_t KThreadPerBlock = kKPerBlock / KPerThread;
+        constexpr index_t MThreadPerWarp  = get_warp_size() / KThreadPerBlock;
+        constexpr index_t NumWarps        = kBlockSize / get_warp_size();
+        constexpr index_t MPerThread      = kMPerBlock / (NumWarps * MThreadPerWarp);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                             sequence<KThreadPerBlock, KPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKnewDramTileDistribution()
     {
         using KDataType = remove_cvref_t<typename Problem::KDataType>;

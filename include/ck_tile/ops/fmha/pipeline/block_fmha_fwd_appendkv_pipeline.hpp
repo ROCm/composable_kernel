@@ -87,7 +87,7 @@ struct BlockFmhaFwdAppendKVPipeline
               typename RotaryCosDramBlockWindow,
               typename RotarySinDramBlockWindow>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindow& q_dram_block_window, // M0*K0 tile
+    operator()(QDramBlockWindow& q_dram_block_window, // M0*K0 tile
                const QElementFunction& q_element_func,
                KDramBlockWindow& k_dram_block_window,             // N0*K0 tile
                const KnewDramBlockWindow& knew_dram_block_window, // N0*K0 tile
@@ -261,6 +261,28 @@ struct BlockFmhaFwdAppendKVPipeline
             return tile_elementwise_in(vnew_element_func, vnew);
         }();
         store_tile(v_dram_block_window, vnew_tile);
+
+        if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
+        {
+            auto q_window = make_tile_window(q_dram_block_window.get_bottom_tensor_view(),
+                                             q_dram_block_window.get_window_lengths(),
+                                             q_dram_block_window.get_window_origin(),
+                                             Policy::template MakeQDramTileDistribution<Problem>());
+
+            auto q_tile = [&]() {
+                auto q = load_tile(q_window);
+                return tile_elementwise_in(q_element_func, q);
+            }();
+
+            // We assume that each thread owns contiguous elements on head dimention. And we will
+            // use the distribution to enable/disable threads in order to override knew_tile content
+            if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED) {}
+            else // RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED
+            {
+            }
+
+            store_tile(q_dram_block_window, q_tile);
+        }
     }
 
     template <typename QDramBlockWindow,
@@ -271,7 +293,7 @@ struct BlockFmhaFwdAppendKVPipeline
               typename RotaryCosDramBlockWindow,
               typename RotarySinDramBlockWindow>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindow& q_dram_block_window,
+    operator()(QDramBlockWindow& q_dram_block_window,
                KDramBlockWindow& k_dram_block_window,
                const KnewDramBlockWindow& knew_dram_block_window,
                VDramBlockWindow& v_dram_block_window,
