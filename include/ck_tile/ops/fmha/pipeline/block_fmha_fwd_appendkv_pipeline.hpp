@@ -101,10 +101,10 @@ struct BlockFmhaFwdAppendKVPipeline
                const QRotarySinDramBlockWindow q_rotary_sin_dram_block_window,
                const KnewRotaryCosDramBlockWindow knew_rotary_cos_dram_block_window,
                const KnewRotarySinDramBlockWindow knew_rotary_sin_dram_block_window,
-               bool skip_q,
-               bool skip_kv,
-               void* smem_ptr,
-               index_t rotary_dim = 0) const
+               index_t rotary_dim,
+               bool skip_transform_q,
+               bool skip_append_kv,
+               void* smem_ptr) const
     {
 #if defined(ENABLE_DEVICE_DEBUG_STMTS)
         auto* const ksmem = reinterpret_cast<KDataType*>(smem_ptr);
@@ -160,7 +160,7 @@ struct BlockFmhaFwdAppendKVPipeline
 #endif
         };
 
-        if(!skip_kv)
+        if(!skip_append_kv)
         {
             auto knew_window = make_tile_window(
                 knew_dram_block_window, Policy::template MakeKnewDramTileDistribution<Problem>());
@@ -208,7 +208,7 @@ struct BlockFmhaFwdAppendKVPipeline
             store_tile(v_dram_block_window, vnew_tile);
         }
 
-        if(!skip_q)
+        if(!skip_transform_q)
         {
             // optionally apply rotary embedding to Q
             if constexpr(RotaryEnum != RotaryEmbeddingEnum::NONE)
@@ -263,10 +263,10 @@ struct BlockFmhaFwdAppendKVPipeline
                const QRotarySinDramBlockWindow& q_rotary_sin_dram_block_window,
                const KnewRotaryCosDramBlockWindow& knew_rotary_cos_dram_block_window,
                const KnewRotarySinDramBlockWindow& knew_rotary_sin_dram_block_window,
-               bool skip_q,
-               bool skip_kv,
-               void* smem_ptr,
-               index_t rotary_dim = 0) const
+               index_t rotary_dim,
+               bool skip_transform_q,
+               bool skip_append_kv,
+               void* smem_ptr = nullptr) const
     {
         return operator()(q_dram_block_window,
                           identity{},
@@ -280,10 +280,10 @@ struct BlockFmhaFwdAppendKVPipeline
                           q_rotary_sin_dram_block_window,
                           knew_rotary_cos_dram_block_window,
                           knew_rotary_sin_dram_block_window,
-                          skip_q,
-                          skip_kv,
-                          smem_ptr,
-                          rotary_dim);
+                          rotary_dim,
+                          skip_transform_q,
+                          skip_append_kv,
+                          smem_ptr);
     }
 };
 

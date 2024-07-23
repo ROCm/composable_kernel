@@ -637,10 +637,10 @@ struct FmhaFwdAppendKVKernel
                            q_rotary_sin_dram_window,
                            knew_rotary_cos_dram_window,
                            knew_rotary_sin_dram_window,
+                           kargs.rotary_dim,
                            kargs.seqlen_q <= i_m0,
                            kargs.seqlen_knew <= i_n0,
-                           smem_ptr,
-                           kargs.rotary_dim);
+                           smem_ptr);
         }
         else
         {
@@ -653,6 +653,7 @@ struct FmhaFwdAppendKVKernel
                            q_rotary_sin_dram_window,
                            knew_rotary_cos_dram_window,
                            knew_rotary_sin_dram_window,
+                           0,
                            kargs.seqlen_q <= i_m0,
                            kargs.seqlen_knew <= i_n0,
                            smem_ptr);
