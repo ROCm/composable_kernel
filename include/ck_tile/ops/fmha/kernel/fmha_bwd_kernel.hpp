@@ -1487,8 +1487,11 @@ struct FmhaBwdConvertQGradKernel
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
             kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
-            const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-            kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+            if constexpr(kIsDeterministic)
+            {
+                const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
+                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+            }
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
             if(kargs.seqlen_q <= i_m0)
