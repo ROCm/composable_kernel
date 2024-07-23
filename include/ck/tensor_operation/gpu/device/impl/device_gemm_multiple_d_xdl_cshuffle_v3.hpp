@@ -164,67 +164,66 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
             const auto Run = [&](const auto& kernel) {
-		   if(stream_config.flush_cache)
-              {
+                if(stream_config.flush_cache)
+                {
 
-		      std::array<std::size_t, NumDTensor> DsSize;
+                    std::array<std::size_t, NumDTensor> DsSize;
 
-                  Argument arg_ = arg;
+                    Argument arg_ = arg;
 
-            const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
-                arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
+                    const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
+                        arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
 
-            static_for<0, NumDTensor, 1>{}([&](auto i) {
-                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-			DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType); 
-            });
-                  ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                      arg_,
-                      stream_config.rotating_count,
-                      arg_.M * arg_.K * sizeof(ADataType),
-                      arg_.K * arg_.N * sizeof(BDataType),
-DsSize
-);
-                  rotating_mem.Print();
+                    static_for<0, NumDTensor, 1>{}([&](auto i) {
+                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                        DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
+                    });
+                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
+                        arg_,
+                        stream_config.rotating_count,
+                        arg_.M * arg_.K * sizeof(ADataType),
+                        arg_.K * arg_.N * sizeof(BDataType),
+                        DsSize);
+                    rotating_mem.Print();
 
-                  auto run_flush_cache = [&]() {
-                      // flush icache
-                      ck::utility::flush_icache();
-                      // rotating mem
-                      rotating_mem.Next();
-                      // clear c mem
-                      if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
-                      {
-                          if(arg_.KBatch > 1)
-                              hipGetErrorString(
-                                  hipMemsetAsync(arg_.p_c_grid,
-                                                 0,
-                                                 arg_.M * arg_.N * sizeof(CDataType),
-                                                 stream_config.stream_id_));
-                      }
-                  };
+                    auto run_flush_cache = [&]() {
+                        // flush icache
+                        ck::utility::flush_icache();
+                        // rotating mem
+                        rotating_mem.Next();
+                        // clear c mem
+                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+                        {
+                            if(arg_.KBatch > 1)
+                                hipGetErrorString(
+                                    hipMemsetAsync(arg_.p_c_grid,
+                                                   0,
+                                                   arg_.M * arg_.N * sizeof(CDataType),
+                                                   stream_config.stream_id_));
+                        }
+                    };
 
-                  ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                      stream_config,
-                      run_flush_cache,
-                      kernel,
-                      dim3(gdx, gdy, gdz),
-                      dim3(BlockSize),
-                      0,
-                      arg_);
-	      }
-	      else
-	      {
-                if(arg.KBatch > 1)
-                    hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
-                                                     0,
-                                                     arg.M * arg.N * sizeof(CDataType),
-                                                     stream_config.stream_id_));
+                    ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(
+                        stream_config,
+                        run_flush_cache,
+                        kernel,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        arg_);
+                }
+                else
+                {
+                    if(arg.KBatch > 1)
+                        hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
+                                                         0,
+                                                         arg.M * arg.N * sizeof(CDataType),
+                                                         stream_config.stream_id_));
 
-                ave_time = launch_and_time_kernel(
-                    stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
-	      }
-	    };
+                    ave_time = launch_and_time_kernel(
+                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                }
+            };
 
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
