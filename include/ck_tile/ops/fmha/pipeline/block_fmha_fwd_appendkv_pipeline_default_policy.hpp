@@ -66,7 +66,16 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::kTileSizeSk;
         constexpr index_t kKPerBlock = Problem::kTileSizeD;
 
-        constexpr index_t KPerThread      = 16 / sizeof(KDataType);
+        constexpr index_t KPerThread = [&]() {
+            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            {
+                return 8 / sizeof(KDataType);
+            }
+            else
+            {
+                return 16 / sizeof(KDataType);
+            }
+        }();
         constexpr index_t KThreadPerBlock = kKPerBlock / KPerThread;
         constexpr index_t NThreadPerWarp  = get_warp_size() / KThreadPerBlock;
         constexpr index_t NumWarps        = kBlockSize / get_warp_size();
@@ -155,16 +164,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
             }
         }();
 
-        constexpr index_t KPerThread = [&]() {
-            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
-            {
-                return 16 / sizeof(KDataType);
-            }
-            else
-            {
-                return 8 / sizeof(KDataType);
-            }
-        }();
+        constexpr index_t KPerThread      = 8 / sizeof(KDataType);
         constexpr index_t KThreadPerBlock = kKPerBlock / KPerThread;
         constexpr index_t NThreadPerWarp  = get_warp_size() / KThreadPerBlock;
         constexpr index_t NumWarps        = kBlockSize / get_warp_size();

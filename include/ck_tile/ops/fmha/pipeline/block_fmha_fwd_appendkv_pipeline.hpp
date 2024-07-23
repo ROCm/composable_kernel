@@ -215,7 +215,7 @@ struct BlockFmhaFwdAppendKVPipeline
             }
             else // RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED
             {
-                constexpr index_t KPerThread = 16 / sizeof(KDataType);
+                constexpr index_t KPerThread = 8 / sizeof(KDataType);
                 static_assert(kTileSizeD % KPerThread == 0);
                 constexpr index_t KThreadPerBlock = kTileSizeD / KPerThread;
                 index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
