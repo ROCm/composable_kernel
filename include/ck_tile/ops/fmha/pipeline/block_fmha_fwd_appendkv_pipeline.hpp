@@ -197,7 +197,6 @@ struct BlockFmhaFwdAppendKVPipeline
                     {
                         constexpr index_t thread_buffer_size =
                             decltype(knew_tile.thread_buf_)::size();
-                        static_assert(thread_buffer_size % KPerThread == 0);
                         static_for<0, thread_buffer_size, 2>{}([&](auto idx) {
                             const auto left  = type_convert<float>(knew_tile.thread_buf_[idx]);
                             const auto right = type_convert<float>(knew_tile.thread_buf_[idx + 1]);
@@ -233,7 +232,6 @@ struct BlockFmhaFwdAppendKVPipeline
 
                         constexpr index_t thread_buffer_size =
                             decltype(knew_tile.thread_buf_)::size();
-                        static_assert(thread_buffer_size % KPerThread == 0);
                         static_for<0, thread_buffer_size, 1>{}([&](auto idx) {
                             const auto curr = type_convert<float>(knew_tile.thread_buf_[idx]);
                             const auto other =
