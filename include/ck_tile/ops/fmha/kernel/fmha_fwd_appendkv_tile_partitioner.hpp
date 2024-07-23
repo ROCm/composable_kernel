@@ -19,11 +19,11 @@ struct FmhaFwdAppendKVTilePartitioner
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
                                                 ck_tile::index_t nhead,
-                                                ck_tile::index_t seqlen_q,
+                                                ck_tile::index_t max_seqlen_q,
                                                 ck_tile::index_t seqlen_knew)
     {
         // TODO: this may need tuning
-        return dim3(std::max(ck_tile::integer_divide_ceil(seqlen_q, kM0),
+        return dim3(std::max(ck_tile::integer_divide_ceil(max_seqlen_q, kM0),
                              ck_tile::integer_divide_ceil(seqlen_knew, kN0)),
                     nhead,
                     batch_size);
