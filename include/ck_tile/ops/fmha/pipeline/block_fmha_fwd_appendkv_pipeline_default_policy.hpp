@@ -58,6 +58,31 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_DEVICE static auto GetQThreadRangeAlongK()
+    {
+        static_assert(Problem::RotaryEnum != BlockRotaryEmbeddingEnum::NONE);
+
+        if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+        {
+            constexpr index_t KPerThread = 16 / sizeof(typename Problem::QDataType);
+            static_assert(Problem::kTileSizeD % KPerThread == 0);
+            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            index_t start_x                   = (get_thread_id() % KThreadPerBlock) * KPerThread;
+
+            return make_tuple(start_x, start_x + KPerThread);
+        }
+        else
+        {
+            constexpr index_t KPerThread = 8 / sizeof(typename Problem::QDataType);
+            static_assert(Problem::kTileSizeD % KPerThread == 0);
+            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            index_t start_x                   = (get_thread_id() % KThreadPerBlock) * KPerThread;
+
+            return make_tuple(start_x, start_x + KPerThread);
+        }
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
     {
         using QDataType = remove_cvref_t<typename Problem::QDataType>;
@@ -89,6 +114,29 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static auto GetKnewThreadRangeAlongK()
+    {
+        static_assert(Problem::RotaryEnum != BlockRotaryEmbeddingEnum::NONE);
+
+        if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+        {
+            constexpr index_t KPerThread      = 16 / sizeof(typename Problem::KDataType);
+            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
+
+            return make_tuple(start_x, start_x + KPerThread);
+        }
+        else
+        {
+            constexpr index_t KPerThread      = 8 / sizeof(typename Problem::KDataType);
+            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
+
+            return make_tuple(start_x, start_x + KPerThread);
+        }
     }
 
     template <typename Problem>
