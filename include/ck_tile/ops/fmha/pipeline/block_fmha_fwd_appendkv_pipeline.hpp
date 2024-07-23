@@ -108,10 +108,6 @@ struct BlockFmhaFwdAppendKVPipeline
     {
 #if defined(ENABLE_DEVICE_DEBUG_STMTS)
         auto* const ksmem = reinterpret_cast<KDataType*>(smem_ptr);
-        if(threadIdx.x == 0)
-        {
-            printf("\n");
-        }
 #endif
 
         auto print_tile = [&](const auto& tile, index_t num_display_rows = -1) {
@@ -140,6 +136,7 @@ struct BlockFmhaFwdAppendKVPipeline
 
             DEVICE_DEBUG_STMTS
             {
+                printf("\n");
                 for(int row = 0;
                     row < (0 < num_display_rows ? std::min(num_display_rows, num_rows) : num_rows);
                     ++row)
@@ -195,7 +192,7 @@ struct BlockFmhaFwdAppendKVPipeline
                                                         rotary_dim,
                                                         thread_end);
             }
-            print_tile(knew_tile, 2);
+            // print_tile(knew_tile, 2);
             store_tile(k_dram_block_window, knew_tile);
 
             auto vnew_window = make_tile_window(

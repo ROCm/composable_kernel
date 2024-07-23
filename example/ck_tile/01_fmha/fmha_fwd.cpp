@@ -1106,9 +1106,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::reference_batched_rotary_position_embedding<RoPEComputeDataType>(
                 q_host_ref, rotary_cos_host, rotary_sin_host, is_rotary_interleaved, q_host_ref_ro);
 
-            #if 0
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
-            #endif
         }
         #if 0
         HOST_DEBUG_STMTS {
