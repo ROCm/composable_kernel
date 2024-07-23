@@ -112,8 +112,9 @@ struct RotatingMemWrapperMultiD
                 hip_check_error(hipFree(const_cast<void*>(p_b_grids[i])));
 
                 static_for<0, NumDs, 1>{}([&](auto j) {
+                    using DDataType = remove_cvref_t<tuple_element_t<j.value, DsDataType>>;
                     hip_check_error(
-                        hipFree(static_cast<void*>(const_cast<float*>(p_ds_grids[i][j]))));
+                        hipFree(static_cast<void*>(const_cast<DDataType*>(p_ds_grids[i][j]))));
                 });
             }
         }
