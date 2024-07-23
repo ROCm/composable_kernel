@@ -516,17 +516,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
     ck_tile::HostTensor<KDataType> k_host(
         get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+    /// NOTICE: always use same shape for knew_host & vnew_host in batch/group mode
     ck_tile::HostTensor<KDataType> knew_host(
         0 < seqlen_knew
-            ? get_lengths(i_perm, shape_batch, nhead_k, seqlen_knew, hdim_q)
+            ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_q)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<VDataType> v_host(
         is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                       : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
     ck_tile::HostTensor<VDataType> vnew_host(
         0 < seqlen_knew
-            ? (is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, seqlen_knew, hdim_v)
-                             : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, seqlen_knew))
+            ? (is_v_rowmajor ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_v)
+                             : get_lengths(i_perm, batch, nhead_k, hdim_v, seqlen_knew))
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<BiasDataType> bias_host(
         bias.type == bias_enum::elementwise_bias
@@ -1107,7 +1108,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
         }
-        #if 1
+        #if 0
         HOST_DEBUG_STMTS {
             printf("\n");
             for(size_t row = 0; row < q_host_ref.get_length(1) && row < 8; ++row)
