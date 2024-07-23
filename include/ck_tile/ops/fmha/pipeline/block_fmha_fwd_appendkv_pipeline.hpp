@@ -185,6 +185,8 @@ struct BlockFmhaFwdAppendKVPipeline
                                  rotary_sin_block_window_tmp.get_window_origin(),
                                  Policy::template MakeRotaryCosSinTileDistribution<Problem>());
 
+            // We assume that each thread owns contiguous elements on head dimention. And we will
+            // use the distribution to enable/disable threads in order to override knew_tile content
             if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
             {
                 auto rotary_cos_tile = load_tile(rotary_cos_window);
