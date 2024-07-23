@@ -8,28 +8,28 @@
 namespace ck_tile {
 
 // This class is used for codegen pattern matching
-enum class BlockRotaryEmbeddingEnum
+enum class RotaryEmbeddingEnum
 {
     NONE         = 0,
     INTERLEAVED  = 1, // combine dimensions 0 & 1, 2 & 3, etc
     HALF_ROTATED = 2, // combine dimensions 0 & rotary_dim / 2, 1 & rotary_dim / 2 + 1, etc
 };
 
-template <BlockRotaryEmbeddingEnum>
-struct BlockRotaryEmbeddingEnumToStr;
+template <RotaryEmbeddingEnum>
+struct RotaryEmbeddingEnumToStr;
 
 template <>
-struct BlockRotaryEmbeddingEnumToStr<BlockRotaryEmbeddingEnum::NONE>
+struct RotaryEmbeddingEnumToStr<RotaryEmbeddingEnum::NONE>
 {
     static constexpr const char* name = "";
 };
 template <>
-struct BlockRotaryEmbeddingEnumToStr<BlockRotaryEmbeddingEnum::INTERLEAVED>
+struct RotaryEmbeddingEnumToStr<RotaryEmbeddingEnum::INTERLEAVED>
 {
     static constexpr const char* name = "inter";
 };
 template <>
-struct BlockRotaryEmbeddingEnumToStr<BlockRotaryEmbeddingEnum::HALF_ROTATED>
+struct RotaryEmbeddingEnumToStr<RotaryEmbeddingEnum::HALF_ROTATED>
 {
     static constexpr const char* name = "half";
 };

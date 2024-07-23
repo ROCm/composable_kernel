@@ -31,7 +31,7 @@ struct FmhaFwdAppendKVKernel
     static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
-    static constexpr bool kApplyRoPE   = FmhaPipeline::RotaryEnum != BlockRotaryEmbeddingEnum::NONE;
+    static constexpr bool kApplyRoPE   = FmhaPipeline::RotaryEnum != RotaryEmbeddingEnum::NONE;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -62,7 +62,7 @@ struct FmhaFwdAppendKVKernel
             "b" + _TS_(FmhaPipeline::kTileSizeS) + "x" + _TS_(FmhaPipeline::kTileSizeSk) + "x" + _TS_(FmhaPipeline::kTileSizeD) + "x" +
                   _TS_(FmhaPipeline::kTileSizeDv) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
-            + (!kApplyRoPE ? _SS_("") : (_SS_("_") + BlockRotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name));
+            + (!kApplyRoPE ? _SS_("") : (_SS_("_") + RotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name));
         #undef _SS_
         #undef _TS_
         // clang-format on

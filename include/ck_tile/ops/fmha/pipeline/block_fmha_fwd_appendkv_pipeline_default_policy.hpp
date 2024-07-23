@@ -60,9 +60,9 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_DEVICE static auto GetQThreadRangeAlongK()
     {
-        static_assert(Problem::RotaryEnum != BlockRotaryEmbeddingEnum::NONE);
+        static_assert(Problem::RotaryEnum != RotaryEmbeddingEnum::NONE);
 
-        if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+        if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::INTERLEAVED)
         {
             constexpr index_t KPerThread = 16 / sizeof(typename Problem::QDataType);
             static_assert(Problem::kTileSizeD % KPerThread == 0);
@@ -92,7 +92,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         constexpr index_t kKPerBlock = Problem::kTileSizeD;
 
         constexpr index_t KPerThread = [&]() {
-            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
             {
                 return 8 / sizeof(QDataType);
             }
@@ -119,9 +119,9 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_DEVICE static auto GetKnewThreadRangeAlongK()
     {
-        static_assert(Problem::RotaryEnum != BlockRotaryEmbeddingEnum::NONE);
+        static_assert(Problem::RotaryEnum != RotaryEmbeddingEnum::NONE);
 
-        if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+        if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::INTERLEAVED)
         {
             constexpr index_t KPerThread      = 16 / sizeof(typename Problem::KDataType);
             constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
@@ -149,7 +149,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         constexpr index_t kKPerBlock = Problem::kTileSizeD;
 
         constexpr index_t KPerThread = [&]() {
-            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
             {
                 return 8 / sizeof(KDataType);
             }
@@ -236,7 +236,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::kTileSizeSk;
         constexpr index_t kKPerBlock = [&]() {
-            if constexpr(Problem::RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED)
+            if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
             {
                 return Problem::kTileSizeD;
             }

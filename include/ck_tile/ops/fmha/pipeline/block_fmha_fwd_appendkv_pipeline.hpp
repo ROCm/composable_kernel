@@ -171,7 +171,7 @@ struct BlockFmhaFwdAppendKVPipeline
             }();
 
             // optionally apply rotary embedding to Knew
-            if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
+            if constexpr(RotaryEnum != RotaryEmbeddingEnum::NONE)
             {
                 auto rotary_cos_window =
                     make_tile_window(knew_rotary_cos_dram_block_window,
@@ -188,7 +188,7 @@ struct BlockFmhaFwdAppendKVPipeline
                     Policy::template GetKnewThreadRangeAlongK<Problem>();
                 ignore = thread_start;
 
-                if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+                if constexpr(RotaryEnum == RotaryEmbeddingEnum::INTERLEAVED)
                 {
                     auto rotary_cos_tile = load_tile(rotary_cos_window);
                     auto rotary_sin_tile = load_tile(rotary_sin_window);
@@ -213,7 +213,7 @@ struct BlockFmhaFwdAppendKVPipeline
                         });
                     }
                 }
-                else // RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED
+                else // RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED
                 {
                     if(thread_end <= rotary_dim)
                     {
@@ -262,7 +262,7 @@ struct BlockFmhaFwdAppendKVPipeline
         if(!skip_q)
         {
             // optionally apply rotary embedding to Q
-            if constexpr(RotaryEnum != BlockRotaryEmbeddingEnum::NONE)
+            if constexpr(RotaryEnum != RotaryEmbeddingEnum::NONE)
             {
                 auto q_window = make_tile_window(
                     q_dram_block_window, Policy::template MakeQDramTileDistribution<Problem>());
@@ -286,7 +286,7 @@ struct BlockFmhaFwdAppendKVPipeline
                 auto [thread_start, thread_end] = Policy::template GetQThreadRangeAlongK<Problem>();
                 ignore                          = thread_start;
 
-                if constexpr(RotaryEnum == BlockRotaryEmbeddingEnum::INTERLEAVED)
+                if constexpr(RotaryEnum == RotaryEmbeddingEnum::INTERLEAVED)
                 {
                     auto rotary_cos_tile = load_tile(rotary_cos_window);
                     auto rotary_sin_tile = load_tile(rotary_sin_window);
@@ -310,7 +310,7 @@ struct BlockFmhaFwdAppendKVPipeline
                         });
                     }
                 }
-                else // RotaryEnum == BlockRotaryEmbeddingEnum::HALF_ROTATED
+                else // RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED
                 {
                     if(thread_end <= rotary_dim)
                     {

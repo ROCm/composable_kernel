@@ -14,7 +14,7 @@
 #include <random>
 #include <tuple>
 
-// keep sync with BlockRotaryEmbeddingEnum
+// keep sync with RotaryEmbeddingEnum
 enum class rope_enum
 {
     none         = 0,

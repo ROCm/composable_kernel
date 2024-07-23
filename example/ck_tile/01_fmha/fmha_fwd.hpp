@@ -642,7 +642,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSk_,
           bool kPadD_,
           bool kPadDv_,
-          ck_tile::BlockRotaryEmbeddingEnum RotaryEnum_>
+          ck_tile::RotaryEmbeddingEnum RotaryEnum_>
 struct fmha_fwd_appendkv_traits_
 {
     static constexpr ck_tile::index_t HDim        = HDim_;

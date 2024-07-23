@@ -67,9 +67,9 @@ BIAS_CHECK_MAP = {
 }
 
 ROPE_MAP = {
-    "no" : "ck_tile::BlockRotaryEmbeddingEnum::NONE",
-    "inter"  : "ck_tile::BlockRotaryEmbeddingEnum::INTERLEAVED",
-    "half" : "ck_tile::BlockRotaryEmbeddingEnum::HALF_ROTATED"
+    "no" : "ck_tile::RotaryEmbeddingEnum::NONE",
+    "inter"  : "ck_tile::RotaryEmbeddingEnum::INTERLEAVED",
+    "half" : "ck_tile::RotaryEmbeddingEnum::HALF_ROTATED"
 }
 
 # TODO: avoid duplication

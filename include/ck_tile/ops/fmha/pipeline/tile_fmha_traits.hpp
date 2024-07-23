@@ -81,7 +81,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadSeqLenK_ /* padding for seqlen_k */,
           bool kPadHeadDimQ_ /* paddding for hdim_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
-          BlockRotaryEmbeddingEnum RotaryEnum_, /* how we apply the rotary embedding */
+          RotaryEmbeddingEnum RotaryEnum_, /* how we apply the rotary embedding */
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileFmhaFwdAppendKVTraits
 {
