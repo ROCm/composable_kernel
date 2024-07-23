@@ -7,15 +7,15 @@
 
 namespace ck_tile {
 
-template <index_t kTileSizeS_, index_t kTileSizeSk_, index_t kTileSizeD_, index_t kTileSizeDv_>
+template <index_t kM0_, index_t kN0_, index_t kK0_, index_t kTileSizeDv_>
 struct FmhaFwdAppendKVTilePartitioner
 {
-    static constexpr ck_tile::index_t kTileSizeS  = kTileSizeS_;
-    static constexpr ck_tile::index_t kTileSizeSk = kTileSizeSk_;
-    static constexpr ck_tile::index_t kTileSizeD  = kTileSizeD_;
+    static constexpr ck_tile::index_t kM0         = kM0_;
+    static constexpr ck_tile::index_t kN0         = kN0_;
+    static constexpr ck_tile::index_t kK0         = kK0_;
     static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
 
-    static_assert(kTileSizeD == kTileSizeDv);
+    static_assert(kK0 == kTileSizeDv);
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size,
                                                 ck_tile::index_t nhead,
@@ -23,8 +23,8 @@ struct FmhaFwdAppendKVTilePartitioner
                                                 ck_tile::index_t seqlen_knew)
     {
         // TODO: this may need tuning
-        return dim3(std::max(ck_tile::integer_divide_ceil(seqlen_q, kTileSizeS),
-                             ck_tile::integer_divide_ceil(seqlen_knew, kTileSizeSk)),
+        return dim3(std::max(ck_tile::integer_divide_ceil(seqlen_q, kM0),
+                             ck_tile::integer_divide_ceil(seqlen_knew, kN0)),
                     nhead,
                     batch_size);
     }

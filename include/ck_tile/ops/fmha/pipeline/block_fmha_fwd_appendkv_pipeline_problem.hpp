@@ -10,9 +10,9 @@ namespace ck_tile {
 template <typename QDataType_,
           typename KDataType_,
           typename VDataType_,
-          index_t kTileSizeS_,
-          index_t kTileSizeSk_,
-          index_t kTileSizeD_,
+          index_t kM0_,
+          index_t kN0_,
+          index_t kK0_,
           index_t kTileSizeDv_,
           bool IsVLayoutRowMajor_,
           bool kIsGroupMode_,
@@ -27,9 +27,9 @@ struct BlockFmhaFwdAppendKVPipelineProblem
     static constexpr index_t kBlockSize = 256;
     static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
-    static constexpr index_t kTileSizeS  = kTileSizeS_;
-    static constexpr index_t kTileSizeSk = kTileSizeSk_;
-    static constexpr index_t kTileSizeD  = kTileSizeD_;
+    static constexpr index_t kM0         = kM0_;
+    static constexpr index_t kN0         = kN0_;
+    static constexpr index_t kK0         = kK0_;
     static constexpr index_t kTileSizeDv = kTileSizeDv_;
 
     using VLayout = std::conditional_t<IsVLayoutRowMajor_,

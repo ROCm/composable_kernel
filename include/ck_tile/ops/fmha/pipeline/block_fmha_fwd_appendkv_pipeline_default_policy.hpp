@@ -33,7 +33,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t kBlockSize   = Problem::kBlockSize;
-            constexpr index_t kNPerBlock   = Problem::kTileSizeSk;
+            constexpr index_t kNPerBlock   = Problem::kN0;
             constexpr index_t kKPerBlock   = Problem::kTileSizeDv;
             constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
 
@@ -54,7 +54,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     {
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
-        return sizeof(KDataType) * Problem::kTileSizeSk * (Problem::kTileSizeD);
+        return sizeof(KDataType) * Problem::kN0 * (Problem::kK0);
     }
 
     template <typename Problem>
@@ -65,8 +65,8 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::INTERLEAVED)
         {
             constexpr index_t KPerThread = 16 / sizeof(typename Problem::QDataType);
-            static_assert(Problem::kTileSizeD % KPerThread == 0);
-            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            static_assert(Problem::kK0 % KPerThread == 0);
+            constexpr index_t KThreadPerBlock = Problem::kK0 / KPerThread;
             index_t start_x                   = (get_thread_id() % KThreadPerBlock) * KPerThread;
 
             return make_tuple(start_x, start_x + KPerThread);
@@ -74,8 +74,8 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         else
         {
             constexpr index_t KPerThread = 8 / sizeof(typename Problem::QDataType);
-            static_assert(Problem::kTileSizeD % KPerThread == 0);
-            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            static_assert(Problem::kK0 % KPerThread == 0);
+            constexpr index_t KThreadPerBlock = Problem::kK0 / KPerThread;
             index_t start_x                   = (get_thread_id() % KThreadPerBlock) * KPerThread;
 
             return make_tuple(start_x, start_x + KPerThread);
@@ -88,8 +88,8 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         using QDataType = remove_cvref_t<typename Problem::QDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = Problem::kTileSizeS;
-        constexpr index_t kKPerBlock = Problem::kTileSizeD;
+        constexpr index_t kMPerBlock = Problem::kM0;
+        constexpr index_t kKPerBlock = Problem::kK0;
 
         constexpr index_t KPerThread = [&]() {
             if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
@@ -124,7 +124,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::INTERLEAVED)
         {
             constexpr index_t KPerThread      = 16 / sizeof(typename Problem::KDataType);
-            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            constexpr index_t KThreadPerBlock = Problem::kK0 / KPerThread;
             index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
 
             return make_tuple(start_x, start_x + KPerThread);
@@ -132,7 +132,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         else
         {
             constexpr index_t KPerThread      = 8 / sizeof(typename Problem::KDataType);
-            constexpr index_t KThreadPerBlock = Problem::kTileSizeD / KPerThread;
+            constexpr index_t KThreadPerBlock = Problem::kK0 / KPerThread;
             index_t start_x                   = (threadIdx.x % KThreadPerBlock) * KPerThread;
 
             return make_tuple(start_x, start_x + KPerThread);
@@ -145,8 +145,8 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::kTileSizeSk;
-        constexpr index_t kKPerBlock = Problem::kTileSizeD;
+        constexpr index_t kNPerBlock = Problem::kN0;
+        constexpr index_t kKPerBlock = Problem::kK0;
 
         constexpr index_t KPerThread = [&]() {
             if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
@@ -189,7 +189,7 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::kTileSizeDv;
-        constexpr index_t kKPerBlock = Problem::kTileSizeSk;
+        constexpr index_t kKPerBlock = Problem::kN0;
 
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -234,15 +234,15 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kNPerBlock = Problem::kTileSizeSk;
+        constexpr index_t kNPerBlock = Problem::kN0;
         constexpr index_t kKPerBlock = [&]() {
             if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
             {
-                return Problem::kTileSizeD;
+                return Problem::kK0;
             }
             else
             {
-                return Problem::kTileSizeD / 2;
+                return Problem::kK0 / 2;
             }
         }();
 

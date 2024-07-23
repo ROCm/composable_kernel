@@ -22,9 +22,9 @@ struct BlockFmhaFwdAppendKVPipeline
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kTileSizeS  = Problem::kTileSizeS;
-    static constexpr index_t kTileSizeSk = Problem::kTileSizeSk;
-    static constexpr index_t kTileSizeD  = Problem::kTileSizeD;
+    static constexpr index_t kM0         = Problem::kM0;
+    static constexpr index_t kN0         = Problem::kN0;
+    static constexpr index_t kK0         = Problem::kK0;
     static constexpr index_t kTileSizeDv = Problem::kTileSizeDv;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
@@ -52,19 +52,19 @@ struct BlockFmhaFwdAppendKVPipeline
             return Problem::kBlockPerCu;
         else
         {
-            if constexpr(kTileSizeD <= 32)
+            if constexpr(kK0 <= 32)
             {
                 return 2;
             }
-            else if constexpr(kTileSizeD <= 64)
+            else if constexpr(kK0 <= 64)
             {
                 return 3;
             }
-            else if constexpr(kTileSizeD <= 128)
+            else if constexpr(kK0 <= 128)
             {
                 return 2;
             }
-            else if constexpr(kTileSizeD <= 256)
+            else if constexpr(kK0 <= 256)
             {
                 return 1;
             }

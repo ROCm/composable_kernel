@@ -57,9 +57,9 @@ struct FmhaFwdAppendKVKernel
             if (kPadHeadDimV) n += "dv";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_fwd_appendkv_d") + _TS_(FmhaPipeline::kTileSizeD) + "_" + _SS_(t2s<QDataType>::name) +
+            _SS_("fmha_fwd_appendkv_d") + _TS_(FmhaPipeline::kK0) + "_" + _SS_(t2s<QDataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
-            "b" + _TS_(FmhaPipeline::kTileSizeS) + "x" + _TS_(FmhaPipeline::kTileSizeSk) + "x" + _TS_(FmhaPipeline::kTileSizeD) + "x" +
+            "b" + _TS_(FmhaPipeline::kM0) + "x" + _TS_(FmhaPipeline::kN0) + "x" + _TS_(FmhaPipeline::kK0) + "x" +
                   _TS_(FmhaPipeline::kTileSizeDv) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
             + (!kApplyRoPE ? _SS_("") : (_SS_("_") + RotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name));
@@ -301,8 +301,8 @@ struct FmhaFwdAppendKVKernel
         // divide problem
         const auto [i_tile, i_nhead, i_batch] = TilePartitioner{}();
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kTileSizeS);
-        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kTileSizeSk);
+        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
+        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
 
         long_index_t batch_offset_q = 0;
         long_index_t batch_offset_k = 0;
@@ -391,7 +391,7 @@ struct FmhaFwdAppendKVKernel
 
             return pad_tensor_view(
                 q_dram_naive,
-                make_tuple(number<FmhaPipeline::kTileSizeS>{}, number<FmhaPipeline::kTileSizeD>{}),
+                make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenQ, kPadHeadDimQ>{});
         }();
         const auto k_dram = [&]() {
@@ -404,7 +404,7 @@ struct FmhaFwdAppendKVKernel
 
             return pad_tensor_view(
                 k_dram_naive,
-                make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
+                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenK, kPadHeadDimQ>{});
         }();
         const auto knew_dram = [&]() {
@@ -417,7 +417,7 @@ struct FmhaFwdAppendKVKernel
 
             return pad_tensor_view(
                 knew_dram_naive,
-                make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
+                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenK, kPadHeadDimQ>{});
         }();
         const auto v_dram = [&]() {
@@ -437,10 +437,10 @@ struct FmhaFwdAppendKVKernel
                     make_tuple(sequence<1>{}, sequence<0>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
-                return pad_tensor_view(v_dram_transposed,
-                                       make_tuple(number<FmhaPipeline::kTileSizeDv>{},
-                                                  number<FmhaPipeline::kTileSizeSk>{}),
-                                       sequence<kPadHeadDimV, kPadSeqLenK>{});
+                return pad_tensor_view(
+                    v_dram_transposed,
+                    make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kN0>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
             else
             {
@@ -451,10 +451,10 @@ struct FmhaFwdAppendKVKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                return pad_tensor_view(v_dram_naive,
-                                       make_tuple(number<FmhaPipeline::kTileSizeDv>{},
-                                                  number<FmhaPipeline::kTileSizeSk>{}),
-                                       sequence<kPadHeadDimV, kPadSeqLenK>{});
+                return pad_tensor_view(
+                    v_dram_naive,
+                    make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kN0>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
         }();
         const auto vnew_dram = [&]() {
@@ -474,10 +474,10 @@ struct FmhaFwdAppendKVKernel
                     make_tuple(sequence<1>{}, sequence<0>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
-                return pad_tensor_view(vnew_dram_transposed,
-                                       make_tuple(number<FmhaPipeline::kTileSizeDv>{},
-                                                  number<FmhaPipeline::kTileSizeSk>{}),
-                                       sequence<kPadHeadDimV, kPadSeqLenK>{});
+                return pad_tensor_view(
+                    vnew_dram_transposed,
+                    make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kN0>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
             else
             {
@@ -488,15 +488,15 @@ struct FmhaFwdAppendKVKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                return pad_tensor_view(vnew_dram_naive,
-                                       make_tuple(number<FmhaPipeline::kTileSizeDv>{},
-                                                  number<FmhaPipeline::kTileSizeSk>{}),
-                                       sequence<kPadHeadDimV, kPadSeqLenK>{});
+                return pad_tensor_view(
+                    vnew_dram_naive,
+                    make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kN0>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK>{});
             }
         }();
 
         constexpr auto q_rotary_cos_sin_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kTileSizeS>{}, number<FmhaPipeline::kTileSizeD / 2>{});
+            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0 / 2>{});
         const auto q_rotary_cos_dram_window = [&]() {
             if constexpr(kApplyRoPE)
             {
@@ -549,7 +549,7 @@ struct FmhaFwdAppendKVKernel
         }();
 
         constexpr auto knew_rotary_cos_sin_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD / 2>{});
+            make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0 / 2>{});
         const auto knew_rotary_cos_dram_window = [&]() {
             if constexpr(kApplyRoPE)
             {
@@ -601,29 +601,29 @@ struct FmhaFwdAppendKVKernel
             }
         }();
 
-        auto q_dram_window = make_tile_window(
-            q_dram,
-            make_tuple(number<FmhaPipeline::kTileSizeS>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {i_m0, 0});
+        auto q_dram_window =
+            make_tile_window(q_dram,
+                             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
+                             {i_m0, 0});
 
-        auto k_dram_window = make_tile_window(
-            k_dram,
-            make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {kargs.seqlen_k + i_n0, 0});
+        auto k_dram_window =
+            make_tile_window(k_dram,
+                             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                             {kargs.seqlen_k + i_n0, 0});
 
-        auto knew_dram_window = make_tile_window(
-            knew_dram,
-            make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {i_n0, 0});
+        auto knew_dram_window =
+            make_tile_window(knew_dram,
+                             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                             {i_n0, 0});
 
         auto v_dram_window = make_tile_window(
             v_dram,
-            make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kTileSizeSk>{}),
+            make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kN0>{}),
             {0, kargs.seqlen_k + i_n0});
 
         auto vnew_dram_window = make_tile_window(
             vnew_dram,
-            make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kTileSizeSk>{}),
+            make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kN0>{}),
             {0, i_n0});
 
         if constexpr(kApplyRoPE)
