@@ -304,30 +304,6 @@ struct FmhaFwdAppendKVKernel
         const index_t i_sk = __builtin_amdgcn_readfirstlane(i_tile_sk * FmhaPipeline::kTileSizeSk);
         // const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
-#if defined(ENABLE_KERNEL_DEBUG_PRINT)
-#define PRINTF(expr) printf("[POYENC][DEVICE] " #expr ": %2d\n", (expr));
-#if 0
-        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
-        {
-            PRINTF(kargs.stride_k);
-            PRINTF(kargs.nhead_stride_k);
-            PRINTF(kargs.batch_stride_k);
-
-            PRINTF(kargs.stride_knew);
-            PRINTF(kargs.nhead_stride_knew);
-            PRINTF(kargs.batch_stride_knew);
-
-            PRINTF(kargs.stride_v);
-            PRINTF(kargs.nhead_stride_v);
-            PRINTF(kargs.batch_stride_v);
-
-            PRINTF(kargs.stride_vnew);
-            PRINTF(kargs.nhead_stride_vnew);
-            PRINTF(kargs.batch_stride_vnew);
-        }
-#endif
-#endif
-
         long_index_t batch_offset_q = 0;
         long_index_t batch_offset_k = 0;
         long_index_t batch_offset_knew =
@@ -649,21 +625,6 @@ struct FmhaFwdAppendKVKernel
             vnew_dram,
             make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kTileSizeSk>{}),
             {0, i_sk});
-
-#if defined(ENABLE_KERNEL_DEBUG_PRINT)
-        if(blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0 && threadIdx.x == TID)
-        {
-            printf("[POYENC][DEVICE] kargs.seqlen_k: %d\n", kargs.seqlen_k);
-            printf("[POYENC][DEVICE] k_dram.get_length(0): %d\n",
-                   k_dram.get_tensor_descriptor().get_length(number<0>{}));
-            printf("[POYENC][DEVICE] k_dram.get_length(1): %d\n",
-                   k_dram.get_tensor_descriptor().get_length(number<1>{}));
-            printf("[POYENC][DEVICE] v_dram.get_length(0): %d\n",
-                   v_dram.get_tensor_descriptor().get_length(number<0>{}));
-            printf("[POYENC][DEVICE] v_dram.get_length(1): %d\n",
-                   v_dram.get_tensor_descriptor().get_length(number<1>{}));
-        }
-#endif
 
         if constexpr(kApplyRoPE)
         {
