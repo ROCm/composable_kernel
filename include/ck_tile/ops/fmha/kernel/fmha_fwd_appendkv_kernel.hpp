@@ -299,10 +299,10 @@ struct FmhaFwdAppendKVKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
-        const auto [i_tile_sk, i_nhead, i_batch] = TilePartitioner{}(kargs.seqlen_q, kargs.hdim_v);
+        const auto [i_tile, i_nhead, i_batch] = TilePartitioner{}();
 
-        const index_t i_sk = __builtin_amdgcn_readfirstlane(i_tile_sk * FmhaPipeline::kTileSizeSk);
-        // const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kTileSizeS);
+        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kTileSizeSk);
 
         long_index_t batch_offset_q = 0;
         long_index_t batch_offset_k = 0;
@@ -514,9 +514,8 @@ struct FmhaFwdAppendKVKernel
                                            sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }();
 
-                /// TODO: use tile idx for q
                 return make_tile_window(
-                    rotary_cos_dram, q_rotary_cos_sin_dram_window_lengths, {i_sk, 0});
+                    rotary_cos_dram, q_rotary_cos_sin_dram_window_lengths, {i_m0, 0});
             }
             else
             {
@@ -540,9 +539,8 @@ struct FmhaFwdAppendKVKernel
                                            sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }();
 
-                /// TODO: use tile idx for q
                 return make_tile_window(
-                    rotary_sin_dram, q_rotary_cos_sin_dram_window_lengths, {i_sk, 0});
+                    rotary_sin_dram, q_rotary_cos_sin_dram_window_lengths, {i_m0, 0});
             }
             else
             {
@@ -570,7 +568,7 @@ struct FmhaFwdAppendKVKernel
                 }();
 
                 return make_tile_window(
-                    rotary_cos_dram, knew_rotary_cos_sin_dram_window_lengths, {i_sk, 0});
+                    rotary_cos_dram, knew_rotary_cos_sin_dram_window_lengths, {i_n0, 0});
             }
             else
             {
@@ -595,7 +593,7 @@ struct FmhaFwdAppendKVKernel
                 }();
 
                 return make_tile_window(
-                    rotary_sin_dram, knew_rotary_cos_sin_dram_window_lengths, {i_sk, 0});
+                    rotary_sin_dram, knew_rotary_cos_sin_dram_window_lengths, {i_n0, 0});
             }
             else
             {
@@ -603,31 +601,30 @@ struct FmhaFwdAppendKVKernel
             }
         }();
 
-        /// TODO: use tile idx for q
         auto q_dram_window = make_tile_window(
             q_dram,
             make_tuple(number<FmhaPipeline::kTileSizeS>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {0, 0});
+            {i_m0, 0});
 
         auto k_dram_window = make_tile_window(
             k_dram,
             make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {kargs.seqlen_k + i_sk, 0});
+            {kargs.seqlen_k + i_n0, 0});
 
         auto knew_dram_window = make_tile_window(
             knew_dram,
             make_tuple(number<FmhaPipeline::kTileSizeSk>{}, number<FmhaPipeline::kTileSizeD>{}),
-            {i_sk, 0});
+            {i_n0, 0});
 
         auto v_dram_window = make_tile_window(
             v_dram,
             make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kTileSizeSk>{}),
-            {0, kargs.seqlen_k + i_sk});
+            {0, kargs.seqlen_k + i_n0});
 
         auto vnew_dram_window = make_tile_window(
             vnew_dram,
             make_tuple(number<FmhaPipeline::kTileSizeDv>{}, number<FmhaPipeline::kTileSizeSk>{}),
-            {0, i_sk});
+            {0, i_n0});
 
         if constexpr(kApplyRoPE)
         {
@@ -640,6 +637,8 @@ struct FmhaFwdAppendKVKernel
                            q_rotary_sin_dram_window,
                            knew_rotary_cos_dram_window,
                            knew_rotary_sin_dram_window,
+                           kargs.seqlen_q <= i_m0,
+                           kargs.seqlen_knew <= i_n0,
                            smem_ptr,
                            kargs.rotary_dim);
         }
@@ -654,6 +653,8 @@ struct FmhaFwdAppendKVKernel
                            q_rotary_sin_dram_window,
                            knew_rotary_cos_dram_window,
                            knew_rotary_sin_dram_window,
+                           kargs.seqlen_q <= i_m0,
+                           kargs.seqlen_knew <= i_n0,
                            smem_ptr);
         }
     }
