@@ -101,7 +101,7 @@ function(add_instance_library INSTANCE_NAME)
         if(${INSTANCE_NAME} STREQUAL "device_mha_instance")
             target_compile_options(device_mha_instance PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
         endif()
-        #=========================================
+        
         target_compile_features(${INSTANCE_NAME} PUBLIC)
         set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
         clang_tidy_check(${INSTANCE_NAME})
