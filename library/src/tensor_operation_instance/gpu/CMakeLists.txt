@@ -86,6 +86,22 @@ function(add_instance_library INSTANCE_NAME)
             list(APPEND INST_OBJ ${source})
         endforeach()
         add_library(${INSTANCE_NAME} OBJECT ${INST_OBJ})
+
+        if(NOT DEFINED FMHA_FWD_FAST_EXP2)
+            set(FMHA_FWD_FAST_EXP2 true)
+        endif()
+        if(FMHA_FWD_FAST_EXP2)
+	        list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
+        else()
+        	list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
+        endif()
+
+        # Allow comparing floating points directly in order to check sentinel values
+        list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
+        if(${INSTANCE_NAME} STREQUAL "device_mha_instance")
+            target_compile_options(device_mha_instance PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
+        endif()
+        #=========================================
         target_compile_features(${INSTANCE_NAME} PUBLIC)
         set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
         clang_tidy_check(${INSTANCE_NAME})
