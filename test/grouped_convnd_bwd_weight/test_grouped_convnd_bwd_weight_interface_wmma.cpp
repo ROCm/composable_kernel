@@ -52,6 +52,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
     ck::utils::conv::ConvParam conv_param;
 
+    void SetUp() override
+    {
+        if(!ck::is_gfx11_supported())
+        {
+            GTEST_SKIP();
+        }
+    }
+
     template <ck::index_t SplitK>
     bool Run()
     {
