@@ -288,7 +288,7 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
         if dtype in ['fp16', 'bf16']:
             for rope in ROPE_MAP.keys():
                 # FIXME: it will be very complicated if we consider all the padding cases,
-                #        so I just use 't' on all the dimensions
+                #        so I just use 't' for the padding flags
                 pipelines.append(FmhaFwdAppendKVPipeline('row', 't', 't', 't', 't', rope))
                 pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', rope))
         elif dtype in ['fp8', 'bf8']:
