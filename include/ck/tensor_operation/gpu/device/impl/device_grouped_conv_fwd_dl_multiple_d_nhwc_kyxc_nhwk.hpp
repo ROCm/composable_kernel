@@ -238,37 +238,17 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    static constexpr auto conv_to_gemm_transformer =
-        TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>{};
+    using GemmToConvFwdTransformer = TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, K0PerBlock};
 
     template <typename ALay>
     static auto
-    MakeAGridDescriptor_AK0_M_AK1(const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                                  const std::array<index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                                  const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                                  const std::array<index_t, NDimSpatial>& conv_filter_strides,
-                                  const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-                                  const std::array<index_t, NDimSpatial>& input_left_pads,
-                                  const std::array<index_t, NDimSpatial>& input_right_pads)
+    MakeAGridDescriptor_AK0_M_AK1(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         const auto in_gemmmraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>(a_g_n_c_wis_lengths,
-                                                                        a_g_n_c_wis_strides,
-                                                                        b_g_k_c_xs_lengths,
-                                                                        b_g_k_c_xs_strides,
-                                                                        e_g_n_k_wos_lengths,
-                                                                        e_g_n_k_wos_strides,
-                                                                        conv_filter_strides,
-                                                                        conv_filter_dilations,
-                                                                        input_left_pads,
-                                                                        input_right_pads,
-                                                                        a_g_n_c_wis_lengths[I1]);
+            conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>();
 
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);
@@ -286,12 +266,10 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
     template <typename BLay>
     static auto
-    MakeBGridDescriptor_BK0_N_BK1(const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                                  const std::array<index_t, NDimSpatial + 3>& b_g_k_c_xs_strides)
+    MakeBGridDescriptor_BK0_N_BK1(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>(b_g_k_c_xs_lengths,
-                                                                        b_g_k_c_xs_strides);
+            conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>();
 
         const auto wei_gemmn_gemmk_desc =
             matrix_padder.PadBDescriptor_N_K(wei_gemmnraw_gemmkraw_desc);
@@ -309,13 +287,10 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
     }
 
     template <typename ELay>
-    static auto
-    MakeEGridDescriptor_M_N(const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                            const std::array<index_t, NDimSpatial + 3>& e_g_n_k_wos_strides)
+    static auto MakeEGridDescriptor_M_N(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         const auto out_gemmmraw_gemmnraw_desc =
-            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>(
-                e_g_n_k_wos_lengths, e_g_n_k_wos_strides, e_g_n_k_wos_lengths[I1]);
+            conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>();
 
         const auto out_gemmm_gemmn_desc =
             matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
@@ -323,27 +298,27 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
         return out_gemmm_gemmn_desc;
     }
 
-    static auto MakeDsGridDescriptor_M_N(
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
-        const std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides)
+    static auto MakeDsGridDescriptor_M_N(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
     {
         return generate_tuple(
             [&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
 
-                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(ds_g_n_k_wos_lengths[i],
-                                                                  ds_g_n_k_wos_strides[i]);
+                return DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer);
             },
             Number<NumDTensor>{});
     }
 
     // desc for problem definition
+    constexpr static GemmToConvFwdTransformer dummy_conv_to_gemm_transformer;
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<decltype(MakeAGridDescriptor_AK0_M_AK1<ALayout>(
-        {}, {}, {}, {}, {}, {}, {}, {}, {}, {}))>;
-    using BGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1<BLayout>({}, {}))>;
-    using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}))>;
-    using EGridDesc_M_N  = remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>({}, {}))>;
+        dummy_conv_to_gemm_transformer))>;
+    using BGridDesc_BK0_N_BK1 = remove_cvref_t<decltype(MakeBGridDescriptor_BK0_N_BK1<BLayout>(
+        dummy_conv_to_gemm_transformer))>;
+    using DsGridDesc_M_N =
+        remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(dummy_conv_to_gemm_transformer))>;
+    using EGridDesc_M_N =
+        remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>(dummy_conv_to_gemm_transformer))>;
 
     // GridwiseGemm
     using GridwiseGemm =
@@ -426,21 +401,22 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
               num_group_{a_g_n_c_wis_lengths[0]},
+              conv_to_gemm_transformer_{a_g_n_c_wis_lengths,
+                                        a_g_n_c_wis_strides,
+                                        b_g_k_c_xs_lengths,
+                                        b_g_k_c_xs_strides,
+                                        e_g_n_k_wos_lengths,
+                                        e_g_n_k_wos_strides,
+                                        conv_filter_strides,
+                                        conv_filter_dilations,
+                                        input_left_pads,
+                                        input_right_pads},
               a_grid_desc_ak0_m_ak1_{
-                  DeviceOp::MakeAGridDescriptor_AK0_M_AK1<ALayout>(a_g_n_c_wis_lengths,
-                                                                   a_g_n_c_wis_strides,
-                                                                   b_g_k_c_xs_lengths,
-                                                                   b_g_k_c_xs_strides,
-                                                                   e_g_n_k_wos_lengths,
-                                                                   e_g_n_k_wos_strides,
-                                                                   conv_filter_strides,
-                                                                   conv_filter_dilations,
-                                                                   input_left_pads,
-                                                                   input_right_pads)},
-              b_grid_desc_bk0_n_bk1_{DeviceOp::MakeBGridDescriptor_BK0_N_BK1<BLayout>(
-                  b_g_k_c_xs_lengths, b_g_k_c_xs_strides)},
-              e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(e_g_n_k_wos_lengths,
-                                                                          e_g_n_k_wos_strides)},
+                  DeviceOp::MakeAGridDescriptor_AK0_M_AK1<ALayout>(conv_to_gemm_transformer_)},
+              b_grid_desc_bk0_n_bk1_{
+                  DeviceOp::MakeBGridDescriptor_BK0_N_BK1<BLayout>(conv_to_gemm_transformer_)},
+              e_grid_desc_m_n_{
+                  DeviceOp::MakeEGridDescriptor_M_N<ELayout>(conv_to_gemm_transformer_)},
               a_grid_desc_k0_m0_m1_k1_{},
               b_grid_desc_k0_n0_n1_k1_{},
               ds_grid_desc_m0_m10_m11_n0_n10_n11_{},
@@ -471,6 +447,17 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                 using DLayout   = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
 
+                GemmToConvFwdTransformer conv_to_gemm_transformer_d{a_g_n_c_wis_lengths,
+                                                                    a_g_n_c_wis_strides,
+                                                                    b_g_k_c_xs_lengths,
+                                                                    b_g_k_c_xs_strides,
+                                                                    ds_g_n_k_wos_lengths[i],
+                                                                    ds_g_n_k_wos_strides[i],
+                                                                    conv_filter_strides,
+                                                                    conv_filter_dilations,
+                                                                    input_left_pads,
+                                                                    input_right_pads};
+
                 // D pointer
                 p_ds_grid_(i) = static_cast<const DDataType*>(p_ds[i]);
 
@@ -478,8 +465,8 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
                 compute_ptr_offset_of_batch_.BatchStrideDs_(i) = ds_g_n_k_wos_strides[i][0];
 
                 // D desc
-                ds_grid_desc_m_n_(i) = DeviceOp::MakeEGridDescriptor_M_N<DLayout>(
-                    ds_g_n_k_wos_lengths[i], ds_g_n_k_wos_strides[i]);
+                ds_grid_desc_m_n_(i) =
+                    DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
             });
 
             // populate desc for Ds/E
@@ -523,6 +510,9 @@ struct DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
 
         // tensor descriptors for problem definiton
         index_t num_group_;
+
+        GemmToConvFwdTransformer conv_to_gemm_transformer_;
+
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         DsGridDesc_M_N ds_grid_desc_m_n_;
