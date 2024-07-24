@@ -493,7 +493,7 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto rotary_cos_dram_native =
                     make_naive_tensor_view<address_space_enum::global>(
-                        reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
+                        reinterpret_cast<const QDataType*>(kargs.rotary_cos_ptr),
                         make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
                         make_tuple(kargs.rotary_dim / 2, 1),
                         number<8>{},
@@ -518,7 +518,7 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto rotary_sin_dram_native =
                     make_naive_tensor_view<address_space_enum::global>(
-                        reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
+                        reinterpret_cast<const QDataType*>(kargs.rotary_sin_ptr),
                         make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
                         make_tuple(kargs.rotary_dim / 2, 1),
                         number<8>{},
