@@ -57,8 +57,8 @@ struct DeviceImageToColumnImpl
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto conv_to_gemm_transformer =
-        TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>{};
+    using GemmToConvFwdTransformer =
+        TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpecialization::MKPadding, index_t, index_t, index_t>{
@@ -97,19 +97,19 @@ struct DeviceImageToColumnImpl
         b_g_k_c_xs_lengths[I2]  = C;
         c_g_n_k_wos_lengths[I1] = N;
 
+        GemmToConvFwdTransformer conv_to_gemm_transformer{a_g_n_c_wis_lengths,
+                                                          image_g_n_c_wis_strides,
+                                                          b_g_k_c_xs_lengths,
+                                                          {}, // not needed for A Descriptor
+                                                          c_g_n_k_wos_lengths,
+                                                          {}, // not needed for A Descriptor
+                                                          conv_filter_strides,
+                                                          conv_filter_dilations,
+                                                          input_left_pads,
+                                                          input_right_pads};
+
         const auto in_gemmmraw_gemmkraw_desc =
-            conv_to_gemm_transformer.template MakeADescriptor_M_K<ImageLayout>(
-                a_g_n_c_wis_lengths,
-                image_g_n_c_wis_strides,
-                b_g_k_c_xs_lengths,
-                {}, // not needed for A Descriptor
-                c_g_n_k_wos_lengths,
-                {}, // not needed for A Descriptor
-                conv_filter_strides,
-                conv_filter_dilations,
-                input_left_pads,
-                input_right_pads,
-                N);
+            conv_to_gemm_transformer.template MakeADescriptor_M_K<ImageLayout>();
 
         const auto in_gemmm_gemmk_desc =
             matrix_padder.PadADescriptor_M_K(in_gemmmraw_gemmkraw_desc);

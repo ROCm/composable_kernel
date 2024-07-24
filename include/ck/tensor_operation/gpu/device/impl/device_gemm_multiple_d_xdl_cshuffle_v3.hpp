@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -182,18 +182,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-#if 0
-                    if(arg.KBatch > 1)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        minimum_occupancy>;
-                        Run(kernel);
-                    }
-                    else
-#endif
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
@@ -206,121 +194,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
                 {
-#if 0
-                    if(arg.KBatch > 1)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::AtomicAdd,
-                                                            minimum_occupancy,
-                                                            TailNumber::One>;
-                            Run(kernel);
-                        }
-                        else if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
-                                TailNumber::Full)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::AtomicAdd,
-                                                            minimum_occupancy,
-                                                            TailNumber::Full>;
-                            Run(kernel);
-                        }
-
-                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 2)
-                        {
-                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
-                            {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Two>;
-                                Run(kernel);
-                            }
-                        }
-
-                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 3)
-                        {
-                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
-                               TailNumber::Three)
-                            {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Three>;
-                                Run(kernel);
-                            }
-                        }
-
-                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 4)
-                        {
-                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
-                               TailNumber::Four)
-                            {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Four>;
-                                Run(kernel);
-                            }
-                        }
-
-                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 5)
-                        {
-                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
-                               TailNumber::Five)
-                            {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Five>;
-                                Run(kernel);
-                            }
-                        }
-
-                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 6)
-                        {
-                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
-                            {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Six>;
-                                Run(kernel);
-                            }
-                        }
-
-                        if constexpr(GridwiseGemm::BlockwiseGemmPipe::PrefetchStages > 7)
-                        {
-                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
-                               TailNumber::Seven)
-                            {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
-                                    GridwiseGemm,
-                                    true,
-                                    InMemoryDataOperationEnum::AtomicAdd,
-                                    minimum_occupancy,
-                                    TailNumber::Seven>;
-                                Run(kernel);
-                            }
-                        }
-                    }
-                    else
-#endif
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                         {
@@ -436,32 +309,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 // Tail number could be Odd or Even
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
                 {
-#if 0
-                    if(arg.KBatch > 1)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
-                                GridwiseGemm,
-                                true,
-                                InMemoryDataOperationEnum::AtomicAdd,
-                                minimum_occupancy,
-                                TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
-                                GridwiseGemm,
-                                true,
-                                InMemoryDataOperationEnum::AtomicAdd,
-                                minimum_occupancy,
-                                TailNumber::Even>;
-                            Run(kernel);
-                        }
-                    }
-                    else
-#endif
+
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
@@ -487,32 +335,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 }
                 else
                 {
-#if 0
-                    if(arg.KBatch > 1)
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::AtomicAdd,
-                                                            minimum_occupancy,
-                                                            TailNumber::Odd>;
-                            Run(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                            true,
-                                                            InMemoryDataOperationEnum::AtomicAdd,
-                                                            minimum_occupancy,
-                                                            TailNumber::Even>;
-                            Run(kernel);
-                        }
-                    }
-                    else
-#endif
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
@@ -542,18 +364,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleD<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-#if 0
-                    if(arg.KBatch > 1)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        false,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        minimum_occupancy>;
-                        Run(kernel);
-                    }
-                    else
-#endif
                     {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
