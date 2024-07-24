@@ -51,7 +51,6 @@ done
 done
 done
 done
-set +x
 
 if [ $ENABLE_APPENDKV_TEST -eq 1 ]; then 
 for mode in 1 0 ; do
@@ -70,3 +69,4 @@ done
 done
 done
 fi
+set +x
