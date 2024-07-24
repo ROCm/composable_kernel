@@ -2,7 +2,7 @@ set(FMHA_CPP_FOLDER ${CMAKE_CURRENT_BINARY_DIR})
 set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
 
 # python stuff
-find_package(PythonInterp 3.10 REQUIRED)
+find_package(PythonInterp 3.8.10 REQUIRED)
 if(${PYTHON_VERSION_STRING} VERSION_GREATER_EQUAL 3.10)
     message(STATUS "Python version is greater than or equal to 3.10: ${PYTHON_VERSION_STRING}")
 else()
