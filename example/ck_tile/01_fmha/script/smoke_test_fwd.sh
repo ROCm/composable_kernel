@@ -6,6 +6,7 @@ KNAME=1
 
 export CK_WARMUP=0
 export CK_REPEAT=1
+ENABLE_APPENDKV_TEST=0
 
 COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 # mode=0
@@ -51,3 +52,21 @@ done
 done
 done
 set +x
+
+if [ $ENABLE_APPENDKV_TEST -eq 1 ]; then 
+for mode in 1 0 ; do
+for s in $(seq 63 1 65) ; do
+for s_k in 65 127 128 129 ; do
+for s_k_new in 0 63 64 65 ; do
+for ri in 0 1 ; do
+for rdim in $(seq 0 8 16) ; do
+
+$EXE -prec="fp16" -mode=$mode -b=3 -h=2 -d=128 -s=$s -s_k=$s_k -s_k_new=$s_k_new -rotary_dim=$rdim -rotary_interleaved=$ri -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
+
+done
+done
+done
+done
+done
+done
+fi
