@@ -292,8 +292,7 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 pipelines.append(FmhaFwdAppendKVPipeline('row', 't', 't', 't', 't', rope))
                 pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', rope))
         elif dtype in ['fp8', 'bf8']:
-            # no need lse/dropout kernels
-            pipelines.append(FmhaFwdAppendKVPipeline('col', 'f', 'f', 'f', 'f', 'f'))
+            pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', 'f'))
         else:
             assert False
         return pipelines
