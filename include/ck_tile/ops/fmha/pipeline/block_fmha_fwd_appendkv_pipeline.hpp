@@ -172,11 +172,15 @@ struct BlockFmhaFwdAppendKVPipeline
             {
                 auto rotary_cos_window =
                     make_tile_window(knew_rotary_cos_dram_block_window,
-                                     Policy::template MakeRotaryCosSinTileDistribution<Problem>());
+                                     Policy::template MakeRotaryCosSinTileDistribution<
+                                         Problem,
+                                         /*IsRotaryCosSinForQ=*/false>());
 
                 auto rotary_sin_window =
                     make_tile_window(knew_rotary_sin_dram_block_window,
-                                     Policy::template MakeRotaryCosSinTileDistribution<Problem>());
+                                     Policy::template MakeRotaryCosSinTileDistribution<
+                                         Problem,
+                                         /*IsRotaryCosSinForQ=*/false>());
 
                 // We assume that each thread owns contiguous elements on head dimention. And we
                 // will use the distribution to enable/disable threads in order to override partial
@@ -220,11 +224,15 @@ struct BlockFmhaFwdAppendKVPipeline
 
                 auto rotary_cos_window =
                     make_tile_window(q_rotary_cos_dram_block_window,
-                                     Policy::template MakeRotaryCosSinTileDistribution<Problem>());
+                                     Policy::template MakeRotaryCosSinTileDistribution<
+                                         Problem,
+                                         /*IsRotaryCosSinForQ=*/true>());
 
                 auto rotary_sin_window =
                     make_tile_window(q_rotary_sin_dram_block_window,
-                                     Policy::template MakeRotaryCosSinTileDistribution<Problem>());
+                                     Policy::template MakeRotaryCosSinTileDistribution<
+                                         Problem,
+                                         /*IsRotaryCosSinForQ=*/true>());
 
                 // We assume that each thread owns contiguous elements on head dimention. And we
                 // will use the distribution to enable/disable threads in order to override partial
