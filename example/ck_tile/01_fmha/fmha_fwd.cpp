@@ -734,9 +734,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     std::cout << std::flush;
 
-    float appendkv_ave_time = -1;
+    float appendkv_ave_time = 0;
 #if CK_TILE_FMHA_FWD_APPENDKV_API
-    if(0 < seqlen_knew)
+    if(0 < seqlen_knew || 0 < rotary_dim)
     {
         auto appendkv_traits = fmha_fwd_appendkv_traits{
             hdim_q,
