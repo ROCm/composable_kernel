@@ -61,10 +61,10 @@ generate_rotary_cos_sin(ck_tile::index_t seqlen_k,
 
 template <typename DataType>
 std::tuple<ck_tile::HostTensor<DataType>, ck_tile::HostTensor<DataType>>
-index_cos_sin(const ck_tile::HostTensor<DataType>& cos,
-              const ck_tile::HostTensor<DataType>& sin,
-              ck_tile::index_t seqlen_offset,
-              ck_tile::index_t seqlen)
+slice_rotary_cos_sin(const ck_tile::HostTensor<DataType>& cos,
+                     const ck_tile::HostTensor<DataType>& sin,
+                     ck_tile::index_t seqlen_offset,
+                     ck_tile::index_t seqlen)
 {
     assert(cos.get_num_of_dimension() == 2 && sin.get_num_of_dimension() == 2);
     assert(cos.get_length(0) == sin.get_length(0) && cos.get_length(1) == sin.get_length(1));
