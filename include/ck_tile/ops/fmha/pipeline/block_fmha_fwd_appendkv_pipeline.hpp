@@ -159,6 +159,7 @@ struct BlockFmhaFwdAppendKVPipeline
 
         if(!skip_append_kv)
         {
+            // append Knew to K
             auto knew_window = make_tile_window(
                 knew_dram_block_window, Policy::template MakeKnewDramTileDistribution<Problem>());
 
@@ -199,6 +200,7 @@ struct BlockFmhaFwdAppendKVPipeline
             // print_tile(knew_tile, 2);
             store_tile(k_dram_block_window, knew_tile);
 
+            // append Vnew to V
             auto vnew_window = make_tile_window(
                 vnew_dram_block_window, Policy::template MakeVnewDramTileDistribution<Problem>());
 
