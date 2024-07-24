@@ -263,11 +263,12 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
 
-    std::size_t ds_size   = 3 + 1; // 3 element-wise scale multipliers + 1 element-wise add
-    std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
-    std::size_t num_btype = conv_param.GetInputByte<InDataType>() +
-                            conv_param.GetWeightByte<WeiDataType>() + sizeof(float) +
-                            sizeof(float) + sizeof(float) + conv_param.GetOutputByte<OutDataType>();
+    std::size_t ds_size = 3 + 1; // 3 element-wise scale multipliers + 1 element-wise add
+    std::size_t flop    = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
+    std::size_t num_btype =
+        conv_param.GetInputByte<InDataType>() + conv_param.GetWeightByte<WeiDataType>() +
+        sizeof(float) + sizeof(float) + sizeof(float) + conv_param.GetOutputByte<OutDataType>() +
+        conv_param.GetOutputByte<DsDataType>();
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
