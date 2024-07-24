@@ -11,7 +11,7 @@
 
 namespace ck_tile {
 
-template <typename ComputeDataType, typename DataType>
+template <typename DataType, typename ComputeDataType = float>
 CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<DataType>& input_bsd,
                                                               const HostTensor<DataType>& cos_sd,
                                                               const HostTensor<DataType>& sin_sd,
