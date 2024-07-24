@@ -1102,8 +1102,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             decltype(q_host_ref) q_host_ref_ro(q_host_ref.get_lengths());
 
+            auto [rotary_cos_slice, rotary_sin_slice] = 
+                slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
+
             ck_tile::reference_batched_rotary_position_embedding(
-                q_host_ref, rotary_cos_host, rotary_sin_host, is_rotary_interleaved, q_host_ref_ro);
+                q_host_ref, rotary_cos_slice, rotary_sin_slice, is_rotary_interleaved, q_host_ref_ro);
 
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
         }
@@ -1165,10 +1168,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             {
                 knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
 
+                auto [rotary_cos_slice, rotary_sin_slice] = 
+                    slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], seqlen_knew);
+
                 ck_tile::reference_batched_rotary_position_embedding(
                     knew_host_ref,
-                    rotary_cos_host,
-                    rotary_sin_host,
+                    rotary_cos_slice,
+                    rotary_sin_slice,
                     is_rotary_interleaved,
                     knew_host_ref_ro.value());
 
