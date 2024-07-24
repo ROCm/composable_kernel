@@ -67,8 +67,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
-    static constexpr index_t kAlignmentQGrad =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQGrad<Problem>();
+    static constexpr index_t kAlignmentQGrad = 1;
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
