@@ -63,7 +63,7 @@ struct Add
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
 
-        a_ = a_ + b_;
+        a_ = type_convert<bhalf_t>(a_ + b_);
     }
 };
 
@@ -123,7 +123,7 @@ struct Mul
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
 
-        a_ = a_ * b_;
+        a_ = type_convert<bhalf_t>(a_ * b_);
     }
 };
 
