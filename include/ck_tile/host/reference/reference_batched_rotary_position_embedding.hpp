@@ -44,8 +44,6 @@ CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<D
         const ComputeDataType half_rotated_input = [&] {
             const index_t i_b = i[0];
 
-            const index_t hdim = input_bsd.get_length(2);
-
             if(interleaved)
             {
                 const bool is_even         = (i_d % 2 == 0);

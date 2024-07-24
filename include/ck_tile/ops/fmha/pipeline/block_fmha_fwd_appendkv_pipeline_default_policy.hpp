@@ -50,14 +50,6 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
-    {
-        using KDataType = remove_cvref_t<typename Problem::KDataType>;
-
-        return sizeof(KDataType) * Problem::kN0 * (Problem::kK0);
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQNumElemsPerRead()
     {
         using DataType = typename Problem::QDataType;

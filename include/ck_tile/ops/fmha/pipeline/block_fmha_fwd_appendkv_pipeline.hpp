@@ -103,60 +103,8 @@ struct BlockFmhaFwdAppendKVPipeline
                const KnewRotarySinDramBlockWindow knew_rotary_sin_dram_block_window,
                index_t rotary_dim,
                bool skip_transform_q,
-               bool skip_append_kv,
-               void* smem_ptr) const
+               bool skip_append_kv) const
     {
-#if defined(ENABLE_DEVICE_DEBUG_STMTS)
-        auto* const ksmem = reinterpret_cast<KDataType*>(smem_ptr);
-#endif
-
-        auto print_tile = [&](const auto& tile, index_t num_display_rows = -1) {
-            (void)tile;
-#if defined(ENABLE_DEVICE_DEBUG_STMTS)
-            using Dstr                 = decltype(tile.get_tile_distribution());
-            constexpr index_t num_rows = Dstr::get_lengths()[number<0>{}];
-            constexpr index_t num_cols = Dstr::get_lengths()[number<1>{}];
-            {
-                constexpr auto spans = std::decay_t<decltype(tile)>::get_distributed_spans();
-                sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            tile.get_tile_distribution(), make_tuple(idx0, idx1));
-
-                        const auto row         = tile_idx.at(number<0>{});
-                        const auto col         = tile_idx.at(number<1>{});
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-                        ksmem[row * num_cols + col] = tile[i_j_idx];
-                    });
-                });
-            }
-
-            block_sync_lds();
-
-            DEVICE_DEBUG_STMTS
-            {
-                printf("\n");
-                for(int row = 0;
-                    row < (0 < num_display_rows ? std::min(num_display_rows, num_rows) : num_rows);
-                    ++row)
-                {
-                    printf("[DEVICE] tile[%3d] = ", row);
-
-                    for(int col = 0; col < num_cols; ++col)
-                    {
-                        if(0 < col && col % 8 == 0)
-                        {
-                            printf("|");
-                        }
-                        printf("%11.7f", type_convert<float>(ksmem[row * num_cols + col]));
-                    }
-                    printf("\n");
-                }
-            }
-#endif
-        };
-
         if(!skip_append_kv)
         {
             // append Knew to K
@@ -197,7 +145,6 @@ struct BlockFmhaFwdAppendKVPipeline
                                                         rotary_dim,
                                                         thread_end);
             }
-            // print_tile(knew_tile, 2);
             store_tile(k_dram_block_window, knew_tile);
 
             // append Vnew to V
@@ -245,7 +192,6 @@ struct BlockFmhaFwdAppendKVPipeline
                 BlockRotaryEmbedding<RotaryEnum>::apply(
                     q_tile, q_window, rotary_cos_window, rotary_sin_window, rotary_dim, thread_end);
 
-                // print_tile(q_tile, 8);
                 store_tile(q_dram_block_window, q_tile);
             }
         }
@@ -272,8 +218,7 @@ struct BlockFmhaFwdAppendKVPipeline
                const KnewRotarySinDramBlockWindow& knew_rotary_sin_dram_block_window,
                index_t rotary_dim,
                bool skip_transform_q,
-               bool skip_append_kv,
-               void* smem_ptr = nullptr) const
+               bool skip_append_kv) const
     {
         return operator()(q_dram_block_window,
                           identity{},
@@ -289,8 +234,7 @@ struct BlockFmhaFwdAppendKVPipeline
                           knew_rotary_sin_dram_block_window,
                           rotary_dim,
                           skip_transform_q,
-                          skip_append_kv,
-                          smem_ptr);
+                          skip_append_kv);
     }
 };
 

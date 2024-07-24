@@ -289,15 +289,8 @@ struct FmhaFwdAppendKVKernel
 
     __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
-    {
-        return ck_tile::max(FmhaPipeline::GetSmemSize());
-    }
-
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        __shared__ char smem_ptr[GetSmemSize()];
-
         // divide problem
         const auto [i_tile, i_nhead, i_batch] = TilePartitioner{}();
 
@@ -634,8 +627,7 @@ struct FmhaFwdAppendKVKernel
                            knew_rotary_sin_dram_window,
                            kargs.rotary_dim,
                            kargs.seqlen_q <= i_m0,
-                           kargs.seqlen_knew <= i_n0,
-                           smem_ptr);
+                           kargs.seqlen_knew <= i_n0);
         }
         else
         {
@@ -650,8 +642,7 @@ struct FmhaFwdAppendKVKernel
                            knew_rotary_sin_dram_window,
                            0,
                            kargs.seqlen_q <= i_m0,
-                           kargs.seqlen_knew <= i_n0,
-                           smem_ptr);
+                           kargs.seqlen_knew <= i_n0);
         }
     }
 };
