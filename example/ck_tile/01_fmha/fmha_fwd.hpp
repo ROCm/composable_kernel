@@ -533,13 +533,7 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
     }();
 
     dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.seqlen_knew);
-    HOST_DEBUG_STMTS
-    {
-        printf("[HOST] grid size: %2d,%2d,%2d\n",
-               static_cast<int>(grids.x),
-               static_cast<int>(grids.y),
-               static_cast<int>(grids.z));
-    }
+
     return ck_tile::make_tuple(kargs, grids);
 }
 

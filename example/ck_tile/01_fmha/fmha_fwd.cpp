@@ -551,42 +551,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto [rotary_cos_host, rotary_sin_host] =
         generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
 
-    HOST_DEBUG_STMTS
-    {
-#if 0
-        printf("rotary_cos's shape: (%2zu, %2zu)\n",
-               rotary_cos_host.get_length(0),
-               rotary_cos_host.get_length(1));
-        for(size_t row = 0; row < rotary_cos_host.get_length(0); ++row)
-        {
-            printf("[HOST] rotary_cos[%3zu] = ", row);
-            for(size_t col = 0; col < rotary_cos_host.get_length(1); ++col)
-            {
-                if(0 < col && col % 8 == 0)
-                {
-                    printf("|");
-                }
-                printf("%11.7f", ck_tile::type_convert<float>(rotary_cos_host(row, col)));
-            }
-            printf("\n");
-        }
-#endif
-#if 0
-        printf("rotary_sin's shape: (%2zu, %2zu)\n",
-               rotary_sin_host.get_length(0),
-               rotary_sin_host.get_length(1));
-        for(size_t row = 0; row < rotary_sin_host.get_length(0); ++row)
-        {
-            printf("[HOST] rotary_sin[%3zu] = ", row);
-            for(size_t col = 0; col < rotary_sin_host.get_length(1); ++col)
-            {
-                printf("%11.7f", ck_tile::type_convert<float>(rotary_sin_host(row, col)));
-            }
-            printf("\n");
-        }
-#endif
-    }
-
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
                        : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
@@ -983,90 +947,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
               << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
               << " GB/s" << std::flush;
 
-#if defined(ENABLE_HOST_DEBUG_PRINT)
-    if(!do_validation)
-    {
-#if 0
-        k_buf.FromDevice(k_host.data());
-        for(int row = 0; row < shape_seqlen_k; ++row)
-        {
-            printf("[POYENC][HOST] k_host[%3d] = ", row);
-            for(int col = 0; col < hdim_q; ++col)
-            {
-                printf("%11.7f", ck_tile::type_convert<float>(k_host(0, 0, row, col)));
-            }
-            printf("\n");
-        }
-#endif
-
-#if 0
-        v_buf.FromDevice(v_host.data());
-        for(int row = 0; row < shape_seqlen_k; ++row)
-        {
-            printf("[POYENC][HOST] v_host[%3d] = ", row);
-            for(int col = 0; col < hdim_v; ++col)
-            {
-                if(vlayout == "r")
-                {
-                    printf("%11.7f", ck_tile::type_convert<float>(v_host(0, 0, row, col)));
-                }
-                else
-                {
-                    printf("%11.7f", ck_tile::type_convert<float>(v_host(0, 0, col, row)));
-                }
-            }
-            printf("\n");
-        }
-#endif
-    }
-#endif
-
     if(!do_validation)
     {
         std::cout << std::flush << std::endl;
         return true;
     }
-
-#if defined(ENABLE_HOST_DEBUG_PRINT)
-#if 0
-    ck_tile::HostTensor<KDataType> k_host_copy(
-        get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-    k_buf.FromDevice(k_host_copy.data());
-
-    for(int row = 0; row < shape_seqlen_k; ++row)
-    {
-        printf("[POYENC][HOST] k_host_copy[%3d] = ", row);
-        for(int col = 0; col < hdim_q; ++col)
-        {
-            printf("%11.7f", ck_tile::type_convert<float>(k_host_copy(0, 0, row, col)));
-        }
-        printf("\n");
-    }
-#endif
-#if 0
-    ck_tile::HostTensor<VDataType> v_host_copy(
-        is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
-                      : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k));
-    v_buf.FromDevice(v_host_copy.data());
-
-    for(int row = 0; row < shape_seqlen_k; ++row)
-    {
-        printf("[POYENC][HOST] v_host_copy[%3d] = ", row);
-        for(int col = 0; col < hdim_v; ++col)
-        {
-            if(vlayout == "r")
-            {
-                printf("%11.7f", ck_tile::type_convert<float>(v_host_copy(0, 0, row, col)));
-            }
-            else
-            {
-                printf("%11.7f", ck_tile::type_convert<float>(v_host_copy(0, 0, col, row)));
-            }
-        }
-        printf("\n");
-    }
-#endif
-#endif
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
@@ -1123,27 +1008,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 
-        #if 0
-        HOST_DEBUG_STMTS {
-            printf("\n");
-            for(size_t row = 0; row < q_host_ref.get_length(1) && row < 8; ++row)
-            {
-                printf("[HOST] q_host_ref[%3zu] = ", row);
-                for(size_t col = 0; col < q_host_ref.get_length(2); ++col)
-                {
-                    if (0 < col && col % 8 == 0) {
-                        printf("|");
-                    }
-
-                    printf("%11.7f", 
-                    ck_tile::type_convert<float>(q_host_ref(0, row, col)));
-                    
-                }
-                printf("\n");
-            }
-        }
-        #endif
-
         if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
         else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
 
@@ -1158,26 +1022,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
             // optionally apply RoPE to the knew_host_ref
             auto* real_knew_host_ref = &knew_host_ref;
             std::optional<decltype(knew_host_ref)> knew_host_ref_ro;
-            #if 0
-            HOST_DEBUG_STMTS {
-                printf("\n");
-                for(size_t row = 0; row < real_knew_host_ref->get_length(1); ++row)
-                {
-                    printf("[HOST] real_knew_host[%3zu] = ", row);
-                    for(size_t col = 0; col < real_knew_host_ref->get_length(2); ++col)
-                    {
-                        if (0 < col && col % 8 == 0) {
-                            printf("|");
-                        }
-
-                        printf("%11.7f", 
-                        ck_tile::type_convert<float>((*real_knew_host_ref)(0, row, col)));
-                        
-                    }
-                    printf("\n");
-                }
-            }
-            #endif
             if(0 < rotary_dim)
             {
                 knew_host_ref_ro.emplace(knew_host_ref.get_lengths());
@@ -1194,26 +1038,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 real_knew_host_ref = &knew_host_ref_ro.value();
             }
-            #if 0
-            HOST_DEBUG_STMTS {
-                printf("\n");
-                for(size_t row = 0; row < real_knew_host_ref->get_length(1); ++row)
-                {
-                    printf("[HOST] real_knew_host_ref[%3zu] = ", row);
-                    for(size_t col = 0; col < real_knew_host_ref->get_length(2); ++col)
-                    {
-                        if (0 < col && col % 8 == 0) {
-                            printf("|");
-                        }
-
-                        printf("%11.7f", 
-                        ck_tile::type_convert<float>((*real_knew_host_ref)(0, row, col)));
-                        
-                    }
-                    printf("\n");
-                }
-            }
-            #endif
 
             const std::size_t knew_start = real_seqlen_k - seqlen_knew;
             k_host_ref.ForEach([&](auto& self, auto i) {
