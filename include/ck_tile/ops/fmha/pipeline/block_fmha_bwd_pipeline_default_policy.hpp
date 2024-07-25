@@ -815,15 +815,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKRegSliceBlockDescriptor()
     {
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
@@ -853,15 +847,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKRegBlockDescriptor()
     {
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
@@ -902,15 +890,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVRegSliceBlockDescriptor()
     {
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::OGradDataType,
-            typename Problem::VDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
@@ -940,15 +922,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVRegBlockDescriptor()
     {
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::OGradDataType,
-            typename Problem::VDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
@@ -1029,14 +1005,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKTRegBlockDescriptor()
     {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::KDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                   false>;
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradKTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
@@ -1077,15 +1048,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQRegSliceBlockDescriptor()
     {
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
@@ -1167,14 +1132,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQTRegSliceBlockDescriptor()
     {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::QDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
-                                   true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<1>{});
@@ -1204,14 +1164,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSGradTRegSliceBlockDescriptor()
     {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::QDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
-                                   true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<1>{});
@@ -1300,15 +1255,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradRegSliceBlockDescriptor()
     {
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::OGradDataType,
-            typename Problem::VDataType,
-            typename Problem::AccDataType,
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<2>{}),
-            false,
-            Problem::BlockFmhaShape::Gemm2WarpTile::at(number<0>{}) == 16 ? false : true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
@@ -1389,14 +1338,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTRegSliceBlockDescriptor()
     {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::OGradDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                   true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
@@ -1427,14 +1371,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakePTRegSliceBlockDescriptor()
     {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::OGradDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                   true>;
+        using BlockGemm       = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
@@ -1474,14 +1413,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeSGradRegSliceBlockDescriptor()
     {
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                   typename Problem::KDataType,
-                                   typename Problem::AccDataType,
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm4WarpTile::at(number<2>{}),
-                                   false>;
+        using BlockGemm       = remove_cvref_t<decltype(GetSGradKTBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
@@ -1514,14 +1448,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         if constexpr(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 16)
         {
-            using WarpGemm =
-                WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                       typename Problem::OGradDataType,
-                                       typename Problem::AccDataType,
-                                       Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                                       Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                                       Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                                       true>;
+            using BlockGemm       = remove_cvref_t<decltype(GetPTOGradTBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
             constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
 
@@ -1569,14 +1498,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         if constexpr(Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}) == 16)
         {
-            using WarpGemm =
-                WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
-                                       typename Problem::QDataType,
-                                       typename Problem::AccDataType,
-                                       Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
-                                       Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
-                                       Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
-                                       true>;
+            using BlockGemm       = remove_cvref_t<decltype(GetSGradTQTBlockGemm<Problem>())>;
+            constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
 
             constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<0>{});
 
