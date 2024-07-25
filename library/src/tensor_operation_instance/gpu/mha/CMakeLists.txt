@@ -1,6 +1,6 @@
 set(FMHA_CPP_FOLDER ${CMAKE_CURRENT_BINARY_DIR})
 set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
-
+set(CMAKE_OBJECT_PATH_MAX 512)
 # python stuff
 find_package(PythonInterp 3 REQUIRED)
 
