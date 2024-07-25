@@ -448,7 +448,7 @@ class FmhaBwdDQDKDVKernel:
 def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            # '32'  : [FmhaBwdDQDKDVTileSize( 64,  64,  32, 64,  32, 64, 64,  32,  32, 1, 2, 1, 2, 1, 1, 2, 1, 1, 32, 32, 16, 32, 32, 16, 1),
+            # '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
             #             "kr_ktr_vr"],
             '64'  : [FmhaBwdDQDKDVTileSize( 64, 128,  64, 64,  64, 64, 64,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 32, 32, 16, 1),
                         "kr_ktr_vr"],

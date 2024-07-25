@@ -1508,6 +1508,116 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         return ds_block_dstr;
     }
 
+    template <typename Problem, typename PTOutTensor, typename PTInTensor>
+    CK_TILE_DEVICE static constexpr void PTFromGemm0CToGemm1A(PTOutTensor& pt_out,
+                                                              const PTInTensor& pt_in)
+    {
+        if constexpr(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 16)
+        {
+            using WarpGemm =
+                WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
+                                       typename Problem::OGradDataType,
+                                       typename Problem::AccDataType,
+                                       Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                       Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                       Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                       true>;
+
+            constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<0>{});
+
+            constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kN0;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
+            constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
+            constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+            using AWarpDstr = typename WarpGemm::AWarpDstr;
+            using CWarpDstr = typename WarpGemm::CWarpDstr;
+            auto pt_warp_tensor =
+                make_static_distributed_tensor<typename Problem::GemmDataType>(CWarpDstr{});
+
+            constexpr auto a_warp_y_lengths =
+                to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto c_warp_y_lengths =
+                to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+            constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+            constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    pt_warp_tensor.get_thread_buffer() = pt_in.get_y_sliced_thread_data(
+                        merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                    pt_out.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+                        pt_warp_tensor.get_thread_buffer());
+                });
+            });
+        }
+        else
+        {
+            pt_out.get_thread_buffer() = pt_in.get_thread_buffer();
+        }
+    }
+
+    template <typename Problem, typename SGradTOutTensor, typename SGradTInTensor>
+    CK_TILE_DEVICE static constexpr void SGradTFromGemm2CToGemm3A(SGradTOutTensor& dst_out,
+                                                                  const SGradTInTensor& dst_in)
+    {
+        if constexpr(Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}) == 16)
+        {
+            using WarpGemm =
+                WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
+                                       typename Problem::QDataType,
+                                       typename Problem::AccDataType,
+                                       Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}),
+                                       Problem::BlockFmhaShape::Gemm3WarpTile::at(number<1>{}),
+                                       Problem::BlockFmhaShape::Gemm3WarpTile::at(number<2>{}),
+                                       true>;
+
+            constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<0>{});
+
+            constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kN0;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK3;
+
+            constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
+            constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+
+            using AWarpDstr = typename WarpGemm::AWarpDstr;
+            using CWarpDstr = typename WarpGemm::CWarpDstr;
+            auto dst_warp_tensor =
+                make_static_distributed_tensor<typename Problem::GemmDataType>(CWarpDstr{});
+
+            constexpr auto a_warp_y_lengths =
+                to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+            constexpr auto c_warp_y_lengths =
+                to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+
+            constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
+            constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    dst_warp_tensor.get_thread_buffer() = dst_in.get_y_sliced_thread_data(
+                        merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                    dst_out.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+                        dst_warp_tensor.get_thread_buffer());
+                });
+            });
+        }
+        else
+        {
+            dst_out.get_thread_buffer() = dst_in.get_thread_buffer();
+        }
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledBiasTileDistribution()
     {

@@ -660,7 +660,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             }();
 
             // STAGE 3, P^T@OGrad^T Gemm1
-            pt_reg_tensor.get_thread_buffer() = pt_gemm.get_thread_buffer();
+            Policy::template PTFromGemm0CToGemm1A<Problem,
+                                                  decltype(pt_reg_tensor),
+                                                  decltype(pt_gemm)>(pt_reg_tensor, pt_gemm);
             gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
 
             auto qt_reg_tensor = load_tile(qt_lds_read_window);
@@ -732,7 +734,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             // STAGE 6, SGrad^T@Q^T Gemm3
             const auto dst_gemm = cast_tile<GemmDataType>(dst);
 
-            dst_reg_tensor.get_thread_buffer() = dst_gemm.get_thread_buffer();
+            Policy::template SGradTFromGemm2CToGemm3A<Problem,
+                                                      decltype(dst_reg_tensor),
+                                                      decltype(dst_gemm)>(dst_reg_tensor, dst_gemm);
 
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
@@ -908,8 +912,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             }
         }();
 
-        pt_reg_tensor.get_thread_buffer() = pt_gemm.get_thread_buffer();
-        auto dot_reg_tensor               = load_tile(dot_lds_read_window);
+        Policy::template PTFromGemm0CToGemm1A<Problem, decltype(pt_reg_tensor), decltype(pt_gemm)>(
+            pt_reg_tensor, pt_gemm);
+        auto dot_reg_tensor = load_tile(dot_lds_read_window);
         gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
 
         HotLoopScheduler::template GemmStagedScheduler<1>();
@@ -965,7 +970,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         // STAGE 6, SGrad^T@Q^T Gemm3
         const auto dst_gemm = cast_tile<GemmDataType>(dst);
 
-        dst_reg_tensor.get_thread_buffer() = dst_gemm.get_thread_buffer();
+        Policy::template SGradTFromGemm2CToGemm3A<Problem,
+                                                  decltype(dst_reg_tensor),
+                                                  decltype(dst_gemm)>(dst_reg_tensor, dst_gemm);
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
         store_tile(ds_lds_window, dst_gemm);
