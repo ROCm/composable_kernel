@@ -82,7 +82,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         else
         {
             // minimize occupancy
-            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)
+            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && FmhaDropout::IsDropout)
             {
                 return 1;
             }
@@ -303,7 +303,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         constexpr auto k_pre_np = [&]() {
             if constexpr(kPadSeqLenK &&
                          (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
+                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && FmhaDropout::IsDropout)))
                 return bool_constant<true>{};
             else
                 return bool_constant<false>{};
