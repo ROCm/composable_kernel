@@ -58,7 +58,7 @@ for s in $(seq 63 1 65) ; do
 for s_k in 65 127 128 129 ; do
 for s_k_new in 0 63 64 65 ; do
 for ri in 0 1 ; do
-for rdim in $(seq 0 8 16) ; do
+for rdim in 0 16 32 128 ; do
 
 $EXE -prec="fp16" -mode=$mode -b=3 -h=2 -d=128 -s=$s -s_k=$s_k -s_k_new=$s_k_new -rotary_dim=$rdim -rotary_interleaved=$ri -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
 
