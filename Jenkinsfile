@@ -296,10 +296,15 @@ def cmake_build(Map conf=[:]){
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
     if (params.RUN_CK_TILE_TESTS){
-        archiveArtifacts "perf_fmha_fwd_*.log"
-        archiveArtifacts "perf_fmha_bwd_*.log"
-        stash name: "perf_fmha_fwd_*.log"
-        stash name: "perf_fmha_bwd_*.log"
+        try{
+            archiveArtifacts "perf_fmha_fwd_*.log"
+            archiveArtifacts "perf_fmha_bwd_*.log"
+            stash name: "perf_fmha_fwd_*.log"
+            stash name: "perf_fmha_bwd_*.log"
+        }
+        catch(Exception err){
+            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
+        }
     }
 }
 
