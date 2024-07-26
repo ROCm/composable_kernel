@@ -295,6 +295,12 @@ def cmake_build(Map conf=[:]){
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
+    if (params.RUN_CK_TILE_TESTS){
+        archiveArtifacts "perf_fmha_fwd_*.log"
+        archiveArtifacts "perf_fmha_bwd_*.log"
+        stash name: "perf_fmha_fwd_*.log"
+        stash name: "perf_fmha_bwd_*.log"
+    }
 }
 
 def buildHipClangJob(Map conf=[:]){
@@ -866,10 +872,6 @@ pipeline {
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        archiveArtifacts "perf_fmha_fwd_gfx90a.log"
-                        archiveArtifacts "perf_fmha_bwd_gfx90a.log"
-                        stash name: "perf_fmha_fwd_gfx90a.log"
-                        stash name: "perf_fmha_bwd_gfx90a.log"
                         cleanWs()
                     }
                 }
@@ -889,10 +891,6 @@ pipeline {
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
-                        archiveArtifacts "perf_fmha_fwd_gfx942.log"
-                        archiveArtifacts "perf_fmha_bwd_gfx942.log"
-                        stash name: "perf_fmha_fwd_gfx942.log"
-                        stash name: "perf_fmha_bwd_gfx942.log"
                         cleanWs()
                     }
                 }
