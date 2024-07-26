@@ -56,7 +56,8 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
 
         if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
         {
-            return 8 / sizeof(DataType);
+            /// NOTICE: we might need to lower down this to support smaller rotary_dim
+            return 16 / sizeof(DataType);
         }
         else
         {
@@ -119,7 +120,8 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
 
         if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
         {
-            return 8 / sizeof(DataType);
+            /// NOTICE: we might need to lower down this to support smaller rotary_dim
+            return 16 / sizeof(DataType);
         }
         else
         {
@@ -256,7 +258,17 @@ struct BlockFmhaFwdAppendKVPipelineDefaultPolicy
         constexpr index_t kNPerBlock = TileSize[number<0>{}];
         constexpr index_t kKPerBlock = TileSize[number<1>{}];
 
-        constexpr index_t KPerThread      = 8 / sizeof(DataType);
+        constexpr index_t KPerThread = []() {
+            if constexpr(Problem::RotaryEnum == RotaryEmbeddingEnum::HALF_ROTATED)
+            {
+                /// NOTICE: we might need to lower down this to support smaller rotary_dim
+                return 16 / sizeof(DataType);
+            }
+            else
+            {
+                return 8 / sizeof(DataType);
+            }
+        }();
         constexpr index_t KThreadPerBlock = kKPerBlock / KPerThread;
         constexpr index_t NThreadPerWarp  = get_warp_size() / KThreadPerBlock;
         constexpr index_t NumWarps        = kBlockSize / get_warp_size();
