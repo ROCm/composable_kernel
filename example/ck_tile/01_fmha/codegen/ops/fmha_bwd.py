@@ -478,7 +478,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 continue
             if ((bias == "no" or bias == "alibi") and dbias == "t"):
                 continue
-            if ((hdim <= 128 and ("wg16" in dropout)) or (hdim == 256 and ("wg32" in dropout))):
+            if (((hdim == 64 or hdim == 128) and ("wg16" in dropout)) or ((hdim == 32 or hdim == 256) and ("wg32" in dropout))):
                 continue
             k = FmhaBwdDQDKDVKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad,
