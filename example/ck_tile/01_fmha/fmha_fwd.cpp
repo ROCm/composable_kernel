@@ -409,9 +409,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cerr << "rotary_dim should be less than or equal to head dim for q" << std::endl;
         return false;
     }
-    else if(!(rotary_dim % 8 == 0))
+    else if(!(rotary_dim % 16 == 0))
     {
-        std::cerr << "only rotary dimensions divisible by 8 are currently supported" << std::endl;
+        std::cerr << "only rotary dimensions divisible by 16 are currently supported" << std::endl;
         return false;
     }
 
