@@ -495,6 +495,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_o,
                              stride_randval,
                              stride_do,
+                             stride_q, // stride_dq_acc
                              stride_dk,
                              stride_dv,
                              stride_dbias,
@@ -506,6 +507,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
+                             nhead_stride_q, // nhead_stride_dq_acc
                              nhead_stride_dbias,
                              batch_stride_q,
                              batch_stride_k,
@@ -515,6 +517,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
+                             batch_stride_q, // batch_stride_dq_acc
                              batch_stride_dk,
                              batch_stride_dv,
                              batch_stride_dbias,

@@ -98,6 +98,7 @@ struct fmha_bwd_args
     ck_tile::index_t stride_o;
     ck_tile::index_t stride_randval;
     ck_tile::index_t stride_do;
+    ck_tile::index_t stride_dq_acc;
     ck_tile::index_t stride_dk;
     ck_tile::index_t stride_dv;
     ck_tile::index_t stride_dbias;
@@ -109,6 +110,7 @@ struct fmha_bwd_args
     ck_tile::index_t nhead_stride_randval;
     ck_tile::index_t nhead_stride_do;
     ck_tile::index_t nhead_stride_lsed;
+    ck_tile::index_t nhead_stride_dq_acc;
     ck_tile::index_t nhead_stride_dbias;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
@@ -118,6 +120,7 @@ struct fmha_bwd_args
     ck_tile::index_t batch_stride_randval;
     ck_tile::index_t batch_stride_do;
     ck_tile::index_t batch_stride_lsed;
+    ck_tile::index_t batch_stride_dq_acc;
     ck_tile::index_t batch_stride_dk;
     ck_tile::index_t batch_stride_dv;
     ck_tile::index_t batch_stride_dbias;
@@ -164,6 +167,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.stride_bias,
                                                   args.stride_randval,
                                                   args.stride_do,
+                                                  args.stride_dq_acc,
                                                   args.stride_dk,
                                                   args.stride_dv,
                                                   args.stride_dbias,
@@ -174,6 +178,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.nhead_stride_randval,
                                                   args.nhead_stride_do,
                                                   args.nhead_stride_lsed,
+                                                  args.nhead_stride_dq_acc,
                                                   args.nhead_stride_dbias,
                                                   args.batch_stride_lsed,
                                                   args.split_stride_dq_acc,
@@ -210,6 +215,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.stride_bias,
                                                   args.stride_randval,
                                                   args.stride_do,
+                                                  args.stride_dq_acc,
                                                   args.stride_dk,
                                                   args.stride_dv,
                                                   args.stride_dbias,
@@ -220,6 +226,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.nhead_stride_randval,
                                                   args.nhead_stride_do,
                                                   args.nhead_stride_lsed,
+                                                  args.nhead_stride_dq_acc,
                                                   args.nhead_stride_dbias,
                                                   args.batch_stride_q,
                                                   args.batch_stride_k,
@@ -228,6 +235,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.batch_stride_randval,
                                                   args.batch_stride_do,
                                                   args.batch_stride_lsed,
+                                                  args.batch_stride_dq_acc,
                                                   args.batch_stride_dk,
                                                   args.batch_stride_dv,
                                                   args.batch_stride_dbias,
@@ -300,7 +308,9 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.seqstart_k_ptr,
                                                         args.hdim_q,
                                                         args.stride_q,
+                                                        args.stride_dq_acc,
                                                         args.nhead_stride_q,
+                                                        args.nhead_stride_dq_acc,
                                                         args.split_stride_dq_acc);
         }
         else
@@ -311,8 +321,11 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.seqlen_k,
                                                         args.hdim_q,
                                                         args.stride_q,
+                                                        args.stride_dq_acc,
                                                         args.nhead_stride_q,
+                                                        args.nhead_stride_dq_acc,
                                                         args.batch_stride_q,
+                                                        args.batch_stride_dq_acc,
                                                         args.split_stride_dq_acc);
         }
     }();
