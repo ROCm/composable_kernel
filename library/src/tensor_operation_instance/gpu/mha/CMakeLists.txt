@@ -1,6 +1,5 @@
 set(FMHA_CPP_FOLDER ${CMAKE_CURRENT_BINARY_DIR})
 set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
-set(CMAKE_OBJECT_PATH_MAX 512)
 # python stuff
 find_package(PythonInterp 3 REQUIRED)
 
@@ -23,9 +22,16 @@ add_custom_command(
   COMMENT "Generating mha kernel (cpp) files now ..."
   VERBATIM
 )
+
+set(device_files)
+foreach(filepath IN LISTS FMHA_FWD_GEN_BLOBS)
+    get_filename_component(filename ${filepath} NAME)
+    # Append the filename to the device_files list
+    list(APPEND device_files ${filename})
+endforeach()
 add_custom_target(generate_cpp_files DEPENDS ${FMHA_FWD_GEN_BLOBS})
 
-add_instance_library(device_mha_instance ${FMHA_FWD_GEN_BLOBS})
+add_instance_library(device_mha_instance ${device_files})
 
 add_dependencies(device_mha_instance generate_cpp_files)
 
