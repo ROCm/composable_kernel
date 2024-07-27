@@ -11,7 +11,7 @@ COMMON_ARGS='-v=1'
 set -x
 for prec in "fp16" "bf16" ; do
 for perm in 0 1 ; do
-for hdim in 64 ; do
+for hdim in 32 64 128 256 ; do
 for mode in 0 1 ; do
 for bias in "n" "e" "a"; do
 for dbias in 0 1 ; do
