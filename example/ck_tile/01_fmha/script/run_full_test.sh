@@ -36,11 +36,11 @@ example/ck_tile/01_fmha/script/smoke_test_fwd.sh
 example/ck_tile/01_fmha/script/smoke_test_bwd.sh
 
 #run performance benchmarks
-export fmha_fwd_log="build/perf_fmha_fwd_$GPU_arch.log"
+export fmha_fwd_log="perf_fmha_fwd_$GPU_arch.log"
 print_log_header $fmha_fwd_log $env_type $branch $host_name
 example/ck_tile/01_fmha/script/benchmark_fwd.sh 2>&1 | tee -a $fmha_fwd_log
 
-export fmha_bwd_log="build/perf_fmha_bwd_$GPU_arch.log"
+export fmha_bwd_log="perf_fmha_bwd_$GPU_arch.log"
 print_log_header $fmha_bwd_log $env_type $branch $host_name
 example/ck_tile/01_fmha/script/benchmark_bwd.sh 2>&1 | tee -a $fmha_bwd_log
 
