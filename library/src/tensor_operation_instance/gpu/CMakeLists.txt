@@ -302,20 +302,23 @@ if(CK_DEVICE_CONV_INSTANCES)
         )
 endif()
 if(CK_DEVICE_MHA_INSTANCES)
-        add_library(device_mha_operations STATIC ${CK_DEVICE_MHA_INSTANCES})
-        add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
-        target_compile_features(device_mha_operations PUBLIC)
-        set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        target_include_directories(device_mha_operations PUBLIC
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/mha>
-        )
-        rocm_install(TARGETS device_mha_operations
-            EXPORT device_mha_operationsTargets)
-        rocm_install(EXPORT device_mha_operationsTargets
-            FILE composable_kerneldevice_mha_operationsTargets.cmake
-            NAMESPACE composable_kernel::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        )
+        list(FILTER gpu_list INCLUDE REGEX "^gfx94")
+        if(gpu_list)
+            add_library(device_mha_operations STATIC ${CK_DEVICE_MHA_INSTANCES})
+            add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
+            target_compile_features(device_mha_operations PUBLIC)
+            set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+            target_include_directories(device_mha_operations PUBLIC
+                $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/mha>
+            )
+            rocm_install(TARGETS device_mha_operations
+                EXPORT device_mha_operationsTargets)
+            rocm_install(EXPORT device_mha_operationsTargets
+                FILE composable_kerneldevice_mha_operationsTargets.cmake
+                NAMESPACE composable_kernel::
+                DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+            )
+        endif()
 endif()
 if(CK_DEVICE_CONTRACTION_INSTANCES)
         add_library(device_contraction_operations STATIC ${CK_DEVICE_CONTRACTION_INSTANCES})

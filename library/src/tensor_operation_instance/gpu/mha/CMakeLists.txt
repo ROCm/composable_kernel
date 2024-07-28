@@ -33,6 +33,9 @@ add_custom_target(generate_cpp_files DEPENDS ${FMHA_FWD_GEN_BLOBS})
 
 add_instance_library(device_mha_instance ${device_files})
 
-add_dependencies(device_mha_instance generate_cpp_files)
 
+
+if (TARGET device_mha_instance)
+  add_dependencies(device_mha_instance generate_cpp_files)
+endif()
 
