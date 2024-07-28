@@ -30,7 +30,6 @@ struct BlockFmhaPipelineQRKSVSAsync
     using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType             = remove_cvref_t<typename Problem::ODataType>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
-    using FmhaDropout           = remove_cvref_t<typename Problem::FmhaDropout>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -57,6 +56,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -82,7 +82,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         else
         {
             // minimize occupancy
-            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && FmhaDropout::IsDropout)
+            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)
             {
                 return 1;
             }
@@ -117,6 +117,8 @@ struct BlockFmhaPipelineQRKSVSAsync
     }();
 
     static constexpr const char* name = "qr_async";
+
+    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -157,7 +159,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               FmhaDropout dropout) const
+               DropoutType& dropout) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -303,7 +305,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         constexpr auto k_pre_np = [&]() {
             if constexpr(kPadSeqLenK &&
                          (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && FmhaDropout::IsDropout)))
+                          (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
                 return bool_constant<true>{};
             else
                 return bool_constant<false>{};
@@ -587,13 +589,12 @@ struct BlockFmhaPipelineQRKSVSAsync
                 });
             });
 
-            if constexpr(FmhaDropout::IsDropout)
+            if constexpr(kHasDropout)
             {
                 auto randval_ptr =
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr,
-                    q_origin.at(number<0>{}),
                     seqlen_k_start + i_total_loops * kN0,
                     p_compute,
                     randval_dram_window);
@@ -746,7 +747,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               FmhaDropout dropout) const
+               DropoutType& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},

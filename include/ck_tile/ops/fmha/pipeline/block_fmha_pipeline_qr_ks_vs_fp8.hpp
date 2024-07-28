@@ -28,7 +28,6 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
     using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType             = remove_cvref_t<typename Problem::ODataType>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
-    using FmhaDropout           = remove_cvref_t<typename Problem::FmhaDropout>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -51,6 +50,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kHasDropout  = Problem::kHasDropout;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -124,7 +124,7 @@ struct [[deprecated]] BlockFmhaPipelineQRKSVSFp8
                float descale_qk,
                float descale_sv,
                void* smem_ptr,
-               FmhaDropout& /*dropout*/) const // not supported
+               BlockDropout& /*dropout*/) const // not supported
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&

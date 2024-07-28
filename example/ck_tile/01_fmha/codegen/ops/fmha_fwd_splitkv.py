@@ -29,7 +29,6 @@ FMHA_FWD_SPLITKV_PIPELINE_MAP = {
 FMHA_FWD_SPLITKV_KERNEL_BODY="""
 using fmha_dtype_{F_idx} = {F_dtype};
 using fmha_mask_{F_idx} = {F_mask};
-using fmha_dropout_{F_idx} = {F_dropout};
 
 namespace {{
 template <bool kHasUnevenSplits>
@@ -52,6 +51,7 @@ using fmha_trait = ck_tile::TileFmhaFwdSplitKVTraits<{F_spad},
                                                      {F_bias},
                                                      false,
                                                      {F_lse},
+                                                     {F_dropout},
                                                      {F_squant},
                                                      kHasUnevenSplits,
                                                      {F_occupancy}>;
@@ -71,7 +71,6 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaFwdSplitKVPipelineProblem<
     fmha_shape,
     {F_mode},
     fmha_mask_{F_idx},
-    fmha_dropout_{F_idx},
     fmha_trait>;
 
 using fmha_pipeline = {F_pipeline}<
@@ -99,7 +98,7 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_args a)
 }}
 
 using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout},
-                        {F_pipeline_enum}, fmha_mask_{F_idx}, fmha_dropout_{F_idx}, {F_bias}, {F_lse}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                        {F_pipeline_enum}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
 #include <iostream>
 
@@ -225,9 +224,9 @@ float fmha_fwd_splitkv(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream
 }}
 """
 
-FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && ({F_dropout_check}) && (t.do_fp8_static_quant == {F_squant}) &&
+FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-                using traits_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_dropout}, {F_bias}, {F_lse}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+                using traits_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0blen}, {F_vlayout}, {F_pipeline_enum}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
                 using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}/2, {F_bn1}, {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
 
                 return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
@@ -268,7 +267,7 @@ class FmhaFwdSplitKVPipeline:
         else:
             if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
         if self.F_lse == 't' : n += '_lse'
-        if self.F_dropout != 'no' : n += f'_{self.F_dropout}'
+        if self.F_dropout == 't' : n += '_dropout'
         if self.F_squant == 't' : n += '_squant'
         return n
 
@@ -323,7 +322,7 @@ class FmhaFwdSplitKVApiPool:
                     inners = inners + FMHA_FWD_SPLITKV_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
-                                   F_lse=BOOL_MAP[trait.lse], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
+                                   F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout] ,
                                    F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0blen=trait.bk0blen,
@@ -384,7 +383,7 @@ class FmhaFwdSplitKVKernel:
                 F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],    
                 F_bias          = BIAS_MAP[self.F_pipeline.F_bias],
                 F_lse           = BOOL_MAP[self.F_pipeline.F_lse],
-                F_dropout       = DROPOUT_MAP[self.F_pipeline.F_dropout],
+                F_dropout       = BOOL_MAP[self.F_pipeline.F_dropout],
                 F_squant        = BOOL_MAP[self.F_pipeline.F_squant],
                 F_occupancy     = self.F_tile.F_occupancy,
                 F_pipeline_enum = PIPELINE_ENUM_MAP[self.F_pipeline.tag],
@@ -535,7 +534,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             # splitkv kernel donot support dropout
-            for mask, bias, lse, dropout in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], list(DROPOUT_MAP.keys())[:1]):
+            for mask, bias, lse, dropout in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["f"]):
                 if hdim == 256:
                 # if True:
                     pipelines.append(Pipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))
@@ -554,7 +553,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
         elif dtype in ['fp8', 'bf8']:
             # no need lse/dropout kernels
             for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', 'no', squant, mask))
+                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', 'f', squant, mask))
         else:
             assert False
         return pipelines

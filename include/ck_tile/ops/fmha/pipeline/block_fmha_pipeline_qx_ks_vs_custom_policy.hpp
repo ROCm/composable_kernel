@@ -718,7 +718,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
     {
-        if constexpr(Problem::FmhaDropout::IsDropout)
+        if constexpr(Problem::kHasDropout)
         {
             constexpr auto gemm_0 = QXPolicy::template GetQKBlockGemm<Problem>();
             constexpr auto config =

@@ -67,11 +67,11 @@ BIAS_CHECK_MAP = {
 }
 
 DROPOUT_MAP = {
-    "no"                        : "ck_tile::BlockDropout<false, true,  false>",
-    "dropout_wg32"              : "ck_tile::BlockDropout<true,  true,  false>",
-    "dropout_wg32_storerandval" : "ck_tile::BlockDropout<true,  true,  true >",
-    "dropout_wg16"              : "ck_tile::BlockDropout<true,  false, false>",
-    "dropout_wg16_storerandval" : "ck_tile::BlockDropout<true,  false, true >"
+    "no"                        : "ck_tile::BlockDropoutBwd<false, true,  false>",
+    "dropout_wg32"              : "ck_tile::BlockDropoutBwd<true,  true,  false>",
+    "dropout_wg32_storerandval" : "ck_tile::BlockDropoutBwd<true,  true,  true >",
+    "dropout_wg16"              : "ck_tile::BlockDropoutBwd<true,  false, false>",
+    "dropout_wg16_storerandval" : "ck_tile::BlockDropoutBwd<true,  false, true >"
 }
 
 DROPOUT_CHECK_MAP = {

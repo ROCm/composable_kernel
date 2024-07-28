@@ -29,7 +29,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     using PDataType             = remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
-    using FmhaDropout           = remove_cvref_t<typename Problem::FmhaDropout>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -55,7 +54,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimQ     = true; // support multiple of vector(like 8x)
     static constexpr bool kPadHeadDimV     = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum         = Problem::BiasEnum;
-    static constexpr bool kStoreLSE        = true; // always store LSE (acc)
+    static constexpr bool kStoreLSE        = true;  // always store LSE (acc)
+    static constexpr bool kHasDropout      = false; // ignore this flag
     static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -153,7 +153,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               FmhaDropout dropout) const
+               BlockDropout& dropout) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -301,7 +301,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
+        auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
@@ -584,13 +584,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                 });
             });
 
-            if constexpr(FmhaDropout::IsDropout)
+            if constexpr(kHasDropout)
             {
                 auto randval_ptr =
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
-                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr,
-                    q_origin.at(number<0>{}),
                     seqlen_k_start + i_total_loops * kN0,
                     p_compute,
                     randval_dram_window);
@@ -742,7 +741,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               FmhaDropout dropout) const
+               BlockDropout& dropout) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},

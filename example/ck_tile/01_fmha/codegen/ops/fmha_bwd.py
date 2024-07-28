@@ -62,6 +62,7 @@ using fmha_bwd_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                        {F_dbias},
                                                        false,
                                                        false,
+                                                       false,
                                                        {F_occupancy}>;
 using fmha_mask_{F_idx}      = {F_mask};
 using fmha_dropout_{F_idx}   = {F_dropout};
