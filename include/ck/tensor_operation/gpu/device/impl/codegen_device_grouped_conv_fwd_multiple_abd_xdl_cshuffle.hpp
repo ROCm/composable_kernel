@@ -731,20 +731,6 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
 
-        // check device
-        /**if(get_device_name() == "gfx908")
-        {
-            // FIXME: re-enable fp64 when SWDEV-335738 is fixed
-            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
-            {
-                return false;
-            }
-        }**/
-        /**if(!ck::is_xdl_supported())
-        {
-            return false;
-        }**/
-
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
@@ -915,11 +901,6 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                                arg.block_2_etile_map_);
         }
     }
-
-    /**__device__ __host__ bool IsSupportedArgument(const BaseArgument* p_arg) override
-    {
-        return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
-    }**/
 
     static __device__ __host__ auto MakeArgument(
         APointers p_as,
