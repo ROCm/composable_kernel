@@ -727,23 +727,23 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         ck::Array<index_t, NDimSpatial> input_right_pads_;
     };
 
-    static bool IsSupportedArgument(const Argument& arg)
+    static __device__ __host__ bool IsSupportedArgument(const Argument& arg)
     {
         namespace ctc = tensor_layout::convolution;
 
         // check device
-        if(get_device_name() == "gfx908")
+        /**if(get_device_name() == "gfx908")
         {
             // FIXME: re-enable fp64 when SWDEV-335738 is fixed
             if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
             {
                 return false;
             }
-        }
-        if(!ck::is_xdl_supported())
+        }**/
+        /**if(!ck::is_xdl_supported())
         {
             return false;
-        }
+        }**/
 
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
@@ -916,10 +916,10 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         }
     }
 
-    bool IsSupportedArgument(const BaseArgument* p_arg) override
+    /**__device__ __host__ bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
-    }
+    }**/
 
     static __device__ __host__ auto MakeArgument(
         APointers p_as,
