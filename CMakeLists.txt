@@ -235,6 +235,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
+# https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
+# _GLIBCXX_ASSERTIONS
+# Undefined by default. When defined, enables extra error checking in the form of
+# precondition assertions, such as bounds checking in strings and null pointer
+# checks when dereferencing smart pointers
+option(USE_GLIBCXX_ASSERTIONS "Turn on additional c++ library checks." OFF)
+if(USE_GLIBCXX_ASSERTIONS)
+  add_compile_options(-Wp,-D_GLIBCXX_ASSERTIONS)
+endif()
+
 ## HIP
 set(CMAKE_HIP_PLATFORM amd)
 set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
