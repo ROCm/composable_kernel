@@ -873,7 +873,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a" """
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -892,7 +892,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942" """
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
