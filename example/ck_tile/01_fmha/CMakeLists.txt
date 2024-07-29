@@ -6,7 +6,7 @@ execute_process(
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt
+  --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt --receipt 3
 )
 
 # NOTE: for cmake, the FMHA_FWD_GEN_BLOBS/FMHA_BWD_GEN_BLOBS files must be in the same directory
@@ -23,7 +23,7 @@ add_custom_command(
 add_custom_command(
   OUTPUT ${FMHA_BWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  --api bwd --output_dir ${CMAKE_CURRENT_BINARY_DIR} --receipt 3
 )
 
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
