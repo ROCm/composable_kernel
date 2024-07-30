@@ -147,6 +147,8 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::index_t nhead_stride_do;
         ck_tile::index_t nhead_stride_lsed;
         ck_tile::index_t nhead_stride_dq_acc;
+        ck_tile::index_t nhead_stride_dk;
+        ck_tile::index_t nhead_stride_dv;
 
         ck_tile::index_t batch_stride_lsed;
     };
@@ -301,6 +303,8 @@ struct FmhaBwdDQDKDVKernel
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_lsed,
               ck_tile::index_t nhead_stride_dq_acc,
+              ck_tile::index_t nhead_stride_dk,
+              ck_tile::index_t nhead_stride_dv,
               ck_tile::index_t nhead_stride_dbias,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
@@ -350,6 +354,8 @@ struct FmhaBwdDQDKDVKernel
                      nhead_stride_do,
                      nhead_stride_lsed,
                      nhead_stride_dq_acc,
+                     nhead_stride_dk,
+                     nhead_stride_dv,
                      batch_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
                     {},                  // placeholder for dbias
@@ -452,6 +458,8 @@ struct FmhaBwdDQDKDVKernel
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_lsed,
               ck_tile::index_t nhead_stride_dq_acc,
+              ck_tile::index_t nhead_stride_dk,
+              ck_tile::index_t nhead_stride_dv,
               ck_tile::index_t nhead_stride_dbias,
               ck_tile::index_t batch_stride_lsed,
               ck_tile::index_t split_stride_dq_acc,
@@ -491,6 +499,8 @@ struct FmhaBwdDQDKDVKernel
                      nhead_stride_do,
                      nhead_stride_lsed,
                      nhead_stride_dq_acc,
+                     nhead_stride_dk,
+                     nhead_stride_dv,
                      batch_stride_lsed}, // args for common karg
                     {},                  // placeholder for bias
                     {},                  // placeholder for dbias
@@ -687,10 +697,10 @@ struct FmhaBwdDQDKDVKernel
                                       static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_do +
                                       batch_offset_do;
         KGradDataType* dk_ptr = reinterpret_cast<KGradDataType*>(kargs.dk_ptr) +
-                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_k +
+                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_dk +
                                 batch_offset_dk;
         VGradDataType* dv_ptr = reinterpret_cast<VGradDataType*>(kargs.dv_ptr) +
-                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_v +
+                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_dv +
                                 batch_offset_dv;
 
         // Q/K/V/LSE/D/dO/dQ/dK/dV DRAM and DRAM window
