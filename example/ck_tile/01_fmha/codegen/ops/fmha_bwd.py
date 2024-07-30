@@ -278,8 +278,6 @@ class FmhaBwdApiPool:
                     for spad1 in ["t", "f"]:
                         if (spad1 == "f" and (trait.spad == "t" or trait.mode == "group")):
                             continue
-                        if (spad1 == "t" and trait.spad == "f" and hdim_int == 64):
-                            continue
                         inners = inners + FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_pipeline_enum=BWD_DQDKDV_PIPELINE_ENUM_MAP[trait.pipeline],
                                     F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
                                     F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
@@ -453,7 +451,7 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict
         return {
             '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr"],
-            '64'  : [FmhaBwdDQDKDVTileSize( 64, 128,  64, 64,  64, 64, 64,  64,  64, 1, 4, 1, 4, 1, 1, 2, 2, 1, 32, 32, 16, 32, 32, 16, 1),
+            '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr"],
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr"],
@@ -481,7 +479,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 continue
             if ((bias == "no" or bias == "alibi") and dbias == "t"):
                 continue
-            if (((hdim == 64) and ("wg16" in dropout)) or ((hdim != 64) and ("wg32" in dropout))):
+            if ("wg32" in dropout):
                 continue
             k = FmhaBwdDQDKDVKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad,
