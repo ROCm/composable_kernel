@@ -15,12 +15,41 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 
 namespace ew = ck::tensor_operation::element_wise;
 
 using PassThrough   = ew::PassThrough;
 using ConvScaleRelu = ew::UnaryCombinedOp<ew::Scale, ew::Scale, ew::Relu>;
 using ConvScale     = ew::UnaryCombinedOp<ew::Scale, ew::Scale, PassThrough>;
+
+#if 1
+using UnaryScaleConvert = ew::Scale;
+#else
+struct UnaryScaleConvert
+{
+    __host__ __device__ UnaryScaleConvert(float scale = 1.f) : scale_(scale) {}
+
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const;
+
+    template <>
+    __host__ __device__ void operator()<ck::f8_t, float>(ck::f8_t& y, const float& x) const
+    {
+        auto _x = x + 1.0f;
+        y       = ck::type_convert<ck::f8_t>(_x * scale_);
+        if(_x * scale_ > 1.0f)
+        {
+            printf("UnaryScaleConvert: float=%f   f8_t=%f    e=%f\n",
+                   _x * scale_,
+                   ck::type_convert<float>(ck::type_convert<ck::f8_t>(_x * scale_)),
+                   ck::type_convert<float>(y));
+        }
+    }
+
+    float scale_;
+};
+#endif
 
 void print_helper_msg()
 {
@@ -146,7 +175,7 @@ template <ck::index_t NDimSpatial,
           typename OutDataType,
           typename InElementOp,
           typename WeiElementOp,
-          typename OutElementOp,
+          typename ConvElementOp,
           typename DeviceConvNDFwdInstance>
 bool run_grouped_conv_fwd(bool do_verification,
                           int init_method,
@@ -161,8 +190,9 @@ bool run_grouped_conv_fwd(bool do_verification,
     Tensor<InDataType> in(in_g_n_c_wis_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
     Tensor<ConvOutDataType> host_conv(out_g_n_k_wos_desc);
+    Tensor<ConvOutDataType> device_conv(out_g_n_k_wos_desc);
     Tensor<OutDataType> out_host(out_g_n_k_wos_desc);
-    Tensor<ConvOutDataType> out_device(out_g_n_k_wos_desc);
+    Tensor<OutDataType> out_device(out_g_n_k_wos_desc);
 
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
@@ -186,7 +216,7 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem conv_device_buf(sizeof(ConvOutDataType) * host_conv.mDesc.GetElementSpaceSize());
+    DeviceMem conv_device_buf(sizeof(ConvOutDataType) * device_conv.mDesc.GetElementSpaceSize());
     DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
 
     in_device_buf.ToDevice(in.mData.data());
@@ -217,7 +247,7 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // random scale values
-#if 1
+#if 0
     float scale_in  = float(std::rand()) / float(RAND_MAX);
     float scale_wei = float(std::rand()) / float(RAND_MAX);
     float scale_out = float(std::rand()) / float(RAND_MAX);
@@ -233,39 +263,75 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::cout << "scale_out: " << scale_out << std::endl;
 
     // initialize out_element_op for each iteration
-    auto out_element_op = OutElementOp{ew::Scale{scale_in}, ew::Scale{scale_wei}, {}};
+    auto conv_element_op = ConvElementOp{
+        ew::Scale{scale_in}, ew::Scale{scale_wei}, {}}; // convolution elementwise operation
+    auto scale_convert = UnaryScaleConvert{scale_out};  // elementwise scale ant type cast
 
     // do Conv
-    auto conv     = DeviceConvNDFwdInstance{};
-    auto invoker  = conv.MakeInvoker();
-    auto argument = conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
-                                      wei_device_buf.GetDeviceBuffer(),
-                                      std::array<const void*, 0>{},
-                                      conv_device_buf.GetDeviceBuffer(),
-                                      a_g_n_c_wis_lengths,
-                                      a_g_n_c_wis_strides,
-                                      b_g_k_c_xs_lengths,
-                                      b_g_k_c_xs_strides,
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
-                                      std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
-                                      e_g_n_k_wos_lengths,
-                                      e_g_n_k_wos_strides,
-                                      conv_filter_strides,
-                                      conv_filter_dilations,
-                                      input_left_pads,
-                                      input_right_pads,
-                                      in_element_op,
-                                      wei_element_op,
-                                      out_element_op);
+    auto conv         = DeviceConvNDFwdInstance{};
+    auto conv_invoker = conv.MakeInvoker();
+    auto conv_argument =
+        conv.MakeArgument(in_device_buf.GetDeviceBuffer(),
+                          wei_device_buf.GetDeviceBuffer(),
+                          std::array<const void*, 0>{},
+                          conv_device_buf.GetDeviceBuffer(),
+                          a_g_n_c_wis_lengths,
+                          a_g_n_c_wis_strides,
+                          b_g_k_c_xs_lengths,
+                          b_g_k_c_xs_strides,
+                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                          std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                          e_g_n_k_wos_lengths,
+                          e_g_n_k_wos_strides,
+                          conv_filter_strides,
+                          conv_filter_dilations,
+                          input_left_pads,
+                          input_right_pads,
+                          in_element_op,
+                          wei_element_op,
+                          conv_element_op);
 
-    if(!conv.IsSupportedArgument(argument))
+    if(!conv.IsSupportedArgument(conv_argument))
     {
         throw std::runtime_error(
             "wrong! device_conv with the specified compilation parameters does "
             "not support this Conv problem");
     }
 
-    float avg_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});
+    float avg_time = conv_invoker.Run(conv_argument, StreamConfig{nullptr, time_kernel});
+
+    using DeviceElementwiseScale = ck::tensor_operation::device::DeviceElementwiseImpl<
+        ck::Tuple<ConvOutDataType>, // InDataTypeTuple
+        ck::Tuple<OutDataType>,     // OutDataTypeTuple
+        UnaryScaleConvert,          // UnaryScaleConvert
+        NDimSpatial + 3,            // NumDim
+        256,                        // BlockSize
+        128,                        // M0PerBlock
+        128,                        // M1PerBlock
+        8,                          // M0PerThread
+        8,                          // M1PerThread
+        ck::Sequence<1, 0>,         // ThreadClusterArrangeOrder
+        ck::Sequence<8>,            // InScalarPerVectorSeq
+        ck::Sequence<8>>;           // OutScalarPerVectorSeq
+
+    auto device_ew_scale = DeviceElementwiseScale{};
+    auto scale_invoker   = device_ew_scale.MakeInvoker();
+    auto scale_argument  = device_ew_scale.MakeArgument(e_g_n_k_wos_lengths,
+                                                       {e_g_n_k_wos_strides},
+                                                       {e_g_n_k_wos_strides},
+                                                       {conv_device_buf.GetDeviceBuffer()},
+                                                       {out_device_buf.GetDeviceBuffer()},
+                                                       scale_convert);
+
+    if(!device_ew_scale.IsSupportedArgument(scale_argument))
+    {
+        throw std::runtime_error(
+            "wrong! DeviceElementwiseScale with the specified compilation parameters does "
+            "not support this problem");
+    }
+
+    avg_time += scale_invoker.Run(scale_argument, StreamConfig{nullptr, time_kernel});
+
     // FIXME: Must be adjusted for actual math operations and data types
     std::size_t ds_size   = 3 + 1; // 3 element-wise scale multipliers + 1 element-wise relu
     std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
@@ -286,7 +352,7 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                                      ConvOutDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp>();
+                                                                     ConvElementOp>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
@@ -298,21 +364,31 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  conv_element_op);
 
         ref_invoker.Run(ref_argument);
 
-        conv_device_buf.FromDevice(out_device.mData.data());
+        conv_device_buf.FromDevice(device_conv.mData.data());
+
+        out_device_buf.FromDevice(out_device.mData.data());
+
+        out_host.ForEach([&](auto&, auto idx) { scale_convert(out_host(idx), host_conv(idx)); });
+
 #if 1
-        LogRangeAsType<InDataType>(std::cout << "input : ", in.mData, ",") << std::endl;
-        LogRangeAsType<WeiDataType>(std::cout << "weight: ", wei.mData, ",") << std::endl;
-        LogRangeAsType<ConvOutDataType>(std::cout << "host_conv  : ", host_conv.mData, ",")
+        // LogRangeAsType<InDataType>(std::cout << "input : ", in.mData, ",") << std::endl;
+        // LogRangeAsType<WeiDataType>(std::cout << "weight: ", wei.mData, ",") << std::endl;
+        // LogRangeAsType<ConvOutDataType>(std::cout << "host_conv    :", host_conv.mData, ",")
+        //     << std::endl;
+        LogRangeAsType<ConvOutDataType>(std::cout << "device_conv  :", device_conv.mData, ",")
             << std::endl;
-        LogRangeAsType<ConvOutDataType>(std::cout << "device_output: ", out_device.mData, ",")
+
+        LogRangeAsType<OutDataType>(std::cout << "host_output  :", out_host.mData, ",")
+            << std::endl;
+        LogRangeAsType<OutDataType>(std::cout << "device_output:", out_device.mData, ",")
             << std::endl;
 #endif
 
-        return ck::utils::check_err(out_device, host_conv, "Error: incorrect results!");
+        return ck::utils::check_err(out_device, out_host, "Error: incorrect results!");
     }
 
     return true;
