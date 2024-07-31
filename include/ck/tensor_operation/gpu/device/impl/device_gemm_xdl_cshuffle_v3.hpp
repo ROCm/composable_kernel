@@ -558,7 +558,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
