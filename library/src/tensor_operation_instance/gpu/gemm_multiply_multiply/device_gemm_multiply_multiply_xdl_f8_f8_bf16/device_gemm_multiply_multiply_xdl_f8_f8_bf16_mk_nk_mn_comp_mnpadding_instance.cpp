@@ -9,7 +9,7 @@ namespace device {
 namespace instance {
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,

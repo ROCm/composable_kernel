@@ -34,7 +34,7 @@ enum struct GemmDataType
 
 int profile_gemm_multiply_multiply(int argc, char* argv[])
 {
-    if(argc != 16 && argc != 19)
+    if(argc != 16 && argc != 20)
     {
         printf("arg1: tensor operation (" OP_NAME ": " OP_DESC ")\n");
         printf("arg2: data type (0: fp32; 1: fp16; 2: bf16; 3: int8; 4: f8@f16; 5: f16@f8; 6: "
@@ -50,9 +50,10 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
         printf("arg7: time kernel (0=no, 1=yes)\n");
         printf("arg8 to 15: M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE\n");
         printf("optional:\n");
-        printf("arg16: number of warm-up cycles (default 1)\n");
-        printf("arg17: number of iterations (default 10)\n");
-        printf("arg18: memory for rotating buffer (default 0, size in MB)\n");
+        printf("arg16: number of kbatch (default 1)\n");
+        printf("arg17: number of warm-up cycles (default 1)\n");
+        printf("arg18: number of iterations (default 10)\n");
+        printf("arg19: memory for rotating buffer (default 0, size in MB)\n");
         exit(1);
     }
 
@@ -76,11 +77,13 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     int n_warmup      = 1;
     int n_iter        = 10;
     uint64_t rotating = 0;
-    if(argc == 18)
+    int KBatch = 1;
+    if(argc == 20)
     {
-        n_warmup = std::stoi(argv[16]);
-        n_iter   = std::stoi(argv[17]);
-        rotating = std::stoull(argv[18]) * 1024 * 1024;
+        KBatch = std::stoi(argv[16]);
+        n_warmup = std::stoi(argv[17]);
+        n_iter   = std::stoi(argv[18]);
+        rotating = std::stoull(argv[19]) * 1024 * 1024;
     }
 
     using F32  = float;
@@ -146,6 +149,7 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
             (StrideD0 < 0) ? DefaultStrideD0 : StrideD0,
             (StrideD1 < 0) ? DefaultStrideD1 : StrideD1,
             (StrideE < 0) ? DefaultStrideE : StrideE,
+            KBatch,
             n_warmup,
             n_iter,
             rotating);

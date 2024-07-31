@@ -18,7 +18,7 @@ namespace device {
 namespace instance {
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -31,7 +31,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_default_inst
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -44,7 +44,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_kpadding_ins
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -57,7 +57,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnpadding_in
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnkpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -70,7 +70,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnkpadding_i
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -83,7 +83,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_default_in
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -96,7 +96,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_i
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_mnkpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -109,7 +109,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_mnkpadding
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -122,7 +122,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_default_in
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -135,7 +135,7 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_i
                                                     MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_mnkpadding_instances(
-    std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                     Col,
                                                     Tuple<Row, Col>,
                                                     Row,
@@ -154,7 +154,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMultipleD<
+struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMultipleDSplitK<
     ALayout,
     BLayout,
     Tuple<Row, Col>,
@@ -167,7 +167,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::MultiplyMultiply>>
 {
-    using DeviceOp = DeviceGemmMultipleD<ALayout,
+    using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
                                          BLayout,
                                          Tuple<Row, Col>,
                                          CLayout,

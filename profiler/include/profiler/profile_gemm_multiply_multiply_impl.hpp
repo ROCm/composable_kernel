@@ -48,6 +48,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                                          int StrideD0,
                                          int StrideD1,
                                          int StrideE,
+                                         int KBatch,
                                          int n_warmup,
                                          int n_iter,
                                          uint64_t rotating = 0)
@@ -129,7 +130,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     d1_device_buf.ToDevice(d1_m_n.mData.data());
 
     using DeviceOp =
-        ck::tensor_operation::device::DeviceGemmMultipleD<ALayout,
+        ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
                                                           BLayout,
                                                           ck::Tuple<D0Layout, D1Layout>,
                                                           ELayout,
@@ -199,6 +200,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                                         StrideB,
                                         std::array<ck::index_t, 2>{StrideD0, StrideD1},
                                         StrideE,
+                                        KBatch,
                                         a_element_op,
                                         b_element_op,
                                         c_element_op);
