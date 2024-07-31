@@ -1191,6 +1191,16 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
         const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
 
+        const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
+            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
+        const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
+            problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
+
+        const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
+
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         // Block2CTileMap_streamk block_2_ctile_map_streamk(problem.M,
         //                                                  problem.N,
         //                                                  AK0Number * problem.KPadded,
@@ -1218,8 +1228,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 static_cast<uint32_t>(block_idx) >= block_2_ctile_map_streamk.dp_start_block_idx &&
                 static_cast<uint32_t>(block_idx) <
                     block_2_ctile_map_streamk.reduction_start_block_idx;
-            is_reduction_block = static_cast<uint32_t>(block_idx) >=
-                                 block_2_ctile_map_streamk.reduction_start_block_idx;
+
             block_2_ctile_map_streamk.get_block_itr(block_idx, iter_start, iter_end);
             num_k_block_main_loop = iter_end - iter_start;
 
@@ -1229,6 +1238,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
             if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
                          StreamKReductionStrategy::Reduction)
             {
+                is_reduction_block = static_cast<uint32_t>(block_idx) >=
+                                     block_2_ctile_map_streamk.reduction_start_block_idx;
                 if(is_reduction_block)
                 {
                     // descriptors
@@ -1347,7 +1358,9 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                           CElementwiseOperation{}};
 
                     // block synchronization
-                    wg_barrier.wait_eq(reduction_idx, tile_acc_offset_end - tile_acc_offset_start);
+                    wg_barrier.wait_eq(0, block_2_ctile_map_streamk.sk_num_blocks);
+                    // wg_barrier.wait_eq(reduction_idx, tile_acc_offset_end -
+                    // tile_acc_offset_start);
 
 #if 0
                 if(threadIdx.x == 0) {
@@ -1428,7 +1441,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                 partial_acc_store_step_m);
                         }
                     }
-                    return;
+                    continue;
                 }
             }
 
@@ -1445,25 +1458,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 block_2_ctile_map_streamk.get_tile_idx_with_offset(
                     iter_end - 1, tile_idx, iter_offset);
                 iter_offset = __builtin_amdgcn_readfirstlane(iter_offset - current_iter_length + 1);
-
-                const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(problem.M,
-                                                                                 problem.MPadded,
-                                                                                 problem.K,
-                                                                                 problem.KPadded,
-                                                                                 problem.StrideA,
-                                                                                 problem.AK0);
-                const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(problem.K,
-                                                                                 problem.KPadded,
-                                                                                 problem.N,
-                                                                                 problem.NPadded,
-                                                                                 problem.StrideB,
-                                                                                 problem.BK0);
-
-                const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-
-                const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
                 auto block_work_idx =
                     block_2_ctile_map_streamk.tile_to_spatial(tile_idx, problem.M, problem.N);
@@ -1764,7 +1758,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                         Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                         CShuffleDataType,     // typename SrcData,
-                        CDataType,            // typename DstData,
+                        CShuffleDataType,     // typename DstData,
                         decltype(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                         decltype(c_block_desc_mshuffle_mpershuffle_nshuffle_npershuffle),
                         Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
@@ -1881,17 +1875,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                 c_grid_desc_mblock_mperblock_nblock_nperblock, c_global_step);
                         }
                     });
-
-                    if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
-                                 StreamKReductionStrategy::Reduction)
-                    {
-                        if(is_sk_block)
-                        {
-                            // increase the counter for this tile
-                            workgroup_barrier wg_barrier(p_semaphore);
-                            wg_barrier.inc(tile_idx);
-                        }
-                    }
                 }
                 // exit condition
                 iter_end -= current_iter_length;
@@ -1905,7 +1888,17 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 // make sure next loop LDS is ready for use
                 block_sync_lds();
             }
-        }
+            if constexpr(Block2CTileMap_streamk::ReductionStrategy ==
+                         StreamKReductionStrategy::Reduction)
+            {
+                if(is_sk_block)
+                {
+                    // increase the counter for this tile
+                    workgroup_barrier wg_barrier(p_semaphore);
+                    wg_barrier.inc(0);
+                }
+            }
+        } // for loop
     }
 
     template <bool HasMainKBlockLoop,

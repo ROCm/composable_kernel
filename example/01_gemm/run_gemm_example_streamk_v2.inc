@@ -239,6 +239,25 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         return true;
     }
+    std::size_t workspace_size = gemm.GetWorkSpaceSize(&argument);
+    if(workspace_size != 0)
+    {
+        workspace.Realloc(workspace_size);
+        gemm.SetWorkSpacePointer(&argument, workspace.GetDeviceBuffer());
+    }
+    // if(workspace_size != 0)
+    // {
+    //     float* ws_ptr    = reinterpret_cast<float*>(malloc(workspace_size));
+    //     size_t ws_dwords = workspace_size / sizeof(float);
+    //     workspace.FromDevice(ws_ptr);
+    //     printf("ws size=%0zu\n",workspace_size);
+    //     for(size_t i = 0; i < ws_dwords; i++)
+    //     {
+    //         uint32_t rere = reinterpret_cast<uint32_t*>(ws_ptr)[i];
+    //         printf("%4lu : %f(0x%08x)\n", i, ws_ptr[i], rere);
+    //     }
+    //     free(ws_ptr);
+    // }
 
     bool pass = true;
     if(config.do_verification)
@@ -261,8 +280,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
 #else
-        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
-
+        printf("device copy initiated\n"); // HS
+        if((workspace_size != 0) && (Streamk_sel > 0))
+        {
+            printf("entered if\n");
+            workspace.FromDevice(c_m_n_device_result.mData.data());
+        }
+        else
+            c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+        printf("device copy finished\n"); // HS
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_host_result,
                                      "Error: Incorrect results!",
@@ -273,8 +299,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     if(config.time_kernel)
     {
+        printf("before running timing\n");
         ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
-
+        printf("after running timing\n");
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
             sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;

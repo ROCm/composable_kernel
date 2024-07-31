@@ -131,25 +131,27 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
     {
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            printf("inside run\n");
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
             }
-
+            printf("done printing arg\n");
             if(!GridwiseGemm::CheckValidity(arg))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
-
+            printf("done checking arg validity\n");
             float ave_time = 0;
 
             index_t k_grain = KPerBlock;
             index_t K_split = (arg.K + k_grain - 1) / k_grain * KPerBlock;
-
+            printf("done finding k_split\n");
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
             if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
                          StreamKReductionStrategy::Atomic)
             {
+
                 hipGetErrorString(hipMemsetAsync(
                     arg.p_c_grid, 0, arg.M * arg.N * sizeof(CDataType), stream_config.stream_id_));
             }
@@ -216,12 +218,14 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                             hipGetErrorString(hipMemsetAsync(
                                 workspace_semaphore,
                                 0,
-                                arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
+                                sizeof(uint32_t),
+                                //arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
                                 stream_config.stream_id_));
                         };
-
+                        printf("before ave_time\n");
                         ave_time = launch_and_time_kernel_with_preprocess(
                             stream_config, preprocess, kernel, grid_dim, dim3(BlockSize), 0, arg);
+                        printf("after ave_time\n");
                     }
                 }
             };
@@ -242,7 +246,9 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy>;
+                        printf("before running lambda\n");
                         Run(kernel);
+                        printf("after running lambda\n");
                     }
                 }
                 // Tail number could be One to Seven
@@ -443,6 +449,28 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         }
     };
 
+    size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
+    {
+        const Argument* p_arg = dynamic_cast<const Argument*>(pArg);
+        if constexpr(GridwiseGemm::Block2CTileMap_streamk::ReductionStrategy ==
+                     StreamKReductionStrategy::Reduction)
+        {
+            return p_arg->block_2_ctile_map_streamk.get_workspace_size(sizeof(GemmAccDataType));
+        }
+        else
+        {
+            return 0;
+        }
+    }
+
+    void SetWorkSpacePointer(BaseArgument* pArg,
+                             void* p_workspace,
+                             const StreamConfig& = StreamConfig{}) const override
+    {
+        Argument* pArg_ = dynamic_cast<Argument*>(pArg);
+
+        pArg_->p_workspace_ = p_workspace;
+    }
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check
