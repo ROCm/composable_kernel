@@ -568,6 +568,7 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
 {
     if constexpr(is_same<T, half_t>::value)
     {
+#if 0
         if constexpr(N == 2)
         {
             __builtin_amdgcn_global_atomic_fadd_v2f16(addr, src_thread_data);
@@ -586,6 +587,13 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
                     __builtin_amdgcn_global_atomic_fadd_v2f16(addr + i, tmp.AsType<half2_t>()[i]);
             });
         }
+#else
+        static_assert(N % 2 == 0, "");
+        vector_type<half_t, N> tmp{src_thread_data};
+        static_for<0, N / 2, 1>{}([&](auto i) {
+           __builtin_amdgcn_global_atomic_fadd_v2f16(bit_cast<half2_t*>(addr) + i, tmp.template AsType<half2_t>()[i]);
+        });
+#endif
     }
 }
 
