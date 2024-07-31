@@ -233,6 +233,12 @@ extern "C" __global__ void run_${name}(
                                     ${BElementwiseOperation}{},
                                     ${CDEElementwiseOperation}{1.0f, 1.0f});
 
+    if(!DeviceConv::IsSupportedArgument(arg))
+    {
+	printf("Arguement is not supported.\n");
+	return;
+    };    
+
     constexpr ck::LoopScheduler LoopSched = ck::make_default_loop_scheduler();
 
     // GridwiseGemm
