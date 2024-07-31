@@ -1186,7 +1186,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                                void* p_workspace,
                                Block2CTileMap_streamk block_2_ctile_map_streamk)
     {
-
         const AElementwiseOperation a_element_op{};
         const BElementwiseOperation b_element_op{};
         const CElementwiseOperation c_element_op{};
@@ -1899,6 +1898,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 }
             }
         } // for loop
+        if(threadIdx.x==0)printf("kernel ends");
     }
 
     template <bool HasMainKBlockLoop,

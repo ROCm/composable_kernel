@@ -8,7 +8,7 @@ MY_PROJECT_SOURCE=$1
 if [ $# -ge 2 ] ; then
     GPU_TARGETS=$2
 else
-    GPU_TARGETS="gfx908;gfx90a;gfx940"
+    GPU_TARGETS="gfx90a"
 fi
 
 cmake                                                                                             \

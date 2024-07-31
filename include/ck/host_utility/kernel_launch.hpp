@@ -109,7 +109,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             printf("Warm up %d times\n", stream_config.cold_niters_);
         }
         // warm up
-        preprocess();
+        //HS preprocess();
         for(int i = 0; i < stream_config.cold_niters_; ++i)
         {
             kernel<<<grid_dim, block_dim, lds_byte, stream_config.stream_id_>>>(args...);
