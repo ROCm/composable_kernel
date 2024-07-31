@@ -72,7 +72,7 @@ using CDEElementOp = MultiplyMultiply;
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
-// clang-format off
+    // clang-format off
          <      Row,      Col, DsLayout, ELayout,
          A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
          AElementOp,  BElementOp, CDEElementOp,       GemmSpec,
@@ -134,7 +134,8 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, KBatch\n");
+        printf(
+            "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, KBatch\n");
         exit(0);
     }
 

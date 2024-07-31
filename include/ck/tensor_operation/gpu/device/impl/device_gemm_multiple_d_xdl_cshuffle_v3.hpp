@@ -70,16 +70,16 @@ template <typename ALayout,
           typename LDSTypeA                           = ComputeTypeA,
           typename LDSTypeB                           = ComputeTypeB>
 struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayout,
-                                                                     BLayout,
-                                                                     DsLayout,
-                                                                     CLayout,
-                                                                     ADataType,
-                                                                     BDataType,
-                                                                     DsDataType,
-                                                                     CDataType,
-                                                                     AElementwiseOperation,
-                                                                     BElementwiseOperation,
-                                                                     CElementwiseOperation>
+                                                                           BLayout,
+                                                                           DsLayout,
+                                                                           CLayout,
+                                                                           ADataType,
+                                                                           BDataType,
+                                                                           DsDataType,
+                                                                           CDataType,
+                                                                           AElementwiseOperation,
+                                                                           BElementwiseOperation,
+                                                                           CElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -192,12 +192,11 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         // rotating mem
                         rotating_mem.Next();
                         // clear c mem
-                            if(arg_.KBatch > 1)
-                                hipGetErrorString(
-                                    hipMemsetAsync(arg_.p_c_grid,
-                                                   0,
-                                                   arg_.M * arg_.N * sizeof(CDataType),
-                                                   stream_config.stream_id_));
+                        if(arg_.KBatch > 1)
+                            hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
+                                                             0,
+                                                             arg_.M * arg_.N * sizeof(CDataType),
+                                                             stream_config.stream_id_));
                     };
 
                     ave_time = ck::utility::launch_and_time_kernel_with_preprocess<false>(

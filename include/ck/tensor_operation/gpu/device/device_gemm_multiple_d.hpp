@@ -96,8 +96,6 @@ struct DeviceGemmMultipleDSplitK : public BaseOperator
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
 
-
-
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
