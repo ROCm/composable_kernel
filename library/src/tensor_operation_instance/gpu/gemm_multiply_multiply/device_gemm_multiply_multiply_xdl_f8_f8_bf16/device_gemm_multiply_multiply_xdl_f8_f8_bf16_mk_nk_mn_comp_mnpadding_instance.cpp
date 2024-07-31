@@ -10,16 +10,16 @@ namespace instance {
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances)
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances)
 {
     add_device_operation_instances(
         instances,

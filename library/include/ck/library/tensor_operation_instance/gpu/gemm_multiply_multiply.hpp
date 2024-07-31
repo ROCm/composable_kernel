@@ -19,133 +19,133 @@ namespace instance {
 #if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_kpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_kpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v1_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_default_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_kpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 
 void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_mem_v2_mnkpadding_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
-                                                    Col,
-                                                    Tuple<Row, Col>,
-                                                    Row,
-                                                    F8,
-                                                    F8,
-                                                    Tuple<F32, F32>,
-                                                    BF16,
-                                                    PassThrough,
-                                                    PassThrough,
-                                                    MultiplyMultiply>>>& instances);
+                                                          Col,
+                                                          Tuple<Row, Col>,
+                                                          Row,
+                                                          F8,
+                                                          F8,
+                                                          Tuple<F32, F32>,
+                                                          BF16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyMultiply>>>& instances);
 #endif
 
 template <typename ADataType,
@@ -167,17 +167,18 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::MultiplyMultiply>>
 {
-    using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
-                                         BLayout,
-                                         Tuple<Row, Col>,
-                                         CLayout,
-                                         ADataType,
-                                         BDataType,
-                                         Tuple<F32, F32>,
-                                         CDataType,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         ck::tensor_operation::element_wise::MultiplyMultiply>;
+    using DeviceOp =
+        DeviceGemmMultipleDSplitK<ALayout,
+                                  BLayout,
+                                  Tuple<Row, Col>,
+                                  CLayout,
+                                  ADataType,
+                                  BDataType,
+                                  Tuple<F32, F32>,
+                                  CDataType,
+                                  ck::tensor_operation::element_wise::PassThrough,
+                                  ck::tensor_operation::element_wise::PassThrough,
+                                  ck::tensor_operation::element_wise::MultiplyMultiply>;
 
     static auto GetInstances()
     {

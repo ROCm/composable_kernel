@@ -131,16 +131,16 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 
     using DeviceOp =
         ck::tensor_operation::device::DeviceGemmMultipleDSplitK<ALayout,
-                                                          BLayout,
-                                                          ck::Tuple<D0Layout, D1Layout>,
-                                                          ELayout,
-                                                          ADataType,
-                                                          BDataType,
-                                                          ck::Tuple<D0DataType, D1DataType>,
-                                                          EDataType,
-                                                          AElementOp,
-                                                          BElementOp,
-                                                          CElementOp>;
+                                                                BLayout,
+                                                                ck::Tuple<D0Layout, D1Layout>,
+                                                                ELayout,
+                                                                ADataType,
+                                                                BDataType,
+                                                                ck::Tuple<D0DataType, D1DataType>,
+                                                                EDataType,
+                                                                AElementOp,
+                                                                BElementOp,
+                                                                CElementOp>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
