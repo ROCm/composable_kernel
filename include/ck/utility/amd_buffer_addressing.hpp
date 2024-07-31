@@ -571,7 +571,8 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
         static_assert(N % 2 == 0, "");
         vector_type<half_t, N> tmp{src_thread_data};
         static_for<0, N / 2, 1>{}([&](auto i) {
-           __builtin_amdgcn_global_atomic_fadd_v2f16(bit_cast<half2_t*>(addr) + i, tmp.template AsType<half2_t>()[i]);
+            __builtin_amdgcn_global_atomic_fadd_v2f16(bit_cast<half2_t*>(addr) + i,
+                                                      tmp.template AsType<half2_t>()[i]);
         });
     }
     else if constexpr(is_same<T, bhalf_t>::value)
@@ -579,7 +580,8 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
         static_assert(N % 2 == 0, "");
         vector_type<bhalf_t, N> tmp{src_thread_data};
         static_for<0, N / 2, 1>{}([&](auto i) {
-           __builtin_amdgcn_global_atomic_fadd_v2bf16(bit_cast<bhalf2_t*>(addr) + i, tmp.template AsType<bhalf2_t>()[i]);
+            __builtin_amdgcn_global_atomic_fadd_v2bf16(bit_cast<bhalf2_t*>(addr) + i,
+                                                       tmp.template AsType<bhalf2_t>()[i]);
         });
     }
 }
@@ -939,9 +941,10 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     {
         ignore = dst_wave_buffer_resource;
         ignore = dst_thread_addr_offset;
-        //amd_buffer_atomic_add_impl<scalar_t, vector_size>(
-                //src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
-        amd_global_atomic_add_impl<scalar_t, vector_size>(src_thread_data, p_dst_wave + dst_thread_element_offset);
+        // amd_buffer_atomic_add_impl<scalar_t, vector_size>(
+        // src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        amd_global_atomic_add_impl<scalar_t, vector_size>(src_thread_data,
+                                                          p_dst_wave + dst_thread_element_offset);
     }
 #endif
 }
