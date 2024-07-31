@@ -21,7 +21,7 @@ void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instances
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                Scale>>>& instances)
+                                                                DynamicUnaryOp>>>& instances)
 {
     add_device_operation_instances(
         instances,

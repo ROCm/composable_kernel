@@ -18,8 +18,8 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Scale       = ck::tensor_operation::element_wise::Scale;
+using PassThrough    = ck::tensor_operation::element_wise::PassThrough;
+using DynamicUnaryOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
 
 #ifdef CK_ENABLE_BF16
 // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
@@ -35,7 +35,7 @@ void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instances
                                                                 BF16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                Scale>>>& instances);
+                                                                DynamicUnaryOp>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
@@ -51,7 +51,7 @@ void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                                                                 F16,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                Scale>>>& instances);
+                                                                DynamicUnaryOp>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP32
@@ -67,7 +67,7 @@ void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                                                                 F32,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                Scale>>>& instances);
+                                                                DynamicUnaryOp>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8
@@ -83,7 +83,7 @@ void add_device_grouped_conv3d_fwd_xdl_scale_ndhwgc_gkzyxc_ndhwgk_int8_instances
                                                                 int8_t,
                                                                 PassThrough,
                                                                 PassThrough,
-                                                                Scale>>>& instances);
+                                                                DynamicUnaryOp>>>& instances);
 #endif
 
 template <ck::index_t NumDimSpatial,
@@ -108,7 +108,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     OutDataType,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::Scale,
+    ck::tensor_operation::element_wise::DynamicUnaryOp,
     ComputeType>>
 {
     using DeviceOp =
@@ -123,7 +123,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                         OutDataType,
                                         ck::tensor_operation::element_wise::PassThrough,
                                         ck::tensor_operation::element_wise::PassThrough,
-                                        ck::tensor_operation::element_wise::Scale,
+                                        ck::tensor_operation::element_wise::DynamicUnaryOp,
                                         ComputeType>;
 
     static auto GetInstances()
