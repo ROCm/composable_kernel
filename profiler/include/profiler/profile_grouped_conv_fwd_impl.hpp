@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_scale.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -39,15 +39,18 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
                                    bool time_kernel,
-                                   const ck::utils::conv::ConvParam& conv_param)
+                                   const ck::utils::conv::ConvParam& conv_param,
+                                   std::string dynamicActivationFunction)
 {
-    using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-    using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+    (void)(dynamicActivationFunction);
+    using InElementOp    = ck::tensor_operation::element_wise::PassThrough;
+    using WeiElementOp   = ck::tensor_operation::element_wise::PassThrough;
+    using DynamicUnaryOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
+    using OutElementOp   = DynamicUnaryOp;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{};
+    const auto out_element_op = ck::tensor_operation::element_wise::Relu{};
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);

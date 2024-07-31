@@ -12,6 +12,102 @@ namespace ck {
 namespace tensor_operation {
 namespace element_wise {
 
+struct UnaryOpBase
+{
+    public:
+    virtual ~UnaryOpBase() {}
+
+    UnaryOpBase()                   = default;
+    UnaryOpBase(const UnaryOpBase&) = default;
+    UnaryOpBase& operator=(const UnaryOpBase&) = default;
+    UnaryOpBase(UnaryOpBase&&)                 = default;
+    UnaryOpBase& operator=(UnaryOpBase&&) = default;
+
+    // You have to list here all data types
+    __host__ __device__ virtual void operator()(double&, const double&) const = 0;
+
+    // __host__ __device__ virtual void operator()(float& , const double& ) const = 0;
+
+    // __host__ __device__ virtual void operator()(double& , const float& ) const = 0;
+
+    __host__ __device__ virtual void operator()(float&, const float&) const = 0;
+
+    __host__ __device__ virtual void operator()(half_t&, const half_t&) const = 0;
+
+    // __host__ __device__ virtual void operator()(half_t& , const float& ) const = 0;
+
+    __host__ __device__ virtual void operator()(bhalf_t&, const bhalf_t&) const = 0;
+
+    __host__ __device__ virtual void operator()(int32_t&, const int32_t&) const = 0;
+
+    // __host__ __device__ virtual void operator()(bhalf_t& , const float& ) const = 0;
+
+    // __host__ __device__ virtual void operator()(float& , const bhalf_t& ) const = 0;
+
+    // __host__ __device__ virtual void operator()(bhalf_t& , const half_t& ) const = 0;
+
+    // __host__ __device__ virtual void operator()(float& , const half_t& ) const = 0;
+
+    __host__ __device__ virtual void operator()(int8_t&, const int8_t&) const = 0;
+
+    //         __host__ __device__ virtual void operator()(half_t& , const int8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(bhalf_t& , const int8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(uint8_t& , const uint8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(int8_t& , const int32_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(int32_t& , const int8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(int8_t& , const float& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(float& , const int8_t& ) const = 0;
+
+    // #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    //         __host__ __device__ virtual void operator()(int4_t& , const int4_t& ) const = 0;
+    //         __host__ __device__ virtual void operator()(int4_t& , const int& ) const = 0;
+    // #endif
+
+    __host__ __device__ virtual void operator()(f8_t&, const f8_t&) const = 0;
+
+    //         __host__ __device__ virtual void operator()(float& , const f8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(f8_t& , const float& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(half_t& , const f8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(f8_t& , const half_t& ) const = 0;
+
+    __host__ __device__ virtual void operator()(bf8_t&, const bf8_t&) const = 0;
+
+    //         __host__ __device__ virtual void operator()(float& , const bf8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(bf8_t& , const float& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(half_t& , const bf8_t& ) const = 0;
+
+    //         __host__ __device__ virtual void operator()(bf8_t& , const half_t& ) const = 0;
+};
+
+struct DynamicUnaryOp
+{
+
+    DynamicUnaryOp() {}
+
+    DynamicUnaryOp(const UnaryOpBase& unary_op_ptr) : unary_op_ptr_(&unary_op_ptr) {}
+
+    DynamicUnaryOp(const UnaryOpBase* unary_op_ptr) : unary_op_ptr_(unary_op_ptr) {}
+
+    template <typename Y, typename X>
+    __host__ __device__ void operator()(Y& y, const X& x) const
+    {
+        unary_op_ptr_->operator()(y, x);
+    }
+
+    private:
+    const UnaryOpBase* unary_op_ptr_;
+};
 struct PassThroughPack2
 {
     template <typename Y, typename X>
@@ -433,25 +529,141 @@ struct UnarySqrt
     };
 };
 
-struct Relu
+struct Relu : public UnaryOpBase
 {
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
+    __host__ __device__ void operator()(float& y, const float& x) const override
     {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
-                      "Data type is not supported by this operation!");
         y = x > 0 ? x : 0;
     }
 
-    template <>
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const
+    __host__ __device__ void operator()(double& y, const double& x) const override
+    {
+        y = x > 0 ? x : 0;
+    }
+
+    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    {
+        y = x > 0 ? x : 0;
+    }
+
+    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    {
+        y = x > 0 ? x : 0;
+    }
+
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    {
+        y = x > 0 ? x : 0;
+    }
+
+    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
     {
         float x_f32 = ck::type_convert<float>(x);
         float y_f32 = x_f32 > 0 ? x_f32 : 0;
         y           = ck::type_convert<bhalf_t>(y_f32);
     }
+
+    __host__ __device__ void operator()(bf8_t& y, const bf8_t& x) const override
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = x_f32 > 0 ? x_f32 : 0;
+        y           = ck::type_convert<bf8_t>(y_f32);
+    }
+
+    __host__ __device__ void operator()(f8_t& y, const f8_t& x) const override
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = x_f32 > 0 ? x_f32 : 0;
+        y           = ck::type_convert<f8_t>(y_f32);
+    }
+
+    // __host__ __device__ void operator()(double& x, const float& y) const override
+    //     {
+    //         y = x > 0 ? x : 0;
+    //     }
+
+    // __host__ __device__ void operator()(half_t& x, const float& y) const override
+    //     {
+    //         y = x > 0 ? x : 0;
+    //     }
+
+    // __host__ __device__ void operator()(bhalf_t& x, const float& y) const override
+    //     {
+    //         y = type_convert<float>(type_convert<float>(x) > 0 ? x : 0);
+    //     }
+
+    // __host__ __device__ void operator()(float& x, const bhalf_t& y) const override
+    //     {
+    //         y = type_convert<float>(type_convert<float>(x) > 0 ? x : 0);
+    //     }
+
+    // __host__ __device__ void operator()(bhalf_t& x, const half_t& y) const override
+    //     {
+    //         y = type_convert<bhalf_t>(x > 0 ? x : 0);
+    //     }
+
+    // __host__ __device__ void operator()(float& x, const half_t& y) const override
+    //     {
+    //         y = x > 0 ? x : 0;
+    //     }
+
+    //         __host__ __device__ void operator()(half_t& x, const int8_t& y) const override
+    //             {
+    //                 y = x > 0 ? x : 0;
+    //             }
+
+    //         __host__ __device__ void operator()(bhalf_t& x, const int8_t& y) const override
+    //             {
+    //                 y = type_convert<int8_t>(type_convert<float>(x) > 0 ? x : 0);
+    //             }
+
+    //         __host__ __device__ void operator()(uint8_t& x, const uint8_t& y) const override
+    //             {
+    //                 y = x > 0 ? x : 0;
+    //             }
+
+    //         __host__ __device__ void operator()(int8_t& x, const int32_t& y) const override
+    //             {
+    //                 y = x > 0 ? x : 0;
+    //             }
+
+    //         __host__ __device__ void operator()(int32_t& x, const int8_t& y) const override
+    //             {
+    //                 y = x > 0 ? x : 0;
+    //             }
+
+    //         __host__ __device__ void operator()(int8_t& x, const float& y) const override
+    //             {
+    //                 y = x > 0 ? x : 0;
+    //             }
+
+    //         __host__ __device__ void operator()(float& x, const int8_t& y) const override
+    //             {
+    //                 y = x > 0 ? x : 0;
+    //             }
+
+    // #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+    //         __host__ __device__ void operator()(int4_t& x, const int4_t& y) const = 0;
+    //         __host__ __device__ void operator()(int4_t& x, const int& y) const = 0;
+    // #endif
+
+    //         __host__ __device__ void operator()(f8_t& x, const f8_t& y) const = 0;
+
+    //         __host__ __device__ void operator()(float& x, const f8_t& y) const = 0;
+
+    //         __host__ __device__ void operator()(f8_t& x, const float& y) const = 0;
+
+    //         __host__ __device__ void operator()(half_t& x, const f8_t& y) const = 0;
+
+    //         __host__ __device__ void operator()(f8_t& x, const half_t& y) const = 0;
+
+    //         __host__ __device__ void operator()(float& x, const bf8_t& y) const = 0;
+
+    //         __host__ __device__ void operator()(bf8_t& x, const float& y) const = 0;
+
+    //         __host__ __device__ void operator()(half_t& x, const bf8_t& y) const = 0;
+
+    //         __host__ __device__ void operator()(bf8_t& x, const half_t& y) const = 0;
 };
 
 // Fast GeLU
