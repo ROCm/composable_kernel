@@ -33,8 +33,8 @@ list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
 	${CK_ROOT}/include/ck/*.hpp)
-message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
-message(STATUS "RELATIVE: ${CK_ROOT}/include")
+#message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
+#message(STATUS "RELATIVE: ${CK_ROOT}/include")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)

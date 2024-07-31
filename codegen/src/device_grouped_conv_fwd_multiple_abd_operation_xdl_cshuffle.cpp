@@ -12,27 +12,8 @@ namespace ck {
 namespace host {
 namespace conv {
 
-// calculate appropriate Gemm Specification based on input tensor dimensions
-// NOTE: in CK, MNKPadding is always used for forward convolution
-/**static std::string GetGemmSpec(const std::size_t m,
-                               const std::size_t n,
-                               const std::size_t k,
-                               const std::size_t m_per_block,
-                               const std::size_t n_per_block,
-                               const std::size_t k_per_block)
-{
-    std::string spec = "";
-    if(integer_divide_ceil(m, m_per_block) * m_per_block - m != 0)
-        spec += "M";
-    if(integer_divide_ceil(n, n_per_block) * n_per_block - n != 0)
-        spec += "N";
-    if(integer_divide_ceil(k, k_per_block) * k_per_block - k != 0)
-        spec += "K";
-    if(spec == "")
-        return "ck::tensor_operation::device::GemmSpecialization::Default";
-
-    return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
-}**/
+// NOTE: in CK, MNKPadding is always used for forward convolution, so didn't
+// add GemmSpec function here
 
 // function to update prologue/epilogue with user provided operation
 void Operation_Conv_Fwd_Xdl_Cshuffle::update_prologue(const std::string& pro)
