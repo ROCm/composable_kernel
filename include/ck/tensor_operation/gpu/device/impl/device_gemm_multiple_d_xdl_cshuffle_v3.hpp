@@ -233,7 +233,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                            kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::AtomicAdd,
                                                         minimum_occupancy>;
@@ -242,7 +242,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                     else
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                            kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy>;
@@ -257,7 +257,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             minimum_occupancy,
@@ -268,7 +268,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                                 TailNumber::Full)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             minimum_occupancy,
@@ -280,7 +280,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         {
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
                             {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
@@ -295,7 +295,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
                                TailNumber::Three)
                             {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
@@ -310,7 +310,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
                                TailNumber::Four)
                             {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
@@ -325,7 +325,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
                                TailNumber::Five)
                             {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
@@ -339,7 +339,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         {
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
                             {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
@@ -354,7 +354,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
                                TailNumber::Seven)
                             {
-                                const auto kernel = kernel_gemm_xdl_cshuffle_v3<
+                                const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
@@ -369,7 +369,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::Set,
                                                             minimum_occupancy,
@@ -380,7 +380,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                                 TailNumber::Full)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::Set,
                                                             minimum_occupancy,
@@ -393,7 +393,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Two)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                    kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                                 true,
                                                                 InMemoryDataOperationEnum::Set,
                                                                 minimum_occupancy,
@@ -408,7 +408,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                                TailNumber::Three)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                    kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                                 true,
                                                                 InMemoryDataOperationEnum::Set,
                                                                 minimum_occupancy,
@@ -423,7 +423,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                                TailNumber::Four)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                    kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                                 true,
                                                                 InMemoryDataOperationEnum::Set,
                                                                 minimum_occupancy,
@@ -438,7 +438,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                                TailNumber::Five)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                    kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                                 true,
                                                                 InMemoryDataOperationEnum::Set,
                                                                 minimum_occupancy,
@@ -452,7 +452,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Six)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                    kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                                 true,
                                                                 InMemoryDataOperationEnum::Set,
                                                                 minimum_occupancy,
@@ -467,7 +467,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                                TailNumber::Seven)
                             {
                                 const auto kernel =
-                                    kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                    kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                                 true,
                                                                 InMemoryDataOperationEnum::Set,
                                                                 minimum_occupancy,
@@ -484,7 +484,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                     {
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
@@ -494,7 +494,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         }
                         else
                         {
-                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_2lds<
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
@@ -508,7 +508,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d_2lds<GridwiseGemm,
                                                                  true,
                                                                  InMemoryDataOperationEnum::Set,
                                                                  minimum_occupancy,
@@ -518,7 +518,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         else
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3_2lds<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d_2lds<GridwiseGemm,
                                                                  true,
                                                                  InMemoryDataOperationEnum::Set,
                                                                  minimum_occupancy,
@@ -534,7 +534,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             minimum_occupancy,
@@ -544,7 +544,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         else
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::AtomicAdd,
                                                             minimum_occupancy,
@@ -557,7 +557,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::Set,
                                                             minimum_occupancy,
@@ -567,7 +567,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         else
                         {
                             const auto kernel =
-                                kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                                kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                             true,
                                                             InMemoryDataOperationEnum::Set,
                                                             minimum_occupancy,
@@ -585,7 +585,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                     if(arg.KBatch > 1)
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                            kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                         false,
                                                         InMemoryDataOperationEnum::AtomicAdd,
                                                         minimum_occupancy>;
@@ -594,7 +594,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                     else
                     {
                         const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                            kernel_gemm_xdl_cshuffle_v3_multi_d<GridwiseGemm,
                                                         false,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy>;
