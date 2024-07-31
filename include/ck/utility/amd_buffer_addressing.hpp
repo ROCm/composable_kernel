@@ -931,22 +931,30 @@ amd_buffer_atomic_add(const typename vector_type_maker<T, N>::type::type src_thr
     using scalar_t                = typename scalar_type<vector_t>::type;
     constexpr index_t vector_size = scalar_type<vector_t>::vector_size;
 
-#if 0
-    uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
-
-    amd_buffer_atomic_add_impl<scalar_t, vector_size>(
-        src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
-#else
-    if(dst_thread_element_valid)
+    if constexpr(is_same<T, bhalf_t>::value)
     {
-        ignore = dst_wave_buffer_resource;
-        ignore = dst_thread_addr_offset;
-        // amd_buffer_atomic_add_impl<scalar_t, vector_size>(
-        // src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
-        amd_global_atomic_add_impl<scalar_t, vector_size>(src_thread_data,
-                                                          p_dst_wave + dst_thread_element_offset);
+        if(dst_thread_element_valid)
+        {
+
+            amd_global_atomic_add_impl<scalar_t, vector_size>(
+                src_thread_data, p_dst_wave + dst_thread_element_offset);
+        }
     }
+    else
+    {
+#if CK_EXPERIMENTAL_USE_BUFFER_ATOMIC_ADD_OOB_CHECK_OFFSET_TRICK
+        uint32_t dst_addr_shift = dst_thread_element_valid ? 0 : 0x80000000;
+
+        amd_buffer_atomic_add_impl<scalar_t, vector_size>(
+            src_thread_data, dst_wave_buffer_resource, dst_addr_shift + dst_thread_addr_offset, 0);
+#else
+        if(dst_thread_element_valid)
+        {
+            amd_buffer_atomic_add_impl<scalar_t, vector_size>(
+                src_thread_data, dst_wave_buffer_resource, dst_thread_addr_offset, 0);
+        }
 #endif
+    }
 }
 
 // buffer_atomic_max requires:
