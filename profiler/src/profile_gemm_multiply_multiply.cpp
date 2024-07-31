@@ -76,7 +76,7 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     int n_warmup      = 1;
     int n_iter        = 10;
     uint64_t rotating = 0;
-    if(argc == 18)
+    if(argc == 19)
     {
         n_warmup = std::stoi(argv[16]);
         n_iter   = std::stoi(argv[17]);
