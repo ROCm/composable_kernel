@@ -4,6 +4,7 @@
 #include "ck/host/device_grouped_conv_fwd_multiple_d/conv_fwd_op.hpp"
 #include <iostream>
 #include "ck/host/stringutils.hpp"
+#include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
 #include <cassert>
 
@@ -13,7 +14,7 @@ namespace conv {
 
 // calculate appropriate Gemm Specification based on input tensor dimensions
 // NOTE: in CK, MNKPadding is always used for forward convolution
-static std::string GetGemmSpec(const std::size_t m,
+/**static std::string GetGemmSpec(const std::size_t m,
                                const std::size_t n,
                                const std::size_t k,
                                const std::size_t m_per_block,
@@ -31,14 +32,14 @@ static std::string GetGemmSpec(const std::size_t m,
         return "ck::tensor_operation::device::GemmSpecialization::Default";
 
     return "ck::tensor_operation::device::GemmSpecialization::" + spec + "Padding";
-}
+}**/
 
 // function to update prologue/epilogue with user provided operation
-void Operation_Conv_Fwd_Xdl_Cshuffle::update_prologue(const std::string& prologue)
+void Operation_Conv_Fwd_Xdl_Cshuffle::update_prologue(const std::string& pro)
 {
-    if(!prologue.empty())
+    if(!pro.empty())
     {
-        this->prologue    = prologue;
+        this->prologue    = pro;
         this->cde_elem_op = "CDEElementOp";
     }
     else
@@ -47,11 +48,11 @@ void Operation_Conv_Fwd_Xdl_Cshuffle::update_prologue(const std::string& prologu
     }
 }
 
-void Operation_Conv_Fwd_Xdl_Cshuffle::update_epilogue(const std::string& epilogue)
+void Operation_Conv_Fwd_Xdl_Cshuffle::update_epilogue(const std::string& epi)
 {
-    if(!epilogue.empty())
+    if(!epi.empty())
     {
-        this->epilogue    = epilogue;
+        this->epilogue    = epi;
         this->cde_elem_op = "CDEElementOp";
     }
     else

@@ -92,7 +92,7 @@ struct Epilogue
                                           static_cast<int>(prob.C),
                                           static_cast<int>(prob.Y),
                                           static_cast<int>(prob.X)};
-    ck::Array<ck::index_t, 5> d_lengths = {};
+    // ck::Array<ck::index_t, 5> d_lengths = {};
 
     ck::Array<ck::index_t, 5> in_strides{static_cast<int>(prob.C),
                                          static_cast<int>(prob.Hi * prob.Wi * prob.G * prob.C),
@@ -109,7 +109,7 @@ struct Epilogue
                                           1,
                                           static_cast<int>(prob.X * prob.C),
                                           static_cast<int>(prob.C)};
-    ck::Array<ck::index_t, 5> d_strides = {};
+    // ck::Array<ck::index_t, 5> d_strides = {};
 
     ck::Array<ck::index_t, 2> conv_filter_strides   = {2, 2};
     ck::Array<ck::index_t, 2> conv_filter_dilations = {1, 1};
