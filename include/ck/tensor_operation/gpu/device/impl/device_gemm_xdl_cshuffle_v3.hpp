@@ -168,7 +168,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         // rotating mem
                         rotating_mem.Next();
                         // clear c mem
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             if(arg_.KBatch > 1)
                                 hipGetErrorString(
@@ -190,7 +189,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 }
                 else
                 {
-                    if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                     {
                         if(arg.KBatch > 1)
                             hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
@@ -215,7 +213,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             const auto kernel =
                                 kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
@@ -240,7 +237,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::One)
                             {
@@ -473,7 +469,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                             {
@@ -525,7 +520,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 {
                     if(arg.KBatch > 1)
                     {
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                             {
@@ -582,7 +576,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
                     if(arg.KBatch > 1)
                     {
-                        if constexpr(!is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
                         {
                             const auto kernel =
                                 kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,

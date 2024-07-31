@@ -568,32 +568,19 @@ __device__ void amd_global_atomic_add_impl(const typename vector_type<T, N>::typ
 {
     if constexpr(is_same<T, half_t>::value)
     {
-#if 0
-        if constexpr(N == 2)
-        {
-            __builtin_amdgcn_global_atomic_fadd_v2f16(addr, src_thread_data);
-        }
-        else if constexpr(N == 4)
-        {
-            vector_type<half_t, 4> tmp{src_thread_data};
-            static_for<0, 2, 1>{}([&](auto i) {
-                    __builtin_amdgcn_global_atomic_fadd_v2f16(addr + i, tmp.AsType<half2_t>()[i]);
-            });
-        }
-        else if constexpr(N == 8)
-        {
-            vector_type<half_t, 8> tmp{src_thread_data};
-            static_for<0, 4, 1>{}([&](auto i) {
-                    __builtin_amdgcn_global_atomic_fadd_v2f16(addr + i, tmp.AsType<half2_t>()[i]);
-            });
-        }
-#else
         static_assert(N % 2 == 0, "");
         vector_type<half_t, N> tmp{src_thread_data};
         static_for<0, N / 2, 1>{}([&](auto i) {
            __builtin_amdgcn_global_atomic_fadd_v2f16(bit_cast<half2_t*>(addr) + i, tmp.template AsType<half2_t>()[i]);
         });
-#endif
+    }
+    else if constexpr(is_same<T, bhalf_t>::value)
+    {
+        static_assert(N % 2 == 0, "");
+        vector_type<bhalf_t, N> tmp{src_thread_data};
+        static_for<0, N / 2, 1>{}([&](auto i) {
+           __builtin_amdgcn_global_atomic_fadd_v2bf16(bit_cast<bhalf2_t*>(addr) + i, tmp.template AsType<bhalf2_t>()[i]);
+        });
     }
 }
 
