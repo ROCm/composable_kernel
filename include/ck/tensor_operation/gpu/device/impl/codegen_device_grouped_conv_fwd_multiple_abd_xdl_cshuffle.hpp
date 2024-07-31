@@ -359,14 +359,14 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    using GemmToConvFwdTransformer = TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>;
+    using ConvToGemmFwdTransformer = TransformConvFwdToGemm<NDimSpatial, ConvForwardSpecialization>;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     template <typename ALay>
     __host__ __device__ static auto
-    MakeAGridDescriptor_M_K(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
+    MakeAGridDescriptor_M_K(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
     {
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>();
@@ -379,7 +379,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     template <typename BLay>
     __host__ __device__ static auto
-    MakeBGridDescriptor_N_K(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
+    MakeBGridDescriptor_N_K(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>();
@@ -392,7 +392,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     template <typename ELay>
     __host__ __device__ static auto
-    MakeEGridDescriptor_M_N(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
+    MakeEGridDescriptor_M_N(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
     {
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>();
@@ -405,7 +405,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
     // Shape of Ds and E must be aligned. Strides can be different.
     // Pass e_g_n_k_wos_lengths for logical broadcast.
-    static auto MakeDsGridDescriptor_M_N(const GemmToConvFwdTransformer& conv_to_gemm_transformer)
+    static auto MakeDsGridDescriptor_M_N(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
     {
         return generate_tuple(
             [&](auto i) {
@@ -417,7 +417,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     }
 
     // desc for problem definition
-    constexpr static GemmToConvFwdTransformer dummy_conv_to_gemm_transformer;
+    constexpr static ConvToGemmFwdTransformer dummy_conv_to_gemm_transformer;
     using AGridDesc_M_K =
         remove_cvref_t<decltype(MakeAGridDescriptor_M_K<ALayout>(dummy_conv_to_gemm_transformer))>;
     using BGridDesc_N_K =
@@ -617,7 +617,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 // D batch stride
                 compute_ptr_offset_of_batch_.BatchStrideDs_(i) = ds_g_n_k_wos_strides[i][0];
 
-                GemmToConvFwdTransformer conv_to_gemm_transformer_d{a_g_n_c_wis_lengths,
+                ConvToGemmFwdTransformer conv_to_gemm_transformer_d{a_g_n_c_wis_lengths,
                                                                     a_g_n_c_wis_strides,
                                                                     b_g_k_c_xs_lengths,
                                                                     b_g_k_c_xs_strides,
@@ -686,7 +686,7 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         // tensor descriptors for problem definiton
         index_t num_group_;
 
-        GemmToConvFwdTransformer conv_to_gemm_transformer_;
+        ConvToGemmFwdTransformer conv_to_gemm_transformer_;
 
         AGridDesc_M_K a_grid_desc_m_k_;
         BGridDesc_N_K b_grid_desc_n_k_;
@@ -764,6 +764,77 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
+                        a_element_op,
+                        b_element_op,
+                        cde_element_op};
+    }
+
+    static __device__ __host__ auto MakeArgument(
+        APointers p_as,
+        BPointers p_bs,
+        const ck::Array<const void*, NumDTensor>& p_ds,
+        void* p_e,
+        const ck::Array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+        const ck::Array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+        const ck::Array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+        const ck::Array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+        const ck::Array<ck::Array<long_index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_lengths,
+        const ck::Array<ck::Array<long_index_t, NDimSpatial + 3>, NumDTensor>& ds_g_n_k_wos_strides,
+        const ck::Array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+        const ck::Array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+        const ck::Array<long_index_t, NDimSpatial>& conv_filter_strides,
+        const ck::Array<long_index_t, NDimSpatial>& conv_filter_dilations,
+        const ck::Array<long_index_t, NDimSpatial>& input_left_pads,
+        const ck::Array<long_index_t, NDimSpatial>& input_right_pads,
+        const AElementwiseOperation& a_element_op,
+        const BElementwiseOperation& b_element_op,
+        const CDEElementwiseOperation& cde_element_op)
+    {
+        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
+        std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
+        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
+        std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_strides_i32;
+        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_i32;
+        std::array<std::array<index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_i32;
+        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_i32;
+        std::array<index_t, NDimSpatial + 3> e_g_n_k_wos_strides_i32;
+        std::array<index_t, NDimSpatial> conv_filter_strides_i32;
+        std::array<index_t, NDimSpatial> conv_filter_dilations_i32;
+        std::array<index_t, NDimSpatial> input_left_pads_i32;
+        std::array<index_t, NDimSpatial> input_right_pads_i32;
+
+        array_convert(a_g_n_c_wis_lengths_i32, a_g_n_c_wis_lengths);
+        array_convert(a_g_n_c_wis_strides_i32, a_g_n_c_wis_strides);
+        array_convert(b_g_k_c_xs_lengths_i32, b_g_k_c_xs_lengths);
+        array_convert(b_g_k_c_xs_strides_i32, b_g_k_c_xs_strides);
+        for(index_t d = 0; d < NumDTensor; d++)
+        {
+            array_convert(ds_g_n_k_wos_lengths_i32[d], ds_g_n_k_wos_lengths[d]);
+            array_convert(ds_g_n_k_wos_strides_i32[d], ds_g_n_k_wos_strides[d]);
+        }
+        array_convert(e_g_n_k_wos_lengths_i32, e_g_n_k_wos_lengths);
+        array_convert(e_g_n_k_wos_strides_i32, e_g_n_k_wos_strides);
+        array_convert(conv_filter_strides_i32, conv_filter_strides);
+        array_convert(conv_filter_dilations_i32, conv_filter_dilations);
+        array_convert(input_left_pads_i32, input_left_pads);
+        array_convert(input_right_pads_i32, input_right_pads);
+
+        return Argument{p_as,
+                        p_bs,
+                        p_ds,
+                        p_e,
+                        a_g_n_c_wis_lengths_i32,
+                        a_g_n_c_wis_strides_i32,
+                        b_g_k_c_xs_lengths_i32,
+                        b_g_k_c_xs_strides_i32,
+                        ds_g_n_k_wos_lengths_i32,
+                        ds_g_n_k_wos_strides_i32,
+                        e_g_n_k_wos_lengths_i32,
+                        e_g_n_k_wos_strides_i32,
+                        conv_filter_strides_i32,
+                        conv_filter_dilations_i32,
+                        input_left_pads_i32,
+                        input_right_pads_i32,
                         a_element_op,
                         b_element_op,
                         cde_element_op};
