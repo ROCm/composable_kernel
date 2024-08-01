@@ -223,7 +223,9 @@ struct BlockFmhaPipelineQRKSVSAsync
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
         auto q = decltype(load_tile(q_dram_window)){};
-        set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
+        // TODO: start from rocm-6.2, compiler will have problem if manually set clear of q.
+        // however, q would be cleared in the constructor of static distributed tensor
+        // set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
         load_tile_raw(q, q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
