@@ -79,14 +79,12 @@ CK_TILE_DEVICE void block_sync_lds_direct_load()
     " ::);
 }
 
-CK_TILE_DEVICE void s_nop()
+CK_TILE_DEVICE void s_nop(index_t cnt = 0)
 {
 #if 1
-    asm volatile("\
-    s_nop 0 \n \
-    " ::);
+    asm volatile("s_nop %0" : : "n"(cnt) :);
 #else
-    __builtin_amdgcn_sched_barrier(0);
+    __builtin_amdgcn_sched_barrier(cnt);
 #endif
 }
 
