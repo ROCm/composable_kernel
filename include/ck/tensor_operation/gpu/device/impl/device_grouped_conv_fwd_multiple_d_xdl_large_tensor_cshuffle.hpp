@@ -199,19 +199,28 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    using ConvToGemmFwdTransformer = TransformConvFwdToGemm<NDimSpatial,
-                                                            ConvForwardSpecialization,
-                                                            true /*SplitN*/,
-                                                            ADataType,
-                                                            EDataType,
-                                                            I1,
-                                                            long_index_t>;
+    using ConvToGemmFwdTransformerIndexT = TransformConvFwdToGemm<NDimSpatial,
+                                                                  ConvForwardSpecialization,
+                                                                  true /*SplitN*/,
+                                                                  ADataType,
+                                                                  EDataType,
+                                                                  I1,
+                                                                  long_index_t>;
+
+    using ConvToGemmFwdTransformerLongIndexT = TransformConvFwdToGemm<NDimSpatial,
+                                                                      ConvForwardSpecialization,
+                                                                      true /*SplitN*/,
+                                                                      ADataType,
+                                                                      EDataType,
+                                                                      I1,
+                                                                      long_index_t>;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     template <typename ALay>
-    static auto MakeAGridDescriptor_M_K(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
+    static auto
+    MakeAGridDescriptor_M_K(const ConvToGemmFwdTransformerIndexT& conv_to_gemm_transformer)
     {
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<ALay>();
@@ -223,7 +232,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     }
 
     template <typename BLay>
-    static auto MakeBGridDescriptor_N_K(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
+    static auto
+    MakeBGridDescriptor_N_K(const ConvToGemmFwdTransformerIndexT& conv_to_gemm_transformer)
     {
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<BLay>();
@@ -235,7 +245,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     }
 
     template <typename ELay>
-    static auto MakeEGridDescriptor_M_N(const ConvToGemmFwdTransformer& conv_to_gemm_transformer)
+    static auto
+    MakeEGridDescriptor_M_N(const ConvToGemmFwdTransformerIndexT& conv_to_gemm_transformer)
     {
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<ELay>();
@@ -247,7 +258,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     }
 
     // desc for problem definition
-    constexpr static ConvToGemmFwdTransformer dummy_conv_to_gemm_transformer;
+    constexpr static ConvToGemmFwdTransformerIndexT dummy_conv_to_gemm_transformer;
     using AGridDesc_M_K =
         remove_cvref_t<decltype(MakeAGridDescriptor_M_K<ALayout>(dummy_conv_to_gemm_transformer))>;
     using BGridDesc_N_K =
@@ -255,19 +266,20 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     using EGridDesc_M_N =
         remove_cvref_t<decltype(MakeEGridDescriptor_M_N<ELayout>(dummy_conv_to_gemm_transformer))>;
 
-    static auto GenerateConvToGemmTransforms(ConvToGemmFwdTransformer conv_to_gemm_transformer_base,
-                                             const ADataType* a_grid_ptr_base,
-                                             EDataType* c_grid_ptr_base)
+    static auto
+    GenerateConvToGemmTransforms(ConvToGemmFwdTransformerLongIndexT conv_to_gemm_transformer_base,
+                                 const ADataType* a_grid_ptr_base,
+                                 EDataType* c_grid_ptr_base)
     {
         // Max number of splits
         // We need to use it to avoid infinity loop
         constexpr index_t max_split_numbers = MaxGemmsNum / 2;
         // Arrays to store transformers with smaller descs than 2GB
-        Array<ConvToGemmFwdTransformer, MaxGemmsNum> conv_to_gemm_transformers_arr;
+        Array<ConvToGemmFwdTransformerIndexT, MaxGemmsNum> conv_to_gemm_transformers_arr;
         Array<const ADataType*, MaxGemmsNum> a_grid_ptrs_arr;
         Array<EDataType*, MaxGemmsNum> c_grid_ptrs_arr;
         // Queue for spliting
-        std::queue<ConvToGemmFwdTransformer> conv_to_gemm_transformers_queue(
+        std::queue<ConvToGemmFwdTransformerLongIndexT> conv_to_gemm_transformers_queue(
             {conv_to_gemm_transformer_base});
         std::queue<const ADataType*> a_grid_ptrs_queue({a_grid_ptr_base});
         std::queue<EDataType*> c_grid_ptrs_queue({c_grid_ptr_base});
@@ -292,15 +304,16 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
             if(conv_to_gemm_transformer.AreDescriptorsSmallerThan2GB())
             {
                 // If yes, push into result array
-                conv_to_gemm_transformers_arr(gemms_number) = conv_to_gemm_transformer;
-                a_grid_ptrs_arr(gemms_number)               = a_grid_ptr;
-                c_grid_ptrs_arr(gemms_number)               = c_grid_ptr;
+                conv_to_gemm_transformers_arr(gemms_number) =
+                    ConvToGemmFwdTransformerIndexT{conv_to_gemm_transformer};
+                a_grid_ptrs_arr(gemms_number) = a_grid_ptr;
+                c_grid_ptrs_arr(gemms_number) = c_grid_ptr;
                 gemms_number++;
             }
             else
             {
                 // If no, split into left and right convolutions
-                ConvToGemmFwdTransformer conv_to_gemm_transformers_left_part,
+                ConvToGemmFwdTransformerLongIndexT conv_to_gemm_transformers_left_part,
                     conv_to_gemm_transformers_right_part;
                 const ADataType* a_grid_right_ptr;
                 EDataType* c_grid_right_ptr;
@@ -428,7 +441,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
               input_right_pads_{input_right_pads}
         {
             // Perform grouped gemm, generate array of tranformer for convolution
-            Array<ConvToGemmFwdTransformer, MaxGemmsNum> conv_to_gemm_transformer_arr;
+            Array<ConvToGemmFwdTransformerIndexT, MaxGemmsNum> conv_to_gemm_transformer_arr;
             Array<const ADataType*, MaxGemmsNum> a_grid_ptrs;
             Array<EDataType*, MaxGemmsNum> c_grid_ptrs;
 
@@ -437,18 +450,19 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                     c_grid_ptrs,
                     gemms_count_,
                     is_split_valid_) =
-                GenerateConvToGemmTransforms(ConvToGemmFwdTransformer{a_g_n_c_wis_lengths_,
-                                                                      a_g_n_c_wis_strides_,
-                                                                      b_g_k_c_xs_lengths_,
-                                                                      b_g_k_c_xs_strides_,
-                                                                      e_g_n_k_wos_lengths_,
-                                                                      e_g_n_k_wos_strides_,
-                                                                      conv_filter_strides_,
-                                                                      conv_filter_dilations_,
-                                                                      input_left_pads_,
-                                                                      input_right_pads_},
-                                             static_cast<const ADataType*>(p_a),
-                                             static_cast<EDataType*>(p_e));
+                GenerateConvToGemmTransforms(
+                    ConvToGemmFwdTransformerLongIndexT{a_g_n_c_wis_lengths_,
+                                                       a_g_n_c_wis_strides_,
+                                                       b_g_k_c_xs_lengths_,
+                                                       b_g_k_c_xs_strides_,
+                                                       e_g_n_k_wos_lengths_,
+                                                       e_g_n_k_wos_strides_,
+                                                       conv_filter_strides_,
+                                                       conv_filter_dilations_,
+                                                       input_left_pads_,
+                                                       input_right_pads_},
+                    static_cast<const ADataType*>(p_a),
+                    static_cast<EDataType*>(p_e));
 
             grid_size_         = 0;
             valid_gemms_count_ = 0;

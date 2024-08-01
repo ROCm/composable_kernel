@@ -99,6 +99,53 @@ struct TransformConvFwdToGemm
     public:
     __host__ __device__ constexpr TransformConvFwdToGemm() {}
 
+    template <typename TransformConvFwdToGemmBase>
+    __host__ __device__
+    TransformConvFwdToGemm(const TransformConvFwdToGemmBase& transform_conv_fwd_to_gemm_base)
+        : Di_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Di_)},
+          Hi_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Hi_)},
+          Wi_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Wi_)},
+          Do_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Do_)},
+          Ho_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Ho_)},
+          Wo_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Wo_)},
+          Z_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Z_)},
+          Y_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Y_)},
+          X_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.X_)},
+          K_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.K_)},
+          C_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.C_)},
+          DiStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.DiStride_)},
+          HiStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.HiStride_)},
+          WiStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.WiStride_)},
+          DoStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.DoStride_)},
+          HoStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.HoStride_)},
+          WoStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.WoStride_)},
+          XStride_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.XStride_)},
+          CStrideTensorA_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.CStrideTensorA_)},
+          CStrideTensorB_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.CStrideTensorB_)},
+          KStrideTensorB_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.KStrideTensorB_)},
+          KStrideTensorC_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.KStrideTensorC_)},
+          NStrideTensorA_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.NStrideTensorA_)},
+          NStrideTensorC_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.NStrideTensorC_)},
+          GStrideTensorA_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.GStrideTensorA_)},
+          GStrideTensorB_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.GStrideTensorB_)},
+          GStrideTensorC_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.GStrideTensorC_)},
+          ConvStrideD_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ConvStrideD_)},
+          ConvStrideH_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ConvStrideH_)},
+          ConvStrideW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ConvStrideW_)},
+          ConvDilationD_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ConvDilationD_)},
+          ConvDilationH_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ConvDilationH_)},
+          ConvDilationW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ConvDilationW_)},
+          InLeftPadD_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InLeftPadD_)},
+          InLeftPadH_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InLeftPadH_)},
+          InLeftPadW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InLeftPadW_)},
+          InRightPadD_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadD_)},
+          InRightPadH_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadH_)},
+          InRightPadW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadW_)},
+          ZYX_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ZYX_)},
+          N_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.N_)}
+    {
+    }
+
     template <typename ConvDimsType,
               typename ConvSpatialDimsType,
               index_t NDim                                   = NDimSpatial,
@@ -1274,19 +1321,14 @@ struct TransformConvFwdToGemm
                                       bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
+        const IndexType NDoHoWo = N_ * Wo_;
         if constexpr(NumGroupsToMerge == 1)
         {
-            const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor(
-                make_tuple(N_, Wo_, K_), make_tuple(NStrideTensorC_, WoStride_, KStrideTensorC_));
-            return transform_tensor_descriptor(out_gemmm_gemmn_desc,
-                                               make_tuple(make_merge_transform(make_tuple(N_, Wo_)),
-                                                          make_pass_through_transform(K_)),
-                                               make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
-                                               make_tuple(Sequence<0>{}, Sequence<1>{}));
+            return make_naive_tensor_descriptor(make_tuple(NDoHoWo, K_),
+                                                make_tuple(WoStride_, KStrideTensorC_));
         }
         else
         {
-            const IndexType NDoHoWo         = N_ * Wo_;
             const auto nhwo_groups_k_1_desc = make_naive_tensor_descriptor(
                 make_tuple(N_, Wo_, NumGroupsToMerge, K_, 1),
                 make_tuple(
@@ -1332,21 +1374,14 @@ struct TransformConvFwdToGemm
                   bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
+        const IndexType NDoHoWo = N_ * Ho_ * Wo_;
         if constexpr(NumGroupsToMerge == 1)
         {
-            const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor(
-                make_tuple(N_, Ho_, Wo_, K_),
-                make_tuple(NStrideTensorC_, HoStride_, WoStride_, KStrideTensorC_));
-            return transform_tensor_descriptor(
-                out_gemmm_gemmn_desc,
-                make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
-                           make_pass_through_transform(K_)),
-                make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            return make_naive_tensor_descriptor(make_tuple(NDoHoWo, K_),
+                                                make_tuple(WoStride_, KStrideTensorC_));
         }
         else
         {
-            const IndexType NDoHoWo = N_ * Ho_ * Wo_;
             const auto nhwo_groups_k_1_desc =
                 make_naive_tensor_descriptor(make_tuple(N_, Ho_, Wo_, NumGroupsToMerge, K_, 1),
                                              make_tuple(NStrideTensorC_,
@@ -1395,21 +1430,15 @@ struct TransformConvFwdToGemm
                   bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
+
+        const IndexType NDoHoWo = N_ * Do_ * Ho_ * Wo_;
         if constexpr(NumGroupsToMerge == 1)
         {
-            const auto out_gemmm_gemmn_desc = make_naive_tensor_descriptor(
-                make_tuple(N_, Do_, Ho_, Wo_, K_),
-                make_tuple(NStrideTensorC_, DoStride_, HoStride_, WoStride_, KStrideTensorC_));
-            return transform_tensor_descriptor(
-                out_gemmm_gemmn_desc,
-                make_tuple(make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_)),
-                           make_pass_through_transform(K_)),
-                make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<4>{}),
-                make_tuple(Sequence<0>{}, Sequence<1>{}));
+            return make_naive_tensor_descriptor(make_tuple(NDoHoWo, K_),
+                                                make_tuple(WoStride_, KStrideTensorC_));
         }
         else
         {
-            const IndexType NDoHoWo = N_ * Do_ * Ho_ * Wo_;
             const auto nhwo_groups_k_1_desc =
                 make_naive_tensor_descriptor(make_tuple(N_, Do_, Ho_, Wo_, NumGroupsToMerge, K_, 1),
                                              make_tuple(NStrideTensorC_,
