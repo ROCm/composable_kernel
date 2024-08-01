@@ -3,19 +3,14 @@ set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
 # python stuff
 find_package(PythonInterp 3 REQUIRED)
 
-set(SOURCE_DIR "${CMAKE_SOURCE_DIR}/include/ck_tile")
-set(DESTINATION_DIR "${CMAKE_INSTALL_INCLUDEDIR}")
+rocm_install(DIRECTORY include/ck_tile DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# copy folder ck_tile in CMAKE_INSTALL_INCLUDEDIR
-add_custom_target(copy_directory ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${SOURCE_DIR} ${DESTINATION_DIR}
-    COMMENT "Copying directory from ${SOURCE_DIR} to ${DESTINATION_DIR}"
+rocm_install(FILES
+    "${FMHA_SRC_FOLDER}/fmha_fwd.hpp"
+    "${FMHA_SRC_FOLDER}/bias.hpp"
+    "${FMHA_SRC_FOLDER}/mask.hpp"
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile/
 )
-# header for include lib 
-file(COPY ${FMHA_SRC_FOLDER}/fmha_fwd.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile/ops)
-file(COPY ${FMHA_SRC_FOLDER}/bias.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile/ops)
-file(COPY ${FMHA_SRC_FOLDER}/mask.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile/ops)
 
 # header for building lib
 file(COPY ${FMHA_SRC_FOLDER}/fmha_fwd.hpp DESTINATION ${FMHA_CPP_FOLDER})
