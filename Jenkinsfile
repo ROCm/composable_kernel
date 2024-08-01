@@ -86,17 +86,7 @@ def check_host() {
 
 def build_compiler(){
     def compiler
-    if (params.BUILD_COMPILER == "hipcc"){
-        compiler = '/opt/rocm/bin/hipcc'
-    }
-    else{
-        if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
-            compiler = "/llvm-project/build/bin/clang++"
-        }
-        else{
-            compiler = "/opt/rocm/llvm/bin/clang++"
-        }        
-    }
+    compiler = "${params.BUILD_COMPILER}"
     return compiler
 }
 
@@ -688,8 +678,8 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1; RUN_CK_TILE_TESTS=true
                                               0 21 * * * % ROCMVERSION=6.1;hipTensor_test=true
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;COMPILER_COMMIT=;USE_SCCACHE=false
-                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;COMPILER_COMMIT=;USE_SCCACHE=false
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
 
 pipeline {
@@ -723,8 +713,8 @@ pipeline {
             description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit (default), or use some specific commit of llvm-project branch.')
         string(
             name: 'BUILD_COMPILER', 
-            defaultValue: 'clang', 
-            description: 'Specify whether to build CK with hipcc or with clang (default).')
+            defaultValue: '/opt/rocm/llvm/bin/clang++', 
+            description: 'Build CK with /opt/rocm/bin/hipcc, /llvm-project/build/bin/clang++, or with /opt/rocm/llvm/bin/clang++ (default).')
         booleanParam(
             name: "RUN_FULL_QA",
             defaultValue: false,
