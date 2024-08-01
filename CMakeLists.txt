@@ -180,7 +180,16 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
    message("Adding the enable-post-misched=0 compiler flag")
-   add_compile_options(-mllvm -enable-post-misched=0)
+   add_compile_options("SHELL: -mllvm -enable-post-misched=0")
+endif()
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132 AND ${hip_VERSION_FLAT} LESS 600300000)
+   message("Adding the amdgpu-coerce-illegal-types=1")
+   add_compile_options("SHELL: -mllvm -amdgpu-coerce-illegal-types=1")
+endif()
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+   message("Adding -amdgpu-early-inline-all=true and -amdgpu-function-calls=false")
+   add_compile_options("SHELL: -mllvm -amdgpu-early-inline-all=true")
+   add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
 #
 # Seperate linking jobs from compiling
@@ -234,6 +243,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
+
+# https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
+# _GLIBCXX_ASSERTIONS
+# Undefined by default. When defined, enables extra error checking in the form of
+# precondition assertions, such as bounds checking in strings and null pointer
+# checks when dereferencing smart pointers
+option(USE_GLIBCXX_ASSERTIONS "Turn on additional c++ library checks." OFF)
+if(USE_GLIBCXX_ASSERTIONS)
+  add_compile_options(-Wp,-D_GLIBCXX_ASSERTIONS)
+endif()
 
 ## HIP
 set(CMAKE_HIP_PLATFORM amd)
