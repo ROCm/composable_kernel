@@ -870,6 +870,52 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op) override
     {
+        return std::make_unique<Argument>(p_a,
+                                          p_b,
+                                          p_ds,
+                                          p_e,
+                                          a_g_n_c_wis_lengths,
+                                          a_g_n_c_wis_strides,
+                                          b_g_k_c_xs_lengths,
+                                          b_g_k_c_xs_strides,
+                                          ds_g_n_k_wos_lengths,
+                                          ds_g_n_k_wos_strides,
+                                          e_g_n_k_wos_lengths,
+                                          e_g_n_k_wos_strides,
+                                          conv_filter_strides,
+                                          conv_filter_dilations,
+                                          input_left_pads,
+                                          input_right_pads,
+                                          1,
+                                          1,
+                                          a_element_op,
+                                          b_element_op,
+                                          cde_element_op);
+    }
+
+    std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        const std::array<const void*, NumDTensor>& p_ds,
+                        void* p_e,
+                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
+                            ds_g_n_k_wos_lengths,
+                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
+                            ds_g_n_k_wos_strides,
+                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                        const std::array<long_index_t, NDimSpatial>& conv_filter_strides,
+                        const std::array<long_index_t, NDimSpatial>& conv_filter_dilations,
+                        const std::array<long_index_t, NDimSpatial>& input_left_pads,
+                        const std::array<long_index_t, NDimSpatial>& input_right_pads,
+                        const AElementwiseOperation& a_element_op,
+                        const BElementwiseOperation& b_element_op,
+                        const CDEElementwiseOperation& cde_element_op) override
+    {
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
         std::array<index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_i32;
@@ -915,52 +961,6 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                           conv_filter_dilations_i32,
                                           input_left_pads_i32,
                                           input_right_pads_i32,
-                                          1,
-                                          1,
-                                          a_element_op,
-                                          b_element_op,
-                                          cde_element_op);
-    }
-
-    std::unique_ptr<BaseArgument>
-    MakeArgumentPointer(const void* p_a,
-                        const void* p_b,
-                        const std::array<const void*, NumDTensor>& p_ds,
-                        void* p_e,
-                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
-                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
-                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
-                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
-                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
-                            ds_g_n_k_wos_lengths,
-                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
-                            ds_g_n_k_wos_strides,
-                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
-                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
-                        const std::array<long_index_t, NDimSpatial>& conv_filter_strides,
-                        const std::array<long_index_t, NDimSpatial>& conv_filter_dilations,
-                        const std::array<long_index_t, NDimSpatial>& input_left_pads,
-                        const std::array<long_index_t, NDimSpatial>& input_right_pads,
-                        const AElementwiseOperation& a_element_op,
-                        const BElementwiseOperation& b_element_op,
-                        const CDEElementwiseOperation& cde_element_op) override
-    {
-        return std::make_unique<Argument>(p_a,
-                                          p_b,
-                                          p_ds,
-                                          p_e,
-                                          a_g_n_c_wis_lengths,
-                                          a_g_n_c_wis_strides,
-                                          b_g_k_c_xs_lengths,
-                                          b_g_k_c_xs_strides,
-                                          ds_g_n_k_wos_lengths,
-                                          ds_g_n_k_wos_strides,
-                                          e_g_n_k_wos_lengths,
-                                          e_g_n_k_wos_strides,
-                                          conv_filter_strides,
-                                          conv_filter_dilations,
-                                          input_left_pads,
-                                          input_right_pads,
                                           1,
                                           1,
                                           a_element_op,

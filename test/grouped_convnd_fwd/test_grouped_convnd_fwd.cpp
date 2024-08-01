@@ -158,5 +158,10 @@ TYPED_TEST(TestGroupedConvndFwd2dLargeCases, Test2DLargeCases)
     // With supported NumGroupsToMerge > 1
     this->conv_params.push_back(
         {2, 32, 64, 1, 1, {2, 2}, {672, 672}, {672, 672}, {1, 1}, {0, 0}, {0, 0}});
+    // When image is larger than 2GB
+    this->conv_params.push_back(
+        {2, 1, 1, 256, 256, {3, 3}, {4096, 2048}, {1024, 1024}, {3, 3}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 2, 2, 256, 256, {3, 3}, {2048, 2048}, {1024, 1024}, {1, 1}, {1, 1}, {1, 1}});
     this->template Run<2>();
 }

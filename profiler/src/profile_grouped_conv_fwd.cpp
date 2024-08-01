@@ -67,7 +67,7 @@ static void print_helper_msg()
 int profile_grouped_conv_fwd(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
-    if(argc < 9)
+    if(argc < 10)
     {
         print_helper_msg();
         return 1;
@@ -83,7 +83,7 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     const int num_dim_spatial  = std::stoi(argv[9]);
 
     // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial)
+    if(argc != 9 + 1 + 4 + 6 * num_dim_spatial)
     {
         print_helper_msg();
         return 1;

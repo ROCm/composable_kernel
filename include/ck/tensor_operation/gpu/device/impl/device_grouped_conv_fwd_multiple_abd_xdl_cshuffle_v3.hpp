@@ -978,6 +978,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             return false;
         }
 
+        // Gridwise gemm v3 doesn't verify descriptors size
+        if(!arg.conv_to_gemm_transformer_.AreDescriptorsSmallerThan2GB())
+        {
+            return false;
+        }
+
         // check Gridwise GEMM
         const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
         const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);

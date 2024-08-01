@@ -1313,8 +1313,9 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
 
-              typename std::enable_if<NDimSpatial == 1 &&
+              typename std::enable_if<NDimSp == 1 &&
                                           (is_same_v<CLayout, tensor_layout::convolution::G_NW_K> ||
                                            is_same_v<CLayout, tensor_layout::convolution::NWGK> ||
                                            is_same_v<CLayout, tensor_layout::convolution::GNWK>),
@@ -1366,11 +1367,12 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
 
               typename std::enable_if<
-                  NDimSpatial == 2 && (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
-                                       is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
-                                       is_same_v<CLayout, tensor_layout::convolution::GNHWK>),
+                  NDimSp == 2 && (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
+                                  is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
+                                  is_same_v<CLayout, tensor_layout::convolution::GNHWK>),
                   bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
@@ -1423,10 +1425,11 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
               typename std::enable_if<
-                  NDimSpatial == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_NDHW_K> ||
-                                       is_same_v<CLayout, tensor_layout::convolution::NDHWGK> ||
-                                       is_same_v<CLayout, tensor_layout::convolution::GNDHWK>),
+                  NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_NDHW_K> ||
+                                  is_same_v<CLayout, tensor_layout::convolution::NDHWGK> ||
+                                  is_same_v<CLayout, tensor_layout::convolution::GNDHWK>),
                   bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
@@ -1512,17 +1515,17 @@ struct TransformConv
         if(NDimSpatial == 2)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::NHWGK>();
+                .template MakeCDescriptor_M_N<ck::tensor_layout::convolution::NHWGK, 2>();
         }
         else if(NDimSpatial == 3)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<tensor_layout::convolution::NDHWGK>();
+                .template MakeCDescriptor_M_N<tensor_layout::convolution::NDHWGK, 3>();
         }
         else if(NDimSpatial == 1)
         {
             return conv_fwd_to_gemm
-                .template MakeCDescriptor_M_N<tensor_layout::convolution::NWGK>();
+                .template MakeCDescriptor_M_N<tensor_layout::convolution::NWGK, 1>();
         }
     }
 };
