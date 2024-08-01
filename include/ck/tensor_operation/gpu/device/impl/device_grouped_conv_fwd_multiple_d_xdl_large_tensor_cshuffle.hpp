@@ -172,7 +172,7 @@ template <index_t NDimSpatial,
                                                      // passed
           typename BComputeDataType = AComputeDataType,
           LoopScheduler LoopSched   = make_default_loop_scheduler()>
-struct DeviceGroupedConvFwdMultipleD_Large_Tensor_Xdl_CShuffle
+struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
                                              BLayout,
@@ -188,7 +188,7 @@ struct DeviceGroupedConvFwdMultipleD_Large_Tensor_Xdl_CShuffle
                                              AComputeDataType,
                                              BComputeDataType>
 {
-    using DeviceOp = DeviceGroupedConvFwdMultipleD_Large_Tensor_Xdl_CShuffle;
+    using DeviceOp = DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor;
 
     static constexpr index_t NumDTensor  = DsDataType::Size();
     static constexpr index_t MaxGemmsNum = 32;
@@ -1013,7 +1013,7 @@ struct DeviceGroupedConvFwdMultipleD_Large_Tensor_Xdl_CShuffle
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvFwdMultipleD_Large_Tensor_Xdl_CShuffle"
+        str << "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor"
             << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
