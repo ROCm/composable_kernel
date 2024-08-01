@@ -4,7 +4,7 @@ set(CK_TILE_SRC_FOLDER ${CMAKE_SOURCE_DIR}/include/ck_tile/)
 # python stuff
 find_package(PythonInterp 3 REQUIRED)
 
-rocm_install(DIRECTORY ${CK_TILE_SRC_FOLDER} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+rocm_install(DIRECTORY ${CK_TILE_SRC_FOLDER} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile)
 
 rocm_install(FILES
     "${FMHA_SRC_FOLDER}/fmha_fwd.hpp"
