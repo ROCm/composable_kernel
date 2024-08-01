@@ -9,12 +9,12 @@ namespace ck {
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_smfmac_f32_16x16x32f16;
 
-
-//for every smfmac instruction if CBSZ[1:0]=0, ABID[1:0] selects one of four 8-bit sets of sparse indices from reg_idx
+// for every smfmac instruction if CBSZ[1:0]=0, ABID[1:0] selects one of four 8-bit sets of sparse
+// indices from reg_idx
 template <>
 struct intrin_smfmac_f32_16x16x32f16<16, 16>
 {
-    template <class FloatC, int abid=1>
+    template <class FloatC, int abid = 0>
     __device__ static void
     Run(const half4_t& reg_a, const half8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
     {
@@ -36,7 +36,7 @@ struct intrin_smfmac_f32_16x16x32bf16;
 template <>
 struct intrin_smfmac_f32_16x16x32bf16<16, 16>
 {
-    template <class FloatC, int abid=1>
+    template <class FloatC, int abid = 0>
     __device__ static void
     Run(const bhalf4_t& reg_a, const bhalf8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
     {
@@ -58,7 +58,7 @@ struct intrin_smfmac_f32_32x32x16f16;
 template <>
 struct intrin_smfmac_f32_32x32x16f16<32, 32>
 {
-    template <class FloatC, int abid=1>
+    template <class FloatC, int abid = 0>
     __device__ static void
     Run(const half4_t& reg_a, const half8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
     {
@@ -80,7 +80,7 @@ struct intrin_smfmac_f32_32x32x16bf16;
 template <>
 struct intrin_smfmac_f32_32x32x16bf16<32, 32>
 {
-    template <class FloatC, int abid=1>
+    template <class FloatC, int abid = 0>
     __device__ static void
     Run(const bhalf4_t& reg_a, const bhalf8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
     {

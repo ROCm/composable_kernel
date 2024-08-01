@@ -173,6 +173,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
+
+        static_assert(KPack % (16 * sizeof(ComputeTypeA)) == 0,
+                      "KPack must be divisbile by RegIdx capacity");
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -349,9 +352,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeB>(
             b_thread_desc_.GetElementSpaceSize());
-        static constexpr int32_t divider = 16 * sizeof(ComputeTypeA);
-        auto idx_buf                     = make_static_buffer<AddressSpaceEnum::Vgpr, int32_t>(
-            (a_thread_desc_.GetElementSpaceSize() + divider - 1) / divider);
+        static constexpr int32_t elems_per_idx = 16 * sizeof(ComputeTypeA);
+        auto idx_buf = make_static_buffer<AddressSpaceEnum::Vgpr, int32_t>(
+            (a_thread_desc_.GetElementSpaceSize() + elems_per_idx - 1) / elems_per_idx);
 
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             // read A
@@ -374,8 +377,9 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_buf);
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
-                    vector_type<ComputeTypeA, KPack> a_thread_vec;
+                    vector_type<ComputeTypeA, KPack / 2> a_thread_vec;
                     vector_type<ComputeTypeB, KPack> b_thread_vec;
+                    vector_type<int32_t, KPack / elems_per_idx> idx_vec;
 
                     static_for<0, KPack / 2, 1>{}([&](auto i) {
                         a_thread_vec.template AsType<ComputeTypeA>()(i) = a_thread_buf
@@ -388,17 +392,25 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                 make_tuple(0, 0, 0, k + 2 * i + 1))>{}];
                     });
 
+                    static_for < 0;
+                    KPack / elems_per_idx,
+                        1 > {}([&](auto i) {
+                            idx_vec.template AsType<int32_t>()(i) = idx_buf[k / elems_per_idx + i];
+                        });
+
+                    // A is smaller because it's structurally sparse 2:4
                     using mfma_input_type_a =
-                        typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / 2>::
-                            type; // A is smaller because it's structurally sparse 2:4
+                        typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / 2>::type;
                     using mfma_input_type_b =
                         typename vector_type<ComputeTypeB, xdlops_gemm.K1PerXdlops>::type;
+                    using mfma_input_type_idx = typename vector_type<int32_t, 1>::type;
 
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
                     xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type_a>(),
                                     b_thread_vec.template AsType<mfma_input_type_b>(),
+                                    idx_vec.template AsType<mfma_input_type_idx>(),
                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                 });
             });
