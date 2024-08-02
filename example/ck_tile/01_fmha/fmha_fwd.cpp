@@ -585,10 +585,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
-        1 < num_splits ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
-                       : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+        1 < num_splits || 0 < page_block_size
+            ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits
+        1 < num_splits || 0 < page_block_size
             ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
@@ -939,8 +940,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
                                           : bias_buf.GetDeviceBuffer(),
             randval_buf.GetDeviceBuffer(),
-            1 < num_splits ? lse_acc_buf.GetDeviceBuffer() : nullptr,
-            1 < num_splits ? o_acc_buf.GetDeviceBuffer() : nullptr,
+            1 < num_splits || 0 < page_block_size ? lse_acc_buf.GetDeviceBuffer() : nullptr,
+            1 < num_splits || 0 < page_block_size ? o_acc_buf.GetDeviceBuffer() : nullptr,
             lse_buf.GetDeviceBuffer(),
             o_buf.GetDeviceBuffer(),
             seqstart_q.GetDeviceBuffer(),
@@ -957,7 +958,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             hdim_v,
             nhead,
             nhead_k,
-            num_splits, // only used in splitkv kernel
+            num_splits, // only used in split-kv kernel
             scale_s,
             scale_p,
             scale_o,
