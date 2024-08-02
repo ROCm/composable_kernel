@@ -3,16 +3,17 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <optional>
 #include <ostream>
 #include <sstream>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <functional>
-#include <string>
 
 #include "ck_tile/core/container/span.hpp"
 
@@ -208,4 +209,16 @@ auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
     std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
     std::uniform_int_distribution<Int> dist(low, high);
     return dist(engine);
+}
+
+template <typename RandomAccessIterator, typename Int>
+std::enable_if_t<std::is_integral_v<Int>> iota_shuffle(RandomAccessIterator first,
+                                                       RandomAccessIterator last,
+                                                       Int value,
+                                                       std::optional<unsigned> seed = std::nullopt)
+{
+    std::iota(first, last, value);
+
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::shuffle(first, last, engine);
 }

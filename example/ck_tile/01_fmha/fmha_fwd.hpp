@@ -103,6 +103,9 @@ struct fmha_fwd_args
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr;
+    void* block_table_ptr;
+    ck_tile::index_t batch_stride_block_table;
+    ck_tile::index_t page_block_size;
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -315,6 +318,9 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.num_splits,
+                                     args.block_table_ptr,
+                                     args.batch_stride_block_table,
+                                     args.page_block_size,
                                      args.scale_s,
                                      args.scale_p,
                                      args.stride_q,
@@ -359,6 +365,9 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.num_splits,
+                                     args.block_table_ptr,
+                                     args.batch_stride_block_table,
+                                     args.page_block_size,
                                      args.scale_s,
                                      args.scale_p,
                                      args.stride_q,
@@ -584,6 +593,51 @@ struct fmha_fwd_traits_
 
 template <typename Traits_>
 float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
+
+template <ck_tile::index_t HDim,
+          typename DataType,
+          bool kIsGroupMode,
+          ck_tile::index_t kM0,
+          ck_tile::index_t kN0,
+          ck_tile::index_t kK0,
+          ck_tile::index_t kN1,
+          ck_tile::index_t kK1,
+          ck_tile::index_t kK0BlockLength,
+          bool kIsVLayoutRowMajor,
+          ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum,
+          typename FmhaMask,
+          ck_tile::BlockAttentionBiasEnum BiasEnum,
+          bool kStoreLse,
+          bool kHasDropout,
+          bool kDoFp8StaticQuant,
+          bool kIsPagedKV_,
+          bool kPadS,
+          bool kPadSK,
+          bool kPadD,
+          bool kPadDv>
+struct fmha_fwd_splitkv_traits_ : fmha_fwd_traits_<HDim,
+                                                   DataType,
+                                                   kIsGroupMode,
+                                                   kM0,
+                                                   kN0,
+                                                   kK0,
+                                                   kN1,
+                                                   kK1,
+                                                   kK0BlockLength,
+                                                   kIsVLayoutRowMajor,
+                                                   FmhaPipelineEnum,
+                                                   FmhaMask,
+                                                   BiasEnum,
+                                                   kStoreLse,
+                                                   kHasDropout,
+                                                   kDoFp8StaticQuant,
+                                                   kPadS,
+                                                   kPadSK,
+                                                   kPadD,
+                                                   kPadDv>
+{
+    static constexpr bool kIsPagedKV = kIsPagedKV_;
+};
 
 template <typename Traits_>
 void fmha_fwd_splitkv_oneshot_(const ck_tile::stream_config&, fmha_fwd_args);

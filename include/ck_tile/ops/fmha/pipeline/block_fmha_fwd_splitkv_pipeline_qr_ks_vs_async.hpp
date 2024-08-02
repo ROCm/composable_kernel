@@ -56,6 +56,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kStoreLSE        = true;  // always store LSE (acc)
     static constexpr bool kHasDropout      = false; // ignore this flag
+    static constexpr bool kIsPagedKV       = Problem::kIsPagedKV;
     static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)

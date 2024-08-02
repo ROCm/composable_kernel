@@ -48,6 +48,7 @@ struct FmhaFwdSplitKVKernel
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
+    static constexpr bool kIsPagedKV        = FmhaPipeline::Problem::kIsPagedKV;
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
@@ -122,6 +123,9 @@ struct FmhaFwdSplitKVKernel
         // if this param is larger than 1, indicate MQA/GQA case
         ck_tile::index_t nhead_ratio_qk;
         ck_tile::index_t num_splits;
+        const void* block_table_ptr;
+        ck_tile::index_t batch_stride_block_table;
+        ck_tile::index_t page_block_size;
 
         float scale_s;
 
@@ -254,6 +258,9 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t num_splits,
+              const void* block_table_ptr,
+              ck_tile::index_t batch_stride_block_table,
+              ck_tile::index_t page_block_size,
               float scale_s,
               float scale_p,
               ck_tile::index_t stride_q,
@@ -299,6 +306,9 @@ struct FmhaFwdSplitKVKernel
                      num_head_q,
                      nhead_ratio_qk,
                      num_splits,
+                     block_table_ptr,
+                     batch_stride_block_table,
+                     page_block_size,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -379,6 +389,9 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t num_splits,
+              const void* block_table_ptr,
+              ck_tile::index_t batch_stride_block_table,
+              ck_tile::index_t page_block_size,
               float scale_s,
               float scale_p,
               ck_tile::index_t stride_q,
@@ -419,6 +432,9 @@ struct FmhaFwdSplitKVKernel
                      num_head_q,
                      nhead_ratio_qk,
                      num_splits,
+                     block_table_ptr,
+                     batch_stride_block_table,
+                     page_block_size,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -565,8 +581,24 @@ struct FmhaFwdSplitKVKernel
         else
         {
             batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
-            batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
-            batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+
+            if(true || kargs.block_table_ptr == nullptr)
+            {
+                batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
+                batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+            }
+            else
+            {
+                const auto* block_table = reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
+                                          i_batch * kargs.batch_stride_block_table;
+                const auto i_block =
+                    static_cast<long_index_t>(block_table[i_n1 / kargs.page_block_size]);
+
+                batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
+                // batch_offset_k = i_block * kargs.batch_stride_k;
+                batch_offset_v = i_block * kargs.batch_stride_v;
+            }
+
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;

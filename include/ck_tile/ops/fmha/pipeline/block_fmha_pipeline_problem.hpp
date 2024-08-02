@@ -85,6 +85,7 @@ struct BlockFmhaFwdSplitKVPipelineProblem : BlockFmhaPipelineProblem<QDataType,
                                                                      FmhaMask,
                                                                      Traits>
 {
+    static constexpr bool kIsPagedKV       = Traits::kIsPagedKV;
     static constexpr bool kHasUnevenSplits = kIsGroupMode || Traits::kHasUnevenSplits;
 };
 
