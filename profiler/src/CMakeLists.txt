@@ -21,6 +21,14 @@ set(PROFILER_SOURCES
     profile_permute_scale.cpp
 )
 
+find_package(hip)
+math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+message("hip_version_flat=${hip_VERSION_FLAT}")
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+   message("Adding --offload-compress flag for ckProfiler")
+   add_compile_options(--offload-compress)
+endif()
+
 if(GPU_TARGETS MATCHES "gfx9")
   if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
     list(APPEND PROFILER_SOURCES profile_contraction_bilinear.cpp)

@@ -182,10 +182,7 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
    message("Adding the enable-post-misched=0 compiler flag")
    add_compile_options(-mllvm -enable-post-misched=0)
 endif()
-if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
-   message("Adding --offload-compress flag")
-   add_compile_options(--offload-compress)
-endif()
+
 #
 # Seperate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
