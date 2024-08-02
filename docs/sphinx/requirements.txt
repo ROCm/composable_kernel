@@ -4,33 +4,33 @@
 #
 #    pip-compile requirements.in
 #
-accessible-pygments==0.0.3
+accessible-pygments==0.0.5
     # via pydata-sphinx-theme
-alabaster==0.7.13
+alabaster==0.7.16
     # via sphinx
-babel==2.12.1
+babel==2.15.0
     # via
     #   pydata-sphinx-theme
     #   sphinx
-beautifulsoup4==4.11.2
+beautifulsoup4==4.12.3
     # via pydata-sphinx-theme
-breathe==4.34.0
+breathe==4.35.0
     # via rocm-docs-core
-certifi==2023.7.22
+certifi==2024.7.4
     # via requests
-cffi==1.15.1
+cffi==1.16.0
     # via
     #   cryptography
     #   pynacl
-charset-normalizer==3.1.0
+charset-normalizer==3.3.2
     # via requests
-click==8.1.3
+click==8.1.7
     # via sphinx-external-toc
-cryptography==41.0.6
+cryptography==43.0.0
     # via pyjwt
-deprecated==1.2.13
+deprecated==1.2.14
     # via pygithub
-docutils==0.16
+docutils==0.21.2
     # via
     #   breathe
     #   myst-parser
@@ -38,35 +38,35 @@ docutils==0.16
     #   pydata-sphinx-theme
     #   sphinx
     #   sphinxcontrib-bibtex
-fastjsonschema==2.18.0
+fastjsonschema==2.20.0
     # via rocm-docs-core
-gitdb==4.0.10
+gitdb==4.0.11
     # via gitpython
-gitpython==3.1.37
+gitpython==3.1.43
     # via rocm-docs-core
-idna==3.4
+idna==3.7
     # via requests
 imagesize==1.4.1
     # via sphinx
-jinja2==3.1.2
+jinja2==3.1.4
     # via
     #   myst-parser
     #   sphinx
-latexcodec==2.0.1
+latexcodec==3.0.0
     # via pybtex
-markdown-it-py==2.2.0
+markdown-it-py==3.0.0
     # via
     #   mdit-py-plugins
     #   myst-parser
-markupsafe==2.1.2
+markupsafe==2.1.5
     # via jinja2
-mdit-py-plugins==0.3.5
+mdit-py-plugins==0.4.1
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-myst-parser==1.0.0
+myst-parser==3.0.1
     # via rocm-docs-core
-packaging==23.0
+packaging==24.1
     # via
     #   pydata-sphinx-theme
     #   sphinx
@@ -74,48 +74,46 @@ pybtex==0.24.0
     # via
     #   pybtex-docutils
     #   sphinxcontrib-bibtex
-pybtex-docutils==1.0.2
+pybtex-docutils==1.0.3
     # via sphinxcontrib-bibtex
-pycparser==2.21
+pycparser==2.22
     # via cffi
-pydata-sphinx-theme==0.13.3
+pydata-sphinx-theme==0.15.4
     # via
     #   rocm-docs-core
     #   sphinx-book-theme
-pygithub==1.58.1
+pygithub==2.3.0
     # via rocm-docs-core
-pygments==2.15.0
+pygments==2.18.0
     # via
     #   accessible-pygments
     #   pydata-sphinx-theme
     #   sphinx
-pyjwt[crypto]==2.6.0
+pyjwt[crypto]==2.9.0
     # via pygithub
 pynacl==1.5.0
     # via pygithub
-pyyaml==6.0
+pyyaml==6.0.1
     # via
     #   myst-parser
     #   pybtex
     #   rocm-docs-core
     #   sphinx-external-toc
-requests==2.31.0
+requests==2.32.3
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.1.2
+rocm-docs-core==1.6.1
     # via -r requirements.in
 six==1.16.0
-    # via
-    #   latexcodec
-    #   pybtex
-smmap==5.0.0
+    # via pybtex
+smmap==5.0.1
     # via gitdb
 snowballstemmer==2.2.0
     # via sphinx
-soupsieve==2.4
+soupsieve==2.5
     # via beautifulsoup4
-sphinx==5.3.0
+sphinx==7.4.7
     # via
     #   breathe
     #   myst-parser
@@ -127,33 +125,39 @@ sphinx==5.3.0
     #   sphinx-external-toc
     #   sphinx-notfound-page
     #   sphinxcontrib-bibtex
-sphinx-book-theme==1.0.1
+sphinx-book-theme==1.1.3
     # via rocm-docs-core
-sphinx-copybutton==0.5.1
+sphinx-copybutton==0.5.2
     # via rocm-docs-core
-sphinx-design==0.4.1
+sphinx-design==0.6.1
     # via rocm-docs-core
-sphinx-external-toc==0.3.1
+sphinx-external-toc==1.0.1
     # via rocm-docs-core
-sphinx-notfound-page==0.8.3
+sphinx-notfound-page==1.0.4
     # via rocm-docs-core
-sphinxcontrib-applehelp==1.0.4
+sphinxcontrib-applehelp==2.0.0
     # via sphinx
 sphinxcontrib-bibtex==2.6.2
     # via -r requirements.in
-sphinxcontrib-devhelp==1.0.2
+sphinxcontrib-devhelp==2.0.0
     # via sphinx
-sphinxcontrib-htmlhelp==2.0.1
+sphinxcontrib-htmlhelp==2.1.0
     # via sphinx
 sphinxcontrib-jsmath==1.0.1
     # via sphinx
-sphinxcontrib-qthelp==1.0.3
+sphinxcontrib-qthelp==2.0.0
     # via sphinx
-sphinxcontrib-serializinghtml==1.1.5
+sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
-typing-extensions==4.5.0
-    # via pydata-sphinx-theme
-urllib3==1.26.18
-    # via requests
-wrapt==1.15.0
+tomli==2.0.1
+    # via sphinx
+typing-extensions==4.12.2
+    # via
+    #   pydata-sphinx-theme
+    #   pygithub
+urllib3==2.2.2
+    # via
+    #   pygithub
+    #   requests
+wrapt==1.16.0
     # via deprecated
