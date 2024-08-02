@@ -102,7 +102,8 @@ struct TransformConvFwdToGemm
     template <typename TransformConvFwdToGemmBase>
     __host__ __device__
     TransformConvFwdToGemm(const TransformConvFwdToGemmBase& transform_conv_fwd_to_gemm_base)
-        : Di_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Di_)},
+        : N_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.N_)},
+          Di_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Di_)},
           Hi_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Hi_)},
           Wi_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Wi_)},
           Do_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.Do_)},
@@ -141,8 +142,7 @@ struct TransformConvFwdToGemm
           InRightPadD_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadD_)},
           InRightPadH_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadH_)},
           InRightPadW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadW_)},
-          ZYX_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ZYX_)},
-          N_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.N_)}
+          ZYX_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ZYX_)}
     {
     }
 
@@ -421,8 +421,11 @@ struct TransformConvFwdToGemm
             conv_to_gemm_transformer_left.InRightPadD_  = 0;
             conv_to_gemm_transformer_right.InRightPadD_ = InRightPadD_;
             // Calculate new input size
-            conv_to_gemm_transformer_left.Di_  = di_left_transformer_end_idx - InLeftPadD_;
-            conv_to_gemm_transformer_right.Di_ = Di_ - di_right_transformer_start_idx - InLeftPadD_;
+            conv_to_gemm_transformer_left.Di_ = di_left_transformer_end_idx - InLeftPadD_;
+            conv_to_gemm_transformer_right.Di_ =
+                math::min(Di_ - (di_right_transformer_start_idx - InLeftPadD_),
+                          (conv_to_gemm_transformer_right.Do_ - 1) * ConvStrideD_ + z_eff);
+            ;
             // Calcualte offsets
             a_right_offset = ((Do_ / 2) * ConvStrideD_ - InLeftPadD_) * DiStride_;
             c_right_offset = (Do_ / 2) * DoStride_;
@@ -438,9 +441,10 @@ struct TransformConvFwdToGemm
             conv_to_gemm_transformer_left.InRightPadH_  = 0;
             conv_to_gemm_transformer_right.InRightPadH_ = InRightPadH_;
 
-            conv_to_gemm_transformer_left.Hi_  = hi_left_transformer_end_idx - InLeftPadH_;
-            conv_to_gemm_transformer_right.Hi_ = Hi_ - hi_right_transformer_start_idx - InLeftPadH_;
-
+            conv_to_gemm_transformer_left.Hi_ = hi_left_transformer_end_idx - InLeftPadH_;
+            conv_to_gemm_transformer_right.Hi_ =
+                math::min(Hi_ - (hi_right_transformer_start_idx - InLeftPadH_),
+                          (conv_to_gemm_transformer_right.Ho_ - 1) * ConvStrideH_ + y_eff);
             a_right_offset = ((Ho_ / 2) * ConvStrideH_ - InLeftPadH_) * HiStride_;
             c_right_offset = (Ho_ / 2) * HoStride_;
         }
@@ -455,8 +459,10 @@ struct TransformConvFwdToGemm
             conv_to_gemm_transformer_left.InRightPadW_  = 0;
             conv_to_gemm_transformer_right.InRightPadW_ = InRightPadW_;
 
-            conv_to_gemm_transformer_left.Wi_  = wi_left_transformer_end_idx - InLeftPadW_;
-            conv_to_gemm_transformer_right.Wi_ = Wi_ - wi_right_transformer_start_idx - InLeftPadW_;
+            conv_to_gemm_transformer_left.Wi_ = wi_left_transformer_end_idx - InLeftPadW_;
+            conv_to_gemm_transformer_right.Wi_ =
+                math::min(Wi_ - (wi_right_transformer_start_idx - InLeftPadW_),
+                          (conv_to_gemm_transformer_right.Wo_ - 1) * ConvStrideW_ + x_eff);
 
             a_right_offset = ((Wo_ / 2) * ConvStrideW_ - InLeftPadW_) * WiStride_;
             c_right_offset = (Wo_ / 2) * WoStride_;
@@ -1315,6 +1321,41 @@ struct TransformConvFwdToGemm
     template <typename CLayout,
               index_t NDimSp = NDimSpatial,
 
+              typename std::enable_if<NDimSp == 1 &&
+                                          (is_same_v<CLayout, tensor_layout::convolution::G_K>),
+                                      bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        return make_naive_tensor_descriptor(make_tuple(N_ * Wo_, K_),
+                                            make_tuple(I0, KStrideTensorC_));
+    }
+
+    template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
+
+              typename std::enable_if<NDimSp == 2 &&
+                                          (is_same_v<CLayout, tensor_layout::convolution::G_K>),
+                                      bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_),
+                                            make_tuple(I0, KStrideTensorC_));
+    }
+
+    template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
+
+              typename std::enable_if<NDimSp == 3 &&
+                                          (is_same_v<CLayout, tensor_layout::convolution::G_K>),
+                                      bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        return make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, K_),
+                                            make_tuple(I0, KStrideTensorC_));
+    }
+
+    template <typename CLayout,
+              index_t NDimSp                      = NDimSpatial,
               typename std::enable_if<NDimSp == 1 &&
                                           (is_same_v<CLayout, tensor_layout::convolution::G_NW_K> ||
                                            is_same_v<CLayout, tensor_layout::convolution::NWGK> ||

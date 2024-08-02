@@ -205,7 +205,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                                                                   ADataType,
                                                                   EDataType,
                                                                   I1,
-                                                                  long_index_t>;
+                                                                  index_t>;
 
     using ConvToGemmFwdTransformerLongIndexT = TransformConvFwdToGemm<NDimSpatial,
                                                                       ConvForwardSpecialization,
