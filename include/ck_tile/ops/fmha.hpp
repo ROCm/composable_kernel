@@ -17,6 +17,7 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_convert_dq.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dot_do_o.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_kr_ktr_vr.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dq_dk_dv_pipeline_kr_ktr_vr_iglp.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_problem.hpp"

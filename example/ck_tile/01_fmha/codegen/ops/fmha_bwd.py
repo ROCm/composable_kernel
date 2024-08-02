@@ -14,11 +14,13 @@ from codegen.cpp_symbol_map import *
 
 
 BWD_DQDKDV_PIPELINE_MAP = {
-    "kr_ktr_vr" : "ck_tile::BlockFmhaBwdDQDKDVPipelineKRKTRVR",
+    "kr_ktr_vr_iglp" : "ck_tile::BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP",
+    "kr_ktr_vr"      : "ck_tile::BlockFmhaBwdDQDKDVPipelineKRKTRVR",
 }
 
 BWD_DQDKDV_PIPELINE_ENUM_MAP = {
-    "kr_ktr_vr" : "ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR",
+    "kr_ktr_vr_iglp" : "ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR_IGLP",
+    "kr_ktr_vr"      : "ck_tile::BlockFmhaBwdPipelineEnum::KRKTRVR",
 }
 
 FMHA_BWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
@@ -408,7 +410,7 @@ class FmhaBwdDQDKDVKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_bwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name
+        n = f"fmha_bwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name + f'_{self.F_pipeline}'
         if pn != '' : n += f'_{pn}'
         if self.F_bias != 'no' : n += f'_{self.F_bias}'
         if self.F_dbias == 't' : n += '_dbias'
@@ -450,13 +452,13 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr"],
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr"],
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr"],
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr"]
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"]
         }
     else:
         return None
@@ -481,6 +483,8 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 continue
             if ("wg32" in dropout):
                 continue
+            if (dpad == "t" or dvpad == "t"):
+                ppl = d[hdim_str][2]
             k = FmhaBwdDQDKDVKernel(F_idx=0, F_hdim=hdim, F_dtype=dtype, F_tile=tile,
                                 F_spad=spad, F_skpad=skpad, F_dpad=dpad, F_dvpad=dvpad,
                                 F_bias=bias, F_dbias=dbias, F_dropout=dropout, F_mask=mask, F_mode=mode,
@@ -497,8 +501,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
             if receipt == 3:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= bias in ['no', 'alibi']
-                    cond &= dpad == "f"
-                    cond &= dvpad == "f"
+                    cond &= dpad == dvpad
                     cond &= deterministic == "f"
                     if not cond:
                         continue
