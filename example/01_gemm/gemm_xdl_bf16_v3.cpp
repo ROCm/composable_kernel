@@ -19,7 +19,7 @@ using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 using DeviceGemmV2Instance = 

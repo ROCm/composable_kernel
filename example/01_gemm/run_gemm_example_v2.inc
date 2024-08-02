@@ -272,8 +272,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     if(config.time_kernel)
     {
-        ave_time =
-            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 50, true, 50});
+        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
