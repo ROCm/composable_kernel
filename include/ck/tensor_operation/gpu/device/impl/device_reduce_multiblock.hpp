@@ -438,6 +438,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
     {
         if constexpr(use_multiblock)
         {
+            printf("File: %s : %i\n", __FILE__, __LINE__);
             if(static_cast<float>(pArg->beta_) != 0.0f)
                 return (false);
         };
@@ -446,10 +447,12 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
         {
             if constexpr(NumInvariantDim == 0)
             {
+                printf("File: %s : %i\n", __FILE__, __LINE__);
                 return (false);
             }
             else
             {
+                printf("File: %s : %i\n", __FILE__, __LINE__);
                 if(pArg->inStrides_[NumInvariantDim - 1] != 1)
                     return (false);
 
@@ -459,19 +462,21 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
         }
         else
         {
+            printf("File: %s : %i\n", __FILE__, __LINE__);
             if(pArg->inStrides_[Rank - 1] != 1)
                 return (false);
-
+            printf("File: %s : %i\n", __FILE__, __LINE__);
             if(pArg->reduce_lowest_length % InSrcVectorSize != 0)
                 return (false);
         };
-
+        printf("File: %s : %i\n", __FILE__, __LINE__);
         // To improve
         if(pArg->invariant_lowest_length % OutDstVectorSize != 0)
             return (false);
 
         if constexpr(use_multiblock)
         {
+            printf("File: %s : %i\n", __FILE__, __LINE__);
             // blkGroupSize of 1 should be handled by Blockwise path using
             // InMemoryDataOperationEnum::Set
             if(pArg->blkGroupSize == 1)
@@ -487,7 +492,7 @@ struct DeviceReduceMultiBlock : public DeviceReduce<InDataType,
             // if(pArg->reduce_total_length / KThreadSliceSize < 2)
             //     return (false);
         };
-
+        printf("File: %s : %i\n", __FILE__, __LINE__);
         return (true);
     }
 

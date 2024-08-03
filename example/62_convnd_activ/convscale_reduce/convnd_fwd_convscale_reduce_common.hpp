@@ -13,9 +13,15 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_reduce.hpp"
 #include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_reduce_multiblock.hpp"
+#include "ck/utility/reduction_operator.hpp"
+#include "ck/utility/reduction_enums.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/utility/type.hpp"
 
 namespace ew = ck::tensor_operation::element_wise;
 
@@ -216,8 +222,8 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei.mDesc.GetElementSpaceSize());
-    DeviceMem conv_device_buf(sizeof(ConvOutDataType) * device_conv.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * out_device.mDesc.GetElementSpaceSize());
+    DeviceMem conv_device_buf(conv_param.GetOutputByte<ConvOutDataType>());
+    DeviceMem out_device_buf(conv_param.GetOutputByte<OutDataType>());
 
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
@@ -298,6 +304,8 @@ bool run_grouped_conv_fwd(bool do_verification,
             "not support this Conv problem");
     }
 
+    std::string kernels = conv.GetTypeString();
+
     float avg_time = conv_invoker.Run(conv_argument, StreamConfig{nullptr, time_kernel});
 
     using DeviceElementwiseScale = ck::tensor_operation::device::DeviceElementwiseImpl<
@@ -330,19 +338,104 @@ bool run_grouped_conv_fwd(bool do_verification,
             "not support this problem");
     }
 
+    kernels += std::string("\n\t") + device_ew_scale.GetTypeString();
+
     avg_time += scale_invoker.Run(scale_argument, StreamConfig{nullptr, time_kernel});
 
-    // FIXME: Must be adjusted for actual math operations and data types
-    std::size_t ds_size   = 3 + 1; // 3 element-wise scale multipliers + 1 element-wise relu
+    constexpr auto ReduceOpId = ck::ReduceTensorOp::AMAX;
+    using ReduceOperation     = typename ck::reduce_binary_operator<ReduceOpId>::opType;
+    using InElementwiseOperation =
+        typename ck::reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
+    using AccElementwiseOperation =
+        typename ck::reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
+    using DeviceReduceInstance =
+        ck::tensor_operation::device::DeviceReduceMultiBlock<ConvOutDataType,
+                                                             ConvOutDataType,
+                                                             ConvOutDataType,
+                                                             NDimSpatial + 3,
+                                                             NDimSpatial + 3,
+                                                             ReduceOperation,
+                                                             InElementwiseOperation,
+                                                             AccElementwiseOperation,
+                                                             ck::InMemoryDataOperationEnum::Set,
+                                                             true,  // PropagateNan
+                                                             false, // OutputIndex
+                                                             false, // HaveIndexInputIfOutputIndex
+                                                             256,   // BlockSize
+                                                             4,     // MThreadClusterSize
+                                                             64,    // KThreadClusterSize
+                                                             1,     // MThreadSliceSize
+                                                             1,     // KThreadSliceSize
+                                                             1,     // InSrcVectorDim
+                                                             1,     // InSrceVectorSize
+                                                             1>;    // OutDstVectorSize
+
+    std::vector<size_t> outLengths = {1};
+    Tensor<ConvOutDataType> amax_host(outLengths);
+    Tensor<ConvOutDataType> amax_from_device(outLengths);
+    auto amax_host_strides = amax_host.mDesc.GetStrides();
+
+    std::array<int, NDimSpatial + 3> reduce_dims;
+    std::iota(reduce_dims.begin(), reduce_dims.end(), 0); // 0,..., NDimSpatial+3-1
+
+    std::array<ck::index_t, 1> reduce_out_lengths{1};
+    std::array<ck::index_t, 1> reduce_out_strides{static_cast<ck::index_t>(amax_host_strides[0])};
+
+    DeviceMem amax_device(sizeof(ConvOutDataType) * amax_host.mDesc.GetElementSpaceSize());
+    DeviceMem index_device;
+
+    InElementwiseOperation in_elementwise_op;
+    AccElementwiseOperation acc_elementwise_op;
+    std::tie(in_elementwise_op, acc_elementwise_op) =
+        ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
+            static_cast<int32_t>(host_conv.mDesc.GetElementSize()));
+
+    auto device_reduce   = DeviceReduceInstance{};
+    auto reduce_invoker  = device_reduce.MakeInvokerPointer();
+    auto reduce_argument = device_reduce.MakeArgumentPointer(e_g_n_k_wos_lengths,
+                                                             e_g_n_k_wos_strides,
+                                                             reduce_out_lengths,
+                                                             reduce_out_strides,
+                                                             reduce_dims,
+                                                             1.0,
+                                                             0.0,
+                                                             conv_device_buf.GetDeviceBuffer(),
+                                                             nullptr,
+                                                             amax_device.GetDeviceBuffer(),
+                                                             nullptr,
+                                                             in_elementwise_op,
+                                                             acc_elementwise_op);
+
+    if(!device_reduce.IsSupportedArgument(reduce_argument.get()))
+    {
+        throw std::runtime_error(
+            "wrong! DeviceReduceInstance with the specified compilation parameters does "
+            "not support this runtime parameters!");
+    };
+
+    kernels += std::string("\n\t") + device_reduce.GetTypeString();
+
+    avg_time += reduce_invoker->Run(reduce_argument.get(), StreamConfig{nullptr, time_kernel});
+
+    std::size_t ds_size = 3 + 1; // 3 element-wise scale multipliers  + 1 AMAX
+    if constexpr(ck::is_same_v<ConvElementOp, ConvScaleRelu>)
+    {
+        ds_size += 1; // 1 element-wise relu
+    }
     std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
-    std::size_t num_btype = conv_param.GetInputByte<InDataType>() +
-                            conv_param.GetWeightByte<WeiDataType>() + sizeof(float) +
-                            sizeof(float) + sizeof(float) + conv_param.GetOutputByte<OutDataType>();
+    std::size_t num_btype = 0;
+    num_btype = conv_param.GetInputByte<InDataType>() + conv_param.GetWeightByte<WeiDataType>() +
+                conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float) +
+                sizeof(float); // in + wei + scale + scale + conv output
+    num_btype += conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float) +
+                 conv_param.GetOutputByte<OutDataType>(); // conv out + scale + F8 out
+    num_btype += conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float); // AMAX
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
     std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << conv.GetTypeString() << std::endl;
+              << std::endl;
+    std::cout << "Kernels: " << kernels << std::endl;
 
     if(do_verification)
     {
@@ -388,7 +481,58 @@ bool run_grouped_conv_fwd(bool do_verification,
             << std::endl;
 #endif
 
-        return ck::utils::check_err(out_device, out_host, "Error: incorrect results!");
+        auto ret_val =
+            ck::utils::check_err(out_device, out_host, "Error: incorrect convolution results!");
+        if(!ret_val)
+        {
+            return false;
+        }
+
+        /// Verify AMAX
+
+        using RefReduceInstance =
+            ck::tensor_operation::host::ReferenceReduce<ConvOutDataType,
+                                                        ConvOutDataType,
+                                                        ConvOutDataType,
+                                                        NDimSpatial + 3,
+                                                        NDimSpatial + 3,
+                                                        ReduceOperation,
+                                                        InElementwiseOperation,
+                                                        AccElementwiseOperation,
+                                                        true,
+                                                        false>;
+
+        auto ref_reduce          = RefReduceInstance{};
+        auto ref_reduce_invoker  = ref_reduce.MakeInvokerPointer();
+        auto ref_reduce_argument = ref_reduce.MakeArgumentPointer(e_g_n_k_wos_lengths,
+                                                                  e_g_n_k_wos_strides,
+                                                                  reduce_out_lengths,
+                                                                  reduce_out_strides,
+                                                                  reduce_dims,
+                                                                  1.0,
+                                                                  0.0,
+                                                                  host_conv.mData.data(),
+                                                                  nullptr,
+                                                                  amax_host.mData.data(),
+                                                                  nullptr,
+                                                                  in_elementwise_op,
+                                                                  acc_elementwise_op);
+
+        if(!ref_reduce.IsSupportedArgument(ref_reduce_argument.get()))
+        {
+            throw std::runtime_error(
+                "wrong! RefReduceInstance with the specified compilation parameters does "
+                "not support this runtime parameters!");
+        };
+
+        ref_reduce_invoker->Run(ref_reduce_argument.get());
+
+        amax_device.FromDevice(amax_from_device.mData.data());
+
+        std::cout << "amax_host: " << amax_host.mData[0] << std::endl;
+        std::cout << "amax_device: " << amax_from_device.mData[0] << std::endl;
+
+        return ck::utils::check_err(amax_from_device, amax_host, "Error: incorrect AMAX results!");
     }
 
     return true;

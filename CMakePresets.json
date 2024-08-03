@@ -31,6 +31,7 @@
             },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-O0",
                 "BUILD_DEV": "ON",
                 "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
                 "GPU_TARGETS": "gfx90a",
