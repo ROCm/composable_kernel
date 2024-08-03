@@ -191,10 +191,6 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
    add_compile_options("SHELL: -mllvm -amdgpu-early-inline-all=true")
    add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
-if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
-   message("Adding --offload-compress flag")
-   add_compile_options(--offload-compress)
-endif()
 #
 # Seperate linking jobs from compiling
 # Too many concurrent linking jobs can break the build
