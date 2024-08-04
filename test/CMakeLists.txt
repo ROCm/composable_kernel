@@ -217,3 +217,5 @@ if(GPU_TARGETS MATCHES "gfx942" AND CK_HIP_VERSION_MAJOR GREATER_EQUAL 6 AND CK_
     add_subdirectory(smfmac_op)
 endif()
 add_subdirectory(position_embedding)
+add_subdirectory(scatter_gather)
+

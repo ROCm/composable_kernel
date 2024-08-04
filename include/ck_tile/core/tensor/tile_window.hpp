@@ -41,6 +41,7 @@ struct tile_window_with_static_distribution
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
+    static_assert(NumCoord == 1);
 
     // TODO: check WindowLengths and StaticTileDistribution are consistent
 

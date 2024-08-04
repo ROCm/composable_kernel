@@ -31,12 +31,16 @@
 #define CK_TILE_HOST inline __host__
 #define CK_TILE_DEVICE inline __device__
 #define CK_TILE_HOST_DEVICE inline __host__ __device__
+#define CK_TILE_HOST_EXTERN __host__
 #define CK_TILE_DEVICE_EXTERN __device__
+#define CK_TILE_HOST_DEVICE_EXTERN __host__ __device__
 #else
 #define CK_TILE_HOST inline
 #define CK_TILE_DEVICE inline
 #define CK_TILE_HOST_DEVICE inline
+#define CK_TILE_HOST_EXTERN
 #define CK_TILE_DEVICE_EXTERN
+#define CK_TILE_HOST_DEVICE_EXTERN
 #endif
 
 #ifndef CK_TILE_USE_CUSTOM_DATA_TYPE
@@ -190,4 +194,9 @@
 
 #ifndef CK_TILE_BUFFER_LOAD_RAW_BF16_WA
 #define CK_TILE_BUFFER_LOAD_RAW_BF16_WA 1
+#endif
+
+// workaround: compiler not emiting reciprocal instruction frm __frcp_rn()
+#ifndef CK_TILE_WORKAROUND_SWDEV_383542
+#define CK_TILE_WORKAROUND_SWDEV_383542 1
 #endif
