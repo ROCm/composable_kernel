@@ -311,7 +311,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                               arg_parser.get_str("s"),
                                                               arg_parser.get_str("s_k"),
                                                               arg_parser.get_str("s_kpad"),
-                                                              0 < seqlen_knew ? seqlen_knew : 1);
+                                                              0 < seqlen_knew ? seqlen_knew : 0);
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),

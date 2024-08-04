@@ -109,7 +109,7 @@ decode_seqlen(mode_enum mode,
               std::string q_val,
               std::string k_val,
               std::string k_pad_val,
-              ck_tile::index_t seqlen_k_min = 1,
+              ck_tile::index_t seqlen_k_min = 0,
               std::optional<unsigned> seed  = std::nullopt)
 {
 #define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
