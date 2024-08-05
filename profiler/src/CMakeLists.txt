@@ -82,6 +82,11 @@ set(PROFILER_EXECUTABLE ckProfiler)
 
 add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
 target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
+# flags to compress the library
+if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+  message("Adding --offload-compress flag for ${PROFILER_EXECUTABLE}")
+  target_compile_options(${PROFILER_EXECUTABLE} PRIVATE --offload-compress)
+endif()
 
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE utility getopt::getopt)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_gemm_instance)
