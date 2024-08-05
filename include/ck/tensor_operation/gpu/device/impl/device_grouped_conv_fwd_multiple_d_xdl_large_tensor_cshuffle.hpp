@@ -565,8 +565,6 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         std::array<long_index_t, NDimSpatial + 3> a_g_n_c_wis_strides_;
         std::array<long_index_t, NDimSpatial + 3> b_g_k_c_xs_lengths_;
         std::array<long_index_t, NDimSpatial + 3> b_g_k_c_xs_strides_;
-        std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_lengths_;
-        std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor> ds_g_n_k_wos_strides_;
         std::array<long_index_t, NDimSpatial + 3> e_g_n_k_wos_lengths_;
         std::array<long_index_t, NDimSpatial + 3> e_g_n_k_wos_strides_;
         std::array<long_index_t, NDimSpatial> conv_filter_strides_;
