@@ -262,11 +262,12 @@ float fmha_fwd_dispatch(fmha_fwd_traits traits,
     {
         return fmha_fwd_splitkv(traits, args, config);
     }
-    else
 #endif
+#if 0
     {
         return fmha_fwd(traits, args, config);
     }
+#endif
 }
 
 template <typename DataType>
@@ -444,8 +445,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-#define ENABLE_PAGED_KVCACHE 0
-
     int stream_warmup = arg_parser.get_int("warmup");
     int stream_repeat = arg_parser.get_int("repeat");
     bool kname        = arg_parser.get_bool("kname");
@@ -507,8 +506,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     const ck_tile::index_t max_num_blocks =
-        (ENABLE_PAGED_KVCACHE && 0 < page_block_size
-             ? batch * std::min(1, ck_tile::integer_divide_ceil(max_seqlen_k, page_block_size))
+        (0 < page_block_size
+             ? batch * std::max(1, ck_tile::integer_divide_ceil(max_seqlen_k, page_block_size))
              : 0);
 
     // legalize num_splits according to other options
@@ -545,21 +544,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
                                                          : seqstart_k_with_padding_host.back()));
 
-    std::cerr << "[POYENC] num_blocks: " << max_num_blocks << std::endl;
+    std::cerr << "[HOST] num_blocks: " << max_num_blocks << std::endl;
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
     ck_tile::HostTensor<KDataType> k_host(
-        ENABLE_PAGED_KVCACHE && 0 < page_block_size
-            ? get_lengths(i_perm, max_num_blocks, nhead_k, page_block_size, hdim_q)
-            : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+        0 < page_block_size ? get_lengths(i_perm, max_num_blocks, nhead_k, page_block_size, hdim_q)
+                            : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
     /// NOTICE: always use same shape for knew_host & vnew_host in batch/group mode
     ck_tile::HostTensor<KDataType> knew_host(
         0 < seqlen_knew
             ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_q)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<VDataType> v_host(
-        ENABLE_PAGED_KVCACHE && 0 < page_block_size
+        USE_PAGED_VCACHE && 0 < page_block_size
             ? (is_v_rowmajor
                    ? get_lengths(i_perm, max_num_blocks, nhead_k, page_block_size, hdim_v)
                    : get_lengths(i_perm, max_num_blocks, nhead_k, hdim_v, page_block_size))
@@ -606,9 +604,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
     ck_tile::HostTensor<int32_t> block_table_host(
-        ENABLE_PAGED_KVCACHE && 0 < page_block_size
-            ? std::array<ck_tile::index_t, 2>{batch, max_num_blocks / batch}
-            : std::array<ck_tile::index_t, 2>{1, 1});
+        0 < page_block_size ? std::array<ck_tile::index_t, 2>{batch, max_num_blocks / batch}
+                            : std::array<ck_tile::index_t, 2>{1, 1});
 
     if(init_method == "ui" || init_method == "0")
     {
@@ -884,7 +881,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if(is_v_rowmajor)
                 return i_perm ? hdim_v : nhead_k * hdim_v;
             else
-                return ENABLE_PAGED_KVCACHE && 0 < page_block_size
+                return USE_PAGED_VCACHE && 0 < page_block_size
                            ? (i_perm ? page_block_size : nhead_k * page_block_size)
                            : (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
         }();
@@ -894,16 +891,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-        const ck_tile::index_t nhead_stride_k = (ENABLE_PAGED_KVCACHE && 0 < page_block_size
-                                                     ? (i_perm ? page_block_size * hdim_q : hdim_q)
-                                                     : (i_perm ? shape_seqlen_k * hdim_q : hdim_q));
+        const ck_tile::index_t nhead_stride_k =
+            (0 < page_block_size ? (i_perm ? page_block_size * hdim_q : hdim_q)
+                                 : (i_perm ? shape_seqlen_k * hdim_q : hdim_q));
         const ck_tile::index_t nhead_stride_v = [&]() {
             if(is_v_rowmajor)
-                return ENABLE_PAGED_KVCACHE && 0 < page_block_size
+                return USE_PAGED_VCACHE && 0 < page_block_size
                            ? (i_perm ? page_block_size * hdim_v : hdim_v)
                            : (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
             else
-                return ENABLE_PAGED_KVCACHE && 0 < page_block_size
+                return USE_PAGED_VCACHE && 0 < page_block_size
                            ? (i_perm ? hdim_v * page_block_size : page_block_size)
                            : (i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k);
         }();
@@ -917,11 +914,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k =
-            (ENABLE_PAGED_KVCACHE && 0 < page_block_size ? (nhead_k * page_block_size * hdim_q)
-                                                         : (nhead_k * shape_seqlen_k * hdim_q));
+            (0 < page_block_size ? (nhead_k * page_block_size * hdim_q)
+                                 : (nhead_k * shape_seqlen_k * hdim_q));
         const ck_tile::index_t batch_stride_v =
-            (ENABLE_PAGED_KVCACHE && 0 < page_block_size ? (nhead_k * hdim_v * page_block_size)
-                                                         : (nhead_k * hdim_v * shape_seqlen_k));
+            (USE_PAGED_VCACHE && 0 < page_block_size ? (nhead_k * hdim_v * page_block_size)
+                                                     : (nhead_k * hdim_v * shape_seqlen_k));
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * max_seqlen_q);
@@ -1076,7 +1073,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 
-        if (ENABLE_PAGED_KVCACHE && 0 < page_block_size) {
+        if (0 < page_block_size) {
             if(i_perm) {
                 k_host_ref.ForEach([&](auto& self, auto i) {
                     self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]);
@@ -1128,7 +1125,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             });
         }
 #endif
-        if (ENABLE_PAGED_KVCACHE && 0 < page_block_size) {
+        if (USE_PAGED_VCACHE && 0 < page_block_size) {
             if (is_v_rowmajor) {
                 if(i_perm) {
                     v_host_ref.ForEach([&](auto& self, auto i) { 

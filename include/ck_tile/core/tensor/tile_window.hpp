@@ -214,6 +214,12 @@ struct tile_window_with_static_distribution
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
 
+    CK_TILE_DEVICE constexpr void
+    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
+    {
+        bottom_tensor_view_.buf_.p_data_ = data;
+    }
+
     // move thread's window adaptor coordinate and bottom tensor coordinate
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
     CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
@@ -842,6 +848,17 @@ struct tile_window_with_static_lengths
     CK_TILE_DEVICE constexpr auto get_bottom_tensor_view() const { return bottom_tensor_view_; }
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
+
+    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    {
+        window_origin_ = new_window_origin;
+    }
+
+    CK_TILE_DEVICE constexpr void
+    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
+    {
+        bottom_tensor_view_.buf_.p_data_ = data;
+    }
 
     // move window-origin
     CK_TILE_DEVICE void move(const BottomTensorIndex& step) { window_origin_ += step; }

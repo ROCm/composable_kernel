@@ -240,7 +240,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         }
 
-        auto k_dram_block_window =
+        auto [i_block0, k_dram_block_window] =
             k_tile_navigator.make_tile_window(k_dram_block_window_tmp, {seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
@@ -278,7 +278,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
             auto k_block_tile = load_tile(k_dram_window);
             {
-                k_tile_navigator.move_tile_window(k_dram_window, {0, kK0});
+                // moving k_dram_window is an in-page-block operation, so there is
+                // no need to invoke k_tile_navigator.move_tile_window() here.
+                move_tile_window(k_dram_window, {0, kK0});
                 clear_tile(s_acc); // initialize C
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 k_block_tile = load_tile(k_dram_window);
@@ -306,7 +308,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_lds_window);
                     block_sync_lds();
-                    k_tile_navigator.move_tile_window(k_dram_window, {0, kK0});
+                    move_tile_window(k_dram_window, {0, kK0});
 
                     store_tile(
                         k_lds_window,
@@ -354,7 +356,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
-                const auto k_origin    = k_dram_block_window.get_window_origin();
+                const auto k_origin = k_tile_navigator.to_global_window_origin(
+                    i_block0, k_dram_block_window.get_window_origin());
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
                 s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
@@ -383,7 +386,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             /// TODO: only check in last iteration without increasing code size
             if constexpr(kHasUnevenSplits)
             {
-                const auto k_origin = k_dram_block_window.get_window_origin();
+                const auto k_origin = k_tile_navigator.to_global_window_origin(
+                    i_block0, k_dram_block_window.get_window_origin());
                 set_tile_if(s_acc,
                             -numeric<SMPLComputeDataType>::infinity(),
                             [&, seqlen_k_end_ = seqlen_k_end](auto tile_idx) {
@@ -395,7 +399,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
-                const auto k_origin      = k_dram_block_window.get_window_origin();
+                const auto k_origin = k_tile_navigator.to_global_window_origin(
+                    i_block0, k_dram_block_window.get_window_origin());
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
                                                            k_origin.at(number<0>{}),
                                                            number<kM0>{},
@@ -555,7 +560,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 });
             }
             // move K tile windows
-            k_tile_navigator.move_tile_window(k_dram_block_window, {kN0, 0});
+            i_block0 = k_tile_navigator.move_tile_window(i_block0, k_dram_block_window, {kN0, 0});
             // tail
             {
                 block_sync_lds();

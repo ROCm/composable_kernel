@@ -12,6 +12,7 @@ template <typename DataType_, typename TensorViewLengths_, typename TensorViewSt
 struct SimpleTileWindowNavigator
 {
     using DataType          = DataType_;
+    using WindowOrigin      = multi_index<2>;
     using TensorViewLengths = TensorViewLengths_;
     using TensorViewStrides = TensorViewStrides_;
 
@@ -24,17 +25,40 @@ struct SimpleTileWindowNavigator
     template <typename TensorView, typename WindowLengths>
     CK_TILE_DEVICE static constexpr auto
     make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                     const multi_index<TensorView::get_num_of_dimension()>& window_origin)
+                     const WindowOrigin& window_origin)
     {
-        return ck_tile::make_tile_window(tile_window, window_origin);
+        return make_tuple(
+            /*block_index=*/0, ck_tile::make_tile_window(tile_window, window_origin));
     }
 
     template <typename TileWindow>
-    CK_TILE_DEVICE void
-    move_tile_window(TileWindow& tile_window,
+    CK_TILE_DEVICE static index_t
+    move_tile_window(index_t /*block_index*/,
+                     TileWindow& tile_window,
                      const typename remove_cvref_t<TileWindow>::BottomTensorIndex& step)
     {
         ck_tile::move_tile_window(tile_window, step);
+
+        return /*block_index=*/0;
+    }
+
+    /// TODO: remove this method after finish debuging
+    CK_TILE_DEVICE static constexpr int32_t
+    get_block_index(const WindowOrigin& /*global_window_origin*/)
+    {
+        return /*block_index=*/0;
+    }
+
+    CK_TILE_DEVICE static constexpr WindowOrigin
+    to_local_window_origin(const WindowOrigin& global_window_origin)
+    {
+        return global_window_origin;
+    }
+
+    CK_TILE_DEVICE static constexpr WindowOrigin
+    to_global_window_origin(index_t /*block_index*/, const WindowOrigin& local_window_origin)
+    {
+        return local_window_origin;
     }
 
     TensorViewLengths lengths;
@@ -57,24 +81,24 @@ struct PagedTileWindowNavigator
 {
     using DataType                      = DataType_;
     static constexpr index_t VirtualDim = VirtualDim_;
-    static_assert(VirtualDim == 0 || VirtualDim == 1);
+    static_assert(VirtualDim == 0 || VirtualDim == 1, "only support 2d tile window");
+    using WindowOrigin      = multi_index<2>;
     using TensorViewLengths = TensorViewLengths_;
     using TensorViewStrides = TensorViewStrides_;
 
-    CK_TILE_DEVICE constexpr PagedTileWindowNavigator(copy_const_t<DataType, void>* blocks_,
-                                                      long_index_t block_stride_,
-                                                      long_index_t head_stride_,
-                                                      long_index_t row_stride_,
-                                                      const int32_t* block_indices_,
-                                                      index_t num_blocks_,
-                                                      index_t page_block_size_,
-                                                      const TensorViewLengths& lengths_,
-                                                      const TensorViewStrides& strides_)
-        : blocks(reinterpret_cast<DataType*>(blocks_)),
+    CK_TILE_DEVICE constexpr PagedTileWindowNavigator(
+        copy_const_t<DataType, void>* physical_blocks_,
+        long_index_t block_stride_,
+        long_index_t fixed_offset_,
+        const int32_t* physical_block_indices_,
+        index_t num_blocks_,
+        index_t page_block_size_,
+        const TensorViewLengths& lengths_,
+        const TensorViewStrides& strides_)
+        : physical_blocks(reinterpret_cast<DataType*>(physical_blocks_)),
           block_stride(block_stride_),
-          head_stride(head_stride_),
-          row_stride(row_stride_),
-          block_indices(block_indices_),
+          fixed_offset(fixed_offset_),
+          physical_block_indices(physical_block_indices_),
           num_blocks(num_blocks_),
           page_block_size(page_block_size_),
           lengths(lengths_),
@@ -85,36 +109,89 @@ struct PagedTileWindowNavigator
     template <typename TensorView, typename WindowLengths>
     CK_TILE_DEVICE auto
     make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                     const multi_index<TensorView::get_num_of_dimension()>& window_origin) const
+                     const WindowOrigin& window_origin) const
     {
-        /// TODO: convert global window origin to local window origin
-        auto local_window_origin = window_origin;
+        const index_t block_index              = get_block_index(window_origin);
+        const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
 
-        return ck_tile::make_tile_window(tile_window, local_window_origin);
+        auto new_tile_window = ck_tile::make_tile_window(tile_window, local_window_origin);
+        new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
+
+        return make_tuple(block_index, new_tile_window);
     }
 
     template <typename TileWindow>
-    CK_TILE_DEVICE void
-    move_tile_window(TileWindow& tile_window,
+    CK_TILE_DEVICE index_t
+    move_tile_window(index_t block_index,
+                     TileWindow& tile_window,
                      const typename remove_cvref_t<TileWindow>::BottomTensorIndex& step) const
     {
-        /// TODO: reset pointer and adjust local window origin
+
         ck_tile::move_tile_window(tile_window, step);
+
+        const WindowOrigin global_window_origin =
+            to_global_window_origin(block_index, tile_window.get_window_origin());
+        const WindowOrigin local_window_origin = to_local_window_origin(global_window_origin);
+
+        const index_t new_block_index = get_block_index(global_window_origin);
+        tile_window.set_window_origin(local_window_origin);
+        tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
+
+        return new_block_index;
     }
 
-    DataType* get_block_base(index_t block_index)
+    CK_TILE_DEVICE
+    DataType* get_block_ptr(index_t block_index) const
     {
-        return blocks + block_index * block_stride + head_stride;
+        return physical_blocks + physical_block_indices[block_index] * block_stride + fixed_offset;
     }
 
-    DataType* base(index_t i_virtual) { return get_block_base(); }
+    CK_TILE_DEVICE int32_t get_block_index(const WindowOrigin& global_window_origin) const
+    {
+        return integer_divide_floor(global_window_origin.at(number<VirtualDim>{}), page_block_size);
+    }
 
-    DataType* blocks;
+    CK_TILE_DEVICE WindowOrigin
+    to_local_window_origin(const WindowOrigin& global_window_origin) const
+    {
+        if constexpr(VirtualDim == 0)
+        {
+            const index_t length              = global_window_origin.at(number<0>{});
+            const index_t num_complete_blocks = integer_divide_floor(length, page_block_size);
+            return make_multi_index(length - page_block_size * num_complete_blocks,
+                                    global_window_origin.at(number<1>{}));
+        }
+        else
+        {
+            const index_t length              = global_window_origin.at(number<1>{});
+            const index_t num_complete_blocks = integer_divide_floor(length, page_block_size);
+            return make_multi_index(global_window_origin.at(number<0>{}),
+                                    length - page_block_size * num_complete_blocks);
+        }
+    }
+
+    CK_TILE_DEVICE WindowOrigin
+    to_global_window_origin(index_t block_index, const WindowOrigin& local_window_origin) const
+    {
+        if constexpr(VirtualDim == 0)
+        {
+            return make_multi_index(block_index * page_block_size +
+                                        local_window_origin.at(number<0>{}),
+                                    local_window_origin.at(number<1>{}));
+        }
+        else
+        {
+            return make_multi_index(local_window_origin.at(number<0>{}),
+                                    block_index * page_block_size +
+                                        local_window_origin.at(number<1>{}));
+        }
+    }
+
+    DataType* physical_blocks;
     long_index_t block_stride;
-    long_index_t head_stride;
-    long_index_t row_stride;
+    long_index_t fixed_offset;
 
-    const int32_t* block_indices;
+    const int32_t* physical_block_indices;
     index_t num_blocks;
     index_t page_block_size;
 
@@ -126,22 +203,21 @@ template <typename DataType,
           index_t VirtualDim,
           typename TensorViewLengths,
           typename TensorViewStrides>
-CK_TILE_DEVICE constexpr auto make_tile_window_navigator(copy_const_t<DataType, void>* blocks,
-                                                         long_index_t block_stride,
-                                                         long_index_t head_stride,
-                                                         long_index_t row_stride,
-                                                         const int32_t* block_indices,
-                                                         index_t num_blocks,
-                                                         index_t page_block_size,
-                                                         const TensorViewLengths& lengths,
-                                                         const TensorViewStrides& strides)
+CK_TILE_DEVICE constexpr auto
+make_tile_window_navigator(copy_const_t<DataType, void>* physical_blocks,
+                           long_index_t block_stride,
+                           long_index_t fixed_offset,
+                           const int32_t* physical_block_indices,
+                           index_t num_blocks,
+                           index_t page_block_size,
+                           const TensorViewLengths& lengths,
+                           const TensorViewStrides& strides)
 {
     return PagedTileWindowNavigator<DataType, VirtualDim, TensorViewLengths, TensorViewStrides>(
-        blocks,
+        physical_blocks,
         block_stride,
-        head_stride,
-        row_stride,
-        block_indices,
+        fixed_offset,
+        physical_block_indices,
         num_blocks,
         page_block_size,
         lengths,
