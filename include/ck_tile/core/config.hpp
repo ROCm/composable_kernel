@@ -18,6 +18,7 @@
 #define __gfx11__
 #endif
 
+#include "hip/hip_version.h"
 #ifndef CK_TILE_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
@@ -144,6 +145,15 @@
 #define CK_TILE_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
 #endif
 
+#ifndef CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 1 && HIP_VERSION_PATCH >= 40091) || \
+    (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 2 && HIP_VERSION_PATCH >= 41133)
+#define CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE 1
+#else
+#define CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif
@@ -167,7 +177,15 @@
 #define CK_TILE_USE_SUBDWORD_TILE_CAST 0
 #endif
 
+#ifndef CK_TILE_USE_PK_FP16_TILE_CAST
+#define CK_TILE_USE_PK_FP16_TILE_CAST 0
+#endif
+
 // TODO: better solve this inside compiler
 #ifndef CK_TILE_FMHA_FWD_FAST_EXP2
 #define CK_TILE_FMHA_FWD_FAST_EXP2 0
+#endif
+
+#ifndef CK_TILE_BUFFER_LOAD_RAW_BF16_WA
+#define CK_TILE_BUFFER_LOAD_RAW_BF16_WA 1
 #endif

@@ -78,6 +78,12 @@ struct BlockFmhaPipelineQRKSVSAsync
             return Problem::kBlockPerCu;
         else
         {
+            // minimize occupancy
+            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS)
+            {
+                return 1;
+            }
+
             if constexpr(kK0BlockLength <= 32)
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS &&
@@ -212,11 +218,14 @@ struct BlockFmhaPipelineQRKSVSAsync
             q_dram_block_window_tmp.get_window_lengths(),
             q_dram_block_window_tmp.get_window_origin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
+        q_dram_window.init_raw();
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
         auto q = decltype(load_tile(q_dram_window)){};
-        set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
+        // TODO: start from rocm-6.2, compiler will have problem if manually set clear of q.
+        // however, q would be cleared in the constructor of static distributed tensor
+        // set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
         load_tile_raw(q, q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
@@ -285,6 +294,16 @@ struct BlockFmhaPipelineQRKSVSAsync
             k_dram_block_window.get_window_origin(),
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
+        k_dram_window.init_raw();
+        constexpr auto k_oob_ck = bool_constant<true>{};
+        constexpr auto k_pre_np = [&]() {
+            if constexpr(kPadSeqLenK && (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                         (BiasEnum != BlockAttentionBiasEnum::NO_BIAS)))
+                return bool_constant<true>{};
+            else
+                return bool_constant<false>{};
+        }();
+
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window  = make_tile_window(
             bias_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -299,7 +318,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         // prefetch K tile
-        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
+        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
@@ -322,7 +341,9 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                     async_load_tile_raw(k_lds_store(number<LdsSeq.at(number<i_k0 + 1>{})>{}),
-                                        k_dram_window);
+                                        k_dram_window,
+                                        k_oob_ck,
+                                        k_pre_np);
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
@@ -609,16 +630,13 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0, 0});
-                k_dram_window =
-                    make_tile_window(k_dram_block_window.get_bottom_tensor_view(),
-                                     k_dram_block_window.get_window_lengths(),
-                                     k_dram_block_window.get_window_origin(),
-                                     Policy::template MakeKDramTileDistribution<Problem>());
+                k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();
-                async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), k_dram_window);
+                async_load_tile_raw(
+                    k_lds_store(LdsSeq.at(number<0>{})), k_dram_window, k_oob_ck, k_pre_np);
                 move_tile_window(k_dram_window, {0, kK0});
             }
             // tail
