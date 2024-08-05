@@ -898,21 +898,27 @@ make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths
         tile_window.get_bottom_tensor_view(), tile_window.get_window_lengths(), origin};
 }
 
-template <typename TensorView_,
-          typename WindowLengths_,
-          typename StaticTileDistribution_,
-          index_t NumCoord = 1>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
 CK_TILE_DEVICE constexpr auto
-make_tile_window(const tile_window_with_static_lengths<TensorView_, WindowLengths_>& tile_window,
-                 const StaticTileDistribution_& tile_distribution)
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const multi_index<TensorView::get_num_of_dimension()>& origin,
+                 const StaticTileDistribution& tile_distribution)
 {
-    return tile_window_with_static_distribution<TensorView_,
-                                                WindowLengths_,
-                                                StaticTileDistribution_,
-                                                NumCoord>{tile_window.get_bottom_tensor_view(),
-                                                          tile_window.get_window_lengths(),
-                                                          tile_window.get_window_origin(),
-                                                          tile_distribution};
+    return make_tile_window(tile_window.get_bottom_tensor_view(),
+                            tile_window.get_window_lengths(),
+                            origin,
+                            tile_distribution);
+}
+
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const StaticTileDistribution& tile_distribution)
+{
+    return make_tile_window(tile_window.get_bottom_tensor_view(),
+                            tile_window.get_window_lengths(),
+                            tile_window.get_window_origin(),
+                            tile_distribution);
 }
 
 template <typename TensorView_, typename WindowLengths_>

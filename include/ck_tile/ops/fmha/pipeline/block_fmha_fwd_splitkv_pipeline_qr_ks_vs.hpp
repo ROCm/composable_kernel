@@ -254,8 +254,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
-            make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
-                             v_dram_block_window_tmp.get_window_lengths(),
+            make_tile_window(v_dram_block_window_tmp,
                              {0, seqlen_k_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
