@@ -144,6 +144,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             index_t gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(arg.M, arg.N, arg.KBatch);
 
+            const index_t num_CUs = 304 * 2;
+            const index_t new_gdx = gdx > num_CUs ? num_CUs : gdx;
+
+            std::cout << "gdx = " << gdx << " new_gdx = " << new_gdx << std::endl;
+
             float ave_time = 0;
 
             index_t k_grain = arg.KBatch * KPerBlock;
@@ -179,10 +184,13 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                         stream_config,
                         run_flush_cache,
                         kernel,
-                        dim3(gdx, gdy, gdz),
+                        dim3(new_gdx, gdy, gdz),
                         dim3(BlockSize),
                         0,
-                        arg_);
+                        arg_,
+                        new_gdx,
+                        gdx
+                        );
                 }
                 else
                 {
@@ -193,7 +201,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                          stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(
-                        stream_config, kernel, dim3(gdx, gdy, gdz), dim3(BlockSize), 0, arg);
+                        stream_config, kernel, dim3(new_gdx, gdy, gdz), dim3(BlockSize), 0, arg,
+                        new_gdx,
+                        gdx
+                        );
                 }
             };
 
