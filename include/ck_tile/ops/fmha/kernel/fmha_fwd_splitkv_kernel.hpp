@@ -542,17 +542,21 @@ struct FmhaFwdSplitKVKernel
                 const index_t num_blocks =
                     integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
 
-                return PagedTileWindowNavigator<const KDataType, 0>(kargs.k_ptr,
-                                                                    kargs.batch_stride_k,
-                                                                    kargs.nhead_stride_k,
-                                                                    kargs.stride_k,
-                                                                    block_indices,
-                                                                    num_blocks,
-                                                                    kargs.page_block_size);
+                return make_tile_window_navigator<const KDataType, 0>(
+                    kargs.k_ptr,
+                    kargs.batch_stride_k,
+                    kargs.nhead_stride_k,
+                    kargs.stride_k,
+                    block_indices,
+                    num_blocks,
+                    kargs.page_block_size,
+                    make_tuple(kargs.seqlen_k, kargs.hdim_q),
+                    make_tuple(kargs.stride_k, 1));
             }
             else
             {
-                return SimpleTileWindowNavigator<KDataType>();
+                return make_tile_window_navigator<KDataType>(
+                    make_tuple(kargs.seqlen_k, kargs.hdim_q), make_tuple(kargs.stride_k, 1));
             }
         }();
 
@@ -688,8 +692,8 @@ struct FmhaFwdSplitKVKernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.seqlen_k, kargs.hdim_q),
-                make_tuple(kargs.stride_k, 1),
+                k_tile_navigator.lengths,
+                k_tile_navigator.strides,
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
