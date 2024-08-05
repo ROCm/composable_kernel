@@ -542,21 +542,20 @@ struct FmhaFwdSplitKVKernel
                 const index_t num_blocks =
                     integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
 
-                return make_tile_window_navigator<const KDataType, 0>(
-                    kargs.k_ptr,
-                    kargs.batch_stride_k,
+                const long_index_t fixed_offset =
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
-                        kargs.nhead_stride_k,
-                    block_indices,
-                    num_blocks,
-                    kargs.page_block_size,
-                    make_tuple(kargs.page_block_size, kargs.hdim_q),
-                    make_tuple(kargs.stride_k, 1));
+                    kargs.nhead_stride_k;
+
+                return PagedTileWindowNavigator<const KDataType, 0>(kargs.k_ptr,
+                                                                    kargs.batch_stride_k,
+                                                                    fixed_offset,
+                                                                    block_indices,
+                                                                    num_blocks,
+                                                                    kargs.page_block_size);
             }
             else
             {
-                return make_tile_window_navigator<const KDataType>(
-                    make_tuple(kargs.seqlen_k, kargs.hdim_q), make_tuple(kargs.stride_k, 1));
+                return SimpleTileWindowNavigator<const KDataType>();
             }
         }();
 
@@ -672,10 +671,21 @@ struct FmhaFwdSplitKVKernel
             }
         }();
         const auto k_dram = [&]() {
+            const auto lengths = [&]() {
+                if constexpr(kIsPagedKV)
+                {
+                    return make_tuple(kargs.page_block_size, kargs.hdim_q);
+                }
+                else
+                {
+                    return make_tuple(kargs.seqlen_k, kargs.hdim_q);
+                }
+            }();
+
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                k_ptr,
-                k_tile_navigator.lengths,
-                k_tile_navigator.strides,
+                k_ptr, // will update this pointer if using paged-kvcache
+                lengths,
+                make_tuple(kargs.stride_k, 1),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
