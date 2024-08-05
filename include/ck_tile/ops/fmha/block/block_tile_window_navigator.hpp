@@ -23,6 +23,17 @@ struct SimpleTileWindowNavigator
             /*block_index=*/0, ck_tile::make_tile_window(tile_window, window_origin));
     }
 
+    template <typename TensorView, typename WindowLengths, typename TileDistribution>
+    CK_TILE_DEVICE static constexpr auto
+    make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                     const WindowOrigin& window_origin,
+                     const TileDistribution& tile_distribution)
+    {
+        return make_tuple(
+            /*block_index=*/0,
+            ck_tile::make_tile_window(tile_window, window_origin, tile_distribution));
+    }
+
     template <typename TileWindow>
     CK_TILE_DEVICE static index_t
     move_tile_window(index_t /*block_index*/,
@@ -87,6 +98,22 @@ struct PagedTileWindowNavigator
         const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
 
         auto new_tile_window = ck_tile::make_tile_window(tile_window, local_window_origin);
+        new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
+
+        return make_tuple(block_index, new_tile_window);
+    }
+
+    template <typename TensorView, typename WindowLengths, typename TileDistribution>
+    CK_TILE_DEVICE auto
+    make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                     const WindowOrigin& window_origin,
+                     const TileDistribution& tile_distribution) const
+    {
+        const index_t block_index              = get_block_index(window_origin);
+        const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
+
+        auto new_tile_window =
+            ck_tile::make_tile_window(tile_window, local_window_origin, tile_distribution);
         new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
 
         return make_tuple(block_index, new_tile_window);

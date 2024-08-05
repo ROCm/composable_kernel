@@ -121,7 +121,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename PositionEncoding,
-              typename KTileWindowNavigator>
+              typename KTileWindowNavigator,
+              typename VTileWindowNavigator>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -144,7 +145,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                float scale_s,
                void* smem_ptr,
                BlockDropout& dropout,
-               KTileWindowNavigator& k_tile_navigator) const
+               const KTileWindowNavigator& k_tile_navigator,
+               const VTileWindowNavigator& v_tile_navigator) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -253,10 +255,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
-        auto v_dram_window =
-            make_tile_window(v_dram_block_window_tmp,
-                             {0, seqlen_k_start}, // TODO: hdim split?
-                             Policy::template MakeVDramTileDistribution<Problem>());
+        auto [i_block1, v_dram_window] = v_tile_navigator.make_tile_window(
+            v_dram_block_window_tmp,
+            {0, seqlen_k_start}, // TODO: hdim split?
+            Policy::template MakeVDramTileDistribution<Problem>());
 
         auto q_tile = tile_elementwise_in(q_element_func, q);
 
@@ -525,7 +527,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 store_tile(v_lds_window,
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
-            move_tile_window(v_dram_window, {0, kK1});
+            i_block1 = v_tile_navigator.move_tile_window(i_block1, v_dram_window, {0, kK1});
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
@@ -533,8 +535,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
-                static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
-                    const auto v = load_tile(v_dram_window); // load next v
+                static_for<0, k1_loops - 1, 1>{}([&,
+                                                  &i_block1_      = i_block1,
+                                                  &v_dram_window_ = v_dram_window](auto i_k1) {
+                    const auto v = load_tile(v_dram_window_); // load next v
                     block_sync_lds();
                     gemm_1(o_acc,
                            get_slice_tile(
@@ -555,7 +559,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         store_tile(v_lds_window,
                                    tile_elementwise_in(v_element_func, v)); // store next v
                     }
-                    move_tile_window(v_dram_window, {0, kK1});
+                    i_block1_ =
+                        v_tile_navigator.move_tile_window(i_block1_, v_dram_window_, {0, kK1});
                 });
             }
             // move K tile windows
@@ -627,7 +632,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename RandValDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding,
-              typename KTileWindowNavigator>
+              typename KTileWindowNavigator,
+              typename VTileWindowNavigator>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -642,7 +648,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                float scale_s,
                void* smem_ptr,
                BlockDropout& dropout,
-               KTileWindowNavigator& k_tile_navigator) const
+               const KTileWindowNavigator& k_tile_navigator,
+               const VTileWindowNavigator& v_tile_navigator) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -665,7 +672,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           scale_s,
                           smem_ptr,
                           dropout,
-                          k_tile_navigator);
+                          k_tile_navigator,
+                          v_tile_navigator);
     }
 };
 

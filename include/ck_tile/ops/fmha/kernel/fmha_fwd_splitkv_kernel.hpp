@@ -559,6 +559,36 @@ struct FmhaFwdSplitKVKernel
             }
         }();
 
+        auto v_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+            if constexpr(kIsPagedKV)
+            {
+#if USE_PAGED_VCACHE
+                const auto* block_indices =
+                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
+                    i_batch_ * kargs.batch_stride_block_table;
+                const index_t num_blocks =
+                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+
+                const long_index_t fixed_offset =
+                    static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
+                    kargs.nhead_stride_v;
+
+                return PagedTileWindowNavigator<const VDataType, 1>(kargs.v_ptr,
+                                                                    kargs.batch_stride_v,
+                                                                    fixed_offset,
+                                                                    block_indices,
+                                                                    num_blocks,
+                                                                    kargs.page_block_size);
+#else
+                return SimpleTileWindowNavigator<const VDataType>();
+#endif
+            }
+            else
+            {
+                return SimpleTileWindowNavigator<const VDataType>();
+            }
+        }();
+
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -697,9 +727,20 @@ struct FmhaFwdSplitKVKernel
         const auto v_dram = [&]() {
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
+                const auto lengths = [&]() {
+                    if constexpr(kIsPagedKV)
+                    {
+                        return make_tuple(kargs.page_block_size, kargs.hdim_v);
+                    }
+                    else
+                    {
+                        return make_tuple(kargs.seqlen_k, kargs.hdim_v);
+                    }
+                }();
+
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    v_ptr,
-                    make_tuple(kargs.seqlen_k, kargs.hdim_v),
+                    v_ptr, // will update this pointer if using paged-kvcache
+                    lengths,
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -718,9 +759,20 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
+                const auto lengths = [&]() {
+                    if constexpr(kIsPagedKV)
+                    {
+                        return make_tuple(kargs.hdim_v, kargs.page_block_size);
+                    }
+                    else
+                    {
+                        return make_tuple(kargs.hdim_v, kargs.seqlen_k);
+                    }
+                }();
+
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    v_ptr,
-                    make_tuple(kargs.hdim_v, kargs.seqlen_k),
+                    v_ptr, // will update this pointer if using paged-kvcache
+                    lengths,
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
@@ -931,7 +983,8 @@ struct FmhaFwdSplitKVKernel
                                       kargs.scale_s,
                                       smem_ptr,
                                       dropout,
-                                      k_tile_navigator);
+                                      k_tile_navigator,
+                                      v_tile_navigator);
             }
             else
             {
@@ -948,7 +1001,8 @@ struct FmhaFwdSplitKVKernel
                                       kargs.scale_s,
                                       smem_ptr,
                                       dropout,
-                                      k_tile_navigator);
+                                      k_tile_navigator,
+                                      v_tile_navigator);
             }
         }();
 
