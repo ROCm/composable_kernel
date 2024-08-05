@@ -871,6 +871,16 @@ make_tile_window(const TensorView_& tensor_view,
         tensor_view, window_lengths, origin};
 }
 
+// duplicate tile window and replace its origin
+template <typename TensorView, typename WindowLengths>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const multi_index<TensorView::get_num_of_dimension()>& origin)
+{
+    return tile_window_with_static_lengths<TensorView, WindowLengths>{
+        tile_window.get_bottom_tensor_view(), tile_window.get_window_lengths(), origin};
+}
+
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
