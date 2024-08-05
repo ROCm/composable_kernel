@@ -264,9 +264,12 @@ float fmha_fwd_dispatch(fmha_fwd_traits traits,
     }
 #endif
 #if 0
+    else
     {
         return fmha_fwd(traits, args, config);
     }
+#else
+    return 0;
 #endif
 }
 
