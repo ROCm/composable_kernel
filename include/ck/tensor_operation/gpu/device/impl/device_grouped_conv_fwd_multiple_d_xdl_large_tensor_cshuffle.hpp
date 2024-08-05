@@ -111,6 +111,7 @@ __global__ void
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = compute_ptr_offset_of_groups;
+    ignore = compute_ptr_offset_of_n;
 #endif
 }
 
