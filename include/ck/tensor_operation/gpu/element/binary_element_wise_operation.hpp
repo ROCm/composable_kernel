@@ -638,6 +638,32 @@ struct AddSilu
     }
 };
 
+struct ConvScaleAdd
+{
+    __host__ __device__ ConvScaleAdd(float scale_in  = 1.f,
+                                     float scale_wei = 1.f,
+                                     float scale_out = 1.f)
+        : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
+    {
+    }
+
+    template <typename E, typename C, typename D>
+    __host__ __device__ void operator()(E& e, const C& c, const D& d) const;
+
+    template <>
+    __host__ __device__ void
+    operator()<f8_t, float, float>(f8_t& e, const float& c, const float& d) const
+    {
+        float x;
+        Add{}.template operator()<float>(x, c * scale_in_ * scale_wei_, d);
+        e = type_convert<f8_t>(x * scale_out_);
+    };
+
+    float scale_in_;
+    float scale_wei_;
+    float scale_out_;
+};
+
 } // namespace element_wise
 } // namespace tensor_operation
 } // namespace ck

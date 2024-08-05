@@ -111,6 +111,13 @@ function(add_instance_library INSTANCE_NAME)
         endif()
         
         target_compile_features(${INSTANCE_NAME} PUBLIC)
+
+        # flags to compress the library
+        if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+            message("Adding --offload-compress flag for ${INSTANCE_NAME}")
+            target_compile_options(${INSTANCE_NAME} PRIVATE --offload-compress)
+        endif()
+
         set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
         clang_tidy_check(${INSTANCE_NAME})
         set(result 0)
