@@ -317,10 +317,11 @@ int reduce_blockwise_impl(bool do_verification,
     auto invoker_ptr = reduce.MakeInvokerPointer();
 
     int log_level = 0, cold_niters = 5, nrepeat = 50;
-    // With beta != 0.0f there must be only one repeat for correct results since out memory is being
-    // overwritten
     if(beta != 0.0f)
     {
+        std::cerr << "Warning: With beta != 0.0f there must be only one repeat for correct results "
+                     "since out memory is being overwritten."
+                  << std::endl;
         cold_niters = 0;
         nrepeat     = 1;
     }
