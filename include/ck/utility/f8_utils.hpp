@@ -165,7 +165,7 @@ In this case, the fp16 mantissa should be shift left by 1 */
 
     if(out_exponent > max_exp)
     {
-        if(clip)
+        if constexpr(clip)
         {
             mantissa     = (1 << out_mant) - 1;
             out_exponent = max_exp;
@@ -235,7 +235,8 @@ __host__ __device__ Y run_cast_from_f8(X x)
             return (mantissa == 0) ? (sign ? NegInf : Inf) : NaN;
     }
 
-    if((NumericUtils<Y>::mant == 10) && (NumericUtils<X>::mant == 2) && !negative_zero_nan)
+    if constexpr((NumericUtils<Y>::mant == 10) && (NumericUtils<X>::mant == 2) &&
+                 !negative_zero_nan)
     {
         retval = x;
         retval <<= 8;
