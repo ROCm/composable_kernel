@@ -38,7 +38,7 @@ def getDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.2"){
+    if (params.ROCMVERSION != "6.3"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -652,8 +652,8 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1; RUN_CK_TILE_TESTS=true
-                                              0 21 * * * % ROCMVERSION=6.1;hipTensor_test=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2; RUN_CK_TILE_TESTS=true
+                                              0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
@@ -677,8 +677,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.1', 
-            description: 'Specify which ROCM version to use: 6.1 (default).')
+            defaultValue: '6.2', 
+            description: 'Specify which ROCM version to use: 6.2 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
