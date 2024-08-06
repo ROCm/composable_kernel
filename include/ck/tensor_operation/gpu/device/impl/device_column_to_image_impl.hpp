@@ -64,7 +64,7 @@ struct DeviceColumnToImageImpl
 
     static constexpr auto spatial_offset = Number<3>{};
 
-    using GemmToConvFwdTransformer =
+    using ConvToGemmFwdTransformer =
         TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>;
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpecialization::MKPadding, index_t, index_t, index_t>{
@@ -233,7 +233,7 @@ struct DeviceColumnToImageImpl
                                                 : independent_filter_stride;
         }
 
-        GemmToConvFwdTransformer conv_to_gemm_transformer{a_g_n_c_wis_lengths,
+        ConvToGemmFwdTransformer conv_to_gemm_transformer{a_g_n_c_wis_lengths,
                                                           image_g_n_c_wis_strides,
                                                           b_g_k_c_xs_lengths,
                                                           {}, // not needed for A Descriptor

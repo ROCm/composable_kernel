@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <cassert>
@@ -139,7 +139,7 @@ inline bool parse_cmd_args(int argc,
 inline HostTensorDescriptor
 make_r0_host_tensor_descriptor(const ck::utils::conv::ConvParam& problem_size)
 {
-    std::vector<ck::index_t> dimensions{problem_size.G_, problem_size.N_};
+    std::vector<ck::long_index_t> dimensions{problem_size.G_, problem_size.N_};
 
     ck::ranges::copy(problem_size.output_spatial_lengths_, std::back_inserter(dimensions));
 

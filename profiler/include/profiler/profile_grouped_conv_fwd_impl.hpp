@@ -33,7 +33,8 @@ template <ck::index_t NDimSpatial,
           typename WeiDataType,
           typename OutDataType,
           typename AComputeType = InDataType,
-          typename BComputeType = AComputeType>
+          typename BComputeType = AComputeType,
+          typename IndexType    = ck::index_t>
 bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
@@ -57,16 +58,16 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     const auto out_g_n_k_wos_desc =
         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);
 
-    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> e_g_n_k_wos_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
-    std::array<ck::index_t, NDimSpatial> input_left_pads{};
-    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+    std::array<IndexType, NDimSpatial + 3> a_g_n_c_wis_lengths{};
+    std::array<IndexType, NDimSpatial + 3> a_g_n_c_wis_strides{};
+    std::array<IndexType, NDimSpatial + 3> b_g_k_c_xs_lengths{};
+    std::array<IndexType, NDimSpatial + 3> b_g_k_c_xs_strides{};
+    std::array<IndexType, NDimSpatial + 3> e_g_n_k_wos_lengths{};
+    std::array<IndexType, NDimSpatial + 3> e_g_n_k_wos_strides{};
+    std::array<IndexType, NDimSpatial> conv_filter_strides{};
+    std::array<IndexType, NDimSpatial> conv_filter_dilations{};
+    std::array<IndexType, NDimSpatial> input_left_pads{};
+    std::array<IndexType, NDimSpatial> input_right_pads{};
 
     auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 

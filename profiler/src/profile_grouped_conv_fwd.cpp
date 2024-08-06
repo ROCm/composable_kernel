@@ -29,6 +29,12 @@ enum struct ConvDataType
     BF8_F8_F8,      // 7
 };
 
+enum struct IndexType
+{
+    INDEX_T,      // 0
+    LONG_INDEX_T, // 1
+};
+
 #define OP_NAME "grouped_conv_fwd"
 #define OP_DESC "Grouped Convolution Forward"
 
@@ -45,12 +51,13 @@ static void print_helper_msg()
         << "                 5: Input bf8, Weight bf8, Output fp8\n"
         << "                 6: Input fp8, Weight bf8, Output fp8\n"
         << "                 7: Input bf8, Weight fp8, Output fp8)\n"
-        << "arg3: tensor layout (0: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]\n"
+        << "arg3: indexing data type (0: 32-bit, 1: 64-bit)\n"
+        << "arg4: tensor layout (0: Input[G, N, Hi, Wi, C], Weight[G, K, Y, X, C], Output[G, N, Ho, Wo, K]\n"
         << "                     1: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, Ho, Wo, G, K])\n"
-        << "arg4: verification (0: no, 1: yes)\n"
-        << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
-        << "arg6: print tensor value (0: no; 1: yes)\n"
-        << "arg7: time kernel (0: no, 1: yes)\n"
+        << "arg5: verification (0: no, 1: yes)\n"
+        << "arg6: initialization (0: no init, 1: integer value, 2: decimal value)\n"
+        << "arg7: print tensor value (0: no; 1: yes)\n"
+        << "arg8: time kernel (0: no, 1: yes)\n"
         << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
     // clang-format on
 }
@@ -60,7 +67,7 @@ static void print_helper_msg()
 int profile_grouped_conv_fwd(int argc, char* argv[])
 {
     // 8 for control, 1 for num_dim_spatial
-    if(argc < 9)
+    if(argc < 10)
     {
         print_helper_msg();
         return 1;
@@ -68,20 +75,21 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
 
     const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
     const auto layout          = static_cast<ConvLayout>(std::stoi(argv[3]));
-    const bool do_verification = std::stoi(argv[4]);
-    const int init_method      = std::stoi(argv[5]);
-    const bool do_log          = std::stoi(argv[6]);
-    const bool time_kernel     = std::stoi(argv[7]);
-    const int num_dim_spatial  = std::stoi(argv[8]);
+    const auto index_type      = static_cast<IndexType>(std::stoi(argv[4]));
+    const bool do_verification = std::stoi(argv[5]);
+    const int init_method      = std::stoi(argv[6]);
+    const bool do_log          = std::stoi(argv[7]);
+    const bool time_kernel     = std::stoi(argv[8]);
+    const int num_dim_spatial  = std::stoi(argv[9]);
 
-    // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial)
+    // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
+    if(argc != 9 + 1 + 4 + 6 * num_dim_spatial)
     {
         print_helper_msg();
         return 1;
     }
 
-    const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 9, argv);
+    const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 10, argv);
 
     using F32  = float;
     using F16  = ck::half_t;
@@ -138,18 +146,43 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
         using AComputeType = decltype(a_compute_type);
         using BComputeType = decltype(b_compute_type);
 
-        bool pass = ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
-                                                                InLayout,
-                                                                WeiLayout,
-                                                                OutLayout,
-                                                                InDataType,
-                                                                WeiDataType,
-                                                                OutDataType,
-                                                                AComputeType,
-                                                                BComputeType>(
-            do_verification, init_method, do_log, time_kernel, params);
+        if(index_type == IndexType::INDEX_T)
+        {
+            bool pass = ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
+                                                                    InLayout,
+                                                                    WeiLayout,
+                                                                    OutLayout,
+                                                                    InDataType,
+                                                                    WeiDataType,
+                                                                    OutDataType,
+                                                                    AComputeType,
+                                                                    BComputeType,
+                                                                    ck::index_t>(
+                do_verification, init_method, do_log, time_kernel, params);
 
-        return pass ? 0 : 1;
+            return pass ? 0 : 1;
+        }
+        else if(index_type == IndexType::LONG_INDEX_T)
+        {
+            bool pass = ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
+                                                                    InLayout,
+                                                                    WeiLayout,
+                                                                    OutLayout,
+                                                                    InDataType,
+                                                                    WeiDataType,
+                                                                    OutDataType,
+                                                                    AComputeType,
+                                                                    BComputeType,
+                                                                    ck::long_index_t>(
+                do_verification, init_method, do_log, time_kernel, params);
+
+            return pass ? 0 : 1;
+        }
+        else
+        {
+            std::cout << "this indexing data type is not implemented" << std::endl;
+            return 1;
+        }
     };
 
     // GNHWC_GKYXC_GNHWK
