@@ -560,7 +560,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_q)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<VDataType> v_host(
-        USE_PAGED_VCACHE && 0 < page_block_size
+        0 < page_block_size
             ? (is_v_rowmajor
                    ? get_lengths(i_perm, max_num_blocks, nhead_k, page_block_size, hdim_v)
                    : get_lengths(i_perm, max_num_blocks, nhead_k, hdim_v, page_block_size))
@@ -884,9 +884,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             if(is_v_rowmajor)
                 return i_perm ? hdim_v : nhead_k * hdim_v;
             else
-                return USE_PAGED_VCACHE && 0 < page_block_size
-                           ? (i_perm ? page_block_size : nhead_k * page_block_size)
-                           : (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
+                return 0 < page_block_size ? (i_perm ? page_block_size : nhead_k * page_block_size)
+                                           : (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
         }();
         const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
@@ -899,13 +898,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                  : (i_perm ? shape_seqlen_k * hdim_q : hdim_q));
         const ck_tile::index_t nhead_stride_v = [&]() {
             if(is_v_rowmajor)
-                return USE_PAGED_VCACHE && 0 < page_block_size
-                           ? (i_perm ? page_block_size * hdim_v : hdim_v)
-                           : (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
+                return 0 < page_block_size ? (i_perm ? page_block_size * hdim_v : hdim_v)
+                                           : (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
             else
-                return USE_PAGED_VCACHE && 0 < page_block_size
-                           ? (i_perm ? hdim_v * page_block_size : page_block_size)
-                           : (i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k);
+                return 0 < page_block_size ? (i_perm ? hdim_v * page_block_size : page_block_size)
+                                           : (i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k);
         }();
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
@@ -920,8 +917,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             (0 < page_block_size ? (nhead_k * page_block_size * hdim_q)
                                  : (nhead_k * shape_seqlen_k * hdim_q));
         const ck_tile::index_t batch_stride_v =
-            (USE_PAGED_VCACHE && 0 < page_block_size ? (nhead_k * hdim_v * page_block_size)
-                                                     : (nhead_k * hdim_v * shape_seqlen_k));
+            (0 < page_block_size ? (nhead_k * hdim_v * page_block_size)
+                                 : (nhead_k * hdim_v * shape_seqlen_k));
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * max_seqlen_q);
@@ -1128,7 +1125,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             });
         }
 #endif
-        if (USE_PAGED_VCACHE && 0 < page_block_size) {
+        if (0 < page_block_size) {
             if (is_v_rowmajor) {
                 if(i_perm) {
                     v_host_ref.ForEach([&](auto& self, auto i) { 
