@@ -533,62 +533,6 @@ struct FmhaFwdSplitKVKernel
         const long_index_t batch_offset_o_acc =
             static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
 
-        auto k_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
-            if constexpr(kIsPagedKV)
-            {
-                const auto* block_indices =
-                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
-                const index_t num_blocks =
-                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
-
-                const long_index_t fixed_offset =
-                    static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
-                    kargs.nhead_stride_k;
-
-                return PagedTileWindowNavigator<const KDataType, 0>(kargs.k_ptr,
-                                                                    kargs.batch_stride_k,
-                                                                    fixed_offset,
-                                                                    block_indices,
-                                                                    num_blocks,
-                                                                    kargs.page_block_size);
-            }
-            else
-            {
-                return SimpleTileWindowNavigator<const KDataType>();
-            }
-        }();
-
-        auto v_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
-            if constexpr(kIsPagedKV)
-            {
-#if USE_PAGED_VCACHE
-                const auto* block_indices =
-                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
-                    i_batch_ * kargs.batch_stride_block_table;
-                const index_t num_blocks =
-                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
-
-                const long_index_t fixed_offset =
-                    static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
-                    kargs.nhead_stride_v;
-
-                return PagedTileWindowNavigator<const VDataType, 1>(kargs.v_ptr,
-                                                                    kargs.batch_stride_v,
-                                                                    fixed_offset,
-                                                                    block_indices,
-                                                                    num_blocks,
-                                                                    kargs.page_block_size);
-#else
-                return SimpleTileWindowNavigator<const VDataType>();
-#endif
-            }
-            else
-            {
-                return SimpleTileWindowNavigator<const VDataType>();
-            }
-        }();
-
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
@@ -659,6 +603,58 @@ struct FmhaFwdSplitKVKernel
                     static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
             }
         }
+
+        auto k_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+            if constexpr(kIsPagedKV)
+            {
+                const auto* block_indices =
+                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
+                    i_batch_ * kargs.batch_stride_block_table;
+                const index_t num_blocks =
+                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+
+                const long_index_t fixed_offset =
+                    static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
+                    kargs.nhead_stride_k;
+
+                return PagedTileWindowNavigator<const KDataType, 0>(kargs.k_ptr,
+                                                                    kargs.batch_stride_k,
+                                                                    fixed_offset,
+                                                                    block_indices,
+                                                                    num_blocks,
+                                                                    kargs.page_block_size);
+            }
+            else
+            {
+                return SimpleTileWindowNavigator<const KDataType>();
+            }
+        }();
+
+        auto v_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+            if constexpr(kIsPagedKV)
+            {
+                const auto* block_indices =
+                    reinterpret_cast<const int32_t*>(kargs.block_table_ptr) +
+                    i_batch_ * kargs.batch_stride_block_table;
+                const index_t num_blocks =
+                    integer_divide_ceil(kargs.seqlen_k, kargs.page_block_size);
+
+                const long_index_t fixed_offset =
+                    static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
+                    kargs.nhead_stride_v;
+
+                return PagedTileWindowNavigator<const VDataType, 1>(kargs.v_ptr,
+                                                                    kargs.batch_stride_v,
+                                                                    fixed_offset,
+                                                                    block_indices,
+                                                                    num_blocks,
+                                                                    kargs.page_block_size);
+            }
+            else
+            {
+                return SimpleTileWindowNavigator<const VDataType>();
+            }
+        }();
 
         // for simplicity, batch stride we just modify the pointer
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) +
