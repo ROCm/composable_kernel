@@ -183,6 +183,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
+    float best_kbatch     = 0;
 
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
@@ -197,7 +198,6 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
 
         for(std::size_t i = 0; i < kbatch_list.size(); i++)
         {
-
             auto kbatch_curr = kbatch_list[i];
 
             auto argument_ptr = op_ptr->MakeArgumentPointer(
@@ -213,7 +213,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                 StrideB,
                 std::array<ck::index_t, 2>{StrideD0, StrideD1},
                 StrideE,
-                KBatch,
+                kbatch_curr,
                 a_element_op,
                 b_element_op,
                 c_element_op);
@@ -269,7 +269,8 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                 float gb_per_sec = num_btype / 1.E6 / ave_time;
 
                 std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
-                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
+                          << kbatch_curr << std::endl;
 
 #if defined CK_ENABLE_FP8
                 // set softer tolerances for fp8
@@ -296,6 +297,7 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
                     best_tflops     = tflops;
                     best_ave_time   = ave_time;
                     best_gb_per_sec = gb_per_sec;
+                    best_kbatch     = kbatch_curr;
                 }
             }
             else
@@ -342,9 +344,9 @@ bool profile_gemm_multiply_multiply_impl(int do_verification,
     }
 
     std::cout << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << StrideA
-              << " StrideB = " << StrideB << " StrideE = " << StrideE << " : " << best_ave_time
-              << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
-              << best_op_name << std::endl;
+              << " StrideB = " << StrideB << " StrideE = " << StrideE << " : "
+              << " KBatch = " << best_kbatch << " : " << best_ave_time << " ms, " << best_tflops
+              << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
 
     return pass;
 }
