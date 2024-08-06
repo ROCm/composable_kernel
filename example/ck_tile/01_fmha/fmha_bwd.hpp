@@ -187,7 +187,6 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.nhead_stride_dk,
                                                   args.nhead_stride_dv,
                                                   args.nhead_stride_dbias,
-                                                  args.batch_stride_lsed,
                                                   args.split_stride_dq_acc,
                                                   args.window_size_left,
                                                   args.window_size_right,
@@ -278,8 +277,7 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
                                                      args.stride_o,
                                                      args.nhead_stride_do,
                                                      args.nhead_stride_o,
-                                                     args.nhead_stride_lsed,
-                                                     args.batch_stride_lsed);
+                                                     args.nhead_stride_lsed);
         }
         else
         { // create batch mode kernel arguments

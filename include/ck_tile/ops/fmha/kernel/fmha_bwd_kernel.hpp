@@ -155,8 +155,6 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::index_t nhead_stride_dq_acc;
         ck_tile::index_t nhead_stride_dk;
         ck_tile::index_t nhead_stride_dv;
-
-        ck_tile::index_t batch_stride_lsed;
     };
 
     struct FmhaBwdCommonBiasKargs
@@ -246,6 +244,7 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
         ck_tile::index_t batch_stride_do;
+        ck_tile::index_t batch_stride_lsed;
         ck_tile::index_t batch_stride_dq_acc;
         ck_tile::index_t batch_stride_dk;
         ck_tile::index_t batch_stride_dv;
@@ -361,17 +360,17 @@ struct FmhaBwdDQDKDVKernel
                      nhead_stride_lsed,
                      nhead_stride_dq_acc,
                      nhead_stride_dk,
-                     nhead_stride_dv,
-                     batch_stride_lsed}, // args for common karg
-                    {},                  // placeholder for bias
-                    {},                  // placeholder for dbias
-                    {},                  // placeholder for mask
-                    {},                  // placeholder for dropout
-                    {},                  // placeholder for deterministic
+                     nhead_stride_dv}, // args for common karg
+                    {},                // placeholder for bias
+                    {},                // placeholder for dbias
+                    {},                // placeholder for mask
+                    {},                // placeholder for dropout
+                    {},                // placeholder for deterministic
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
                     batch_stride_do,
+                    batch_stride_lsed,
                     batch_stride_dq_acc,
                     batch_stride_dk,
                     batch_stride_dv};
@@ -467,7 +466,6 @@ struct FmhaBwdDQDKDVKernel
               ck_tile::index_t nhead_stride_dk,
               ck_tile::index_t nhead_stride_dv,
               ck_tile::index_t nhead_stride_dbias,
-              ck_tile::index_t batch_stride_lsed,
               ck_tile::index_t split_stride_dq_acc,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
@@ -506,13 +504,12 @@ struct FmhaBwdDQDKDVKernel
                      nhead_stride_lsed,
                      nhead_stride_dq_acc,
                      nhead_stride_dk,
-                     nhead_stride_dv,
-                     batch_stride_lsed}, // args for common karg
-                    {},                  // placeholder for bias
-                    {},                  // placeholder for dbias
-                    {},                  // placeholder for mask
-                    {},                  // placeholder for dropout
-                    {},                  // placeholder for deterministic
+                     nhead_stride_dv}, // args for common karg
+                    {},                // placeholder for bias
+                    {},                // placeholder for dbias
+                    {},                // placeholder for mask
+                    {},                // placeholder for dropout
+                    {},                // placeholder for deterministic
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
@@ -615,7 +612,7 @@ struct FmhaBwdDQDKDVKernel
             batch_offset_k      = key_start * kargs.stride_k;
             batch_offset_v      = key_start * kargs.stride_v;
             batch_offset_do     = query_start * kargs.stride_do;
-            batch_offset_lsed   = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lsed;
+            batch_offset_lsed   = query_start;
             batch_offset_dq_acc = query_start * kargs.stride_dq_acc;
             batch_offset_dk     = key_start * kargs.stride_dk;
             batch_offset_dv     = key_start * kargs.stride_dv;
@@ -1142,13 +1139,13 @@ struct FmhaBwdOGradDotOKernel
         ck_tile::index_t nhead_stride_do;
         ck_tile::index_t nhead_stride_o;
         ck_tile::index_t nhead_stride_d;
-        ck_tile::index_t batch_stride_d;
     };
 
     struct FmhaBwdOGradDotOBatchModeKargs : FmhaBwdOGradDotOCommonKargs
     {
         ck_tile::index_t batch_stride_do;
         ck_tile::index_t batch_stride_o;
+        ck_tile::index_t batch_stride_d;
     };
 
     struct FmhaBwdOGradDotOGroupModeKargs : FmhaBwdOGradDotOCommonKargs
@@ -1186,10 +1183,10 @@ struct FmhaBwdOGradDotOKernel
                      stride_o,
                      nhead_stride_do,
                      nhead_stride_o,
-                     nhead_stride_d,
-                     batch_stride_d},
+                     nhead_stride_d},
                     batch_stride_do,
-                    batch_stride_o};
+                    batch_stride_o,
+                    batch_stride_d};
 
         return kargs;
     }
@@ -1206,8 +1203,7 @@ struct FmhaBwdOGradDotOKernel
               ck_tile::index_t stride_o,
               ck_tile::index_t nhead_stride_do,
               ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t nhead_stride_d,
-              ck_tile::index_t batch_stride_d)
+              ck_tile::index_t nhead_stride_d)
     {
         Kargs kargs{{o_ptr,
                      do_ptr,
@@ -1219,8 +1215,7 @@ struct FmhaBwdOGradDotOKernel
                      stride_o,
                      nhead_stride_do,
                      nhead_stride_o,
-                     nhead_stride_d,
-                     batch_stride_d},
+                     nhead_stride_d},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
 
         return kargs;
@@ -1263,7 +1258,7 @@ struct FmhaBwdOGradDotOKernel
 
             batch_offset_o  = query_start * kargs.stride_o;
             batch_offset_do = query_start * kargs.stride_do;
-            batch_offset_d  = static_cast<long_index_t>(i_batch) * kargs.batch_stride_d;
+            batch_offset_d  = query_start;
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;

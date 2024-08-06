@@ -287,9 +287,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<ODataType> o_host(
         get_lengths(o_perm, shape_batch, nhead, shape_seqlen_q, hdim_v));
     ck_tile::HostTensor<LSEDataType> lse_host(
-        std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q});
+        std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<DDataType> d_host(
-        std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q});
+        std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<RandValOutputDataType> randval_host(
         p_drop > 0 ? get_lengths(true, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
@@ -441,7 +441,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
-        const ck_tile::index_t nhead_stride_lsed    = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
         // setup batch_stride_* arguments
@@ -452,7 +452,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_do      = (nhead * shape_seqlen_q * hdim_v);
-        const ck_tile::index_t batch_stride_lsed    = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_lsed    = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
         const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
@@ -749,7 +749,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(o_perm) o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[0], idx[1] + query_offset, idx[2]) = self(idx); });
         else       o_host_ref.ForEach([&](auto& self, auto idx) { o_host(b, idx[1] + query_offset, idx[0], idx[2]) = self(idx); });
 
-        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(wb, idx[0], idx[1]) = self(idx); });
+        lse_host_ref.ForEach([&](auto& self, auto idx) { lse_host(b, idx[0], idx[1] + query_offset) = self(idx); });
         // clang-format on
 
         q_host_refs.push_back(q_host_ref);
