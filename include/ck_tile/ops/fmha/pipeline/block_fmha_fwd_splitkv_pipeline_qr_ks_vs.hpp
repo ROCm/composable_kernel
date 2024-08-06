@@ -231,7 +231,16 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         }();
         const auto num_total_loop =
             integer_divide_ceil(seqlen_k_end - adjusted_seqlen_k_start, kN0);
-
+#if 0
+        DEVICE_DEBUG_STMTS
+        {
+            printf("[DEVICE] seqlen_k_start: %d, seqlen_k_end: %d\n", seqlen_k_start, seqlen_k_end);
+            printf("[DEVICE] adjusted_seqlen_k_start: %d, num_total_loop: %d\n",
+                   adjusted_seqlen_k_start,
+                   num_total_loop);
+            printf("[DEVICE] kHasUnevenSplits: %d\n", kHasUnevenSplits);
+        }
+#endif
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking || kHasUnevenSplits)
         {
@@ -261,7 +270,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         auto bias_dram_window  = make_tile_window(
             bias_dram_block_window_tmp.get_bottom_tensor_view(),
             bias_dram_block_window_tmp.get_window_lengths(),
-            {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+            {bias_origin.at(number<0>{}), adjusted_seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
