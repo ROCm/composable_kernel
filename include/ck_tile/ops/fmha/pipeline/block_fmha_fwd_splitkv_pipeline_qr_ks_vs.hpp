@@ -274,7 +274,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
+            randval_dram_block_window_tmp, adjusted_seqlen_k_start);
 
         auto [i_block1, v_dram_window] = v_tile_navigator.make_tile_window(
             v_dram_block_window_tmp,
