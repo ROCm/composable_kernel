@@ -185,7 +185,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_stride_randval,
                                          args.nhead_stride_lse,
                                          args.nhead_stride_o,
-                                         args.batch_stride_lse,
                                          args.window_size_left,
                                          args.window_size_right,
                                          args.mask_type,
