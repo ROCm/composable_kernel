@@ -686,7 +686,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_o_acc   = (nhead * max_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         // setup split_stride_* arguments (only used in split-kv kernel)
-        const ck_tile::index_t split_stride_lse_acc = (batch * nhead * shape_seqlen_q);
+        const ck_tile::index_t split_stride_lse_acc = (shape_batch * nhead * shape_seqlen_q);
         const ck_tile::index_t split_stride_o_acc   = (batch * nhead * max_seqlen_q * hdim_v);
 
         return fmha_fwd_args{q_buf.GetDeviceBuffer(),
