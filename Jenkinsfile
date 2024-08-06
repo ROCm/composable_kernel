@@ -625,6 +625,17 @@ def process_results(Map conf=[:]){
         timeout(time: 1, unit: 'HOURS'){
             try{
                 dir("script"){
+                    if (params.RUN_CK_TILE_TESTS){
+                        try{
+                            unstash "perf_fmha_fwd_gfx942.log"
+                            unstash "perf_fmha_bwd_gfx942.log"
+                            unstash "perf_fmha_fwd_gfx90a.log"
+                            unstash "perf_fmha_bwd_gfx90a.log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                        }
+                    }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
@@ -649,17 +660,6 @@ def process_results(Map conf=[:]){
                         unstash "perf_resnet50_N256.log"
                         unstash "perf_resnet50_N4.log"
                         sh "./process_perf_data.sh"
-                    }
-                    if (params.RUN_CK_TILE_TESTS){
-                        try{
-                            unstash "perf_fmha_fwd_gfx942.log"
-                            unstash "perf_fmha_bwd_gfx942.log"
-                            unstash "perf_fmha_fwd_gfx90a.log"
-                            unstash "perf_fmha_bwd_gfx90a.log"
-                        }
-                        catch(Exception err){
-                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
-                        }
                     }
                 }
             }
