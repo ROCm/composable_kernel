@@ -151,9 +151,8 @@ struct BlockFmhaFwdAppendKVPipeline
             if constexpr(kIsPagedKV)
             {
                 store_tile(k_dram_block_window, knew_tile);
-
                 // write tile to another block if nesscary
-                if(k_tile_navigator.is_closs_block(k_dram_block_window))
+                if(k_tile_navigator.is_cross_block(i_block0, k_dram_block_window))
                 {
                     k_tile_navigator.move_to_block(i_block0, k_dram_block_window, i_block0 + 1);
                     store_tile(k_dram_block_window, knew_tile);
@@ -176,9 +175,8 @@ struct BlockFmhaFwdAppendKVPipeline
             if constexpr(kIsPagedKV)
             {
                 store_tile(v_dram_block_window, vnew_tile);
-
                 // write tile to another block if nesscary
-                if(v_tile_navigator.is_closs_block(v_dram_block_window))
+                if(v_tile_navigator.is_cross_block(i_block1, v_dram_block_window))
                 {
                     v_tile_navigator.move_to_block(i_block1, v_dram_block_window, i_block1 + 1);
                     store_tile(v_dram_block_window, vnew_tile);

@@ -140,10 +140,12 @@ struct PagedTileWindowNavigator
     }
 
     template <typename TileWindow>
-    CK_TILE_HOST_DEVICE bool is_closs_block(const TileWindow& tile_window) const
+    CK_TILE_HOST_DEVICE bool is_cross_block(index_t block_index,
+                                            const TileWindow& tile_window) const
     {
-        return page_block_size < (tile_window.get_window_origin().at(number<VirtualDim>{}) +
-                                  tile_window.get_window_lengths().at(number<VirtualDim>{}));
+        const index_t origin = tile_window.get_window_origin().at(number<VirtualDim>{});
+        const index_t length = tile_window.get_window_lengths().at(number<VirtualDim>{});
+        return (block_index < num_blocks - 1) && (page_block_size < origin + length);
     }
 
     template <typename TileWindow>
