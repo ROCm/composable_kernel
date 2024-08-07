@@ -100,12 +100,15 @@ struct fmha_fwd_args
     void* o_acc_ptr;
     void* lse_ptr;
     void* o_ptr;
+
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr;
+
     void* block_table_ptr;
     ck_tile::index_t batch_stride_block_table;
     ck_tile::index_t page_block_size;
+
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -178,6 +181,10 @@ struct fmha_fwd_appendkv_args
     const void* rotary_cos_ptr;
     const void* rotary_sin_ptr;
     ck_tile::index_t rotary_dim;
+
+    void* block_table_ptr;
+    ck_tile::index_t batch_stride_block_table;
+    ck_tile::index_t page_block_size;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -688,7 +695,8 @@ template <ck_tile::index_t HDim_,
           bool kPadSk_,
           bool kPadD_,
           bool kPadDv_,
-          ck_tile::RotaryEmbeddingEnum RotaryEnum_>
+          ck_tile::RotaryEmbeddingEnum RotaryEnum_,
+          bool kIsPagedKV_>
 struct fmha_fwd_appendkv_traits_
 {
     static constexpr ck_tile::index_t HDim        = HDim_;
@@ -704,6 +712,7 @@ struct fmha_fwd_appendkv_traits_
     static constexpr bool kPadD                   = kPadD_;
     static constexpr bool kPadDv                  = kPadDv_;
     static constexpr auto RotaryEnum              = RotaryEnum_;
+    static constexpr bool kIsPagedKV              = kIsPagedKV_;
 };
 
 template <typename Traits_>

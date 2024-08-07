@@ -546,9 +546,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         (mode == mode_enum::batch ? seqlen_ks[0]
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
                                                          : seqstart_k_with_padding_host.back()));
-
+#ifdef ENABLE_HOST_DEBUG_MSG
     std::cerr << "[HOST] num_blocks: " << max_num_blocks << std::endl;
-
+#endif
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
     ck_tile::HostTensor<KDataType> k_host(
@@ -798,48 +798,52 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     return i_perm ? hdim_v * seqlen_knew : seqlen_knew;
             }();
             // setup batch_stride_* arguments
-            const ck_tile::index_t batch_stride_q    = (nhead * shape_seqlen_q * hdim_q);
-            const ck_tile::index_t batch_stride_k    = (nhead_k * shape_seqlen_k * hdim_q);
-            const ck_tile::index_t batch_stride_knew = (nhead_k * seqlen_knew * hdim_q);
-            const ck_tile::index_t batch_stride_v    = (nhead_k * hdim_v * shape_seqlen_k);
-            const ck_tile::index_t batch_stride_vnew = (nhead_k * hdim_v * seqlen_knew);
+            const ck_tile::index_t batch_stride_q           = (nhead * shape_seqlen_q * hdim_q);
+            const ck_tile::index_t batch_stride_k           = (nhead_k * shape_seqlen_k * hdim_q);
+            const ck_tile::index_t batch_stride_knew        = (nhead_k * seqlen_knew * hdim_q);
+            const ck_tile::index_t batch_stride_v           = (nhead_k * hdim_v * shape_seqlen_k);
+            const ck_tile::index_t batch_stride_vnew        = (nhead_k * hdim_v * seqlen_knew);
+            const ck_tile::index_t batch_stride_block_table = (max_num_blocks / batch);
 
-            return fmha_fwd_appendkv_args{q_buf.GetDeviceBuffer(),
-                                          k_buf.GetDeviceBuffer(),
-                                          knew_buf.GetDeviceBuffer(),
-                                          v_buf.GetDeviceBuffer(),
-                                          vnew_buf.GetDeviceBuffer(),
-                                          seqstart_q.GetDeviceBuffer(),
-                                          seqstart_k.GetDeviceBuffer(),
-                                          cache_seqlen_k_buf.GetDeviceBuffer(),
-                                          batch,
-                                          nhead,
-                                          nhead_k,
-                                          shape_seqlen_q,
-                                          max_seqlen_q,
-                                          shape_seqlen_k -
-                                              seqlen_knew /* kvcache seqlen_k for batch mode */,
-                                          seqlen_knew,
-                                          hdim_q,
-                                          hdim_v,
-                                          rotary_cos_buf.GetDeviceBuffer(),
-                                          rotary_sin_buf.GetDeviceBuffer(),
-                                          rotary_dim,
-                                          stride_q,
-                                          stride_k,
-                                          stride_knew,
-                                          stride_v,
-                                          stride_vnew,
-                                          nhead_stride_q,
-                                          nhead_stride_k,
-                                          nhead_stride_knew,
-                                          nhead_stride_v,
-                                          nhead_stride_vnew,
-                                          batch_stride_q,
-                                          batch_stride_k,
-                                          batch_stride_knew,
-                                          batch_stride_v,
-                                          batch_stride_vnew};
+            return fmha_fwd_appendkv_args{
+                q_buf.GetDeviceBuffer(),
+                k_buf.GetDeviceBuffer(),
+                knew_buf.GetDeviceBuffer(),
+                v_buf.GetDeviceBuffer(),
+                vnew_buf.GetDeviceBuffer(),
+                seqstart_q.GetDeviceBuffer(),
+                seqstart_k.GetDeviceBuffer(),
+                cache_seqlen_k_buf.GetDeviceBuffer(),
+                batch,
+                nhead,
+                nhead_k,
+                shape_seqlen_q,
+                max_seqlen_q,
+                shape_seqlen_k - seqlen_knew /* kvcache seqlen_k for batch mode */,
+                seqlen_knew,
+                hdim_q,
+                hdim_v,
+                rotary_cos_buf.GetDeviceBuffer(),
+                rotary_sin_buf.GetDeviceBuffer(),
+                rotary_dim,
+                0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr,
+                batch_stride_block_table, // only used if 'block_table_ptr' is not nullptr
+                page_block_size,          // only used if 'block_table_ptr' is not nullptr
+                stride_q,
+                stride_k,
+                stride_knew,
+                stride_v,
+                stride_vnew,
+                nhead_stride_q,
+                nhead_stride_k,
+                nhead_stride_knew,
+                nhead_stride_v,
+                nhead_stride_vnew,
+                batch_stride_q,
+                batch_stride_k,
+                batch_stride_knew,
+                batch_stride_v,
+                batch_stride_vnew};
         }();
 
         appendkv_ave_time = fmha_fwd_appendkv(appendkv_traits, appendkv_args, stream_config);

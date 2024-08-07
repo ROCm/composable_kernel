@@ -33,6 +33,7 @@ struct BlockFmhaFwdAppendKVPipeline
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
     static constexpr auto RotaryEnum   = Problem::RotaryEnum;
+    static constexpr bool kIsPagedKV   = Problem::kIsPagedKV;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this

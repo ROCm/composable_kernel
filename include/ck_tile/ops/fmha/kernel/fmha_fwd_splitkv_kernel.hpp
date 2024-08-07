@@ -124,6 +124,7 @@ struct FmhaFwdSplitKVKernel
         // if this param is larger than 1, indicate MQA/GQA case
         ck_tile::index_t nhead_ratio_qk;
         ck_tile::index_t num_splits;
+
         const void* block_table_ptr;
         ck_tile::index_t batch_stride_block_table;
         ck_tile::index_t page_block_size;

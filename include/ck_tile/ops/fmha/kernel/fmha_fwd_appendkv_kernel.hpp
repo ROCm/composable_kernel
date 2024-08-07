@@ -32,6 +32,7 @@ struct FmhaFwdAppendKVKernel
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
     static constexpr bool kApplyRoPE   = FmhaPipeline::RotaryEnum != RotaryEmbeddingEnum::NONE;
+    static constexpr bool kIsPagedKV   = FmhaPipeline::Problem::kIsPagedKV;
 
     // clang-format off
     template <typename T> struct t2s;
@@ -62,7 +63,8 @@ struct FmhaFwdAppendKVKernel
             "b" + _TS_(FmhaPipeline::kM0) + "x" + _TS_(FmhaPipeline::kN0) + "x" + _TS_(FmhaPipeline::kK0) + "x" +
                   _TS_(FmhaPipeline::kN1) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
-            + (!kApplyRoPE ? _SS_("") : (_SS_("_") + RotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name));
+            + (!kApplyRoPE ? _SS_("") : (_SS_("_") + RotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name))
+            + (kIsPagedKV ? "_pagedkv" : "" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -95,7 +97,11 @@ struct FmhaFwdAppendKVKernel
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
         ck_tile::index_t nhead_ratio_qk;
-
+        /*
+        const void* block_table_ptr;
+        ck_tile::index_t batch_stride_block_table;
+        ck_tile::index_t page_block_size;
+        */
         ck_tile::index_t stride_q;
         ck_tile::index_t stride_k;
         ck_tile::index_t stride_knew;
