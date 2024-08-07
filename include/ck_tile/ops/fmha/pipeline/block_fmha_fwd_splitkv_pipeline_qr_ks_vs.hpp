@@ -231,16 +231,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         }();
         const auto num_total_loop =
             integer_divide_ceil(seqlen_k_end - adjusted_seqlen_k_start, kN0);
-#if 0
-        DEVICE_DEBUG_STMTS
-        {
-            printf("[DEVICE] seqlen_k_start: %d, seqlen_k_end: %d\n", seqlen_k_start, seqlen_k_end);
-            printf("[DEVICE] adjusted_seqlen_k_start: %d, num_total_loop: %d\n",
-                   adjusted_seqlen_k_start,
-                   num_total_loop);
-            printf("[DEVICE] kHasUnevenSplits: %d\n", kHasUnevenSplits);
-        }
-#endif
+
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking || kHasUnevenSplits)
         {
