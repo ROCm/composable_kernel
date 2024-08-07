@@ -40,11 +40,11 @@ struct ReferenceImageToColumn : public device::BaseOperator
         public:
         Argument(const Tensor<InDataType>& input,
                  Tensor<OutDataType>& output,
-                 std::vector<ck::index_t> filter_spatial_lengths,
-                 std::vector<ck::index_t> conv_filter_strides,
-                 std::vector<ck::index_t> conv_filter_dilations,
-                 std::vector<ck::index_t> input_left_pads,
-                 std::vector<ck::index_t> input_right_pads)
+                 std::vector<ck::long_index_t> filter_spatial_lengths,
+                 std::vector<ck::long_index_t> conv_filter_strides,
+                 std::vector<ck::long_index_t> conv_filter_dilations,
+                 std::vector<ck::long_index_t> input_left_pads,
+                 std::vector<ck::long_index_t> input_right_pads)
             : input_{input},
               output_{output},
               conv_strides_{conv_filter_strides},
@@ -59,13 +59,13 @@ struct ReferenceImageToColumn : public device::BaseOperator
         const Tensor<InDataType>& input_;
         Tensor<OutDataType>& output_;
 
-        std::vector<index_t> conv_strides_;
-        std::vector<index_t> conv_dilations_;
-        std::vector<index_t> in_left_pads_;
-        std::vector<index_t> in_right_pads_;
+        std::vector<long_index_t> conv_strides_;
+        std::vector<long_index_t> conv_dilations_;
+        std::vector<long_index_t> in_left_pads_;
+        std::vector<long_index_t> in_right_pads_;
 
-        std::vector<index_t> filter_spatial_lengths_;
-        std::vector<index_t> output_spatial_lengths_;
+        std::vector<long_index_t> filter_spatial_lengths_;
+        std::vector<long_index_t> output_spatial_lengths_;
 
         private:
         void initOutputSpatialLengths()
@@ -76,7 +76,8 @@ struct ReferenceImageToColumn : public device::BaseOperator
             {
                 // XEff = (X - 1) * conv_dilation_w + 1;
                 // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
-                const ck::index_t x_eff = (filter_spatial_lengths_[i] - 1) * conv_dilations_[i] + 1;
+                const ck::long_index_t x_eff =
+                    (filter_spatial_lengths_[i] - 1) * conv_dilations_[i] + 1;
 
                 output_spatial_lengths_.push_back(
                     (input_.GetLengths()[i + input_offset_to_spatial] + in_left_pads_[i] +
@@ -99,24 +100,24 @@ struct ReferenceImageToColumn : public device::BaseOperator
                 throw std::runtime_error("wrong! inconsistent dimension");
             }
 
-            const index_t G = arg.input_.GetLengths()[0];
-            const index_t N = arg.input_.GetLengths()[1];
-            const index_t C = arg.input_.GetLengths()[2];
+            const long_index_t G = arg.input_.GetLengths()[0];
+            const long_index_t N = arg.input_.GetLengths()[1];
+            const long_index_t C = arg.input_.GetLengths()[2];
 
             if constexpr(NDimSpatial == 1)
             {
-                const index_t Wo = arg.output_spatial_lengths_[0];
-                auto func        = [&](auto g, auto n, auto wo) {
-                    index_t row    = n * Wo + wo;
-                    index_t column = 0;
+                const long_index_t Wo = arg.output_spatial_lengths_[0];
+                auto func             = [&](auto g, auto n, auto wo) {
+                    long_index_t row    = n * Wo + wo;
+                    long_index_t column = 0;
 
-                    for(index_t x = 0; x < arg.filter_spatial_lengths_[0]; ++x)
+                    for(long_index_t x = 0; x < arg.filter_spatial_lengths_[0]; ++x)
                     {
                         auto wi = static_cast<ck::long_index_t>(wo * arg.conv_strides_[0]) +
                                   static_cast<ck::long_index_t>(x * arg.conv_dilations_[0]) -
                                   static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
 
-                        for(index_t c = 0; c < C; ++c)
+                        for(long_index_t c = 0; c < C; ++c)
                         {
                             if(wi >= 0 &&
                                ck::type_convert<std::size_t>(wi) < arg.input_.GetLengths()[3])
@@ -135,26 +136,26 @@ struct ReferenceImageToColumn : public device::BaseOperator
             }
             else if constexpr(NDimSpatial == 2)
             {
-                const index_t Ho = arg.output_spatial_lengths_[0];
-                const index_t Wo = arg.output_spatial_lengths_[1];
+                const long_index_t Ho = arg.output_spatial_lengths_[0];
+                const long_index_t Wo = arg.output_spatial_lengths_[1];
 
                 auto func = [&](auto g, auto n, auto ho, auto wo) {
-                    index_t row    = n * Ho * Wo + ho * Wo + wo;
-                    index_t column = 0;
+                    long_index_t row    = n * Ho * Wo + ho * Wo + wo;
+                    long_index_t column = 0;
 
-                    for(index_t y = 0; y < arg.filter_spatial_lengths_[0]; ++y)
+                    for(long_index_t y = 0; y < arg.filter_spatial_lengths_[0]; ++y)
                     {
                         auto hi = static_cast<ck::long_index_t>(ho * arg.conv_strides_[0]) +
                                   static_cast<ck::long_index_t>(y * arg.conv_dilations_[0]) -
                                   static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
 
-                        for(index_t x = 0; x < arg.filter_spatial_lengths_[1]; ++x)
+                        for(long_index_t x = 0; x < arg.filter_spatial_lengths_[1]; ++x)
                         {
                             auto wi = static_cast<ck::long_index_t>(wo * arg.conv_strides_[1]) +
                                       static_cast<ck::long_index_t>(x * arg.conv_dilations_[1]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[1]);
 
-                            for(index_t c = 0; c < C; ++c)
+                            for(long_index_t c = 0; c < C; ++c)
                             {
 
                                 if(hi >= 0 &&
@@ -178,31 +179,31 @@ struct ReferenceImageToColumn : public device::BaseOperator
             }
             else if constexpr(NDimSpatial == 3)
             {
-                const index_t Do = arg.output_spatial_lengths_[0];
-                const index_t Ho = arg.output_spatial_lengths_[1];
-                const index_t Wo = arg.output_spatial_lengths_[2];
+                const long_index_t Do = arg.output_spatial_lengths_[0];
+                const long_index_t Ho = arg.output_spatial_lengths_[1];
+                const long_index_t Wo = arg.output_spatial_lengths_[2];
 
                 auto func = [&](auto g, auto n, auto d_o, auto ho, auto wo) {
-                    index_t row    = n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
-                    index_t column = 0;
+                    long_index_t row    = n * Do * Ho * Wo + d_o * Ho * Wo + ho * Wo + wo;
+                    long_index_t column = 0;
 
-                    for(index_t z = 0; z < arg.filter_spatial_lengths_[0]; ++z)
+                    for(long_index_t z = 0; z < arg.filter_spatial_lengths_[0]; ++z)
                     {
                         auto di = static_cast<ck::long_index_t>(d_o * arg.conv_strides_[0]) +
                                   static_cast<ck::long_index_t>(z * arg.conv_dilations_[0]) -
                                   static_cast<ck::long_index_t>(arg.in_left_pads_[0]);
-                        for(index_t y = 0; y < arg.filter_spatial_lengths_[1]; ++y)
+                        for(long_index_t y = 0; y < arg.filter_spatial_lengths_[1]; ++y)
                         {
                             auto hi = static_cast<ck::long_index_t>(ho * arg.conv_strides_[1]) +
                                       static_cast<ck::long_index_t>(y * arg.conv_dilations_[1]) -
                                       static_cast<ck::long_index_t>(arg.in_left_pads_[1]);
-                            for(index_t x = 0; x < arg.filter_spatial_lengths_[2]; ++x)
+                            for(long_index_t x = 0; x < arg.filter_spatial_lengths_[2]; ++x)
                             {
                                 auto wi =
                                     static_cast<ck::long_index_t>(wo * arg.conv_strides_[2]) +
                                     static_cast<ck::long_index_t>(x * arg.conv_dilations_[2]) -
                                     static_cast<ck::long_index_t>(arg.in_left_pads_[2]);
-                                for(index_t c = 0; c < C; ++c)
+                                for(long_index_t c = 0; c < C; ++c)
                                 {
                                     if(di >= 0 &&
                                        ck::type_convert<std::size_t>(di) <
@@ -259,15 +260,15 @@ struct ReferenceImageToColumn : public device::BaseOperator
 
     bool IsSupportedArgument(const Argument& arg)
     {
-        const ck::index_t G = arg.input_.GetLengths()[0];
-        const ck::index_t N = arg.input_.GetLengths()[1];
-        const ck::index_t C = arg.input_.GetLengths()[2];
+        const ck::long_index_t G = arg.input_.GetLengths()[0];
+        const ck::long_index_t N = arg.input_.GetLengths()[1];
+        const ck::long_index_t C = arg.input_.GetLengths()[2];
 
-        const index_t NDoHoWo =
-            N * ck::accumulate_n<index_t>(
+        const long_index_t NDoHoWo =
+            N * ck::accumulate_n<long_index_t>(
                     arg.output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
-        const index_t CZYX =
-            C * ck::accumulate_n<index_t>(
+        const long_index_t CZYX =
+            C * ck::accumulate_n<long_index_t>(
                     arg.filter_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
         if(!(arg.output_.GetLengths()[0] == static_cast<std::size_t>(G) &&
@@ -291,11 +292,11 @@ struct ReferenceImageToColumn : public device::BaseOperator
 
     static auto MakeArgument(const Tensor<InDataType>& input,
                              Tensor<OutDataType>& output,
-                             std::vector<ck::index_t> filter_spatial_lengths,
-                             std::vector<ck::index_t> conv_filter_strides,
-                             std::vector<ck::index_t> conv_filter_dilations,
-                             std::vector<ck::index_t> input_left_pads,
-                             std::vector<ck::index_t> input_right_pads)
+                             std::vector<ck::long_index_t> filter_spatial_lengths,
+                             std::vector<ck::long_index_t> conv_filter_strides,
+                             std::vector<ck::long_index_t> conv_filter_dilations,
+                             std::vector<ck::long_index_t> input_left_pads,
+                             std::vector<ck::long_index_t> input_right_pads)
     {
         return Argument{input,
                         output,
