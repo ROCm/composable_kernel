@@ -331,13 +331,18 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             auto op_r = src_thread_scratch_tuple_(thread_scratch_id)
                             .template GetAsType<vector_t>(src_data_idx_seq);
 
+#if 0
             const bool is_src_valid = src_oob_thread_scratch_tuple_(thread_scratch_id)
-                                          .template GetAsType<bool>(src_data_idx_seq);
+                .template GetAsType<bool>(src_data_idx_seq);
 
             auto op_r_v = is_src_valid ? op_r : vector_t(0);
 
             src_thread_scratch_tuple_(thread_scratch_id)
                 .template SetAsType<vector_t>(src_data_idx_seq, op_r_v);
+#else
+            src_thread_scratch_tuple_(thread_scratch_id)
+                .template SetAsType<vector_t>(src_data_idx_seq, op_r);
+#endif
         });
 
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
