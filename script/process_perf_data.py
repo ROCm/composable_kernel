@@ -143,6 +143,12 @@ def parse_logfile(logfile):
             if 'Best Perf' in line:
                 lst=line.split()
                 res.append(lst[36])
+    elif 'perf_fmha' in logfile:
+        for line in open(logfile):
+            if 'TFlops' in line:
+                lst=line.split()
+                line_dict=dict(zip(lst[1:],lst))
+                res.append(line_dict['TFlops,'])
     return res
 
 
@@ -304,6 +310,14 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_mixed_gemm_tflops"
+        if 'fmha_fwd' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_fmha_fwd_tflops"
+        if 'fmha_bwd' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_fmha_bwd_tflops"
 
         tflops_base = get_baseline(table_name,conn)
         store_new_test_result(table_name, results, testlist, branch_name, node_id, gpu_arch, compute_units, rocm_vers, hip_vers, environment, conn)
