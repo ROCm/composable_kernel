@@ -403,6 +403,16 @@ struct FmhaFwdAppendKVKernel
                 const index_t num_blocks =
                     integer_divide_ceil(kargs.seqlen_k + kargs.seqlen_knew, kargs.page_block_size);
 
+                DEVICE_DEBUG_STMTS
+                {
+                    printf("[DEVICE] block_indics: ");
+                    for(index_t i_block = 0; i_block < num_blocks; ++i_block)
+                    {
+                        printf("(%d, %d) ", i_block, block_indices[i_block]);
+                    }
+                    printf("\n");
+                }
+
                 const long_index_t fixed_offset =
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                     kargs.nhead_stride_v;
@@ -734,25 +744,45 @@ struct FmhaFwdAppendKVKernel
 
         auto [i_block1, v_dram_window_tmp] = v_tile_navigator.make_tile_window(
             v_dram_window, {0, skip_append_kv ? 0 : kargs.seqlen_k + i_n0});
-        DEVICE_DEBUG_STMTS
+        if constexpr(kIsPagedKV)
         {
-            printf("[DEVICE] i_block1: %d\n", i_block1);
-            auto local_origin = v_dram_window_tmp.get_window_origin();
-            printf("[DEVICE] origin: (%d, %d)\n",
-                   local_origin.at(number<0>{}),
-                   local_origin.at(number<1>{}));
+            DEVICE_DEBUG_STMTS
+            {
+                printf("[DEVICE] i_block1: %d\n", i_block1);
+                auto local_origin = v_dram_window_tmp.get_window_origin();
+                printf("[DEVICE] origin: (%d, %d)\n",
+                       local_origin.at(number<0>{}),
+                       local_origin.at(number<1>{}));
+
+                printf("[DEVICE] psychical block_ptr 0: %p\n",
+                       static_cast<void*>(v_tile_navigator.physical_blocks +
+                                          0 * v_tile_navigator.block_stride));
+                printf("[DEVICE] psychical block_ptr 1: %p\n",
+                       static_cast<void*>(v_tile_navigator.physical_blocks +
+                                          1 * v_tile_navigator.block_stride));
+
+                printf("[DEVICE] tile window data ptr: %p\n",
+                       static_cast<void*>(v_dram_window_tmp.get_bottom_tensor_view().buf_.p_data_));
+            }
         }
         auto vnew_dram_window =
             make_tile_window(vnew_dram,
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
                              {0, i_n0});
-
+        DEVICE_DEBUG_STMTS
+        {
+            printf("[DEVICE] skip_transform_q: %d, skip_appendkv: %d\n",
+                   kargs.seqlen_q <= i_m0,
+                   kargs.seqlen_knew <= i_n0);
+        }
         if constexpr(kApplyRoPE)
         {
             FmhaPipeline{}(q_dram_window,
                            k_dram_window_tmp,
+                           i_block0,
                            knew_dram_window,
                            v_dram_window_tmp,
+                           i_block1,
                            vnew_dram_window,
                            q_rotary_cos_dram_window,
                            q_rotary_sin_dram_window,
@@ -768,8 +798,10 @@ struct FmhaFwdAppendKVKernel
         {
             FmhaPipeline{}(q_dram_window,
                            k_dram_window_tmp,
+                           i_block0,
                            knew_dram_window,
                            v_dram_window_tmp,
+                           i_block1,
                            vnew_dram_window,
                            q_rotary_cos_dram_window,
                            q_rotary_sin_dram_window,

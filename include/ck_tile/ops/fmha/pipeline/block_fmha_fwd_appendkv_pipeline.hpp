@@ -89,10 +89,12 @@ struct BlockFmhaFwdAppendKVPipeline
     CK_TILE_HOST_DEVICE auto
     operator()(QDramBlockWindow& q_dram_block_window, // M0*K0 tile
                const QElementFunction& q_element_func,
-               KDramBlockWindow& k_dram_block_window,             // N0*K0 tile
+               KDramBlockWindow& k_dram_block_window, // N0*K0 tile
+               index_t i_block0,
                const KnewDramBlockWindow& knew_dram_block_window, // N0*K0 tile
                const KnewElementFunction& knew_element_func,
-               VDramBlockWindow& v_dram_block_window,             // N1*N0 tile
+               VDramBlockWindow& v_dram_block_window, // N1*N0 tile
+               index_t i_block1,
                const VnewDramBlockWindow& vnew_dram_block_window, // N1*N0 tile
                const VnewElementFunction& vnew_element_func,
                const QRotaryCosDramBlockWindow q_rotary_cos_dram_block_window,
@@ -148,8 +150,14 @@ struct BlockFmhaFwdAppendKVPipeline
 
             if constexpr(kIsPagedKV)
             {
-                /// TODO: handle cross-page-block write
                 store_tile(k_dram_block_window, knew_tile);
+
+                // write tile to another block if nesscary
+                if(k_tile_navigator.is_closs_block(k_dram_block_window))
+                {
+                    k_tile_navigator.move_to_block(i_block0, k_dram_block_window, i_block0 + 1);
+                    store_tile(k_dram_block_window, knew_tile);
+                }
             }
             else
             {
@@ -167,8 +175,14 @@ struct BlockFmhaFwdAppendKVPipeline
 
             if constexpr(kIsPagedKV)
             {
-                /// TODO: handle cross-page-block write
                 store_tile(v_dram_block_window, vnew_tile);
+
+                // write tile to another block if nesscary
+                if(v_tile_navigator.is_closs_block(v_dram_block_window))
+                {
+                    v_tile_navigator.move_to_block(i_block1, v_dram_block_window, i_block1 + 1);
+                    store_tile(v_dram_block_window, vnew_tile);
+                }
             }
             else
             {
@@ -229,8 +243,10 @@ struct BlockFmhaFwdAppendKVPipeline
     CK_TILE_HOST_DEVICE auto
     operator()(QDramBlockWindow& q_dram_block_window,
                KDramBlockWindow& k_dram_block_window,
+               index_t i_block0,
                const KnewDramBlockWindow& knew_dram_block_window,
                VDramBlockWindow& v_dram_block_window,
+               index_t i_block1,
                const VnewDramBlockWindow& vnew_dram_block_window,
                const QRotaryCosDramBlockWindow& q_rotary_cos_dram_block_window,
                const QRotarySinDramBlockWindow& q_rotary_sin_dram_block_window,
@@ -245,9 +261,11 @@ struct BlockFmhaFwdAppendKVPipeline
         return operator()(q_dram_block_window,
                           identity{},
                           k_dram_block_window,
+                          i_block0,
                           knew_dram_block_window,
                           identity{},
                           v_dram_block_window,
+                          i_block1,
                           vnew_dram_block_window,
                           identity{},
                           q_rotary_cos_dram_block_window,
