@@ -285,6 +285,19 @@ def cmake_build(Map conf=[:]){
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
+    if (params.RUN_CK_TILE_TESTS){
+        try{
+            archiveArtifacts "perf_fmha_fwd_*.log"
+            archiveArtifacts "perf_fmha_bwd_*.log"
+            stash name: "perf_fmha_fwd_gfx942.log"
+            stash name: "perf_fmha_bwd_gfx942.log"
+            stash name: "perf_fmha_fwd_gfx90a.log"
+            stash name: "perf_fmha_bwd_gfx90a.log"
+        }
+        catch(Exception err){
+            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
+        }
+    }
 }
 
 def buildHipClangJob(Map conf=[:]){
@@ -612,6 +625,17 @@ def process_results(Map conf=[:]){
         timeout(time: 1, unit: 'HOURS'){
             try{
                 dir("script"){
+                    if (params.RUN_CK_TILE_TESTS){
+                        try{
+                            unstash "perf_fmha_fwd_gfx942.log"
+                            unstash "perf_fmha_bwd_gfx942.log"
+                            unstash "perf_fmha_fwd_gfx90a.log"
+                            unstash "perf_fmha_bwd_gfx90a.log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                        }
+                    }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
@@ -852,8 +876,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
-                                           example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -872,8 +895,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
-                                           example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
