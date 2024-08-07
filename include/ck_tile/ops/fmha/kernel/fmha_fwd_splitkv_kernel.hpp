@@ -741,12 +741,12 @@ struct FmhaFwdSplitKVKernel
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 
-                const auto v_dram_transposed =
-                    transform_tensor_view(v_dram_naive,
-                                          make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                                     make_pass_through_transform(kargs.seqlen_k)),
-                                          make_tuple(sequence<1>{}, sequence<0>{}),
-                                          make_tuple(sequence<0>{}, sequence<1>{}));
+                const auto v_dram_transposed = transform_tensor_view(
+                    v_dram_naive,
+                    make_tuple(make_pass_through_transform(lengths.at(number<1>{})),
+                               make_pass_through_transform(lengths.at(number<0>{}))),
+                    make_tuple(sequence<1>{}, sequence<0>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
 
                 return pad_tensor_view(
                     v_dram_transposed,
