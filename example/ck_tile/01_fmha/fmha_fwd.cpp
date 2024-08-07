@@ -52,10 +52,10 @@ auto create_args(int argc, char* argv[])
             "total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary\n"
             "also with \"-s=s0,s1,s2...\" comma seperated int to set per batch seqlen(group-mode)")
         .insert("s_k", "-1", "seqlen_k (including new key/value), -1 means equal to s")
-        .insert("s_k_new",
+        .insert("s_knew",
                 "0",
                 "seqlen_k for new key/value, 0 means not to use this at all; "
-                "-1 to choose s_k_new in [1, s] randomly.")
+                "-1 to choose s_knew in [1, s] randomly.")
         .insert("s_kpad",
                 "-1",
                 "seqlen_k stride between 2 tokens, currently used in group-mode only\n"
@@ -293,7 +293,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
-    ck_tile::index_t seqlen_knew = arg_parser.get_int("s_k_new");
+    ck_tile::index_t seqlen_knew = arg_parser.get_int("s_knew");
 #if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
