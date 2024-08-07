@@ -196,7 +196,7 @@ __host__ __device__ Y run_cast_from_f8(X x)
 
     // prepare the codes
     constexpr X nan_code = 0x80;
-    using T_bitwise = typename NumericUtils<Y>::bitwise_type;
+    using T_bitwise      = typename NumericUtils<Y>::bitwise_type;
 
     constexpr T_bitwise Inf_bitwise    = NumericUtils<Y>::Inf;
     constexpr T_bitwise NegInf_bitwise = NumericUtils<Y>::NegInf;
