@@ -515,7 +515,9 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                      args.nhead_stride_knew,
                                      args.nhead_stride_v,
                                      args.nhead_stride_vnew,
+                                     args.batch_stride_k,
                                      args.batch_stride_knew,
+                                     args.batch_stride_v,
                                      args.batch_stride_vnew);
         }
         else
