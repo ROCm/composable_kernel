@@ -99,10 +99,9 @@ struct FmhaFwdSplitKVCombineKernel
 
     struct CommonLSEKargs
     {
-        void* lse_ptr                         = nullptr;
-        ck_tile::index_t nhead_stride_lse     = 0;
-        ck_tile::index_t batch_stride_lse_acc = 0;
-        ck_tile::index_t batch_stride_lse     = 0;
+        void* lse_ptr                     = nullptr;
+        ck_tile::index_t nhead_stride_lse = 0;
+        ck_tile::index_t batch_stride_lse = 0;
     };
 
     struct Fp8StaticQuantKargs
@@ -116,6 +115,7 @@ struct FmhaFwdSplitKVCombineKernel
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<1>>
     {
         ck_tile::index_t batch_stride_o;
+        ck_tile::index_t batch_stride_lse_acc;
     };
 
     struct GroupModeKargs
@@ -171,14 +171,14 @@ struct FmhaFwdSplitKVCombineKernel
                      split_stride_o_acc}, // args for common karg
                     {},                   // placeholder for lse
                     {},                   // placeholder for fp8_static_quant args
-                    batch_stride_o};
+                    batch_stride_o,
+                    batch_stride_lse_acc};
 
         if constexpr(kStoreLSE)
         {
-            kargs.lse_ptr              = lse_ptr;
-            kargs.nhead_stride_lse     = nhead_stride_lse;
-            kargs.batch_stride_lse_acc = batch_stride_lse_acc;
-            kargs.batch_stride_lse     = batch_stride_lse;
+            kargs.lse_ptr          = lse_ptr;
+            kargs.nhead_stride_lse = nhead_stride_lse;
+            kargs.batch_stride_lse = batch_stride_lse;
         }
         if constexpr(kDoFp8StaticQuant)
         {
@@ -282,12 +282,12 @@ struct FmhaFwdSplitKVCombineKernel
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
-            batch_offset_o = query_start * kargs.row_stride_o;
+            batch_offset_o       = query_start * kargs.row_stride_o;
+            batch_offset_lse_acc = query_start;
 
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse_acc = query_start;
-                batch_offset_lse     = query_start;
+                batch_offset_lse = query_start;
             }
 
             // get real # queries & # keys under group mode
@@ -303,12 +303,11 @@ struct FmhaFwdSplitKVCombineKernel
         }
         else
         {
-            batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+            batch_offset_o       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+            batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
 
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse_acc =
-                    static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
                 batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
         }

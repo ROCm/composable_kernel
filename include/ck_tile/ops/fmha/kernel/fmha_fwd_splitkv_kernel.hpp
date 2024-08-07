@@ -47,7 +47,6 @@ struct FmhaFwdSplitKVKernel
     static constexpr bool kPadHeadDimV      = FmhaPipeline::kPadHeadDimV;
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kHasDropout       = FmhaPipeline::kHasDropout;
-    static constexpr bool kStoreLSE         = FmhaPipeline::kStoreLSE;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
@@ -520,8 +519,9 @@ struct FmhaFwdSplitKVKernel
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
 
-            batch_offset_q = query_start * kargs.stride_q;
-            batch_offset_k = key_start * kargs.stride_k;
+            batch_offset_q       = query_start * kargs.stride_q;
+            batch_offset_k       = key_start * kargs.stride_k;
+            batch_offset_lse_acc = query_start;
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 batch_offset_v = key_start * kargs.stride_v;
@@ -537,10 +537,6 @@ struct FmhaFwdSplitKVKernel
             if constexpr(kHasDropout)
             {
                 batch_offset_randval = query_start * kargs.stride_randval;
-            }
-            if constexpr(kStoreLSE)
-            {
-                batch_offset_lse_acc = query_start;
             }
 
             // get real # queries & # keys under group mode
@@ -566,9 +562,10 @@ struct FmhaFwdSplitKVKernel
         }
         else
         {
-            batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
-            batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
-            batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+            batch_offset_q       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
+            batch_offset_k       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
+            batch_offset_v       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+            batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
@@ -577,11 +574,6 @@ struct FmhaFwdSplitKVKernel
             {
                 batch_offset_randval =
                     static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
-            }
-            if constexpr(kStoreLSE)
-            {
-                batch_offset_lse_acc =
-                    static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
             }
         }
 
