@@ -487,7 +487,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
-    // batch mode of lse data layout is [batch, nhead, max_seqlen_q]
+    // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
         lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
