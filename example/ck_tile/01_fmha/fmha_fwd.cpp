@@ -773,7 +773,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 if(is_v_rowmajor)
                     return i_perm ? hdim_v : nhead_k * hdim_v;
                 else
-                    return i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k;
+                    return 0 < page_block_size
+                                  ? (i_perm ? page_block_size : nhead_k * page_block_size)
+                                  : (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
             }();
             const ck_tile::index_t stride_vnew = [&]() {
                 if(is_v_rowmajor)
@@ -782,14 +784,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     return i_perm ? seqlen_knew : nhead_k * seqlen_knew;
             }();
             // setup nhead_stride_* arguments
-            const ck_tile::index_t nhead_stride_q    = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
-            const ck_tile::index_t nhead_stride_k    = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
+            const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
+            const ck_tile::index_t nhead_stride_k =
+                (0 < page_block_size ? (i_perm ? page_block_size * hdim_q : hdim_q)
+                                     : (i_perm ? shape_seqlen_k * hdim_q : hdim_q));
             const ck_tile::index_t nhead_stride_knew = (i_perm ? seqlen_knew * hdim_q : hdim_q);
             const ck_tile::index_t nhead_stride_v    = [&]() {
                 if(is_v_rowmajor)
-                    return i_perm ? shape_seqlen_k * hdim_v : hdim_v;
+                    return 0 < page_block_size ? (i_perm ? page_block_size * hdim_v : hdim_v)
+                                                  : (i_perm ? shape_seqlen_k * hdim_v : hdim_v);
                 else
-                    return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
+                    return 0 < page_block_size
+                                  ? (i_perm ? hdim_v * page_block_size : page_block_size)
+                                  : (i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k);
             }();
             const ck_tile::index_t nhead_stride_vnew = [&]() {
                 if(is_v_rowmajor)
@@ -798,10 +805,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                     return i_perm ? hdim_v * seqlen_knew : seqlen_knew;
             }();
             // setup batch_stride_* arguments
-            const ck_tile::index_t batch_stride_q           = (nhead * shape_seqlen_q * hdim_q);
-            const ck_tile::index_t batch_stride_k           = (nhead_k * shape_seqlen_k * hdim_q);
-            const ck_tile::index_t batch_stride_knew        = (nhead_k * seqlen_knew * hdim_q);
-            const ck_tile::index_t batch_stride_v           = (nhead_k * hdim_v * shape_seqlen_k);
+            const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
+            const ck_tile::index_t batch_stride_k =
+                (0 < page_block_size ? (nhead_k * page_block_size * hdim_q)
+                                     : (nhead_k * shape_seqlen_k * hdim_q));
+            const ck_tile::index_t batch_stride_knew = (nhead_k * seqlen_knew * hdim_q);
+            const ck_tile::index_t batch_stride_v =
+                (0 < page_block_size ? (nhead_k * hdim_v * page_block_size)
+                                     : (nhead_k * hdim_v * shape_seqlen_k));
             const ck_tile::index_t batch_stride_vnew        = (nhead_k * hdim_v * seqlen_knew);
             const ck_tile::index_t batch_stride_block_table = (max_num_blocks / batch);
 
@@ -1021,6 +1032,35 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << std::flush << std::endl;
         return true;
     }
+#if defined(ENABLE_HOST_DEBUG_MSG)
+    k_buf.FromDevice(k_host.data());
+
+    printf("\n");
+    // batch, nhead_k, seqlen_knew, hdim_q/hdim_v
+    for(int row = 0; row < seqlen_knew; ++row)
+    {
+        printf("[HOST] vnew_host[%d] = ", row);
+        for(int col = 0; col < 32; ++col)
+        {
+            printf("%11.7f", ck_tile::type_convert<float>(vnew_host(0, 0, row, col)));
+        }
+        printf("\n");
+    }
+
+    // max_num_blocks, nhead_k, page_block_size, hdim_q/hdim_v
+    int block_index           = 1;
+    int psychical_block_index = block_table_host(0, block_index);
+    for(int row = 0; row < min(seqlen_knew, page_block_size); ++row)
+    {
+        printf("[HOST] v_host[%d] = ", row);
+        for(int col = 0; col < 32; ++col)
+        {
+            printf("%11.7f",
+                   ck_tile::type_convert<float>(v_host(psychical_block_index, 0, row, col)));
+        }
+        printf("\n");
+    }
+#endif
 
     o_buf.FromDevice(o_host.data());
     lse_buf.FromDevice(lse_host.data());
