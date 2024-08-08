@@ -771,7 +771,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                         : rope_enum::half_rotated)
                                                : rope_enum::none);
         }
-        else
+        else // fmha_fwd_traits or fmha_splitkv_traits
         {
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
