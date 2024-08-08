@@ -314,7 +314,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.k_ptr,
                                      args.v_ptr,
                                      args.bias_ptr,
-                                     args.rand_val_ptr,
                                      args.lse_acc_ptr,
                                      args.o_acc_ptr,
                                      args.batch,
@@ -336,13 +335,11 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.stride_k,
                                      args.stride_v,
                                      args.stride_bias,
-                                     args.stride_randval,
                                      args.stride_o_acc,
                                      args.nhead_stride_q,
                                      args.nhead_stride_k,
                                      args.nhead_stride_v,
                                      args.nhead_stride_bias,
-                                     args.nhead_stride_randval,
                                      args.nhead_stride_lse_acc,
                                      args.nhead_stride_o_acc,
                                      args.batch_stride_k,
@@ -353,10 +350,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
-                                     args.mask_type,
-                                     args.p_drop,
-                                     args.s_randval,
-                                     args.drop_seed_offset);
+                                     args.mask_type);
         }
         else
         { // create batch mode kernel arguments
@@ -364,7 +358,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.k_ptr,
                                      args.v_ptr,
                                      args.bias_ptr,
-                                     args.rand_val_ptr,
                                      args.lse_acc_ptr,
                                      args.o_acc_ptr,
                                      args.batch,
@@ -385,30 +378,24 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.stride_k,
                                      args.stride_v,
                                      args.stride_bias,
-                                     args.stride_randval,
                                      args.stride_o_acc,
                                      args.nhead_stride_q,
                                      args.nhead_stride_k,
                                      args.nhead_stride_v,
                                      args.nhead_stride_bias,
-                                     args.nhead_stride_randval,
                                      args.nhead_stride_lse_acc,
                                      args.nhead_stride_o_acc,
                                      args.batch_stride_q,
                                      args.batch_stride_k,
                                      args.batch_stride_v,
                                      args.batch_stride_bias,
-                                     args.batch_stride_randval,
                                      args.batch_stride_lse_acc,
                                      args.batch_stride_o_acc,
                                      args.split_stride_lse_acc,
                                      args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
-                                     args.mask_type,
-                                     args.p_drop,
-                                     args.s_randval,
-                                     args.drop_seed_offset);
+                                     args.mask_type);
         }
     }();
 
@@ -627,7 +614,6 @@ template <ck_tile::index_t HDim_,
           typename FmhaMask_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
-          bool kHasDropout_,
           bool kDoFp8StaticQuant_,
           bool kIsPagedKV_,
           bool kPadS_,
@@ -650,7 +636,6 @@ struct fmha_fwd_splitkv_traits_
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
     static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kHasDropout                = kHasDropout_;
     static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
@@ -746,8 +731,22 @@ struct fmha_fwd_traits
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
 
-using fmha_fwd_splitkv_traits = fmha_fwd_traits;
-float fmha_fwd_splitkv(fmha_fwd_splitkv_traits, fmha_fwd_splitkv_args, const ck_tile::stream_config&);
+struct fmha_fwd_splitkv_traits
+{
+    int hdim_q;
+    int hdim_v;
+    std::string data_type;
+    bool is_group_mode;
+    bool is_v_rowmajor;
+    mask_enum mask_type;
+    bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
+    bool has_lse;
+    bool do_fp8_static_quant;
+    // TODO: padding check is inside this api
+};
+float fmha_fwd_splitkv(fmha_fwd_splitkv_traits,
+                       fmha_fwd_splitkv_args,
+                       const ck_tile::stream_config&);
 
 struct fmha_fwd_appendkv_traits
 {

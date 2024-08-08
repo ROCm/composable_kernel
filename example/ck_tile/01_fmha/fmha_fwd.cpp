@@ -504,6 +504,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cerr << "num_splits greater than 128 is not supported" << std::endl;
         return false;
     }
+#if CK_TILE_FMHA_FWD_SPLITKV_API
+    if(0 < p_drop && (1 < num_splits || 0 < page_block_size))
+    {
+        std::cerr << "dropout is not supoprted in split-kv kernels. ignoring the option 'p_drop'"
+                  << std::endl;
+        p_drop = 0.0f;
+    }
+#endif
 
     auto get_lengths = [&](bool permute,
                            ck_tile::index_t b /*batch*/,
@@ -839,17 +847,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 #endif
 
-    auto fmha_traits = fmha_fwd_traits{hdim_q,
-                                       hdim_v,
-                                       data_type,
-                                       mode == mode_enum::group,
-                                       is_v_rowmajor,
-                                       mask.type,
-                                       bias.type,
-                                       lse,
-                                       p_drop > 0.0f,
-                                       squant};
-
     auto p_compute_element_func = [&]() {
         if constexpr(std::is_same_v<DataType, ck_tile::fp8_t>)
             return ck_tile::scales{scale_p};
@@ -991,9 +988,30 @@ bool run(const ck_tile::ArgParser& arg_parser)
 #if CK_TILE_FMHA_FWD_SPLITKV_API
         if(1 < num_splits || 0 < page_block_size)
         {
-            return fmha_fwd_splitkv(fmha_traits, fmha_args, stream_config);
+            auto fmha_splitkv_traits = fmha_fwd_splitkv_traits{hdim_q,
+                                                               hdim_v,
+                                                               data_type,
+                                                               mode == mode_enum::group,
+                                                               is_v_rowmajor,
+                                                               mask.type,
+                                                               bias.type,
+                                                               lse,
+                                                               squant};
+
+            return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_args, stream_config);
         }
 #endif
+        auto fmha_traits = fmha_fwd_traits{hdim_q,
+                                           hdim_v,
+                                           data_type,
+                                           mode == mode_enum::group,
+                                           is_v_rowmajor,
+                                           mask.type,
+                                           bias.type,
+                                           lse,
+                                           p_drop > 0.0f,
+                                           squant};
+
         return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();
 

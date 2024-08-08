@@ -33,32 +33,31 @@ struct TileFmhaTraits
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
 };
 
-template <bool kPadSeqLenQ /* padding for seqlen_q */,
-          bool kPadSeqLenK /* padding for seqlen_k */,
-          bool kPadHeadDimQ /* paddding for hdim_q */,
-          bool kPadHeadDimV /* paddding for hdim_v */,
-          BlockAttentionBiasEnum BiasEnum,
-          bool kHasBiasGrad,
-          bool kStoreLSE,
-          bool kHasDropout,
-          bool kDoFp8StaticQuant,
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadSeqLenK_ /* padding for seqlen_k */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          BlockAttentionBiasEnum BiasEnum_,
+          bool kHasBiasGrad_,
+          bool kStoreLSE_,
+          bool kDoFp8StaticQuant_,
           bool kIsPagedKV_,
           bool kHasUnevenSplits_,
-          index_t kBlockPerCu = -1 /* overwrite occupancy if not -1 */>
-struct TileFmhaFwdSplitKVTraits : TileFmhaTraits<kPadSeqLenQ,
-                                                 kPadSeqLenK,
-                                                 kPadHeadDimQ,
-                                                 kPadHeadDimV,
-                                                 BiasEnum,
-                                                 kHasBiasGrad,
-                                                 kStoreLSE,
-                                                 kHasDropout,
-                                                 kDoFp8StaticQuant,
-                                                 kBlockPerCu>
+          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
+struct TileFmhaFwdSplitKVTraits
 {
-    static constexpr bool kIsPagedKV = kIsPagedKV_;
+    static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
+    static constexpr bool kPadSeqLenK       = kPadSeqLenK_;
+    static constexpr bool kPadHeadDimQ      = kPadHeadDimQ_;
+    static constexpr bool kPadHeadDimV      = kPadHeadDimV_;
+    static constexpr auto BiasEnum          = BiasEnum_;
+    static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
+    static constexpr bool kStoreLSE         = kStoreLSE_;
+    static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
+    static constexpr bool kIsPagedKV        = kIsPagedKV_;
     // determine if some split (length) is not divisible by tile size
     static constexpr bool kHasUnevenSplits = kHasUnevenSplits_;
+    static constexpr index_t kBlockPerCu   = kBlockPerCu_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,

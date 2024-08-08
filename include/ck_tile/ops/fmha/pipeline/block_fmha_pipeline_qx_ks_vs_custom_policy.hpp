@@ -715,8 +715,11 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
     }
 
+    // this method is only available when Problem::kHasDropout is present
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
+    CK_TILE_HOST_DEVICE static constexpr std::
+        enable_if_t<std::is_same_v<decltype(Problem::kHasDropout), bool>, ck_tile::index_t>
+        GetSmemSizeDropout()
     {
         if constexpr(Problem::kHasDropout)
         {
@@ -734,6 +737,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         {
             return 0;
         }
+    }
+
+    // fallback version if Problem::kHasDropout is not exist
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout(...)
+    {
+        return 0;
     }
 
     template <typename Problem>

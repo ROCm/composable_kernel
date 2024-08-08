@@ -7,7 +7,6 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_splitkv_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -16,19 +15,18 @@ namespace ck_tile {
 template <typename Problem_, typename Policy_ = BlockFmhaFwdSplitKVPipelineQRKSVSAsyncDefaultPolicy>
 struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
 {
-    using Problem               = remove_cvref_t<Problem_>;
-    using Policy                = remove_cvref_t<Policy_>;
-    using QDataType             = remove_cvref_t<typename Problem::QDataType>;
-    using KDataType             = remove_cvref_t<typename Problem::KDataType>;
-    using VDataType             = remove_cvref_t<typename Problem::VDataType>;
-    using SaccDataType          = remove_cvref_t<typename Problem::SaccDataType>;
-    using SMPLComputeDataType   = remove_cvref_t<typename Problem::SMPLComputeDataType>;
-    using BiasDataType          = remove_cvref_t<typename Problem::BiasDataType>;
-    using RandValOutputDataType = remove_cvref_t<typename Problem::RandValOutputDataType>;
-    using LSEDataType           = remove_cvref_t<typename Problem::LSEDataType>;
-    using PDataType             = remove_cvref_t<typename Problem::PDataType>;
-    using OaccDataType          = remove_cvref_t<typename Problem::OaccDataType>;
-    using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
+    using Problem             = remove_cvref_t<Problem_>;
+    using Policy              = remove_cvref_t<Policy_>;
+    using QDataType           = remove_cvref_t<typename Problem::QDataType>;
+    using KDataType           = remove_cvref_t<typename Problem::KDataType>;
+    using VDataType           = remove_cvref_t<typename Problem::VDataType>;
+    using SaccDataType        = remove_cvref_t<typename Problem::SaccDataType>;
+    using SMPLComputeDataType = remove_cvref_t<typename Problem::SMPLComputeDataType>;
+    using BiasDataType        = remove_cvref_t<typename Problem::BiasDataType>;
+    using LSEDataType         = remove_cvref_t<typename Problem::LSEDataType>;
+    using PDataType           = remove_cvref_t<typename Problem::PDataType>;
+    using OaccDataType        = remove_cvref_t<typename Problem::OaccDataType>;
+    using FmhaMask            = remove_cvref_t<typename Problem::FmhaMask>;
 
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
@@ -54,8 +52,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
     static constexpr bool kPadHeadDimQ     = true; // support multiple of vector(like 8x)
     static constexpr bool kPadHeadDimV     = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum         = Problem::BiasEnum;
-    static constexpr bool kStoreLSE        = true;  // always store LSE (acc)
-    static constexpr bool kHasDropout      = false; // ignore this flag
+    static constexpr bool kStoreLSE        = true; // always store LSE (acc)
     static constexpr bool kIsPagedKV       = Problem::kIsPagedKV;
     static constexpr bool kHasUnevenSplits = Problem::kHasUnevenSplits;
 
@@ -142,7 +139,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                LSEaccDramBlockWindowTmp& lse_acc_dram_window_tmp, // M0*1 tile
                const LSEaccElementFunction& lse_acc_element_func,
                const SAccElementFunction& s_acc_element_func,
@@ -153,8 +149,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr,
-               BlockDropout& dropout) const
+               void* smem_ptr) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -301,9 +296,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
             bias_dram_block_window_tmp.get_window_lengths(),
             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
-
-        auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -585,17 +577,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                 });
             });
 
-            if constexpr(kHasDropout)
-            {
-                auto randval_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
-                dropout.Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    randval_ptr,
-                    seqlen_k_start + i_total_loops * kN0,
-                    p_compute,
-                    randval_dram_window);
-            }
-
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
@@ -726,7 +707,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
-              typename RandValDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
@@ -734,15 +714,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
                LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp,  // M0*1 tile
                index_t num_splits,
                index_t i_split,
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr,
-               BlockDropout& dropout) const
+               void* smem_ptr) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -752,7 +730,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
-                          randval_dram_block_window_tmp,
                           lse_acc_dram_block_window_tmp,
                           identity{},
                           identity{},
@@ -763,8 +740,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVSAsync
                           mask,
                           position_encoding,
                           scale_s,
-                          smem_ptr,
-                          dropout);
+                          smem_ptr);
     }
 };
 
