@@ -720,10 +720,6 @@ pipeline {
             defaultValue: true,
             description: "Run the performance tests (default: ON)")
         booleanParam(
-            name: "RUN_CODEGEN_TESTS",
-            defaultValue: true,
-            description: "Run the codegen tests (default: ON)")
-        booleanParam(
             name: "RUN_CK_TILE_TESTS",
             defaultValue: false,
             description: "Run the ck_tile tests (default: OFF)")
@@ -804,33 +800,6 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
-                        cleanWs()
-                    }
-                }
-            }
-        }
-        stage("Run Codegen Tests")
-        {
-            parallel
-            {
-                stage("Run Codegen Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CODEGEN_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
-                                           cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                           -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-                                           -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_TARGETS="gfx90a" \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j check"""
-                   }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
