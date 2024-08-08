@@ -38,7 +38,7 @@ def getDockerImageName(){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
     else{
-    if (params.ROCMVERSION != "6.2"){
+    if (params.ROCMVERSION != "6.3"){
        if (params.COMPILER_VERSION == "") {
            img = "${env.CK_DOCKERHUB}:ck_ub20.04_rocm${params.ROCMVERSION}"
        }
@@ -285,6 +285,19 @@ def cmake_build(Map conf=[:]){
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
+    if (params.RUN_CK_TILE_TESTS){
+        try{
+            archiveArtifacts "perf_fmha_fwd_*.log"
+            archiveArtifacts "perf_fmha_bwd_*.log"
+            stash name: "perf_fmha_fwd_gfx942.log"
+            stash name: "perf_fmha_bwd_gfx942.log"
+            stash name: "perf_fmha_fwd_gfx90a.log"
+            stash name: "perf_fmha_bwd_gfx90a.log"
+        }
+        catch(Exception err){
+            echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
+        }
+    }
 }
 
 def buildHipClangJob(Map conf=[:]){
@@ -297,7 +310,7 @@ def buildHipClangJob(Map conf=[:]){
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--rm --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -356,7 +369,7 @@ def runCKProfiler(Map conf=[:]){
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--rm --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -477,7 +490,7 @@ def Build_CK(Map conf=[:]){
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
-        def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+        def dockerOpts="--rm --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
@@ -590,7 +603,7 @@ def process_results(Map conf=[:]){
     def prefixpath = "/opt/rocm"
 
     // Jenkins is complaining about the render group 
-    def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
+    def dockerOpts="--rm --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
         dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
     }
@@ -612,6 +625,17 @@ def process_results(Map conf=[:]){
         timeout(time: 1, unit: 'HOURS'){
             try{
                 dir("script"){
+                    if (params.RUN_CK_TILE_TESTS){
+                        try{
+                            unstash "perf_fmha_fwd_gfx942.log"
+                            unstash "perf_fmha_bwd_gfx942.log"
+                            unstash "perf_fmha_fwd_gfx90a.log"
+                            unstash "perf_fmha_bwd_gfx90a.log"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs: ${err.getMessage()}."
+                        }
+                    }
                     if (params.RUN_FULL_QA){
                         // unstash perf files to master
                         unstash "ckprofiler_0.2.0_amd64.deb"
@@ -652,8 +676,8 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.1; RUN_CK_TILE_TESTS=true
-                                              0 21 * * * % ROCMVERSION=6.1;hipTensor_test=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2; RUN_CK_TILE_TESTS=true
+                                              0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
@@ -677,8 +701,8 @@ pipeline {
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
             name: 'ROCMVERSION', 
-            defaultValue: '6.1', 
-            description: 'Specify which ROCM version to use: 6.1 (default).')
+            defaultValue: '6.2', 
+            description: 'Specify which ROCM version to use: 6.2 (default).')
         string(
             name: 'COMPILER_VERSION', 
             defaultValue: '', 
@@ -852,8 +876,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
-                                           example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -872,8 +895,7 @@ pipeline {
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
-                                           example/ck_tile/01_fmha/script/smoke_test_fwd.sh && \
-                                           example/ck_tile/01_fmha/script/smoke_test_bwd.sh"""
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)

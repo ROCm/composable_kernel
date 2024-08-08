@@ -64,6 +64,13 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
+    # Do not build mha instances if gfx94 targets are not on the target list
+    foreach(source IN LISTS ARGN)
+    if(NOT INST_TARGETS MATCHES "gfx94" AND source MATCHES "mha")
+         message("removing mha instance ${source} ")
+         list(REMOVE_ITEM ARGN "${source}")
+    endif()
+    endforeach()
     #only continue if there are some source files left on the list
     if(ARGN)
         set(INST_OBJ)
@@ -77,6 +84,8 @@ function(add_instance_library INSTANCE_NAME)
                 list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103)
             elseif(ARGN MATCHES "_wmma")
                 list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx908 gfx90a gfx940 gfx941 gfx942 gfx1030)
+            elseif(ARGN MATCHES "mha")
+                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103)
             endif()
             set(offload_targets)
             foreach(target IN LISTS INST_TARGETS)
@@ -86,7 +95,29 @@ function(add_instance_library INSTANCE_NAME)
             list(APPEND INST_OBJ ${source})
         endforeach()
         add_library(${INSTANCE_NAME} OBJECT ${INST_OBJ})
+
+        # Allow comparing floating points directly in order to check sentinel values
+        if(${INSTANCE_NAME} STREQUAL "device_mha_instance")
+            if(NOT DEFINED FMHA_FWD_FAST_EXP2)
+                set(FMHA_FWD_FAST_EXP2 true)
+            endif()
+            if(FMHA_FWD_FAST_EXP2)
+	            list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
+            else()
+        	    list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
+            endif()
+            list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
+            target_compile_options(device_mha_instance PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
+        endif()
+        
         target_compile_features(${INSTANCE_NAME} PUBLIC)
+
+        # flags to compress the library
+        if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
+            message("Adding --offload-compress flag for ${INSTANCE_NAME}")
+            target_compile_options(${INSTANCE_NAME} PRIVATE --offload-compress)
+        endif()
+
         set_target_properties(${INSTANCE_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
         clang_tidy_check(${INSTANCE_NAME})
         set(result 0)
@@ -286,20 +317,22 @@ if(CK_DEVICE_CONV_INSTANCES)
         )
 endif()
 if(CK_DEVICE_MHA_INSTANCES)
-        add_library(device_mha_operations STATIC ${CK_DEVICE_MHA_INSTANCES})
-        add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
-        target_compile_features(device_mha_operations PUBLIC)
-        set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        target_include_directories(device_mha_operations PUBLIC
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/mha>
-        )
-        rocm_install(TARGETS device_mha_operations
-            EXPORT device_mha_operationsTargets)
-        rocm_install(EXPORT device_mha_operationsTargets
-            FILE composable_kerneldevice_mha_operationsTargets.cmake
-            NAMESPACE composable_kernel::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        )
+        set(gpu_list ${INST_TARGETS})
+        list(FILTER gpu_list INCLUDE REGEX "^gfx94")
+        if(gpu_list)
+            add_library(device_mha_operations STATIC ${CK_DEVICE_MHA_INSTANCES})
+            add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
+            target_compile_features(device_mha_operations PUBLIC)
+            set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+            
+            rocm_install(TARGETS device_mha_operations
+                EXPORT device_mha_operationsTargets)
+            rocm_install(EXPORT device_mha_operationsTargets
+                FILE composable_kerneldevice_mha_operationsTargets.cmake
+                NAMESPACE composable_kernel::
+                DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+            )
+        endif()
 endif()
 if(CK_DEVICE_CONTRACTION_INSTANCES)
         add_library(device_contraction_operations STATIC ${CK_DEVICE_CONTRACTION_INSTANCES})

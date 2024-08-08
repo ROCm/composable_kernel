@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,23 +31,35 @@ struct ConvParam
               const std::vector<ck::index_t>& left_pads,
               const std::vector<ck::index_t>& right_pads);
 
-    ck::index_t num_dim_spatial_;
-    ck::index_t G_;
-    ck::index_t N_;
-    ck::index_t K_;
-    ck::index_t C_;
+    ConvParam(ck::long_index_t n_dim,
+              ck::long_index_t group_count,
+              ck::long_index_t n_batch,
+              ck::long_index_t n_out_channels,
+              ck::long_index_t n_in_channels,
+              const std::vector<ck::long_index_t>& filters_len,
+              const std::vector<ck::long_index_t>& input_len,
+              const std::vector<ck::long_index_t>& strides,
+              const std::vector<ck::long_index_t>& dilations,
+              const std::vector<ck::long_index_t>& left_pads,
+              const std::vector<ck::long_index_t>& right_pads);
 
-    std::vector<ck::index_t> filter_spatial_lengths_;
-    std::vector<ck::index_t> input_spatial_lengths_;
-    std::vector<ck::index_t> output_spatial_lengths_;
+    ck::long_index_t num_dim_spatial_;
+    ck::long_index_t G_;
+    ck::long_index_t N_;
+    ck::long_index_t K_;
+    ck::long_index_t C_;
 
-    std::vector<ck::index_t> conv_filter_strides_;
-    std::vector<ck::index_t> conv_filter_dilations_;
+    std::vector<ck::long_index_t> filter_spatial_lengths_;
+    std::vector<ck::long_index_t> input_spatial_lengths_;
+    std::vector<ck::long_index_t> output_spatial_lengths_;
 
-    std::vector<ck::index_t> input_left_pads_;
-    std::vector<ck::index_t> input_right_pads_;
+    std::vector<ck::long_index_t> conv_filter_strides_;
+    std::vector<ck::long_index_t> conv_filter_dilations_;
 
-    std::vector<ck::index_t> GetOutputSpatialLengths() const;
+    std::vector<ck::long_index_t> input_left_pads_;
+    std::vector<ck::long_index_t> input_right_pads_;
+
+    std::vector<ck::long_index_t> GetOutputSpatialLengths() const;
 
     std::size_t GetFlops() const;
 
