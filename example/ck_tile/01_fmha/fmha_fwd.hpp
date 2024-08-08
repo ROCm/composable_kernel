@@ -221,25 +221,26 @@ struct fmha_fwd_appendkv_args
 
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
-    const void* seqlen_k_ptr;
+    const void*
+        seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
 
-    ck_tile::index_t batch;
-    ck_tile::index_t nhead_q;
-    ck_tile::index_t nhead_k;
     ck_tile::index_t seqlen_q;
-    ck_tile::index_t max_seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t seqlen_knew;
+    ck_tile::index_t batch;
+    ck_tile::index_t max_seqlen_q;
     ck_tile::index_t hdim_q;
     ck_tile::index_t hdim_v;
+    ck_tile::index_t nhead_q;
+    ck_tile::index_t nhead_k;
 
-    const void* rotary_cos_ptr;
-    const void* rotary_sin_ptr;
+    const void* rotary_cos_ptr; // only used if 'rotary_dim' > 0
+    const void* rotary_sin_ptr; // only used if 'rotary_dim' > 0
     ck_tile::index_t rotary_dim;
 
     void* block_table_ptr;
-    ck_tile::index_t batch_stride_block_table;
-    ck_tile::index_t page_block_size;
+    ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
+    ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
