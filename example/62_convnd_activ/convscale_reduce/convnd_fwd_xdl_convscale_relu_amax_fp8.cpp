@@ -85,13 +85,8 @@ bool run_convnd_fwd_example(int argc, char* argv[])
     int init_method      = 1;
     bool time_kernel     = false;
 
-#if 1
     ck::utils::conv::ConvParam conv_param{
         2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
-#else
-    ck::utils::conv::ConvParam conv_param{
-        2, 1, 2, 16, 16, {3, 3}, {21, 21}, {2, 2}, {1, 1}, {1, 1}, {1, 1}};
-#endif
 
     if(argc == 1)
     {

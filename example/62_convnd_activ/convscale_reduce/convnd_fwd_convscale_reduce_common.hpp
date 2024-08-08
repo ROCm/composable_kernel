@@ -29,33 +29,7 @@ using PassThrough   = ew::PassThrough;
 using ConvScaleRelu = ew::UnaryCombinedOp<ew::Scale, ew::Scale, ew::Relu>;
 using ConvScale     = ew::UnaryCombinedOp<ew::Scale, ew::Scale, PassThrough>;
 
-#if 1
 using UnaryScaleConvert = ew::Scale;
-#else
-struct UnaryScaleConvert
-{
-    __host__ __device__ UnaryScaleConvert(float scale = 1.f) : scale_(scale) {}
-
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const;
-
-    template <>
-    __host__ __device__ void operator()<ck::f8_t, float>(ck::f8_t& y, const float& x) const
-    {
-        auto _x = x + 1.0f;
-        y       = ck::type_convert<ck::f8_t>(_x * scale_);
-        if(_x * scale_ > 1.0f)
-        {
-            printf("UnaryScaleConvert: float=%f   f8_t=%f    e=%f\n",
-                   _x * scale_,
-                   ck::type_convert<float>(ck::type_convert<ck::f8_t>(_x * scale_)),
-                   ck::type_convert<float>(y));
-        }
-    }
-
-    float scale_;
-};
-#endif
 
 void print_helper_msg()
 {
@@ -147,33 +121,6 @@ inline __host__ __device__ constexpr double get_atol()
     }
 }
 
-// FIXME: Must be adjusted for actual math operations
-template <ck::index_t NumDimSpatial, ck::index_t NumNonSpatialDim = 3>
-std::size_t
-GetFlops(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& output_lengths,
-         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& weights_lengths,
-         const std::size_t& ds_size)
-{
-    // G * N * C * <output spatial lengths product> * (2 * K * <filter spatial lengths product> +
-    // <number of scale factors>)
-    ck::index_t G = weights_lengths[0];
-    ck::index_t N = output_lengths[1];
-    ck::index_t K = weights_lengths[1];
-    ck::index_t C = weights_lengths[2];
-
-    return G * N * C *
-           std::accumulate(std::next(std::begin(output_lengths), NumNonSpatialDim),
-                           std::end(output_lengths),
-                           static_cast<std::size_t>(1),
-                           std::multiplies<>()) *
-           (static_cast<std::size_t>(2) * K *
-                std::accumulate(std::next(std::begin(weights_lengths), NumNonSpatialDim),
-                                std::end(weights_lengths),
-                                static_cast<std::size_t>(1),
-                                std::multiplies<>()) +
-            ds_size);
-}
-
 template <ck::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -253,25 +200,18 @@ bool run_grouped_conv_fwd(bool do_verification,
     copy(conv_param.input_right_pads_, input_right_pads);
 
     // random scale values
-#if 0
     float scale_in  = float(std::rand()) / float(RAND_MAX);
     float scale_wei = float(std::rand()) / float(RAND_MAX);
     float scale_out = float(std::rand()) / float(RAND_MAX);
-#else
-    float scale_in  = 1.0f;
-    float scale_wei = 1.0f;
-    float scale_out = 1.0f;
-#endif
 
     std::cout << std::endl;
     std::cout << "scale_in: " << scale_in << std::endl;
     std::cout << "scale_wei: " << scale_wei << std::endl;
     std::cout << "scale_out: " << scale_out << std::endl;
 
-    // initialize out_element_op for each iteration
-    auto conv_element_op = ConvElementOp{
-        ew::Scale{scale_in}, ew::Scale{scale_wei}, {}}; // convolution elementwise operation
-    auto scale_convert = UnaryScaleConvert{scale_out};  // elementwise scale ant type cast
+    // convolution elementwise operation
+    auto conv_element_op = ConvElementOp{ew::Scale{scale_in}, ew::Scale{scale_wei}, {}};
+    auto scale_convert   = UnaryScaleConvert{scale_out}; // elementwise scale and type cast
 
     // do Conv
     auto conv         = DeviceConvNDFwdInstance{};
@@ -338,7 +278,7 @@ bool run_grouped_conv_fwd(bool do_verification,
             "not support this problem");
     }
 
-    kernels += std::string("\n\t ") + device_ew_scale.GetTypeString();
+    kernels += std::string("\n\t\t ") + device_ew_scale.GetTypeString();
 
     avg_time += scale_invoker.Run(scale_argument, StreamConfig{nullptr, time_kernel});
 
@@ -390,15 +330,12 @@ bool run_grouped_conv_fwd(bool do_verification,
         ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
             static_cast<int32_t>(host_conv.mDesc.GetElementSize()));
 
-    // Hack convolution output strides for reduction as it expects stride 1 for the last dimension.
-    // It only works because the reduction is done on the whole tensor and result is independent of
-    // the order of elements.
+    // Hack convolution output strides for reduction as kernel expects stride 1 for the last
+    // dimension. It only works because the reduction is done on the whole tensor and result is
+    // independent of the order of elements.
     std::array<ck::index_t, NDimSpatial + 3> reduction_strides{};
-#if 0
+
     copy(HostTensorDescriptor(e_g_n_k_wos_lengths).GetStrides(), reduction_strides);
-#else
-    copy(e_g_n_k_wos_strides, reduction_strides);
-#endif
 
     auto device_reduce   = DeviceReduceInstance{};
     auto reduce_invoker  = device_reduce.MakeInvokerPointer();
@@ -418,18 +355,12 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(!device_reduce.IsSupportedArgument(reduce_argument.get()))
     {
-#if 0
         throw std::runtime_error(
             "wrong! DeviceReduceInstance with the specified compilation parameters does "
             "not support this runtime parameters!");
-#else
-        std::cerr << "wrong! DeviceReduceInstance with the specified compilation parameters does "
-                     "not support this runtime parameters!"
-                  << std::endl;
-#endif
     };
 
-    kernels += std::string("\n\t ") + device_reduce.GetTypeString();
+    kernels += std::string("\n\t\t ") + device_reduce.GetTypeString();
 
     float reduce_time =
         reduce_invoker->Run(reduce_argument.get(), StreamConfig{nullptr, time_kernel});
@@ -438,19 +369,28 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     avg_time += reduce_time;
 
-    std::size_t ds_size = 3 + 1; // 3 element-wise scale multipliers  + 1 AMAX
+    std::size_t flop    = conv_param.GetFlops();      // convolution FLOPs
+    auto conv_out_elems = host_conv.GetElementSize(); // number of elements in conv result tensor
+
+    // 3 element-wise scale multipliers  + 1 FP8 conversion + 1 AMAX
+    std::size_t elementwise_ops = 3 + 1 + 1;
     if constexpr(ck::is_same_v<ConvElementOp, ConvScaleRelu>)
     {
-        ds_size += 1; // 1 element-wise relu
+        elementwise_ops += 1; // +1 element-wise relu
     }
-    std::size_t flop      = GetFlops<NDimSpatial>(e_g_n_k_wos_lengths, b_g_k_c_xs_lengths, ds_size);
-    std::size_t num_btype = 0;
-    num_btype = conv_param.GetInputByte<InDataType>() + conv_param.GetWeightByte<WeiDataType>() +
-                conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float) +
-                sizeof(float); // in + wei + scale + scale + conv output
+
+    flop += elementwise_ops * conv_out_elems;
+
+    // convolution + elementwise scaling (in + wei + output byte count)
+    std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, ConvOutDataType>();
+    num_btype += sizeof(float) + sizeof(float); //  + 2 scales
+
+    // elementwise scaling + F8 conversion
     num_btype += conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float) +
-                 conv_param.GetOutputByte<OutDataType>(); // conv out + scale + F8 out
-    num_btype += conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float); // AMAX
+                 conv_param.GetOutputByte<OutDataType>();
+
+    // AMAX
+    num_btype += conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float);
 
     float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
     float gb_per_sec = num_btype / 1.E6 / avg_time;
@@ -488,29 +428,22 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         out_host.ForEach([&](auto&, auto idx) { scale_convert(out_host(idx), host_conv(idx)); });
 
-#if 0
-        // LogRangeAsType<InDataType>(std::cout << "input : ", in.mData, ",") << std::endl;
-        // LogRangeAsType<WeiDataType>(std::cout << "weight: ", wei.mData, ",") << std::endl;
-        // LogRangeAsType<ConvOutDataType>(std::cout << "host_conv    :", host_conv.mData, ",")
-        //     << std::endl;
-        LogRangeAsType<ConvOutDataType>(std::cout << "device_conv  :", device_conv.mData, ",")
-            << std::endl;
+        std::cout << "\nComparing output to reference: " << std::endl;
+        ck::utils::check_err(out_device, out_host, "");
 
-        LogRangeAsType<OutDataType>(std::cout << "host_output  :", out_host.mData, ",")
-            << std::endl;
-        LogRangeAsType<OutDataType>(std::cout << "device_output:", out_device.mData, ",")
-            << std::endl;
-#endif
-
-        auto ret_val = true;
-#if 0
-        ret_val =
-#endif
-        ck::utils::check_err(out_device, out_host, "Error: incorrect convolution results!");
+        std::cout << "\n\tApplying tolerances...\n";
+        std::cout << "\t\trtol = " << get_rtol<OutDataType>() << std::endl;
+        std::cout << "\t\tatol = " << get_atol<OutDataType>() << std::endl;
+        auto ret_val = ck::utils::check_err(out_device,
+                                            out_host,
+                                            "Error: incorrect convolution results!",
+                                            get_rtol<OutDataType>(),
+                                            get_atol<OutDataType>());
         if(!ret_val)
         {
             return false;
         }
+        std::cout << "Done." << std::endl;
 
         /// Verify AMAX
 
@@ -553,8 +486,8 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         amax_device.FromDevice(amax_from_device.mData.data());
 
-        std::cout << "amax_host: " << amax_host.mData[0] << std::endl;
-        std::cout << "amax_device: " << amax_from_device.mData[0] << std::endl;
+        std::cout << "\namax: " << amax_from_device.mData[0] << std::endl;
+        std::cout << "amax_ref: " << amax_host.mData[0] << std::endl;
 
         return ck::utils::check_err(amax_from_device, amax_host, "Error: incorrect AMAX results!");
     }
