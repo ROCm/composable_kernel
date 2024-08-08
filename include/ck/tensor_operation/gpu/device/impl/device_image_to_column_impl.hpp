@@ -57,7 +57,7 @@ struct DeviceImageToColumnImpl
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    using GemmToConvFwdTransformer =
+    using ConvToGemmFwdTransformer =
         TransformConvFwdToGemm<NDimSpatial, ConvolutionForwardSpecialization::Default>;
 
     static constexpr auto matrix_padder =
@@ -97,7 +97,7 @@ struct DeviceImageToColumnImpl
         b_g_k_c_xs_lengths[I2]  = C;
         c_g_n_k_wos_lengths[I1] = N;
 
-        GemmToConvFwdTransformer conv_to_gemm_transformer{a_g_n_c_wis_lengths,
+        ConvToGemmFwdTransformer conv_to_gemm_transformer{a_g_n_c_wis_lengths,
                                                           image_g_n_c_wis_strides,
                                                           b_g_k_c_xs_lengths,
                                                           {}, // not needed for A Descriptor

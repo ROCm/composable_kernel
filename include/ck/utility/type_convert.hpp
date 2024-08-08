@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/f8_utils.hpp"
 #include "ck/utility/random_gen.hpp"
+#include "ck/utility/array.hpp"
 
 namespace ck {
 // Define the common macro for gfx94x models
@@ -498,6 +499,25 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
     constexpr bool negative_zero_nan = true;
     return utils::cast_from_f8<bf8_t, half_t, negative_zero_nan>(x);
 #endif
+}
+
+template <typename Y, typename X, std::size_t NumElems>
+inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
+                                              const std::array<X, NumElems>& x)
+{
+    for(std::size_t i = 0; i < NumElems; i++)
+    {
+        y[i] = type_convert<Y>(x[i]);
+    }
+}
+
+template <typename Y, typename X, index_t NumElems>
+inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array<X, NumElems>& x)
+{
+    for(std::size_t i = 0; i < NumElems; i++)
+    {
+        y[i] = type_convert<Y>(x[i]);
+    }
 }
 
 // Declare a template function for bf16 conversion using RTN

@@ -44,7 +44,7 @@ __host__ __device__ Y run_cast_to_f8(X x, uint32_t rng)
 
     // convert to bitwise
     using T_bitwise     = typename NumericUtils<X>::bitwise_type;
-    T_bitwise x_bitwise = *(reinterpret_cast<T_bitwise*>(&x));
+    T_bitwise x_bitwise = bit_cast<T_bitwise>(x);
 
     // unpack the input, depends on datatype
     head     = x_bitwise & NumericUtils<X>::head_mask;
@@ -165,7 +165,7 @@ In this case, the fp16 mantissa should be shift left by 1 */
 
     if(out_exponent > max_exp)
     {
-        if(clip)
+        if constexpr(clip)
         {
             mantissa     = (1 << out_mant) - 1;
             out_exponent = max_exp;
@@ -196,18 +196,17 @@ __host__ __device__ Y run_cast_from_f8(X x)
 
     // prepare the codes
     constexpr X nan_code = 0x80;
-    Y Inf, NegInf, NaN, Neg0;
-    using T_bitwise = typename NumericUtils<Y>::bitwise_type;
+    using T_bitwise      = typename NumericUtils<Y>::bitwise_type;
 
     constexpr T_bitwise Inf_bitwise    = NumericUtils<Y>::Inf;
     constexpr T_bitwise NegInf_bitwise = NumericUtils<Y>::NegInf;
     constexpr T_bitwise NaN_bitwise    = NumericUtils<Y>::NaN;
     constexpr T_bitwise Neg0_bitwise   = NumericUtils<Y>::Neg0;
 
-    Inf    = *(reinterpret_cast<const Y*>(&Inf_bitwise));
-    NegInf = *(reinterpret_cast<const Y*>(&NegInf_bitwise));
-    NaN    = *(reinterpret_cast<const Y*>(&NaN_bitwise));
-    Neg0   = *(reinterpret_cast<const Y*>(&Neg0_bitwise));
+    constexpr Y Inf    = bit_cast<Y>(Inf_bitwise);
+    constexpr Y NegInf = bit_cast<Y>(NegInf_bitwise);
+    constexpr Y NaN    = bit_cast<Y>(NaN_bitwise);
+    constexpr Y Neg0   = bit_cast<Y>(Neg0_bitwise);
 
     // check if x is 0.0
     if(x == 0)
@@ -235,11 +234,12 @@ __host__ __device__ Y run_cast_from_f8(X x)
             return (mantissa == 0) ? (sign ? NegInf : Inf) : NaN;
     }
 
-    if((NumericUtils<Y>::mant == 10) && (NumericUtils<X>::mant == 2) && !negative_zero_nan)
+    if constexpr((NumericUtils<Y>::mant == 10) && (NumericUtils<X>::mant == 2) &&
+                 !negative_zero_nan)
     {
         retval = x;
         retval <<= 8;
-        return *(reinterpret_cast<const Y*>(&retval));
+        return bit_cast<Y>(retval);
     }
 
     // subnormal input
@@ -263,7 +263,7 @@ __host__ __device__ Y run_cast_from_f8(X x)
     }
 
     retval = (sign << (out_exp + out_mant)) | (exponent << out_mant) | mantissa;
-    return *(reinterpret_cast<const Y*>(&retval));
+    return bit_cast<Y>(retval);
 }
 
 } // namespace
