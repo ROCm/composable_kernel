@@ -44,17 +44,21 @@ class TestGemmUniversal_MK_NK
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
     std::tuple<      F16,       F16,             F16,     F16>,
+#if (defined CK_ENABLE_FP8)
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
+#endif
     std::tuple<     BF16,      BF16,            BF16,    BF16>
     >;
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
     std::tuple<      F16,       F16,             F16,     F16>,
+#if (defined CK_ENABLE_FP8)
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
-    std::tuple<     BF16,      BF16,            BF16,    BF16>,
-    std::tuple<       F8,        F8,              F8,    BF16>
+    std::tuple<       F8,        F8,              F8,    BF16>,
+#endif
+    std::tuple<     BF16,      BF16,            BF16,    BF16>
     >;
 // clang-format on
 

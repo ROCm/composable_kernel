@@ -117,7 +117,7 @@ void add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v2_mnkpadding_instan
         DeviceGemmV2<Row, Col, Row, F16, F16, F16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
 void add_device_gemm_xdl_universal_f16_f8_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Row, Row, F16, F8, F16, PassThrough, PassThrough, PassThrough>>>&
@@ -416,7 +416,7 @@ void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_mnkpadding_ins
         DeviceGemmV2<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
 #endif
-#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
 void add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Col, Row, F8, F8, BF16, PassThrough, PassThrough, PassThrough>>>&
@@ -553,7 +553,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#if(defined(CK_ENABLE_FP16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, half_t>)
         {
@@ -705,7 +705,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_FP8))
+#if(defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP8))
         if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, f8_t> &&
                      is_same_v<CDataType, bhalf_t>)
         {
