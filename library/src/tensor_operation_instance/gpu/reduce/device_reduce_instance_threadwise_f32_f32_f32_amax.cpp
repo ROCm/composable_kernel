@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/device_reduce_instance_threadwise.hpp"
@@ -11,6 +11,18 @@ namespace instance {
 
 // clang-format off
 // InDataType | AccDataType | OutDataType | Rank | NumReduceDim | ReduceOperation | InElementwiseOp | AccElementwiseOp | PropagateNan | UseIndex 
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 12, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 12, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 11, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 11, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 10, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 10, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 9, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 9, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 8, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 8, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 7, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 7, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 6, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 6, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 5, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 5, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 2, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 2, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
+template void add_device_reduce_instance_threadwise<F32, F32, F32, 12, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 12, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
 template void add_device_reduce_instance_threadwise<F32, F32, F32, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 4, 3, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
 template void add_device_reduce_instance_threadwise<F32, F32, F32, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 4, 4, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);
 template void add_device_reduce_instance_threadwise<F32, F32, F32, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>(std::vector<DeviceReducePtr<F32, F32, F32, 4, 1, ReduceAMax, UnaryAbs, PassThrough, false, false>>&);

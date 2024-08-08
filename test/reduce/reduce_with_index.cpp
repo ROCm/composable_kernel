@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <getopt.h>
 
@@ -99,7 +99,7 @@ class SimpleAppArgs
             scales.push_back(0.0f);
         };
 
-        if(inLengths.size() != 4 ||
+        if((inLengths.size() != 4 && inLengths.size() != 12) ||
            (reduceDims.size() != 1 && reduceDims.size() != 3 && reduceDims.size() != 4))
             return (-1);
 
