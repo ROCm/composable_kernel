@@ -87,7 +87,7 @@ using fmha_kernel =
                   fmha_pipeline,
                   fmha_epilogue>;
 
-static void run(const ck_tile::stream_config& s, fmha_fwd_args a)
+static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     using k_ = fmha_kernel;
     auto [kargs, grids] = fmha_fwd_splitkv_create_kargs_and_grids<k_>(a);
@@ -105,7 +105,7 @@ using trait_{F_idx} = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F
 #include <iostream>
 
 template<>
-void fmha_fwd_splitkv_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
+void fmha_fwd_splitkv_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     if constexpr({F_mode} == false) {{ // batch mode
         // make sure F_bn0 is divisible by F_bk1
@@ -163,7 +163,7 @@ using fmha_kernel =
                   fmha_pipeline,
                   fmha_epilogue>;
 
-static void run(const ck_tile::stream_config& s, fmha_fwd_args a)
+static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     using k_ = fmha_kernel;
     auto [kargs, grids] = fmha_fwd_splitkv_combine_create_kargs_and_grids<k_>(a);
@@ -180,7 +180,7 @@ using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_m
 #include <iostream>
 
 template<>
-void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_args a)
+void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     if (a.num_splits <= 16) {{
         kernel_runner<4>::run(s, a);
@@ -206,7 +206,7 @@ FMHA_FWD_SPLITKV_API="""
 #include <iostream>
 
 template<typename fmha_fwd_splitkv_traits_, typename fmha_fwd_splitkv_combine_traits_>
-float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_args a)
+float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     if(s.log_level_ > 0)
     std::cout
@@ -220,7 +220,7 @@ float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_args a)
     );
 }}
 
-float fmha_fwd_splitkv(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config& s){{
+float fmha_fwd_splitkv(fmha_fwd_traits t, fmha_fwd_splitkv_args a, const ck_tile::stream_config& s){{
     float r = -1;
 {F_dispatch}
     return r;
