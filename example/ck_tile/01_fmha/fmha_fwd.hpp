@@ -96,18 +96,76 @@ struct fmha_fwd_args
     const void* v_ptr;
     const void* bias_ptr; // bias or alibi_slope pointer
     void* rand_val_ptr;
-    void* lse_acc_ptr;
-    void* o_acc_ptr;
     void* lse_ptr;
     void* o_ptr;
 
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
-    const void* seqlen_k_ptr;
+    const void*
+        seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
+
+    ck_tile::index_t seqlen_q;
+    ck_tile::index_t seqlen_k;
+    ck_tile::index_t batch;
+    ck_tile::index_t max_seqlen_q;
+    ck_tile::index_t hdim_q;
+    ck_tile::index_t hdim_v;
+    ck_tile::index_t nhead_q;
+    ck_tile::index_t nhead_k;
+
+    float scale_s;
+    float scale_p;
+    float scale_o;
+
+    ck_tile::index_t stride_q;
+    ck_tile::index_t stride_k;
+    ck_tile::index_t stride_v;
+    ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
+    ck_tile::index_t stride_randval;
+    ck_tile::index_t stride_o;
+    ck_tile::index_t nhead_stride_q;
+    ck_tile::index_t nhead_stride_k;
+    ck_tile::index_t nhead_stride_v;
+    ck_tile::index_t nhead_stride_bias;
+    ck_tile::index_t nhead_stride_randval;
+    ck_tile::index_t nhead_stride_lse;
+    ck_tile::index_t nhead_stride_o;
+    ck_tile::index_t batch_stride_q;
+    ck_tile::index_t batch_stride_k;
+    ck_tile::index_t batch_stride_v;
+    ck_tile::index_t batch_stride_bias;
+    ck_tile::index_t batch_stride_randval;
+    ck_tile::index_t batch_stride_lse;
+    ck_tile::index_t batch_stride_o;
+
+    ck_tile::index_t window_size_left;
+    ck_tile::index_t window_size_right;
+    ck_tile::index_t mask_type;
+
+    float p_drop;
+    bool s_randval;
+    std::tuple<uint64_t, uint64_t> drop_seed_offset;
+};
+
+struct fmha_fwd_splitkv_args
+{
+    const void* q_ptr;
+    const void* k_ptr;
+    const void* v_ptr;
+    const void* bias_ptr; // bias or alibi_slope pointer
+    void* lse_acc_ptr;
+    void* o_acc_ptr;
+    void* lse_ptr;
+    void* o_ptr;
 
     void* block_table_ptr;
-    ck_tile::index_t batch_stride_block_table;
-    ck_tile::index_t page_block_size;
+    ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
+    ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
+
+    const void* seqstart_q_ptr;
+    const void* seqstart_k_ptr;
+    const void*
+        seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
 
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -118,21 +176,21 @@ struct fmha_fwd_args
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_k;
     ck_tile::index_t num_splits;
+
     float scale_s;
     float scale_p;
     float scale_o;
+
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
     ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
-    ck_tile::index_t stride_randval;
     ck_tile::index_t stride_o_acc;
     ck_tile::index_t stride_o;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
     ck_tile::index_t nhead_stride_bias;
-    ck_tile::index_t nhead_stride_randval;
     ck_tile::index_t nhead_stride_lse;
     ck_tile::index_t nhead_stride_lse_acc;
     ck_tile::index_t nhead_stride_o_acc;
@@ -141,22 +199,17 @@ struct fmha_fwd_args
     ck_tile::index_t batch_stride_k;
     ck_tile::index_t batch_stride_v;
     ck_tile::index_t batch_stride_bias;
-    ck_tile::index_t batch_stride_randval;
     ck_tile::index_t batch_stride_lse;
     ck_tile::index_t batch_stride_lse_acc;
     ck_tile::index_t batch_stride_o_acc;
     ck_tile::index_t batch_stride_o;
     ck_tile::index_t split_stride_lse_acc;
     ck_tile::index_t split_stride_o_acc;
+
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
-    float p_drop;
-    bool s_randval;
-    std::tuple<uint64_t, uint64_t> drop_seed_offset;
 };
-
-using fmha_fwd_splitkv_args = fmha_fwd_args;
 
 struct fmha_fwd_appendkv_args
 {
