@@ -989,12 +989,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < args.num_splits || args.block_table_ptr != nullptr)
+        if(1 < num_splits || 0 < page_block_size)
         {
-            return fmha_fwd_splitkv(traits, args, config);
+            return fmha_fwd_splitkv(fmha_traits, fmha_args, stream_config);
         }
 #endif
-        return fmha_fwd(traits, args, config);
+        return fmha_fwd(fmha_traits, fmha_args, stream_config);
     }();
 
     if(appendkv_ave_time < 0 || fwd_ave_time < 0)

@@ -745,7 +745,9 @@ struct fmha_fwd_traits
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
-float fmha_fwd_splitkv(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
+
+using fmha_fwd_splitkv_traits = fmha_fwd_traits;
+float fmha_fwd_splitkv(fmha_fwd_splitkv_traits, fmha_fwd_splitkv_args, const ck_tile::stream_config&);
 
 struct fmha_fwd_appendkv_traits
 {

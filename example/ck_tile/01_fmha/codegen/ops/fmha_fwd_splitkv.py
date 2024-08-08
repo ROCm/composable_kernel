@@ -220,7 +220,7 @@ float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a
     );
 }}
 
-float fmha_fwd_splitkv(fmha_fwd_traits t, fmha_fwd_splitkv_args a, const ck_tile::stream_config& s){{
+float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const ck_tile::stream_config& s){{
     float r = -1;
 {F_dispatch}
     return r;
