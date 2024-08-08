@@ -393,7 +393,10 @@ struct tile_window_with_static_distribution
                     bottom_tensor_thread_coord,
                     bool_constant<oob_conditional_check>{},
                     pre_nop_);
-
+#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
+                asm volatile(
+                    ""); // this is starting from rocm-6.2, but same sympton, reuse this flag
+#endif
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {

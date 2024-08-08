@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,12 +25,13 @@ class TestGemmUniversal : public testing::Test
     using F32 = float;
 
     protected:
-    using ALayout   = std::tuple_element_t<0, Tuple>;
-    using BLayout   = std::tuple_element_t<1, Tuple>;
-    using CLayout   = Row;
-    using ADataType = std::tuple_element_t<2, Tuple>;
-    using BDataType = std::tuple_element_t<3, Tuple>;
-    using CDataType = std::tuple_element_t<4, Tuple>;
+    using ALayout         = std::tuple_element_t<0, Tuple>;
+    using BLayout         = std::tuple_element_t<1, Tuple>;
+    using CLayout         = Row;
+    using ADataType       = std::tuple_element_t<2, Tuple>;
+    using BDataType       = std::tuple_element_t<3, Tuple>;
+    using ComputeDataType = std::tuple_element_t<4, Tuple>;
+    using CDataType       = std::tuple_element_t<5, Tuple>;
 
     public:
     static constexpr bool verify_     = true;
@@ -66,6 +67,7 @@ class TestGemmUniversal : public testing::Test
     {
         bool pass = ck::profiler::profile_gemm_universal_impl<ADataType,
                                                               BDataType,
+                                                              ComputeDataType,
                                                               F32,
                                                               CDataType,
                                                               ALayout,
