@@ -206,24 +206,24 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    if(arg.KBatch > 1)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        true,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        minimum_occupancy>;
-                        Run(kernel);
-                    }
-                    else
-                    {
+                    // if(arg.KBatch > 1)
+                    // {
+                    //     const auto kernel =
+                    //         kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                    //                                     true,
+                    //                                     InMemoryDataOperationEnum::AtomicAdd,
+                    //                                     minimum_occupancy>;
+                    //     Run(kernel);
+                    // }
+                    // else
+                    // {
                         const auto kernel =
                             kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
                                                         true,
                                                         InMemoryDataOperationEnum::Set,
                                                         minimum_occupancy>;
                         Run(kernel);
-                    }
+                    // }
                 }
                 // Tail number could be One to Seven
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
@@ -558,24 +558,24 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    if(arg.KBatch > 1)
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        false,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        minimum_occupancy>;
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
-                                                        false,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        minimum_occupancy>;
-                        Run(kernel);
-                    }
+                    // if(arg.KBatch > 1)
+                    // {
+                    //     const auto kernel =
+                    //         kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                    //                                     false,
+                    //                                     InMemoryDataOperationEnum::AtomicAdd,
+                    //                                     minimum_occupancy>;
+                    //     Run(kernel);
+                    // }
+                    // else
+                    // {
+                    //     const auto kernel =
+                    //         kernel_gemm_xdl_cshuffle_v3<GridwiseGemm,
+                    //                                     false,
+                    //                                     InMemoryDataOperationEnum::Set,
+                    //                                     minimum_occupancy>;
+                    //     Run(kernel);
+                    // }
                 }
             }
 
