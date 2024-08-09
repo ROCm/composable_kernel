@@ -40,19 +40,18 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    bool do_log,
                                    bool time_kernel,
                                    const ck::utils::conv::ConvParam& conv_param,
-                                   std::string dynamicActivationFunction)
-{ 
+                                   std::string)
+{
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 
-    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
-    // using OutElementOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
-
+    // using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
+    using OutElementOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
 
-    const auto out_element_op = OutElementOp{};
+    const auto out_element_op = ck::tensor_operation::element_wise::Relu{};
     // if(dynamicActivationFunction == "PassThrough"){
     //     const auto out_element_op = ck::tensor_operation::element_wise::Relu{};
     // }else if(dynamicActivationFunction == "UnaryAbs"){

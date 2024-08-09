@@ -15,13 +15,13 @@ namespace element_wise {
 struct UnaryOpBase
 {
     public:
-    virtual ~UnaryOpBase() {}
+    __host__ __device__ virtual ~UnaryOpBase() {}
 
-    UnaryOpBase()                   = default;
-    UnaryOpBase(const UnaryOpBase&) = default;
-    UnaryOpBase& operator=(const UnaryOpBase&) = default;
-    UnaryOpBase(UnaryOpBase&&)                 = default;
-    UnaryOpBase& operator=(UnaryOpBase&&) = default;
+    __host__ __device__ UnaryOpBase()                   = default;
+    __host__ __device__ UnaryOpBase(const UnaryOpBase&) = default;
+    __host__ __device__ UnaryOpBase& operator=(const UnaryOpBase&) = default;
+    __host__ __device__ UnaryOpBase(UnaryOpBase&&)                 = default;
+    __host__ __device__ UnaryOpBase& operator=(UnaryOpBase&&) = default;
 
     // You have to list here all data types
     __host__ __device__ virtual void operator()(double&, const double&) const = 0;
@@ -90,24 +90,6 @@ struct UnaryOpBase
     //         __host__ __device__ virtual void operator()(bf8_t& , const half_t& ) const = 0;
 };
 
-struct DynamicUnaryOp
-{
-
-    DynamicUnaryOp() {}
-
-    DynamicUnaryOp(const UnaryOpBase& unary_op_ptr) : unary_op_ptr_(&unary_op_ptr) {}
-
-    DynamicUnaryOp(const UnaryOpBase* unary_op_ptr) : unary_op_ptr_(unary_op_ptr) {}
-
-    template <typename Y, typename X>
-    __host__ __device__ void operator()(Y& y, const X& x) const
-    {
-        unary_op_ptr_->operator()(y, x);
-    }
-
-    private:
-    const UnaryOpBase* unary_op_ptr_;
-};
 struct PassThroughPack2
 {
     template <typename Y, typename X>
@@ -1357,6 +1339,61 @@ struct FastNumericArrayConverter<uint8_t, ck::half_t, N>
     }
 
     __device__ OutputArray operator()(InputArray const& Input) { return convert(Input); }
+};
+
+struct DynamicUnaryOp
+{
+
+    __host__ __device__ DynamicUnaryOp() = delete;
+
+    __host__ __device__ DynamicUnaryOp(const Relu&) { unary_op_type_ = UnaryOpType::Relu; }
+
+    __host__ __device__ DynamicUnaryOp(const Relu&&) { unary_op_type_ = UnaryOpType::Relu; }
+
+    __host__ __device__ DynamicUnaryOp(const DynamicUnaryOp& dynamic_op) = default; //{
+
+    __host__ __device__ DynamicUnaryOp(DynamicUnaryOp&& dynamic_op) = default; //{
+
+    __host__ __device__ ~DynamicUnaryOp()
+    {
+        if(unary_op_ptr_)
+            delete unary_op_ptr_;
+    }
+
+    __device__ void InitUnaryOpPtrOnDevice()
+    {
+        switch(unary_op_type_)
+        {
+        case(UnaryOpType::Relu): unary_op_ptr_ = new Relu; break;
+        default: unary_op_ptr_ = nullptr; break;
+        }
+    }
+
+    template <typename Y, typename X>
+    __device__ void operator()(Y& y, const X& x) const
+    {
+        unary_op_ptr_->operator()(y, x);
+    }
+
+    template <typename Y, typename X>
+    __host__ void operator()(Y& y, const X& x) const
+    {
+        switch(unary_op_type_)
+        {
+        case(UnaryOpType::Relu): Relu{}.operator()(y, x); break;
+        default: break;
+        }
+    }
+
+    private:
+    enum class UnaryOpType
+    {
+        Relu,
+    };
+
+    public:
+    UnaryOpType unary_op_type_;
+    UnaryOpBase* unary_op_ptr_ = nullptr;
 };
 
 } // namespace element_wise
