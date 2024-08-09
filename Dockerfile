@@ -59,6 +59,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     python3-dev \
     python3-pip \
     redis \
+    rocm-llvm-dev \
     sshpass \
     stunnel \
     software-properties-common \
