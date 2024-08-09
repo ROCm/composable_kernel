@@ -321,8 +321,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     using ConvToGemmFwdTransformer = TransformConvFwdToGemm<NDimSpatial,
                                                             ConvForwardSpecialization,
                                                             true /*SplitN*/,
-                                                            ALayout,
-                                                            ELayout>;
+                                                            ADataType,
+                                                            EDataType>;
 
     static constexpr auto matrix_padder =
         MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
