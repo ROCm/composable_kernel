@@ -42,7 +42,7 @@ __global__ void
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid,
+        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared,
         karg);
 #else
@@ -73,7 +73,7 @@ __global__ void
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid,
+        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared_0,
         p_shared_1,
         karg);
@@ -531,21 +531,35 @@ struct GridwiseGemm_xdl_cshuffle_v3
                           index_t StrideA_,
                           index_t StrideB_,
                           index_t StrideC_,
-                          index_t k_batch_)
+                          index_t k_batch_,
+                          bool is_reduce_ = false)
             : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
-              p_c_grid{p_c_grid_}
+              p_c_grid{p_c_grid_},
+              is_reduce(is_reduce_)
         {
+        }
+
+        __host__ __device__ inline bool IsReduceAdd() const
+        {
+            return (Problem::KBatch > 1) && is_reduce;
+        }
+
+        __host__ __device__ inline bool IsAtomicAdd() const
+        {
+            return (Problem::KBatch > 1) && (!is_reduce);
         }
 
         const ADataType* p_a_grid;
         const BDataType* p_b_grid;
         CDataType* p_c_grid;
+        bool is_reduce;
     };
 
     struct SplitKBatchOffset
     {
+
         __device__ SplitKBatchOffset(Argument& karg)
         {
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
@@ -574,10 +588,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
             }
+
+            if(karg.IsReduceAdd())
+            {
+                c_reduce_offset = blockIdx.z * karg.M * karg.N;
+            }
+            else
+            {
+                c_reduce_offset = 0;
+            }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t c_reduce_offset;
     };
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -1080,16 +1104,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
             }
         }
 
-        if constexpr(is_same<remove_cvref_t<CDataType>, bhalf_t>::value)
+        if constexpr(!(is_same<remove_cvref_t<CDataType>, half_t>::value ||
+                       is_same<remove_cvref_t<CDataType>, float>::value))
         {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            if(!karg.IsReduceAdd())
             {
-                std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
-                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
-            }
-            if(karg.KBatch > 1)
-            {
-                return false;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
+                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                if(karg.KBatch > 1)
+                {
+                    return false;
+                }
             }
         }
 
