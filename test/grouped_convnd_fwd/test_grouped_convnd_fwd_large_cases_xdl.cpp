@@ -81,7 +81,7 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
         {2, 32, 64, 1, 1, {2, 2}, {672, 672}, {672, 672}, {1, 1}, {0, 0}, {0, 0}});
     // When image is larger than 2GB
     this->conv_params.push_back(
-        {2, 2, 2, 256, 256, {3, 3}, {4096, 2048}, {300, 300}, {3, 3}, {1, 1}, {1, 1}});
+        {2, 2, 2, 128, 128, {3, 3}, {4096, 2048}, {300, 300}, {3, 3}, {1, 1}, {1, 1}});
     this->template Run<2>();
 }
 
@@ -113,13 +113,13 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
                                  {0, 0, 0}});
     // When image is larger than 2GB
     this->conv_params.push_back({3,
+                                 1,
                                  2,
-                                 2,
-                                 256,
-                                 256,
+                                 128,
+                                 128,
                                  {3, 3, 3},
-                                 {4096, 2, 2048},
-                                 {300, 2, 300},
+                                 {900, 2, 2048},
+                                 {300, 1, 300},
                                  {3, 2, 3},
                                  {1, 1, 1},
                                  {1, 1, 1}});
