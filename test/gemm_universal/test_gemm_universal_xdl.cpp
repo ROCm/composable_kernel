@@ -47,6 +47,7 @@ using KernelTypes_MK_KN = ::testing::Types<
 #if (defined CK_ENABLE_FP8)
     std::tuple<      F16,        F8,             F16,     F16>,
     std::tuple<       F8,       F16,             F16,     F16>,
+    std::tuple<       F8,        F8,              F8,    BF16>,
 #endif
     std::tuple<     BF16,      BF16,            BF16,    BF16>
     >;
