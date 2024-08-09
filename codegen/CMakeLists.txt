@@ -1,6 +1,3 @@
-#cmake_minimum_required(VERSION 3.16)
-#project(composable_kernel_host LANGUAGES CXX HIP)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -8,18 +5,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-#find_package(ROCM)
-#include(ROCMInstallTargets)
-#include(ROCMTest)
-
 add_compile_options(-std=c++17)
 find_package(hip)
 add_custom_target(codegen)
-## HIP
-#set(CMAKE_HIP_PLATFORM amd)
-#set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
-#set(CMAKE_HIP_EXTENSIONS ON)
-#message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 # add include directories
 include_directories(BEFORE
@@ -33,6 +21,7 @@ list(APPEND CMAKE_MODULE_PATH ${CK_ROOT}/cmake)
 include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
 	${CK_ROOT}/include/ck/*.hpp)
+#printouts fot debug purposes
 #message(STATUS "KERNEL_FILES: ${KERNEL_FILES}")
 #message(STATUS "RELATIVE: ${CK_ROOT}/include")
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
