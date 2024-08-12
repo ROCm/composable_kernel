@@ -12,7 +12,7 @@ struct ReduceParam
 {
     bool do_verification{true};
     bool propagateNan{false};
-    bool useIndex{true};
+    bool useIndex{false};
     bool time_kernel{false};
     bool do_dumpout{false};
     int init_method{2};
@@ -20,7 +20,6 @@ struct ReduceParam
     float beta{0.0f};
     std::vector<size_t> inLengths{64, 4, 280, 82};
     std::vector<int> reduceDims{0, 1, 2, 3};
-    ReduceTensorOp reduceOpId{ReduceTensorOp::AMAX};
 };
 
 std::vector<std::vector<int>> SetGenericReduceDim()
@@ -47,15 +46,11 @@ class ReduceWithIndexTest : public ::testing::Test
         for(std::size_t i(0); i < setReduceDim.size(); ++i)
         {
             set.reduceDims = setReduceDim[i];
-            set.reduceOpId = ReduceTensorOp::AMAX;
-            params.emplace_back(set);
-            set.reduceOpId = ReduceTensorOp::MIN;
-            params.emplace_back(set);
-            set.reduceOpId = ReduceTensorOp::MAX;
             params.emplace_back(set);
         }
-    };
+    }
 
+    template <ReduceTensorOp ReduceOpIdType>
     void Run()
     {
         for(auto param : this->params)
@@ -67,7 +62,7 @@ class ReduceWithIndexTest : public ::testing::Test
                 param.time_kernel,
                 param.inLengths,
                 param.reduceDims,
-                param.reduceOpId,
+                ReduceOpIdType,
                 param.propagateNan,
                 param.useIndex,
                 param.alpha,
@@ -117,32 +112,92 @@ TYPED_TEST_SUITE(ReduceWithIndexInt8, Reduce_int8t_types);
 TYPED_TEST_SUITE(ReduceWithIndexHalf, Reduce_half_types);
 TYPED_TEST_SUITE(ReduceWithIndexBHalfFloat, Reduce_bhalf_float_Types);
 
-TYPED_TEST(ReduceWithIndexFloat, ReduceWithIndexTestFloat)
+TYPED_TEST(ReduceWithIndexFloat, ReduceWithIndexTestFloat_AMAX)
 {
     // trigger Run() -> Generic
-    this->Run();
+    this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithIndexDouble, ReduceWithIndexTestDouble)
+TYPED_TEST(ReduceWithIndexFloat, ReduceWithIndexTestFloat_MIN)
 {
     // trigger Run() -> Generic
-    this->Run();
+    this->template Run<ReduceTensorOp::MIN>();
 }
 
-TYPED_TEST(ReduceWithIndexInt8, ReduceWithIndexTestInt8)
+TYPED_TEST(ReduceWithIndexFloat, ReduceWithIndexTestFloat_MAX)
 {
     // trigger Run() -> Generic
-    this->Run();
+    this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithIndexHalf, ReduceWithIndexTestHalf)
+TYPED_TEST(ReduceWithIndexDouble, ReduceWithIndexTestDouble_AMAX)
 {
     // trigger Run() -> Generic
-    this->Run();
+    this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTestBHalfFloat)
+TYPED_TEST(ReduceWithIndexDouble, ReduceWithIndexTestDouble_MIN)
 {
     // trigger Run() -> Generic
-    this->Run();
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceWithIndexDouble, ReduceWithIndexTestDouble_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceWithIndexInt8, ReduceWithIndexTestInt8_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceWithIndexInt8, ReduceWithIndexTestInt8_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceWithIndexInt8, ReduceWithIndexTestInt8_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceWithIndexHalf, ReduceWithIndexTestHalf_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceWithIndexHalf, ReduceWithIndexTestHalf_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceWithIndexHalf, ReduceWithIndexTestHalf_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTesBtHalfFloat_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTestBHalfFloat_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTestBHalfFloat_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
 }
