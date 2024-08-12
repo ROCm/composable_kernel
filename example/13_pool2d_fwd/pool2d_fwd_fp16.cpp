@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 
@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
     if(argc == 1)
     {
         do_verification = true;
-        init_method     = 2;
+        init_method     = 1;
         time_kernel     = true;
     }
     else if(argc == 4)
