@@ -47,6 +47,10 @@ target_link_libraries(client_conv3d_fwd_convscale_add_fp8 PRIVATE composable_ker
 add_executable(client_conv3d_fwd_convscale_relu_fp8
                grouped_convnd_fwd_convscale_relu/conv3d_fwd_convscale_relu_fp8.cpp)
 target_link_libraries(client_conv3d_fwd_convscale_relu_fp8 PRIVATE composable_kernel::device_conv_operations)
+# Fwd convscale + ReLU + AMAX
+add_executable(client_conv3d_fwd_convscale_relu_amax_fp8
+               grouped_convnd_fwd_convscale_reduce/conv3d_fwd_convscale_relu_amax_fp8.cpp)
+target_link_libraries(client_conv3d_fwd_convscale_relu_amax_fp8 PRIVATE composable_kernel::device_conv_operations)
 # Fwd convscale
 add_executable(client_conv3d_fwd_convscale_fp8
                grouped_convnd_fwd_convscale/conv3d_fwd_convscale_fp8.cpp)
