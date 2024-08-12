@@ -22,13 +22,20 @@ struct ReduceParam
     std::vector<int> reduceDims{0, 1, 2, 3};
 };
 
-std::vector<std::vector<int>> SetGenericReduceDim()
+const std::vector<std::vector<int>> SetGenericReduceDim()
 {
     return {{0, 1, 2, 3}, {0, 1, 2}, {0, 1, 3}, {0, 2, 3}, {1, 2, 3}, {0}, {1}, {2}, {3}};
 }
 
+const std::vector<std::vector<std::size_t>> SetGenericInputDim() { return {{64, 4, 280, 82}}; }
+
+const std::vector<std::vector<std::size_t>> Set12DInputDim()
+{
+    return {{64, 4, 280, 82, 1, 1, 1, 1, 1, 1, 1, 1}, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}};
+}
+
 template <typename T>
-class ReduceWithIndexTest : public ::testing::Test
+class ReduceNoIndexTest : public ::testing::Test
 {
     protected:
     using InDataType  = std::tuple_element_t<0, T>;
@@ -37,17 +44,25 @@ class ReduceWithIndexTest : public ::testing::Test
 
     static std::vector<ReduceParam> params;
 
-    static void SetUpTestSuite()
+    template <typename TFReduce, typename TFInput>
+    static void SetInputAndReduceDims(TFReduce&& funSetReduce, TFInput&& funSetInput)
     {
-        // set testcase variables
         ReduceParam set;
-        const auto setReduceDim = SetGenericReduceDim();
-
+        const auto setReduceDim = funSetReduce();
+        const auto setInputDim  = funSetInput();
+        const int N             = setInputDim.size();
         for(std::size_t i(0); i < setReduceDim.size(); ++i)
         {
             set.reduceDims = setReduceDim[i];
+            set.inLengths  = setInputDim[i % N];
             params.emplace_back(set);
         }
+    }
+
+    static void SetUpTestCase()
+    {
+        // set testcase variables
+        SetInputAndReduceDims(SetGenericReduceDim, SetGenericInputDim);
     }
 
     template <ReduceTensorOp ReduceOpIdType>
@@ -73,7 +88,7 @@ class ReduceWithIndexTest : public ::testing::Test
 };
 
 template <typename T>
-std::vector<ReduceParam> ReduceWithIndexTest<T>::params = {};
+std::vector<ReduceParam> ReduceNoIndexTest<T>::params = {};
 
 using Reduce_float_types       = ::testing::Types<std::tuple<float, float, float>>;
 using Reduce_double_types      = ::testing::Types<std::tuple<double, double, double>>;
@@ -82,121 +97,267 @@ using Reduce_half_types        = ::testing::Types<std::tuple<ck::half_t, ck::hal
 using Reduce_bhalf_float_Types = ::testing::Types<std::tuple<ck::bhalf_t, float, ck::bhalf_t>>;
 
 template <typename TType>
-class ReduceWithNoIndexFloat : public ReduceWithIndexTest<TType>
+class ReduceNoIndexFloat : public ReduceNoIndexTest<TType>
 {
 };
 
 template <typename TType>
-class ReduceWithNoIndexDouble : public ReduceWithIndexTest<TType>
+class ReduceNoIndexDouble : public ReduceNoIndexTest<TType>
 {
 };
 
 template <typename TType>
-class ReduceWithNoIndexInt8 : public ReduceWithIndexTest<TType>
+class ReduceNoIndexInt8 : public ReduceNoIndexTest<TType>
 {
 };
 
 template <typename TType>
-class ReduceWithNoIndexHalf : public ReduceWithIndexTest<TType>
+class ReduceNoIndexHalf : public ReduceNoIndexTest<TType>
 {
 };
 
 template <typename TType>
-class ReduceWithNoIndexBHalfFloat : public ReduceWithIndexTest<TType>
+class ReduceNoIndexBHalfFloat : public ReduceNoIndexTest<TType>
 {
 };
 
-TYPED_TEST_SUITE(ReduceWithNoIndexFloat, Reduce_float_types);
-TYPED_TEST_SUITE(ReduceWithNoIndexDouble, Reduce_double_types);
-TYPED_TEST_SUITE(ReduceWithNoIndexInt8, Reduce_int8t_types);
-TYPED_TEST_SUITE(ReduceWithNoIndexHalf, Reduce_half_types);
-TYPED_TEST_SUITE(ReduceWithNoIndexBHalfFloat, Reduce_bhalf_float_Types);
+template <typename TType>
+class ReduceNoIndexFloat12D : public ReduceNoIndexTest<TType>
+{
+    protected:
+    static void SetUpTestCase()
+    {
+        ReduceNoIndexTest<TType>::SetInputAndReduceDims(SetGenericReduceDim, Set12DInputDim);
+    }
+};
 
-TYPED_TEST(ReduceWithNoIndexFloat, ReduceWithNoIndexTestFloat_AMAX)
+template <typename TType>
+class ReduceNoIndexDouble12D : public ReduceNoIndexTest<TType>
+{
+    protected:
+    static void SetUpTestCase()
+    {
+        ReduceNoIndexTest<TType>::SetInputAndReduceDims(SetGenericReduceDim, Set12DInputDim);
+    }
+};
+
+template <typename TType>
+class ReduceNoIndexInt812D : public ReduceNoIndexTest<TType>
+{
+    protected:
+    static void SetUpTestCase()
+    {
+        ReduceNoIndexTest<TType>::SetInputAndReduceDims(SetGenericReduceDim, Set12DInputDim);
+    }
+};
+
+template <typename TType>
+class ReduceNoIndexHalf12D : public ReduceNoIndexTest<TType>
+{
+    protected:
+    static void SetUpTestCase()
+    {
+        ReduceNoIndexTest<TType>::SetInputAndReduceDims(SetGenericReduceDim, Set12DInputDim);
+    }
+};
+
+template <typename TType>
+class ReduceNoIndexBHalfFloat12D : public ReduceNoIndexTest<TType>
+{
+    protected:
+    static void SetUpTestCase()
+    {
+        ReduceNoIndexTest<TType>::SetInputAndReduceDims(SetGenericReduceDim, Set12DInputDim);
+    }
+};
+
+TYPED_TEST_SUITE(ReduceNoIndexFloat, Reduce_float_types);
+TYPED_TEST_SUITE(ReduceNoIndexDouble, Reduce_double_types);
+TYPED_TEST_SUITE(ReduceNoIndexInt8, Reduce_int8t_types);
+TYPED_TEST_SUITE(ReduceNoIndexHalf, Reduce_half_types);
+TYPED_TEST_SUITE(ReduceNoIndexBHalfFloat, Reduce_bhalf_float_Types);
+
+TYPED_TEST_SUITE(ReduceNoIndexFloat12D, Reduce_float_types);
+TYPED_TEST_SUITE(ReduceNoIndexDouble12D, Reduce_double_types);
+TYPED_TEST_SUITE(ReduceNoIndexInt812D, Reduce_int8t_types);
+TYPED_TEST_SUITE(ReduceNoIndexHalf12D, Reduce_half_types);
+TYPED_TEST_SUITE(ReduceNoIndexBHalfFloat12D, Reduce_bhalf_float_Types);
+
+TYPED_TEST(ReduceNoIndexFloat, ReduceNoIndexTestFloat_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexFloat, ReduceWithNoIndexTestFloat_MIN)
+TYPED_TEST(ReduceNoIndexFloat, ReduceNoIndexTestFloat_MIN)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MIN>();
 }
 
-TYPED_TEST(ReduceWithNoIndexFloat, ReduceWithNoIndexTestFloat_MAX)
+TYPED_TEST(ReduceNoIndexFloat, ReduceNoIndexTestFloat_MAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexDouble, ReduceWithNoIndexTestDouble_AMAX)
+TYPED_TEST(ReduceNoIndexDouble, ReduceNoIndexTestDouble_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexDouble, ReduceWithNoIndexTestDouble_MIN)
+TYPED_TEST(ReduceNoIndexDouble, ReduceNoIndexTestDouble_MIN)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MIN>();
 }
 
-TYPED_TEST(ReduceWithNoIndexDouble, ReduceWithNoIndexTestDouble_MAX)
+TYPED_TEST(ReduceNoIndexDouble, ReduceNoIndexTestDouble_MAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexInt8, ReduceWithNoIndexTestInt8_AMAX)
+TYPED_TEST(ReduceNoIndexInt8, ReduceNoIndexTestInt8_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexInt8, ReduceWithNoIndexTestInt8_MIN)
+TYPED_TEST(ReduceNoIndexInt8, ReduceNoIndexTestInt8_MIN)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MIN>();
 }
 
-TYPED_TEST(ReduceWithNoIndexInt8, ReduceWithNoIndexTestInt8_MAX)
+TYPED_TEST(ReduceNoIndexInt8, ReduceNoIndexTestInt8_MAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexHalf, ReduceWithNoIndexTestHalf_AMAX)
+TYPED_TEST(ReduceNoIndexHalf, ReduceNoIndexTestHalf_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexHalf, ReduceWithNoIndexTestHalf_MIN)
+TYPED_TEST(ReduceNoIndexHalf, ReduceNoIndexTestHalf_MIN)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MIN>();
 }
 
-TYPED_TEST(ReduceWithNoIndexHalf, ReduceWithNoIndexTestHalf_MAX)
+TYPED_TEST(ReduceNoIndexHalf, ReduceNoIndexTestHalf_MAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexBHalfFloat, ReduceWithNoIndexTesBtHalfFloat_AMAX)
+TYPED_TEST(ReduceNoIndexBHalfFloat, ReduceNoIndexTesBtHalfFloat_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();
 }
 
-TYPED_TEST(ReduceWithNoIndexBHalfFloat, ReduceWithNoIndexTestBHalfFloat_MIN)
+TYPED_TEST(ReduceNoIndexBHalfFloat, ReduceNoIndexTestBHalfFloat_MIN)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MIN>();
 }
 
-TYPED_TEST(ReduceWithNoIndexBHalfFloat, ReduceWithNoIndexTestBHalfFloat_MAX)
+TYPED_TEST(ReduceNoIndexBHalfFloat, ReduceNoIndexTestBHalfFloat_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceNoIndexFloat12D, ReduceNoIndexTestFloat_12D_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceNoIndexFloat12D, ReduceNoIndexTestFloat_12D_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceNoIndexFloat12D, ReduceNoIndexTestFloat_12D_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceNoIndexDouble12D, ReduceNoIndexTestDouble_12D_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceNoIndexDouble12D, ReduceNoIndexTestDouble_12D_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceNoIndexDouble12D, ReduceNoIndexTestDouble_12D_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceNoIndexInt812D, ReduceNoIndexTestInt8_12D_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceNoIndexInt812D, ReduceNoIndexTestInt8_12D_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceNoIndexInt812D, ReduceNoIndexTestInt8_12D_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceNoIndexHalf12D, ReduceNoIndexTestHalf_12D_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceNoIndexHalf12D, ReduceNoIndexTestHalf_12D_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceNoIndexHalf12D, ReduceNoIndexTestHalf_12D_MAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MAX>();
+}
+
+TYPED_TEST(ReduceNoIndexBHalfFloat12D, ReduceNoIndexTesBtHalfFloat_12D_AMAX)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::AMAX>();
+}
+
+TYPED_TEST(ReduceNoIndexBHalfFloat12D, ReduceNoIndexTestBHalfFloat_12D_MIN)
+{
+    // trigger Run() -> Generic
+    this->template Run<ReduceTensorOp::MIN>();
+}
+
+TYPED_TEST(ReduceNoIndexBHalfFloat12D, ReduceNoIndexTestBHalfFloat_12D_MAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MAX>();
