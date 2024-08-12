@@ -505,6 +505,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         /*
          * Store prefetched data into LDS
          */
+        block_sync_lds();
         store_tile(q_lds_window, q_block_tile);
         shuffle_tile(qt_block_tile, q_block_tile);
         store_tile(qt_lds_write_window, qt_block_tile);

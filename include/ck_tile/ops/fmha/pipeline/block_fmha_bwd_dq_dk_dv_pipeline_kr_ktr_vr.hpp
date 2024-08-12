@@ -258,6 +258,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         block_sync_lds();
 
         v_reg_tensor = load_tile(v_lds_read_window);
+        block_sync_lds();
         //---------------------------- Loop Load in ----------------------------//
         // Q: HBM ->Reg ->LDS
         auto q_dram_window =
