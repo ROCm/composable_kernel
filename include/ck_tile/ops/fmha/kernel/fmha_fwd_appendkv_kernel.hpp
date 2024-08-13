@@ -704,29 +704,23 @@ struct FmhaFwdAppendKVKernel
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
                              {i_m0, 0});
 
-        /// FIXME: create tile window directly via PageBlockNavigator
         const bool skip_append_kv = kargs.seqlen_knew <= i_n0;
-        auto k_dram_window =
-            make_tile_window(k_dram,
-                             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                             {skip_append_kv ? 0 : kargs.seqlen_k + i_n0, 0});
-
-        auto [i_page_block_k, k_dram_window_tmp] = k_page_block_navigator.make_tile_window(
-            k_dram_window, {skip_append_kv ? 0 : kargs.seqlen_k + i_n0, 0});
+        // window origin = (0, 0) if no work to do for current block
+        auto [i_page_block_k, k_dram_window] = k_page_block_navigator.make_tile_window(
+            k_dram,
+            make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+            {!skip_append_kv * (kargs.seqlen_k + i_n0), 0});
 
         auto knew_dram_window =
             make_tile_window(knew_dram,
                              make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                              {i_n0, 0});
 
-        /// FIXME: create tile window directly via PageBlockNavigator
-        auto v_dram_window =
-            make_tile_window(v_dram,
-                             make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
-                             {0, skip_append_kv ? 0 : kargs.seqlen_k + i_n0});
-
-        auto [i_page_block_v, v_dram_window_tmp] = v_page_block_navigator.make_tile_window(
-            v_dram_window, {0, skip_append_kv ? 0 : kargs.seqlen_k + i_n0});
+        // window origin = (0, 0) if no work to do for current block
+        auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
+            v_dram,
+            make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
+            {0, !skip_append_kv * (kargs.seqlen_k + i_n0)});
 
         auto vnew_dram_window =
             make_tile_window(vnew_dram,
@@ -736,11 +730,11 @@ struct FmhaFwdAppendKVKernel
         if constexpr(kApplyRoPE)
         {
             FmhaPipeline{}(q_dram_window,
-                           k_dram_window_tmp,
+                           k_dram_window,
                            i_page_block_k,
                            k_page_block_navigator,
                            knew_dram_window,
-                           v_dram_window_tmp,
+                           v_dram_window,
                            i_page_block_v,
                            v_page_block_navigator,
                            vnew_dram_window,
@@ -750,16 +744,16 @@ struct FmhaFwdAppendKVKernel
                            knew_rotary_sin_dram_window,
                            kargs.rotary_dim,
                            kargs.seqlen_q <= i_m0,
-                           kargs.seqlen_knew <= i_n0);
+                           skip_append_kv);
         }
         else
         {
             FmhaPipeline{}(q_dram_window,
-                           k_dram_window_tmp,
+                           k_dram_window,
                            i_page_block_k,
                            k_page_block_navigator,
                            knew_dram_window,
-                           v_dram_window_tmp,
+                           v_dram_window,
                            i_page_block_v,
                            v_page_block_navigator,
                            vnew_dram_window,
@@ -769,7 +763,7 @@ struct FmhaFwdAppendKVKernel
                            knew_rotary_sin_dram_window,
                            0, // rotary_dim not used
                            kargs.seqlen_q <= i_m0,
-                           kargs.seqlen_knew <= i_n0);
+                           skip_append_kv);
         }
     }
 };
