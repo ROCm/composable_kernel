@@ -8,8 +8,9 @@
 
 namespace ck_tile {
 
+// assume that we have only 1 page-block
 template <typename DataType_>
-struct SimpleTileWindowNavigator
+struct TrivialPageBlockNavigator
 {
     using DataType     = DataType_;
     using WindowOrigin = multi_index<2>;
@@ -65,21 +66,21 @@ struct SimpleTileWindowNavigator
     }
 };
 
+// default page-block navigator, assume that tensor view size is same as page-block size
 template <typename DataType_, index_t VirtualDim_>
-struct PagedTileWindowNavigator
+struct PageBlockNavigator
 {
     using DataType                      = DataType_;
     static constexpr index_t VirtualDim = VirtualDim_;
     static_assert(VirtualDim == 0 || VirtualDim == 1, "only support 2d tile window");
     using WindowOrigin = multi_index<2>;
 
-    CK_TILE_HOST_DEVICE constexpr PagedTileWindowNavigator(
-        copy_const_t<DataType, void>* physical_blocks_,
-        long_index_t block_stride_,
-        long_index_t fixed_offset_,
-        const int32_t* physical_block_indices_,
-        index_t num_blocks_,
-        index_t page_block_size_)
+    CK_TILE_HOST_DEVICE constexpr PageBlockNavigator(copy_const_t<DataType, void>* physical_blocks_,
+                                                     long_index_t block_stride_,
+                                                     long_index_t fixed_offset_,
+                                                     const int32_t* physical_block_indices_,
+                                                     index_t num_blocks_,
+                                                     index_t page_block_size_)
         : physical_blocks(reinterpret_cast<DataType*>(physical_blocks_)),
           block_stride(block_stride_),
           fixed_offset(fixed_offset_),

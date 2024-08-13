@@ -528,7 +528,7 @@ struct FmhaFwdSplitKVKernel
             }
         }
 
-        auto k_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+        auto k_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
                 const auto* block_indices =
@@ -541,20 +541,20 @@ struct FmhaFwdSplitKVKernel
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                     kargs.nhead_stride_k;
 
-                return PagedTileWindowNavigator<const KDataType, 0>(kargs.k_ptr,
-                                                                    kargs.batch_stride_k,
-                                                                    fixed_offset,
-                                                                    block_indices,
-                                                                    num_blocks,
-                                                                    kargs.page_block_size);
+                return PageBlockNavigator<const KDataType, 0>(kargs.k_ptr,
+                                                              kargs.batch_stride_k,
+                                                              fixed_offset,
+                                                              block_indices,
+                                                              num_blocks,
+                                                              kargs.page_block_size);
             }
             else
             {
-                return SimpleTileWindowNavigator<const KDataType>();
+                return TrivialPageBlockNavigator<const KDataType>();
             }
         }();
 
-        auto v_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+        auto v_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
                 const auto* block_indices =
@@ -567,16 +567,16 @@ struct FmhaFwdSplitKVKernel
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                     kargs.nhead_stride_v;
 
-                return PagedTileWindowNavigator<const VDataType, 1>(kargs.v_ptr,
-                                                                    kargs.batch_stride_v,
-                                                                    fixed_offset,
-                                                                    block_indices,
-                                                                    num_blocks,
-                                                                    kargs.page_block_size);
+                return PageBlockNavigator<const VDataType, 1>(kargs.v_ptr,
+                                                              kargs.batch_stride_v,
+                                                              fixed_offset,
+                                                              block_indices,
+                                                              num_blocks,
+                                                              kargs.page_block_size);
             }
             else
             {
-                return SimpleTileWindowNavigator<const VDataType>();
+                return TrivialPageBlockNavigator<const VDataType>();
             }
         }();
 
@@ -845,8 +845,8 @@ struct FmhaFwdSplitKVKernel
                                       position_encoding,
                                       kargs.scale_s,
                                       smem_ptr,
-                                      k_tile_navigator,
-                                      v_tile_navigator);
+                                      k_page_block_navigator,
+                                      v_page_block_navigator);
             }
             else
             {
@@ -861,8 +861,8 @@ struct FmhaFwdSplitKVKernel
                                       position_encoding,
                                       kargs.scale_s,
                                       smem_ptr,
-                                      k_tile_navigator,
-                                      v_tile_navigator);
+                                      k_page_block_navigator,
+                                      v_page_block_navigator);
             }
         }();
 

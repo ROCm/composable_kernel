@@ -117,8 +117,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename PositionEncoding,
-              typename KTileWindowNavigator,
-              typename VTileWindowNavigator>
+              typename KPageBlockNavigator,
+              typename VPageBlockNavigator>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -139,8 +139,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               const KTileWindowNavigator& k_tile_navigator,
-               const VTileWindowNavigator& v_tile_navigator) const
+               const KPageBlockNavigator& k_page_block_navigator,
+               const VPageBlockNavigator& v_page_block_navigator) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -248,7 +248,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
         }
 
-        auto [i_block0, k_dram_block_window] = k_tile_navigator.make_tile_window(
+        auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
             k_dram_block_window_tmp, {adjusted_seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
@@ -258,7 +258,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             {bias_origin.at(number<0>{}), adjusted_seqlen_k_start}, // M/N
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
-        auto [i_block1, v_dram_window] = v_tile_navigator.make_tile_window(
+        auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_tmp,
             {0, adjusted_seqlen_k_start}, // TODO: hdim split?
             Policy::template MakeVDramTileDistribution<Problem>());
@@ -283,7 +283,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             auto k_block_tile = load_tile(k_dram_window);
             {
                 // moving k_dram_window is an in-page-block operation, so there is
-                // no need to invoke k_tile_navigator.move_tile_window() here.
+                // no need to invoke k_page_block_navigator.move_tile_window() here.
                 move_tile_window(k_dram_window, {0, kK0});
                 clear_tile(s_acc); // initialize C
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
@@ -360,8 +360,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
-                const auto k_origin = k_tile_navigator.to_global_window_origin(
-                    i_block0, k_dram_block_window.get_window_origin());
+                const auto k_origin = k_page_block_navigator.to_global_window_origin(
+                    i_page_block_k, k_dram_block_window.get_window_origin());
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
                 s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
@@ -390,8 +390,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             /// TODO: only check in first/last iteration without increasing code size
             if constexpr(kHasUnevenSplits)
             {
-                const auto k_origin = k_tile_navigator.to_global_window_origin(
-                    i_block0, k_dram_block_window.get_window_origin());
+                const auto k_origin = k_page_block_navigator.to_global_window_origin(
+                    i_page_block_k, k_dram_block_window.get_window_origin());
                 set_tile_if(s_acc,
                             -numeric<SMPLComputeDataType>::infinity(),
                             [&, seqlen_k_start_ = seqlen_k_start, seqlen_k_end_ = seqlen_k_end](
@@ -411,8 +411,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
-                const auto k_origin = k_tile_navigator.to_global_window_origin(
-                    i_block0, k_dram_block_window.get_window_origin());
+                const auto k_origin = k_page_block_navigator.to_global_window_origin(
+                    i_page_block_k, k_dram_block_window.get_window_origin());
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
                                                            k_origin.at(number<0>{}),
                                                            number<kM0>{},
@@ -532,7 +532,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 store_tile(v_lds_window,
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
-            i_block1 = v_tile_navigator.move_tile_window(i_block1, v_dram_window, {0, kK1});
+            i_page_block_v =
+                v_page_block_navigator.move_tile_window(i_page_block_v, v_dram_window, {0, kK1});
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
@@ -541,8 +542,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&,
-                                                  &i_block1_      = i_block1,
-                                                  &v_dram_window_ = v_dram_window](auto i_k1) {
+                                                  &i_page_block_v_ = i_page_block_v,
+                                                  &v_dram_window_  = v_dram_window](auto i_k1) {
                     const auto v = load_tile(v_dram_window_); // load next v
                     block_sync_lds();
                     gemm_1(o_acc,
@@ -564,12 +565,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                         store_tile(v_lds_window,
                                    tile_elementwise_in(v_element_func, v)); // store next v
                     }
-                    i_block1_ =
-                        v_tile_navigator.move_tile_window(i_block1_, v_dram_window_, {0, kK1});
+                    i_page_block_v_ = v_page_block_navigator.move_tile_window(
+                        i_page_block_v_, v_dram_window_, {0, kK1});
                 });
             }
             // move K tile windows
-            i_block0 = k_tile_navigator.move_tile_window(i_block0, k_dram_block_window, {kN0, 0});
+            i_page_block_k = k_page_block_navigator.move_tile_window(
+                i_page_block_k, k_dram_block_window, {kN0, 0});
             // tail
             {
                 block_sync_lds();
@@ -636,8 +638,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding,
-              typename KTileWindowNavigator,
-              typename VTileWindowNavigator>
+              typename KPageBlockNavigator,
+              typename VPageBlockNavigator>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
@@ -650,8 +652,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                PositionEncoding position_encoding,
                float scale_s,
                void* smem_ptr,
-               const KTileWindowNavigator& k_tile_navigator,
-               const VTileWindowNavigator& v_tile_navigator) const
+               const KPageBlockNavigator& k_page_block_navigator,
+               const VPageBlockNavigator& v_page_block_navigator) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -672,8 +674,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           position_encoding,
                           scale_s,
                           smem_ptr,
-                          k_tile_navigator,
-                          v_tile_navigator);
+                          k_page_block_navigator,
+                          v_page_block_navigator);
     }
 };
 

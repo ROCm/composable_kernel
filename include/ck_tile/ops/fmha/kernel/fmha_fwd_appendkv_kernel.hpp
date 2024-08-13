@@ -368,7 +368,7 @@ struct FmhaFwdAppendKVKernel
             batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
         }
 
-        auto k_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+        auto k_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
                 const auto* block_indices =
@@ -381,20 +381,20 @@ struct FmhaFwdAppendKVKernel
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                     kargs.nhead_stride_k;
 
-                return PagedTileWindowNavigator<KDataType, 0>(kargs.k_ptr,
-                                                              kargs.batch_stride_k,
-                                                              fixed_offset,
-                                                              block_indices,
-                                                              num_blocks,
-                                                              kargs.page_block_size);
+                return PageBlockNavigator<KDataType, 0>(kargs.k_ptr,
+                                                        kargs.batch_stride_k,
+                                                        fixed_offset,
+                                                        block_indices,
+                                                        num_blocks,
+                                                        kargs.page_block_size);
             }
             else
             {
-                return SimpleTileWindowNavigator<KDataType>();
+                return TrivialPageBlockNavigator<KDataType>();
             }
         }();
 
-        auto v_tile_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
+        auto v_page_block_navigator = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
             if constexpr(kIsPagedKV)
             {
                 const auto* block_indices =
@@ -407,16 +407,16 @@ struct FmhaFwdAppendKVKernel
                     static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
                     kargs.nhead_stride_v;
 
-                return PagedTileWindowNavigator<VDataType, 1>(kargs.v_ptr,
-                                                              kargs.batch_stride_v,
-                                                              fixed_offset,
-                                                              block_indices,
-                                                              num_blocks,
-                                                              kargs.page_block_size);
+                return PageBlockNavigator<VDataType, 1>(kargs.v_ptr,
+                                                        kargs.batch_stride_v,
+                                                        fixed_offset,
+                                                        block_indices,
+                                                        num_blocks,
+                                                        kargs.page_block_size);
             }
             else
             {
-                return SimpleTileWindowNavigator<VDataType>();
+                return TrivialPageBlockNavigator<VDataType>();
             }
         }();
 
@@ -704,14 +704,14 @@ struct FmhaFwdAppendKVKernel
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{}),
                              {i_m0, 0});
 
-        /// FIXME: create tile window directly via TileWindowNavigator
+        /// FIXME: create tile window directly via PageBlockNavigator
         const bool skip_append_kv = kargs.seqlen_knew <= i_n0;
         auto k_dram_window =
             make_tile_window(k_dram,
                              make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                              {skip_append_kv ? 0 : kargs.seqlen_k + i_n0, 0});
 
-        auto [i_block0, k_dram_window_tmp] = k_tile_navigator.make_tile_window(
+        auto [i_page_block_k, k_dram_window_tmp] = k_page_block_navigator.make_tile_window(
             k_dram_window, {skip_append_kv ? 0 : kargs.seqlen_k + i_n0, 0});
 
         auto knew_dram_window =
@@ -719,13 +719,13 @@ struct FmhaFwdAppendKVKernel
                              make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                              {i_n0, 0});
 
-        /// FIXME: create tile window directly via TileWindowNavigator
+        /// FIXME: create tile window directly via PageBlockNavigator
         auto v_dram_window =
             make_tile_window(v_dram,
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
                              {0, skip_append_kv ? 0 : kargs.seqlen_k + i_n0});
 
-        auto [i_block1, v_dram_window_tmp] = v_tile_navigator.make_tile_window(
+        auto [i_page_block_v, v_dram_window_tmp] = v_page_block_navigator.make_tile_window(
             v_dram_window, {0, skip_append_kv ? 0 : kargs.seqlen_k + i_n0});
 
         auto vnew_dram_window =
@@ -737,18 +737,18 @@ struct FmhaFwdAppendKVKernel
         {
             FmhaPipeline{}(q_dram_window,
                            k_dram_window_tmp,
-                           i_block0,
+                           i_page_block_k,
                            knew_dram_window,
                            v_dram_window_tmp,
-                           i_block1,
+                           i_page_block_v,
                            vnew_dram_window,
                            q_rotary_cos_dram_window,
                            q_rotary_sin_dram_window,
                            knew_rotary_cos_dram_window,
                            knew_rotary_sin_dram_window,
                            kargs.rotary_dim,
-                           k_tile_navigator,
-                           v_tile_navigator,
+                           k_page_block_navigator,
+                           v_page_block_navigator,
                            kargs.seqlen_q <= i_m0,
                            kargs.seqlen_knew <= i_n0);
         }
@@ -756,18 +756,18 @@ struct FmhaFwdAppendKVKernel
         {
             FmhaPipeline{}(q_dram_window,
                            k_dram_window_tmp,
-                           i_block0,
+                           i_page_block_k,
                            knew_dram_window,
                            v_dram_window_tmp,
-                           i_block1,
+                           i_page_block_v,
                            vnew_dram_window,
                            q_rotary_cos_dram_window,
                            q_rotary_sin_dram_window,
                            knew_rotary_cos_dram_window,
                            knew_rotary_sin_dram_window,
                            0, // rotary_dim not used
-                           k_tile_navigator,
-                           v_tile_navigator,
+                           k_page_block_navigator,
+                           v_page_block_navigator,
                            kargs.seqlen_q <= i_m0,
                            kargs.seqlen_knew <= i_n0);
         }
