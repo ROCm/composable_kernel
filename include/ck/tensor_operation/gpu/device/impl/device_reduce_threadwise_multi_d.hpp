@@ -45,7 +45,7 @@ struct DeviceReduceThreadWiseMultiD : public DeviceReduceMultiD<InDataType,
                                                                 OutElementwiseOperation>
 
 {
-    static_assert(Rank <= 6, "Bigger Rank size is not supported!");
+    static_assert(Rank <= 12, "Bigger Rank size is not supported!");
 
     static_assert(((InSrcVectorDim == 0 && MThreadSliceSize % InSrcVectorSize == 0) ||
                    (InSrcVectorDim == 1 && KThreadSliceSize % InSrcVectorSize == 0)) &&
