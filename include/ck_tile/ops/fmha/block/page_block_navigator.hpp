@@ -9,10 +9,8 @@
 namespace ck_tile {
 
 // assume that we have only 1 page-block
-template <typename DataType_>
 struct TrivialPageBlockNavigator
 {
-    using DataType     = DataType_;
     using WindowOrigin = multi_index<2>;
 
     template <typename TensorView, typename WindowLengths>
@@ -21,7 +19,7 @@ struct TrivialPageBlockNavigator
                                                                const WindowOrigin& window_origin)
     {
         return make_tuple(/*block_index=*/0,
-                          make_tile_window(tensor_view, window_lengths, window_origin));
+                          ck_tile::make_tile_window(tensor_view, window_lengths, window_origin));
     }
 
     template <typename TensorView, typename WindowLengths>

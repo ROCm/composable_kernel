@@ -550,7 +550,7 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator<const KDataType>();
+                return TrivialPageBlockNavigator();
             }
         }();
 
@@ -576,7 +576,7 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator<const VDataType>();
+                return TrivialPageBlockNavigator();
             }
         }();
 

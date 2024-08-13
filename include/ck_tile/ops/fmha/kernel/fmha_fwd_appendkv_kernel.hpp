@@ -390,7 +390,7 @@ struct FmhaFwdAppendKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator<KDataType>();
+                return TrivialPageBlockNavigator();
             }
         }();
 
@@ -416,7 +416,7 @@ struct FmhaFwdAppendKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator<VDataType>();
+                return TrivialPageBlockNavigator();
             }
         }();
 
