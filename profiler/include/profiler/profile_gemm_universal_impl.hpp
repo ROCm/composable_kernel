@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -26,6 +26,7 @@ namespace profiler {
 
 template <typename ADataType,
           typename BDataType,
+          typename ComputeDataType,
           typename AccDataType,
           typename CDataType,
           typename ALayout,
@@ -130,7 +131,8 @@ bool profile_gemm_universal_impl(int do_verification,
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CElementOp>;
+                                                                                CElementOp,
+                                                                                ComputeDataType>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -191,7 +193,24 @@ bool profile_gemm_universal_impl(int do_verification,
                 {
                     c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+#if defined CK_ENABLE_FP8
+                    // set softer tolerances for fp8
+                    if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
+                                 is_same_v<CDataType, f8_t>)
+                    {
+                        std::string msg = "Error: Incorrect results!";
+                        double rtol     = 1e-1;
+                        double atol     = 1e-1;
+                        pass            = pass & ck::utils::check_err(
+                                          c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
+                    }
+                    else
+                    {
+#endif
+                        pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+#if defined CK_ENABLE_FP8
+                    }
+#endif
 
                     if(do_log)
                     {
@@ -229,25 +248,6 @@ bool profile_gemm_universal_impl(int do_verification,
                 std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << tflops
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
                           << kbatch_curr << std::endl;
-
-#if defined CK_ENABLE_FP8
-                // set softer tolerances for fp8
-                if constexpr(is_same_v<ADataType, f8_t> || is_same_v<BDataType, f8_t> ||
-                             is_same_v<CDataType, f8_t>)
-                {
-                    std::string msg = "Error: Incorrect results!";
-                    double rtol     = 1e-1;
-                    double atol     = 1e-1;
-                    pass            = pass & ck::utils::check_err(
-                                      c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
-                }
-                else
-                {
-#endif
-                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-#if defined CK_ENABLE_FP8
-                }
-#endif
 
                 if(tflops > best_tflops)
                 {

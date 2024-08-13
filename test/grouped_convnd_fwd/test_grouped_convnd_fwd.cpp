@@ -17,6 +17,7 @@ class TestGroupedConvndFwd : public ::testing::Test
     using InLayout  = std::tuple_element_t<1, Tuple>;
     using WeiLayout = std::tuple_element_t<2, Tuple>;
     using OutLayout = std::tuple_element_t<3, Tuple>;
+    using IndexType = std::tuple_element_t<4, Tuple>;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
 
@@ -33,7 +34,10 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                        OutLayout,
                                                                        DataType,
                                                                        DataType,
-                                                                       DataType>(
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       IndexType>(
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
@@ -46,30 +50,31 @@ class TestGroupedConvndFwd : public ::testing::Test
 
 using namespace ck::tensor_layout::convolution;
 
-using KernelTypes1d = ::testing::Types<std::tuple<float, GNWC, GKXC, GNWK>,
-                                       std::tuple<ck::half_t, GNWC, GKXC, GNWK>,
-                                       std::tuple<ck::bhalf_t, GNWC, GKXC, GNWK>,
-                                       std::tuple<int8_t, GNWC, GKXC, GNWK>>;
+using KernelTypes1d = ::testing::Types<std::tuple<float, GNWC, GKXC, GNWK, ck::index_t>,
+                                       std::tuple<ck::half_t, GNWC, GKXC, GNWK, ck::index_t>,
+                                       std::tuple<ck::bhalf_t, GNWC, GKXC, GNWK, ck::index_t>,
+                                       std::tuple<int8_t, GNWC, GKXC, GNWK, ck::index_t>>;
 
-using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWC, GKYXC, GNHWK>,
-                                       std::tuple<ck::half_t, GNHWC, GKYXC, GNHWK>,
-                                       std::tuple<ck::bhalf_t, GNHWC, GKYXC, GNHWK>,
-                                       std::tuple<int8_t, GNHWC, GKYXC, GNHWK>,
-                                       std::tuple<float, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>>;
+using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWC, GKYXC, GNHWK, ck::index_t>,
+                                       std::tuple<ck::half_t, GNHWC, GKYXC, GNHWK, ck::index_t>,
+                                       std::tuple<ck::bhalf_t, GNHWC, GKYXC, GNHWK, ck::index_t>,
+                                       std::tuple<int8_t, GNHWC, GKYXC, GNHWK, ck::index_t>,
+                                       std::tuple<float, NHWGC, GKYXC, NHWGK, ck::index_t>,
+                                       std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK, ck::index_t>,
+                                       std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::index_t>,
+                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK, ck::index_t>>;
 
-using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK>,
-                                       std::tuple<ck::half_t, GNDHWC, GKZYXC, GNDHWK>,
-                                       std::tuple<ck::bhalf_t, GNDHWC, GKZYXC, GNDHWK>,
-                                       std::tuple<int8_t, GNDHWC, GKZYXC, GNDHWK>,
-                                       std::tuple<float, NDHWGC, GKZYXC, NDHWGK>,
-                                       std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK>,
-                                       std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK>,
-                                       std::tuple<int8_t, NDHWGC, GKZYXC, NDHWGK>>;
+using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK, ck::index_t>,
+                                       std::tuple<ck::half_t, GNDHWC, GKZYXC, GNDHWK, ck::index_t>,
+                                       std::tuple<ck::bhalf_t, GNDHWC, GKZYXC, GNDHWK, ck::index_t>,
+                                       std::tuple<int8_t, GNDHWC, GKZYXC, GNDHWK, ck::index_t>,
+                                       std::tuple<float, NDHWGC, GKZYXC, NDHWGK, ck::index_t>,
+                                       std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK, ck::index_t>,
+                                       std::tuple<ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK, ck::index_t>,
+                                       std::tuple<int8_t, NDHWGC, GKZYXC, NDHWGK, ck::index_t>>;
 
-using KernelTypes2dLargeCases = ::testing::Types<std::tuple<float, NHWGC, GKYXC, NHWGK>>;
+using KernelTypes2dLargeCases =
+    ::testing::Types<std::tuple<float, NHWGC, GKYXC, NHWGK, ck::long_index_t>>;
 
 template <typename Tuple>
 class TestGroupedConvndFwd1d : public TestGroupedConvndFwd<Tuple>
@@ -104,6 +109,7 @@ TYPED_TEST(TestGroupedConvndFwd1d, Test1D)
     this->conv_params.push_back({1, 2, 32, 128, 256, {1}, {3}, {1}, {1}, {0}, {0}});
     this->conv_params.push_back({1, 1, 1, 1, 32, {3}, {32}, {1}, {1}, {1}, {1}});
     this->conv_params.push_back({1, 1, 1, 64, 3, {3}, {32}, {1}, {1}, {1}, {1}});
+    this->conv_params.push_back({1, 96, 1, 1, 1, {3}, {512}, {1}, {1}, {1}, {1}});
     this->template Run<1>();
 }
 
@@ -119,6 +125,8 @@ TYPED_TEST(TestGroupedConvndFwd2d, Test2D)
     this->conv_params.push_back({2, 1, 1, 1, 32, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 64, 3, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 1, 1, {3, 3}, {32, 32}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back(
+        {2, 96, 1, 1, 1, {3, 3}, {120, 160}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->template Run<2>();
 }
 
@@ -137,6 +145,8 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
         {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+    this->conv_params.push_back(
+        {3, 96, 1, 1, 1, {3, 3, 3}, {4, 30, 160}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->template Run<3>();
 }
 
@@ -144,6 +154,12 @@ TYPED_TEST(TestGroupedConvndFwd2dLargeCases, Test2DLargeCases)
 {
     // Case larger than 2GB
     this->conv_params.push_back(
-        {2, 1, 64, 4, 192, {2, 2}, {224, 224}, {224, 224}, {0, 0}, {0, 0}, {0, 0}});
+        {2, 1, 64, 4, 192, {2, 2}, {224, 224}, {224, 224}, {1, 1}, {0, 0}, {0, 0}});
+    // With supported NumGroupsToMerge > 1
+    this->conv_params.push_back(
+        {2, 32, 64, 1, 1, {2, 2}, {672, 672}, {672, 672}, {1, 1}, {0, 0}, {0, 0}});
+    // When image is larger than 2GB
+    this->conv_params.push_back(
+        {2, 1, 1, 256, 256, {3, 3}, {4096, 2048}, {1024, 1024}, {3, 3}, {1, 1}, {1, 1}});
     this->template Run<2>();
 }

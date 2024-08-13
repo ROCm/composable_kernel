@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -12,6 +12,7 @@
 namespace ck {
 namespace host {
 
+// holds the templated instance, substitues values into template from instancess
 struct Solution
 {
 
@@ -33,6 +34,7 @@ struct Solution
     std::unordered_map<std::string, std::string> template_values;
 };
 
+// supported data types
 enum class DataType
 {
     Half,
@@ -40,22 +42,28 @@ enum class DataType
     Int8,
     Int32
 };
-
 std::string ToString(DataType dt);
 
+// supported layouts: gemm and fwd conv
 enum class Layout
 {
     Row,
-    Column
+    Column,
+    GKYXC,
+    GKCYX,
+    GNHWK,
+    GNHWC,
+    NHWGC,
+    NHWGK
 };
-
 std::string ToString(Layout dl);
+Layout ToLayout(bool Trans); // returns the layout for gemm
 
+// supported GEMM types
 enum class GemmType
 {
     Default
 };
-
 std::string ToString(GemmType gt);
 
 struct TensorDesc
@@ -68,8 +76,11 @@ std::string SequenceStr(const std::vector<int>& v);
 
 std::string MakeTuple(const std::vector<std::string>& v);
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wglobal-constructors"
 template <int... xs>
 const std::string S = SequenceStr({xs...});
+#pragma clang diagnostic pop
 
 constexpr const char* PassThrough = "ck::tensor_operation::element_wise::PassThrough";
 constexpr const char* Bilinear    = "ck::tensor_operation::element_wise::Bilinear";
