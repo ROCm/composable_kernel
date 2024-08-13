@@ -46,13 +46,6 @@ struct TrivialPageBlockNavigator
         return /*block_index=*/0;
     }
 
-    /// TODO: remove this method after finish debuging
-    CK_TILE_DEVICE static constexpr int32_t
-    get_block_index(const WindowOrigin& /*global_window_origin*/)
-    {
-        return /*block_index=*/0;
-    }
-
     CK_TILE_DEVICE static constexpr WindowOrigin
     to_local_window_origin(const WindowOrigin& global_window_origin)
     {
@@ -169,17 +162,6 @@ struct PageBlockNavigator
         tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
     }
 
-    CK_TILE_HOST_DEVICE
-    DataType* get_block_ptr(index_t block_index) const
-    {
-        return physical_blocks + physical_block_indices[block_index] * block_stride + fixed_offset;
-    }
-
-    CK_TILE_HOST_DEVICE int32_t get_block_index(const WindowOrigin& global_window_origin) const
-    {
-        return integer_divide_floor(global_window_origin.at(number<VirtualDim>{}), page_block_size);
-    }
-
     CK_TILE_HOST_DEVICE WindowOrigin
     to_local_window_origin(const WindowOrigin& global_window_origin) const
     {
@@ -214,6 +196,18 @@ struct PageBlockNavigator
                                     block_index * page_block_size +
                                         local_window_origin.at(number<1>{}));
         }
+    }
+
+    private:
+    CK_TILE_HOST_DEVICE
+    DataType* get_block_ptr(index_t block_index) const
+    {
+        return physical_blocks + physical_block_indices[block_index] * block_stride + fixed_offset;
+    }
+
+    CK_TILE_HOST_DEVICE int32_t get_block_index(const WindowOrigin& global_window_origin) const
+    {
+        return integer_divide_floor(global_window_origin.at(number<VirtualDim>{}), page_block_size);
     }
 
     DataType* physical_blocks;
