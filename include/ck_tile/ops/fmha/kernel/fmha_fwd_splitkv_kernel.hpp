@@ -829,8 +829,10 @@ struct FmhaFwdSplitKVKernel
                 return FmhaPipeline{}(q_dram_window,
                                       identity{}, // q_element_func
                                       k_dram_window,
+                                      k_page_block_navigator,
                                       identity{}, // k_element_func
                                       v_dram_window,
+                                      v_page_block_navigator,
                                       identity{}, // v_element_func
                                       bias_dram_window,
                                       identity{}, // bias_element_func
@@ -844,15 +846,15 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      smem_ptr,
-                                      k_page_block_navigator,
-                                      v_page_block_navigator);
+                                      smem_ptr);
             }
             else
             {
                 return FmhaPipeline{}(q_dram_window,
                                       k_dram_window,
+                                      k_page_block_navigator,
                                       v_dram_window,
+                                      v_page_block_navigator,
                                       bias_dram_window,
                                       lse_acc_dram_window,
                                       kargs.num_splits,
@@ -860,9 +862,7 @@ struct FmhaFwdSplitKVKernel
                                       mask,
                                       position_encoding,
                                       kargs.scale_s,
-                                      smem_ptr,
-                                      k_page_block_navigator,
-                                      v_page_block_navigator);
+                                      smem_ptr);
             }
         }();
 

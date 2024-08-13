@@ -105,7 +105,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
+              typename KPageBlockNavigator,
               typename VDramBlockWindowTmp,
+              typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename QElementFunction,
@@ -116,15 +118,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
-              typename PositionEncoding,
-              typename KPageBlockNavigator,
-              typename VPageBlockNavigator>
+              typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               const KPageBlockNavigator& k_page_block_navigator,
                const KElementFunction& k_element_func,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const VPageBlockNavigator& v_page_block_navigator,
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
@@ -138,9 +140,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr,
-               const KPageBlockNavigator& k_page_block_navigator,
-               const VPageBlockNavigator& v_page_block_navigator) const
+               void* smem_ptr) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -634,16 +634,18 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
+              typename KPageBlockNavigator,
               typename VDramBlockWindowTmp,
+              typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
-              typename PositionEncoding,
-              typename KPageBlockNavigator,
-              typename VPageBlockNavigator>
+              typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               const KPageBlockNavigator& k_page_block_navigator,
+               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const VPageBlockNavigator& v_page_block_navigator,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp,  // M0*1 tile
                index_t num_splits,
@@ -651,15 +653,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                FmhaMask mask,
                PositionEncoding position_encoding,
                float scale_s,
-               void* smem_ptr,
-               const KPageBlockNavigator& k_page_block_navigator,
-               const VPageBlockNavigator& v_page_block_navigator) const
+               void* smem_ptr) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
+                          k_page_block_navigator,
                           identity{},
                           v_dram_block_window_tmp,
+                          v_page_block_navigator,
                           identity{},
                           bias_dram_block_window_tmp,
                           identity{},
@@ -673,9 +675,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                           mask,
                           position_encoding,
                           scale_s,
-                          smem_ptr,
-                          k_page_block_navigator,
-                          v_page_block_navigator);
+                          smem_ptr);
     }
 };
 

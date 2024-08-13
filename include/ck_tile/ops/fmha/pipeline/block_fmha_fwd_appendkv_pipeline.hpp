@@ -74,8 +74,10 @@ struct BlockFmhaFwdAppendKVPipeline
 
     template <typename QDramBlockWindow,
               typename KDramBlockWindow,
+              typename KPageBlockNavigator,
               typename KnewDramBlockWindow,
               typename VDramBlockWindow,
+              typename VPageBlockNavigator,
               typename VnewDramBlockWindow,
               typename QElementFunction,
               typename KnewElementFunction,
@@ -83,18 +85,18 @@ struct BlockFmhaFwdAppendKVPipeline
               typename QRotaryCosDramBlockWindow,
               typename QRotarySinDramBlockWindow,
               typename KnewRotaryCosDramBlockWindow,
-              typename KnewRotarySinDramBlockWindow,
-              typename KPageBlockNavigator,
-              typename VPageBlockNavigator>
+              typename KnewRotarySinDramBlockWindow>
     CK_TILE_HOST_DEVICE auto
     operator()(QDramBlockWindow& q_dram_block_window, // M0*K0 tile
                const QElementFunction& q_element_func,
                KDramBlockWindow& k_dram_block_window, // N0*K0 tile
                index_t i_page_block_k,
+               const KPageBlockNavigator& k_page_block_navigator,
                const KnewDramBlockWindow& knew_dram_block_window, // N0*K0 tile
                const KnewElementFunction& knew_element_func,
                VDramBlockWindow& v_dram_block_window, // N1*N0 tile
                index_t i_page_block_v,
+               const VPageBlockNavigator& v_page_block_navigator,
                const VnewDramBlockWindow& vnew_dram_block_window, // N1*N0 tile
                const VnewElementFunction& vnew_element_func,
                const QRotaryCosDramBlockWindow q_rotary_cos_dram_block_window,
@@ -102,12 +104,10 @@ struct BlockFmhaFwdAppendKVPipeline
                const KnewRotaryCosDramBlockWindow knew_rotary_cos_dram_block_window,
                const KnewRotarySinDramBlockWindow knew_rotary_sin_dram_block_window,
                index_t rotary_dim,
-               const KPageBlockNavigator& k_page_block_navigator,
-               const VPageBlockNavigator& v_page_block_navigator,
-               bool skip_transform_q,
-               bool skip_append_kv) const
+               bool skip_rotate_q,
+               bool skip_rotate_append_kv) const
     {
-        if(!skip_append_kv)
+        if(!skip_rotate_append_kv)
         {
             // append Knew to K
             auto knew_window = make_tile_window(
@@ -190,7 +190,7 @@ struct BlockFmhaFwdAppendKVPipeline
             }
         }
 
-        if(!skip_transform_q)
+        if(!skip_rotate_q)
         {
             // optionally apply rotary embedding to Q
             if constexpr(RotaryEnum != RotaryEmbeddingEnum::NONE)
@@ -231,41 +231,43 @@ struct BlockFmhaFwdAppendKVPipeline
 
     template <typename QDramBlockWindow,
               typename KDramBlockWindow,
+              typename KPageBlockNavigator,
               typename KnewDramBlockWindow,
               typename VDramBlockWindow,
+              typename VPageBlockNavigator,
               typename VnewDramBlockWindow,
               typename QRotaryCosDramBlockWindow,
               typename QRotarySinDramBlockWindow,
               typename KnewRotaryCosDramBlockWindow,
-              typename KnewRotarySinDramBlockWindow,
-              typename KPageBlockNavigator,
-              typename VPageBlockNavigator>
+              typename KnewRotarySinDramBlockWindow>
     CK_TILE_HOST_DEVICE auto
     operator()(QDramBlockWindow& q_dram_block_window,
                KDramBlockWindow& k_dram_block_window,
                index_t i_page_block_k,
+               const KPageBlockNavigator& k_page_block_navigator,
                const KnewDramBlockWindow& knew_dram_block_window,
                VDramBlockWindow& v_dram_block_window,
                index_t i_page_block_v,
+               const VPageBlockNavigator& v_page_block_navigator,
                const VnewDramBlockWindow& vnew_dram_block_window,
                const QRotaryCosDramBlockWindow& q_rotary_cos_dram_block_window,
                const QRotarySinDramBlockWindow& q_rotary_sin_dram_block_window,
                const KnewRotaryCosDramBlockWindow& knew_rotary_cos_dram_block_window,
                const KnewRotarySinDramBlockWindow& knew_rotary_sin_dram_block_window,
                index_t rotary_dim,
-               const KPageBlockNavigator& k_page_block_navigator,
-               const VPageBlockNavigator& v_page_block_navigator,
-               bool skip_transform_q,
-               bool skip_append_kv) const
+               bool skip_rotate_q,
+               bool skip_rotate_append_kv) const
     {
         return operator()(q_dram_block_window,
                           identity{},
                           k_dram_block_window,
                           i_page_block_k,
+                          k_page_block_navigator,
                           knew_dram_block_window,
                           identity{},
                           v_dram_block_window,
                           i_page_block_v,
+                          v_page_block_navigator,
                           vnew_dram_block_window,
                           identity{},
                           q_rotary_cos_dram_block_window,
@@ -273,10 +275,8 @@ struct BlockFmhaFwdAppendKVPipeline
                           knew_rotary_cos_dram_block_window,
                           knew_rotary_sin_dram_block_window,
                           rotary_dim,
-                          k_page_block_navigator,
-                          v_page_block_navigator,
-                          skip_transform_q,
-                          skip_append_kv);
+                          skip_rotate_q,
+                          skip_rotate_append_kv);
     }
 };
 
