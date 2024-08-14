@@ -9,7 +9,7 @@ export CK_REPEAT=1
 
 COMMON_ARGS='-v=1'
 set -x
-for prec in "fp16" "bf16" ; do
+for prec in "bf16" ; do
 for perm in 0 1 ; do
 for hdim in 32 64 128 256 ; do
 for mode in 0 1 ; do

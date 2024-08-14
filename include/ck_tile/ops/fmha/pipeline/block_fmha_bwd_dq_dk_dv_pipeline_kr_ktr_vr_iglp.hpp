@@ -647,17 +647,33 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 dropout.template Run<decltype(gemm_0), RandValOutputDataType>(
                     seqlen_q_step, k_origin.at(number<0>{}), pt, randval_dram_window);
             }
-            const auto pt_gemm = [&]() {
+            // const auto pt_gemm = [&]() {
+            //     if constexpr(FmhaDropout::IsDropout)
+            //     {
+            //         return tile_elementwise_in(
+            //             [](const auto& x) { return type_convert<GemmDataType>(x > 0.f ? x : 0.f);
+            //             }, pt);
+            //     }
+            //     else
+            //     {
+            //         return cast_tile<GemmDataType>(pt);
+            //     }
+            // }();
+            const auto pt_dropped = [&]() {
                 if constexpr(FmhaDropout::IsDropout)
                 {
-                    return tile_elementwise_in(
-                        [](const auto& x) { return type_convert<GemmDataType>(x > 0.f ? x : 0.f); },
-                        pt);
+                    return tile_elementwise_in([](const auto& x) { return x > 0.f ? x : 0.f; }, pt);
                 }
                 else
                 {
-                    return cast_tile<GemmDataType>(pt);
+                    return pt;
                 }
+            }();
+            const auto pt_gemm = [&]() {
+                if constexpr(std::is_same_v<GemmDataType, bf16_t>)
+                    return impl::cast_tile_rtn_bf16_fp32<GemmDataType>(pt_dropped);
+                else
+                    return cast_tile<GemmDataType>(pt_dropped);
             }();
 
             // STAGE 3, P^T@OGrad^T Gemm1
@@ -733,7 +749,13 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }
 
             // STAGE 6, SGrad^T@Q^T Gemm3
-            const auto dst_gemm = cast_tile<GemmDataType>(dst);
+            // const auto dst_gemm = cast_tile<GemmDataType>(dst);
+            const auto dst_gemm = [&]() {
+                if constexpr(std::is_same_v<GemmDataType, bf16_t>)
+                    return impl::cast_tile_rtn_bf16_fp32<GemmDataType>(dst);
+                else
+                    return cast_tile<GemmDataType>(dst);
+            }();
 
             Policy::template SGradTFromGemm2CToGemm3A<Problem,
                                                       decltype(dst_reg_tensor),
@@ -900,17 +922,33 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         }
 
         // STAGE 3, P^T@OGrad^T Gemm1
-        const auto pt_gemm = [&]() {
+        // const auto pt_gemm = [&]() {
+        //     if constexpr(FmhaDropout::IsDropout)
+        //     {
+        //         return tile_elementwise_in(
+        //             [](const auto& x) { return type_convert<GemmDataType>(x > 0.f ? x : 0.f); },
+        //             pt);
+        //     }
+        //     else
+        //     {
+        //         return cast_tile<GemmDataType>(pt);
+        //     }
+        // }();
+        const auto pt_dropped = [&]() {
             if constexpr(FmhaDropout::IsDropout)
             {
-                return tile_elementwise_in(
-                    [](const auto& x) { return type_convert<GemmDataType>(x > 0.f ? x : 0.f); },
-                    pt);
+                return tile_elementwise_in([](const auto& x) { return x > 0.f ? x : 0.f; }, pt);
             }
             else
             {
-                return cast_tile<GemmDataType>(pt);
+                return pt;
             }
+        }();
+        const auto pt_gemm = [&]() {
+            if constexpr(std::is_same_v<GemmDataType, bf16_t>)
+                return impl::cast_tile_rtn_bf16_fp32<GemmDataType>(pt_dropped);
+            else
+                return cast_tile<GemmDataType>(pt_dropped);
         }();
 
         Policy::template PTFromGemm0CToGemm1A<Problem, decltype(pt_reg_tensor), decltype(pt_gemm)>(
@@ -969,7 +1007,13 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         }
 
         // STAGE 6, SGrad^T@Q^T Gemm3
-        const auto dst_gemm = cast_tile<GemmDataType>(dst);
+        // const auto dst_gemm = cast_tile<GemmDataType>(dst);
+        const auto dst_gemm = [&]() {
+            if constexpr(std::is_same_v<GemmDataType, bf16_t>)
+                return impl::cast_tile_rtn_bf16_fp32<GemmDataType>(dst);
+            else
+                return cast_tile<GemmDataType>(dst);
+        }();
 
         Policy::template SGradTFromGemm2CToGemm3A<Problem,
                                                   decltype(dst_reg_tensor),

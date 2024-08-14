@@ -125,7 +125,12 @@ struct BlockFmhaBwdConvertQGrad
             sweep_tile_span(dq_acc_spans[number<1>{}], [&](auto idx1) {
                 sweep_tile_span(dq_acc_spans[number<2>{}], [&](auto idx2) {
                     constexpr auto n_i_j_idx = make_tuple(idx0, idx1, idx2);
-                    dq_converted(n_i_j_idx)  = type_convert<QGradDataType>(dq_acc[n_i_j_idx]);
+                    if constexpr(std::is_same_v<QGradDataType, bf16_t>)
+                        dq_converted(n_i_j_idx) =
+                            float_to_bf16_raw<static_cast<bf16_rounding_mode>(0)>(
+                                dq_acc[n_i_j_idx]);
+                    else
+                        dq_converted(n_i_j_idx) = type_convert<QGradDataType>(dq_acc[n_i_j_idx]);
                 });
             });
         });

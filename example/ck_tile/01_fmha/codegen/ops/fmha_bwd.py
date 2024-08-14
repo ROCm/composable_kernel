@@ -500,8 +500,9 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                     if not cond:
                         continue
             if receipt == 3:
-                    cond = dtype in ['fp16', 'bf16']
-                    cond &= bias in ['no', 'alibi']
+                    cond = dtype in ['bf16']
+                    cond &= bias in ['no']
+                    cond &= dropout in ['no']
                     cond &= dpad == dvpad
                     cond &= deterministic == "f"
                     if not cond:

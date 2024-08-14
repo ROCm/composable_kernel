@@ -227,6 +227,32 @@ CK_TILE_DEVICE auto cast_tile_pk_fp16_fp32(const InTensor& in_dstr_tensors)
 #endif
 }
 
+template <typename OutDataType, typename InTensor>
+CK_TILE_DEVICE auto cast_tile_rtn_bf16_fp32(const InTensor& in_dstr_tensors)
+{
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__)
+    // This API is designed to use the _pk_ serious of function
+    constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
+
+    constexpr index_t thread_buffer_size = InTensor::get_thread_buffer_size();
+
+    auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
+
+    for(index_t i = 0; i < thread_buffer_size; i++)
+    {
+        out_dstr_tensor.get_thread_buffer().at(i) =
+            float_to_bf16_raw<static_cast<bf16_rounding_mode>(0)>(
+                in_dstr_tensors.get_thread_buffer()[i]);
+    }
+
+    return out_dstr_tensor;
+#else
+    // fallback
+    return tile_elementwise_in(type_convert<OutDataType, typename InTensor::DataType>,
+                               in_dstr_tensors);
+#endif
+}
+
 #if CK_TILE_USE_SUBDWORD_TILE_CAST
 // this function assume either src or dst (or both) date type is under 1 dword
 // we pack subdword value into 1 dword to avoid compiler's default subdword behavior(which is buggy)
