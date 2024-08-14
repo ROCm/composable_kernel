@@ -152,7 +152,7 @@ bool profile_gemm_universal_impl(int do_verification,
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
     {
-        std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
+        std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38};
 
         if(KBatch > 0)
         {
@@ -249,7 +249,7 @@ bool profile_gemm_universal_impl(int do_verification,
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", KBatch "
                           << kbatch_curr << std::endl;
 
-                if(tflops > best_tflops)
+                if(tflops > best_tflops && ave_time > 1e-10)
                 {
                     best_op_name    = op_name;
                     best_tflops     = tflops;

@@ -85,9 +85,11 @@ int profile_grouped_gemm_fixed_nk(int argc, char* argv[])
     const auto StrideCs = argToIntArray(argv[13]);
     const int kbatch    = argc == 15 ? std::stoi(argv[14]) : 1;
 
-    using F32  = float;
-    using F16  = ck::half_t;
-    using F8   = ck::f8_t;
+    using F32 = float;
+    using F16 = ck::half_t;
+#if defined(CK_ENABLE_FP8)
+    using F8 = ck::f8_t;
+#endif
     using BF16 = ck::bhalf_t;
     using I8   = int8_t;
 
