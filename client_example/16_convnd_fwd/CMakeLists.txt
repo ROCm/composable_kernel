@@ -4,7 +4,7 @@ if((DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
 
 endif()
 
-if((DTYPES MATCHES "fp8") OR NOT DEFINED DTYPES)
+if((DTYPES MATCHES "fp8") OR (NOT DEFINED DTYPES AND GPU_TARGETS MATCHES "gfx94"))
     add_executable(client_conv3d_fwd_fp16_comp_fp8 conv3d_fwd_fp16_comp_fp8.cpp)
     target_link_libraries(client_conv3d_fwd_fp16_comp_fp8 PRIVATE composable_kernel::device_conv_operations)
 endif()
