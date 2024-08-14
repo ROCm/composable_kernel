@@ -36,10 +36,9 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_multi_d(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -56,7 +55,7 @@ __global__ void
         karg.c_element_op);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename GridwiseGemm,
@@ -69,10 +68,9 @@ __global__ void
     __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
+    kernel_gemm_xdl_cshuffle_v3_multi_d_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx940__) || defined(__gfx941__) || defined(__gfx942__))
+#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -93,7 +91,7 @@ __global__ void
         karg.c_element_op);
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
+#endif // end of if (defined(__gfx9__))
 }
 
 template <typename ALayout,
@@ -454,6 +452,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             }
         }();
 
+        // pad M and N
+        return transform_tensor_descriptor(c_grid_desc_mraw_nraw,
+                                           make_tuple(make_right_pad_transform(M, MPad - M),
+                                                      make_right_pad_transform(N, NPad - N)),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}),
+                                           make_tuple(Sequence<0>{}, Sequence<1>{}));
+#if 0
         using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
@@ -491,6 +496,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             // not pad M or N
             return c_grid_desc_mraw_nraw;
         }
+#endif
     }
 
     __host__ __device__ static auto MakeDsGridDescriptor_M_N(
@@ -1016,7 +1022,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
+                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
         {
             if(!(karg.M % MPerBlock == 0))
             {
@@ -1033,7 +1040,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
+                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
+                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
         {
             if(!(karg.N % NPerBlock == 0))
             {
