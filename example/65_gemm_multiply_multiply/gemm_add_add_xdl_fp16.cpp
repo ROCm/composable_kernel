@@ -208,6 +208,7 @@ int main(int argc, char* argv[])
                                StrideB,
                                std::array<ck::index_t, NumDTensor>{StrideD, StrideD},
                                StrideE,
+                               1,
                                a_element_op,
                                b_element_op,
                                cde_element_op);
