@@ -10,7 +10,9 @@
 #include <vector>
 
 #include "ck/ck.hpp"
+#include "ck/library/utility/algorithm.hpp"
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
+#include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_elementwise_dynamic_vector_dims_impl.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
@@ -21,6 +23,8 @@
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp"
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/library/tensor_operation_instance/gpu/permute_scale.hpp"
+#include "ck/library/tensor_operation_instance/gpu/reduce/reduce.hpp"
+#include "ck/library/utility/host_tensor.hpp"
 
 namespace ew = ck::tensor_operation::element_wise;
 
@@ -106,6 +110,17 @@ GetOutputByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& o
     return sizeof(OutDataType) * GetTensorSize(output_lengths);
 }
 
+template <typename InDataType,
+          typename OutDataType,
+          ck::ReduceTensorOp ReduceOpId,
+          ck::index_t NumDimSpatial,
+          ck::index_t NumNonSpatialDim = 3>
+OutDataType
+TensorFullReduction(SimpleDeviceMem& tensor,
+                    SimpleDeviceMem& out_amax,
+                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
+                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides);
+
 template <ck::index_t NumDimSpatial,
           typename InDataType,
           typename WeiDataType,
@@ -176,6 +191,8 @@ bool run_grouped_conv_fwd_convscale_reduce(
     const std::array<ck::index_t, NumDimSpatial> conv_filter_dilations{1, 1, 1};
     const std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1, 1};
     const std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1, 1};
+
+    std::cout << "\n\nConvolution with scale Benchmarking:" << std::endl;
 
     std::size_t ds_size = 2; // 2 element-wise scale multipliers
     if constexpr(ck::is_same_v<ConvElementOp, ConvScaleRelu>)
@@ -319,7 +336,7 @@ bool run_grouped_conv_fwd_convscale_reduce(
     /*
      *  Scale with output weight and convert to FP8
      */
-
+    std::cout << "\n\nElement-wise scale + convert Benchmarking:" << std::endl;
     std::size_t ew_flop =
         2 * GetTensorSize<NumDimSpatial>(output_lengths); // element-wise scale + convert
 
@@ -422,5 +439,180 @@ bool run_grouped_conv_fwd_convscale_reduce(
      *  Compute AMAX
      */
 
+    std::cout << "\n\nAMAX Benchmarking:" << std::endl;
+
+    SimpleDeviceMem amax_device(sizeof(ConvOutDataType));
+    TensorFullReduction<ConvOutDataType, ConvOutDataType, ck::ReduceTensorOp::AMAX, NumDimSpatial>(
+        conv_out, amax_device, output_lengths, output_strides);
     return true;
+}
+
+template <typename InDataType,
+          typename OutDataType,
+          ck::ReduceTensorOp ReduceOpId,
+          ck::index_t NumDimSpatial,
+          ck::index_t NumNonSpatialDim>
+OutDataType
+TensorFullReduction(SimpleDeviceMem& tensor,
+                    SimpleDeviceMem& out_amax,
+                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
+                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides)
+{
+    const auto spatial_dim_size = std::accumulate(std::next(std::begin(lengths), NumNonSpatialDim),
+                                                  std::end(lengths),
+                                                  static_cast<std::size_t>(1),
+                                                  std::multiplies<>());
+    const auto tensor_size      = GetTensorSize<NumDimSpatial>(lengths);
+
+    // Get the reduction operation
+    using ReduceOperation = typename ck::reduce_binary_operator<ReduceOpId>::opType;
+    using InElementwiseOperation =
+        typename ck::reduce_unary_operator<ReduceOpId, true, true>::InElementwiseOperation;
+    using AccElementwiseOperation =
+        typename ck::reduce_unary_operator<ReduceOpId, true, true>::AccElementwiseOperation;
+
+    InElementwiseOperation in_elementwise_op;
+    AccElementwiseOperation acc_elementwise_op;
+    std::tie(in_elementwise_op, acc_elementwise_op) =
+        ck::reduce_unary_operator<ReduceOpId, true, true>::GetElementwiseOperator(
+            static_cast<int32_t>(tensor_size));
+
+    std::array<ck::index_t, 1> reduce_out_lengths{1};
+    std::array<ck::index_t, 1> reduce_out_strides{1};
+
+#if 1
+    using DeviceOp     = ck::tensor_operation::device::DeviceReduce<InDataType,
+                                                                OutDataType,
+                                                                OutDataType,
+                                                                NumDimSpatial + NumNonSpatialDim,
+                                                                NumDimSpatial + NumNonSpatialDim,
+                                                                ReduceOperation,
+                                                                InElementwiseOperation,
+                                                                AccElementwiseOperation,
+                                                                true,   // PropagateNan
+                                                                false>; // OutputIndex
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
+    std::string best_op_name;
+    bool found            = false;
+    int best_op_id        = -1;
+    float best_ave_time   = std::numeric_limits<float>::max();
+    float best_gb_per_sec = 0;
+
+    std::array<int, NumDimSpatial + NumNonSpatialDim> reduce_dims;
+    std::iota(reduce_dims.begin(), reduce_dims.end(), 0); // 0,..., NDimSpatial+3-1
+
+    // Hack convolution output strides for reduction as kernel expects stride 1 for the last
+    // dimension. This only works because the reduction is done on the whole tensor and result is
+    // independent of the order of elements.
+    auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
+    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> reduction_strides{};
+    copy(HostTensorDescriptor(lengths).GetStrides(), reduction_strides);
+
+    ck::index_t num_in_elements  = tensor_size;
+    ck::index_t num_out_elements = 1;
+
+    // profile device operation instances
+    std::cout << "Run all instances and do timing" << std::endl;
+
+    for(int i = 0; i < op_ptrs.size(); ++i)
+    {
+        auto& op_ptr = op_ptrs[i];
+
+        auto argument_ptr   = op_ptr->MakeArgumentPointer(lengths,
+                                                        reduction_strides,
+                                                        reduce_out_lengths,
+                                                        reduce_out_strides,
+                                                        reduce_dims,
+                                                        1.0,
+                                                        0.0,
+                                                        tensor.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        out_amax.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        in_elementwise_op,
+                                                        acc_elementwise_op);
+        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
+        std::string op_name = op_ptr->GetTypeString();
+
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        {
+            float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+
+            std::size_t num_bytes =
+                num_in_elements * sizeof(InDataType) + num_out_elements * sizeof(OutDataType);
+
+            float gb_per_sec = num_bytes / 1.E6 / ave_time;
+
+            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << gb_per_sec << " GB/s, "
+                      << op_name << std::endl;
+
+            if(ave_time < best_ave_time)
+            {
+                found           = true;
+                best_op_id      = i;
+                best_op_name    = op_name;
+                best_ave_time   = ave_time;
+                best_gb_per_sec = gb_per_sec;
+            }
+        }
+        else
+        {
+            std::cout << op_name << " does not support this problem" << std::endl;
+        }
+    }
+
+    if(found)
+    {
+        std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
+                  << best_op_name << std::endl;
+
+        // run the best intance
+        auto& op_ptr = op_ptrs[best_op_id];
+        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
+                  << std::endl;
+        auto argument_ptr = op_ptr->MakeArgumentPointer(lengths,
+                                                        strides,
+                                                        reduce_out_lengths,
+                                                        reduce_out_strides,
+                                                        reduce_dims,
+                                                        1.0,
+                                                        0.0,
+                                                        tensor.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        out_amax.GetDeviceBuffer(),
+                                                        nullptr,
+                                                        in_elementwise_op,
+                                                        acc_elementwise_op);
+
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
+
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        {
+            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
+        }
+
+        std::cout << "Done" << std::endl;
+    }
+#else
+    using DeviceOp1     = ck::tensor_operation::device::DeviceReduce<InDataType,
+                                                                 OutDataType,
+                                                                 OutDataType,
+                                                                 NumDimSpatial + NumNonSpatialDim,
+                                                                 NumNonSpatialDim,
+                                                                 ReduceOperation,
+                                                                 InElementwiseOperation,
+                                                                 PassThrough,
+                                                                 true,   // PropagateNan
+                                                                 false>; // OutputIndex
+    const auto op_ptrs1 = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp1>::GetInstances();
+
+    std::cout << "found " << op_ptrs1.size() << " instances" << std::endl;
+#endif
+
+    return OutDataType{};
 }
