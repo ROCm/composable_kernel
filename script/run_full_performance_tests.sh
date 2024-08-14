@@ -92,11 +92,10 @@ print_log_header $gemm_bilinear_log $env_type $branch $host_name
 
 #run grouped_fwd tests
 export grouped_conv_fwd_log="perf_grouped_conv_fwd.log"
-print_log_header $conv_fwd_log $env_type $branch $host_name
+print_log_header $grouped_conv_fwd_log $env_type $branch $host_name
 ./profile_grouped_conv_fwd.sh grouped_conv_fwd 0 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
 ./profile_grouped_conv_fwd.sh grouped_conv_fwd 1 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
 ./profile_grouped_conv_fwd.sh grouped_conv_fwd 2 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
-./profile_grouped_conv_fwd.sh grouped_conv_fwd 3 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
 
 #run grouped_bwd_data tests
 export grouped_conv_bwd_data_log="perf_grouped_conv_bwd_data.log"
@@ -111,7 +110,6 @@ print_log_header $grouped_conv_bwd_weight_log $env_type $branch $host_name
 ./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 0 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
 ./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
 ./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 2 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
-./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 3 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
 ./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 1 $verify 1 0 1 256 4 2>&1 | tee -a $grouped_conv_bwd_weight_log
 
 #run resnet50 tests
