@@ -27,6 +27,20 @@ file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
+
+if(INSTANCES_ONLY)
+	set(INST_TARGETS ${DEFAULT_GPU_TARGETS})
+else()
+	set(INST_TARGETS ${GPU_TARGETS})
+endif()
+
+list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201)
+set(offload_targets)
+	string(APPEND offload_targets "--offload-arch=${target} ")
+foreach(source IN LISTS SOURCES)
+	set_source_files_properties(${source} PROPERTIES COMPILE_FLAGS ${offload_targets})
+endforeach()
+
 # TODO: Use object library
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)

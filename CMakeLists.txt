@@ -541,7 +541,7 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   if(GPU_TARGETS MATCHES "gfx9" AND NOT INSTANCES_ONLY)
+   if(GPU_TARGETS MATCHES "gfx9")
       add_subdirectory(codegen)
    endif()
    if(BUILD_TESTING)
