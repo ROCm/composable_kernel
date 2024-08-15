@@ -334,7 +334,6 @@ bool run_grouped_conv_fwd(bool do_verification,
     // dimension. It only works because the reduction is done on the whole tensor and result is
     // independent of the order of elements.
     std::array<ck::index_t, NDimSpatial + 3> reduction_strides{};
-
     copy(HostTensorDescriptor(e_g_n_k_wos_lengths).GetStrides(), reduction_strides);
 
     auto device_reduce   = DeviceReduceInstance{};
