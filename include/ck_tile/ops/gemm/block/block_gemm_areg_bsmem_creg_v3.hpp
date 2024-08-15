@@ -29,10 +29,11 @@ struct BlockGemmARegBSmemCRegV3
                                const ABlockTensorTmp& a_block_tensor_tmp,
                                const BBlockWindowTmp& b_block_window_tmp) const
     {
-        static_assert(std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
-                          std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
-                          std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
+                std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
+                std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
+            "wrong!");
 
         constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
         constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
@@ -52,20 +53,20 @@ struct BlockGemmARegBSmemCRegV3
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WG::kN);
         constexpr index_t KIterPerWarp = KPerBlock / WG::kK;
-	constexpr index_t prefetch_buf = 2;
+        constexpr index_t prefetch_buf = 2;
 
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
         const index_t iNWarp = get_warp_id() % NWarp;
 
-        constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<NWarp>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-            tuple<sequence<1, 0>>,
-            tuple<sequence<1, 0>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto a_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
@@ -112,7 +113,7 @@ struct BlockGemmARegBSmemCRegV3
         }
 #else
         statically_indexed_array<
-	    statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
+            statically_indexed_array<decltype(b_warp_window_tmp), KIterPerWarp>,
             NIterPerWarp>
             b_warp_windows;
 
@@ -127,10 +128,11 @@ struct BlockGemmARegBSmemCRegV3
 #endif
 
         // check C-block-distribution
-        static_assert(std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
-                                remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
-                                                            .get_static_tile_distribution_encoding())>>,
-                      "wrong!");
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(c_block_dstr_encode)>,
+                           remove_cvref_t<decltype(CBlockTensor::get_tile_distribution()
+                                                       .get_static_tile_distribution_encoding())>>,
+            "wrong!");
 
         using AWarpDstr = typename WG::AWarpDstr;
         using CWarpDstr = typename WG::CWarpDstr;
@@ -139,26 +141,28 @@ struct BlockGemmARegBSmemCRegV3
         using BWarpTensor = typename WG::BWarpTensor;
         using CWarpTensor = typename WG::CWarpTensor;
 
-        constexpr auto a_warp_y_lengths = to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-	//prefetch buffers for srcB
+        // prefetch buffers for srcB
         statically_indexed_array<BWarpTensor, NIterPerWarp> b_warp_tensor_0;
         statically_indexed_array<BWarpTensor, NIterPerWarp> b_warp_tensor_1;
 
-	//Prefetch[0] for B_warp_tensor
+        // Prefetch[0] for B_warp_tensor
         static_for<0, 1, 1>{}([&](auto kiter) {
             static_for<0, NIterPerWarp, 1>{}([&](auto niter) {
-                 // read B warp tensor from B Block window -- buffer[0]
-                 b_warp_tensor_0(niter) = load_tile(b_warp_windows(niter)(number<kiter+0>{}));
+                // read B warp tensor from B Block window -- buffer[0]
+                b_warp_tensor_0(niter) = load_tile(b_warp_windows(niter)(number<kiter + 0>{}));
             });
         });
 
-	//prefetch B for K=i iteration fence
-	__builtin_amdgcn_sched_barrier(0);
+        // prefetch B for K=i iteration fence
+        __builtin_amdgcn_sched_barrier(0);
 
         // hot loop:
         static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
@@ -167,11 +171,10 @@ struct BlockGemmARegBSmemCRegV3
                 AWarpTensor a_warp_tensor;
 
                 a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                     merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                     merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-
-	        auto prefetch_idx = number<kIter%prefetch_buf>{};
+                auto prefetch_idx = number<kIter % prefetch_buf>{};
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
@@ -180,76 +183,82 @@ struct BlockGemmARegBSmemCRegV3
                         merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
                     // warp GEMM
-	 	    if constexpr (KIterPerWarp > (kIter+1))
-		    {
-		        //prefetch buf[1]
-		        if (prefetch_idx == 0)
+                    if constexpr(KIterPerWarp > (kIter + 1))
+                    {
+                        // prefetch buf[1]
+                        if(prefetch_idx == 0)
                         {
-			    if constexpr (nIter == 0 && NIterPerWarp <= 2)
-			    {
+                            if constexpr(nIter == 0 && NIterPerWarp <= 2)
+                            {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_0(nIter));
                                 static_for<0, NIterPerWarp, 1>{}([&](auto niter) {
-                                    b_warp_tensor_1(niter) = load_tile(b_warp_windows(niter)(number<kIter+1>{}));
-			        });
-	                        __builtin_amdgcn_sched_barrier(0x0);
-			    }
-			    else if constexpr (nIter == 0 && NIterPerWarp > 2 )
-			    {
+                                    b_warp_tensor_1(niter) =
+                                        load_tile(b_warp_windows(niter)(number<kIter + 1>{}));
+                                });
+                                __builtin_amdgcn_sched_barrier(0x0);
+                            }
+                            else if constexpr(nIter == 0 && NIterPerWarp > 2)
+                            {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_0(nIter));
                                 static_for<0, 2, 1>{}([&](auto niter) {
-                                    b_warp_tensor_1(niter) = load_tile(b_warp_windows(niter)(number<kIter+1>{}));
-			        });
-	                        __builtin_amdgcn_sched_barrier(0x0);
-		            }
-			    else if constexpr (nIter == 1 && NIterPerWarp > 2 )
-			    {
+                                    b_warp_tensor_1(niter) =
+                                        load_tile(b_warp_windows(niter)(number<kIter + 1>{}));
+                                });
+                                __builtin_amdgcn_sched_barrier(0x0);
+                            }
+                            else if constexpr(nIter == 1 && NIterPerWarp > 2)
+                            {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_0(nIter));
                                 static_for<0, 2, 1>{}([&](auto niter) {
-                                    b_warp_tensor_1(number<niter+2>{}) = load_tile(b_warp_windows(number<niter+2>{})(number<kIter+1>{}));
-			        });
-	                        __builtin_amdgcn_sched_barrier(0x0);
-		            }
-			    else if constexpr (nIter > 1) 
-	                    {
+                                    b_warp_tensor_1(number<niter + 2>{}) = load_tile(
+                                        b_warp_windows(number<niter + 2>{})(number<kIter + 1>{}));
+                                });
+                                __builtin_amdgcn_sched_barrier(0x0);
+                            }
+                            else if constexpr(nIter > 1)
+                            {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_0(nIter));
-		            }
+                            }
                         }
-			else
+                        else
                         {
-                            //prefetch next K buffer
-                            if constexpr (nIter == 0 && NIterPerWarp <= 2 )
+                            // prefetch next K buffer
+                            if constexpr(nIter == 0 && NIterPerWarp <= 2)
                             {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_1(nIter));
                                 static_for<0, NIterPerWarp, 1>{}([&](auto niter) {
-                                    b_warp_tensor_0(niter) = load_tile(b_warp_windows(niter)(number<kIter+1>{}));
+                                    b_warp_tensor_0(niter) =
+                                        load_tile(b_warp_windows(niter)(number<kIter + 1>{}));
                                 });
                                 __builtin_amdgcn_sched_barrier(0x0);
                             }
-                            else if constexpr (nIter == 0 && NIterPerWarp > 2 )
+                            else if constexpr(nIter == 0 && NIterPerWarp > 2)
                             {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_1(nIter));
                                 static_for<0, 2, 1>{}([&](auto niter) {
-                                    b_warp_tensor_0(niter) = load_tile(b_warp_windows(niter)(number<kIter+1>{}));
+                                    b_warp_tensor_0(niter) =
+                                        load_tile(b_warp_windows(niter)(number<kIter + 1>{}));
                                 });
                                 __builtin_amdgcn_sched_barrier(0x0);
                             }
-                            if constexpr (nIter == 1 && NIterPerWarp > 2 )
+                            if constexpr(nIter == 1 && NIterPerWarp > 2)
                             {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_1(nIter));
                                 static_for<0, 2, 1>{}([&](auto niter) {
-                                    b_warp_tensor_0(number<niter+2>{}) = load_tile(b_warp_windows(number<niter+2>{})(number<kIter+1>{}));
+                                    b_warp_tensor_0(number<niter + 2>{}) = load_tile(
+                                        b_warp_windows(number<niter + 2>{})(number<kIter + 1>{}));
                                 });
                                 __builtin_amdgcn_sched_barrier(0x0);
                             }
-                            else if constexpr (nIter > 1)
+                            else if constexpr(nIter > 1)
                             {
                                 WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_1(nIter));
                             }
-		        }
-		    }
-	            else
-		    {
-		        if (prefetch_idx)
+                        }
+                    }
+                    else
+                    {
+                        if(prefetch_idx)
                         {
                             WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_1(nIter));
                         }
@@ -257,7 +266,7 @@ struct BlockGemmARegBSmemCRegV3
                         {
                             WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_0(nIter));
                         }
-		    }
+                    }
                     // WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensor_array[nIter]);
 
                     // write C warp tensor into C block tensor
@@ -267,7 +276,7 @@ struct BlockGemmARegBSmemCRegV3
                         c_warp_tensor.get_thread_buffer());
                 });
             });
-	    __builtin_amdgcn_sched_barrier(0);
+            __builtin_amdgcn_sched_barrier(0);
         });
     }
 

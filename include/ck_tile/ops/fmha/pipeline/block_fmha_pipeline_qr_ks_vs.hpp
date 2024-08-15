@@ -51,8 +51,8 @@ struct BlockFmhaPipelineQRKSVS
                   Problem::kPadHeadDimV == true);
     static constexpr bool kPadSeqLenQ  = true;
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = true;  // support multiple of vector(like 8x)
-    static constexpr bool kPadHeadDimV = true;  // support multiple of vector(like 8x)
+    static constexpr bool kPadHeadDimQ = true; // support multiple of vector(like 8x)
+    static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
     static constexpr auto BiasEnum     = Problem::BiasEnum;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
     static constexpr bool kHasDropout  = Problem::kHasDropout;
@@ -79,11 +79,11 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
             return Problem::kBlockPerCu;
-	else if constexpr(Problem::kBlockSize > 256)
-	    return 1;
+        else if constexpr(Problem::kBlockSize > 256)
+            return 1;
         else
         {
-            
+
             if constexpr(kK0BlockLength <= 32)
             {
                 return 2;
@@ -113,8 +113,8 @@ struct BlockFmhaPipelineQRKSVS
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
 
-	return 64*1024;
-        //return Policy::template GetSmemSize<Problem>();
+        return 64 * 1024;
+        // return Policy::template GetSmemSize<Problem>();
     }
 
     template <typename QDramBlockWindowTmp,
@@ -168,11 +168,11 @@ struct BlockFmhaPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        //constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
+        // constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
         // K tile in LDS
-        auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
-        auto k_lds           = make_tensor_view<address_space_enum::lds>(
+        auto k_lds_ptr = reinterpret_cast<KDataType*>(smem_ptr);
+        auto k_lds     = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
         auto k_lds_window =
             make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
@@ -194,10 +194,10 @@ struct BlockFmhaPipelineQRKSVS
             q_dram_block_window_tmp.get_window_origin(),
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
 
-	//use inline assembly to load Qtile
+        // use inline assembly to load Qtile
         auto q = decltype(load_tile(q_dram_window)){};
         set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
-        //auto q = load_tile(q_dram_window);
+        // auto q = load_tile(q_dram_window);
         load_tile_raw(q, q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
@@ -277,10 +277,10 @@ struct BlockFmhaPipelineQRKSVS
             k_dram_block_window.get_window_lengths(),
             k_dram_block_window.get_window_origin(),
             Policy::template MakeKDramTileDistributionV1<Problem>()); // K DRAM tile window for
-                                                                        // load
+                                                                      // load
         k_dram_window.init_raw();
-        //constexpr auto k_oob_ck = bool_constant<true>{};
-        //constexpr auto k_pre_np = [&]() {
+        // constexpr auto k_oob_ck = bool_constant<true>{};
+        // constexpr auto k_pre_np = [&]() {
         //    if constexpr(kPadSeqLenK &&
         //                 (BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
         //                  (BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)))
@@ -303,17 +303,17 @@ struct BlockFmhaPipelineQRKSVS
             // STAGE 1, QK gemm
 
             clear_tile(s_acc); // initialize C
-            if (get_warp_id() < 4)
-	    {
+            if(get_warp_id() < 4)
+            {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
-	        auto k_tile = load_tile(k_dram_window);
+                auto k_tile = load_tile(k_dram_window);
                 {
-		    buffer_load_fence(0);
-		    __builtin_amdgcn_s_barrier();
-                    //store_tile(k_lds_window, tile_elementwise_in(_element_func, k_tile));
-                    store_tile(k_lds_window,k_tile);
-		    block_sync_lds();
+                    buffer_load_fence(0);
+                    __builtin_amdgcn_s_barrier();
+                    // store_tile(k_lds_window, tile_elementwise_in(_element_func, k_tile));
+                    store_tile(k_lds_window, k_tile);
+                    block_sync_lds();
                 }
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
@@ -331,13 +331,13 @@ struct BlockFmhaPipelineQRKSVS
                 }
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
-		raise_prio();
-		gemm_0(s_acc,
+                raise_prio();
+                gemm_0(s_acc,
                        get_slice_tile(q_tile,
                                       sequence<0, (k0_loops - 1) * kK0>{},
                                       sequence<kM0, k0_loops * kK0>{}),
                        k_lds_window);
-		lower_prio();
+                lower_prio();
                 // STAGE 2, scale_s, add bias, mask, softmax
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
@@ -349,7 +349,7 @@ struct BlockFmhaPipelineQRKSVS
                             x += type_convert<SaccDataType>(bias_element_func(y));
 #else
                             x += log2e_v<SaccDataType> *
-                             type_convert<SaccDataType>(bias_element_func(y));
+                                 type_convert<SaccDataType>(bias_element_func(y));
 #endif
                         },
                         s_acc,
@@ -382,17 +382,17 @@ struct BlockFmhaPipelineQRKSVS
 #endif
                 }
                 move_tile_window(bias_dram_window, {0, kN0});
-	    }
+            }
             else
-	    {
+            {
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
-		//Wave1
-		//do synchronization for Ktile buffer
-		//wait_for_compute() sync
-		__builtin_amdgcn_s_barrier();
-		//sync() for Ktile store to LDS 
-		block_sync_lds();
+                // Wave1
+                // do synchronization for Ktile buffer
+                // wait_for_compute() sync
+                __builtin_amdgcn_s_barrier();
+                // sync() for Ktile store to LDS
+                block_sync_lds();
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -410,21 +410,21 @@ struct BlockFmhaPipelineQRKSVS
                     0); // prevent from messing up the order of global loads
                 const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
 
-                //wait for loads to complete
-		buffer_load_fence(0);
+                // wait for loads to complete
+                buffer_load_fence(0);
 
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
-		raise_prio();
-		gemm_0(s_acc,
+                raise_prio();
+                gemm_0(s_acc,
                        get_slice_tile(q_tile,
                                       sequence<0, (k0_loops - 1) * kK0>{},
                                       sequence<kM0, k0_loops * kK0>{}),
                        k_lds_window);
-		lower_prio();
+                lower_prio();
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
-			//
+                        //
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
@@ -436,11 +436,12 @@ struct BlockFmhaPipelineQRKSVS
                 }
                 else
                 {
-                    store_tile(v_lds_window,
-                               tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
+                    store_tile(
+                        v_lds_window,
+                        tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
                 }
-		ds_fence(0);
-		__builtin_amdgcn_s_barrier();
+                ds_fence(0);
+                __builtin_amdgcn_s_barrier();
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
                 move_tile_window(v_dram_window, {0, kK1});
@@ -456,7 +457,7 @@ struct BlockFmhaPipelineQRKSVS
                             x += type_convert<SaccDataType>(bias_element_func(y));
 #else
                             x += log2e_v<SaccDataType> *
-                             type_convert<SaccDataType>(bias_element_func(y));
+                                 type_convert<SaccDataType>(bias_element_func(y));
 #endif
                         },
                         s_acc,
@@ -489,7 +490,7 @@ struct BlockFmhaPipelineQRKSVS
 #endif
                 }
                 move_tile_window(bias_dram_window, {0, kN0});
-	    }
+            }
 
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
@@ -568,8 +569,7 @@ struct BlockFmhaPipelineQRKSVS
                 p_compute, sequence<1>{}, f_sum, SMPLComputeDataType{0}); // rowsum(Pcompute{j})
 
             block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
-            __builtin_amdgcn_sched_barrier(
-                    0); // prevent from messing up the order of global loads
+            __builtin_amdgcn_sched_barrier(0); // prevent from messing up the order of global loads
             // l{j}, Oacc{j}
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -606,29 +606,28 @@ struct BlockFmhaPipelineQRKSVS
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
 
-            //block_sync_lds();
-	    if (get_warp_id() < 4)
+            // block_sync_lds();
+            if(get_warp_id() < 4)
             {
-                //communicate Vtile transfer to LDS
+                // communicate Vtile transfer to LDS
                 __builtin_amdgcn_s_barrier();
             }
-
 
             // STAGE 3, KV gemm
             // move K tile windows
             move_tile_window(k_dram_block_window, {kN0, 0});
             // tail
             {
-		raise_prio();
-                //const auto p =
+                raise_prio();
+                // const auto p =
                 //    cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
                 const auto p = tile_elementwise_in(p_compute_element_func, p_compute);
-                //block_sync_lds();
+                // block_sync_lds();
                 gemm_1(o_acc,
                        get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                        v_lds_window);
-		lower_prio();
-                //block_sync_lds();
+                lower_prio();
+                // block_sync_lds();
             }
         } while(++i_total_loops < num_total_loop);
 

@@ -747,9 +747,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         {
             using KDataType = remove_cvref_t<typename Problem::KDataType>;
 
-            constexpr index_t kBlockSize = Problem::kBlockSize/2;
+            constexpr index_t kBlockSize = Problem::kBlockSize / 2;
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0/2;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0 / 2;
 
             constexpr index_t K1 = 16 / sizeof(KDataType);
             constexpr index_t K0 = kKPerBlock / K1;
@@ -768,8 +768,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         else
         {
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1/2;
-            constexpr index_t kBlockSize = Problem::kBlockSize/2;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1 / 2;
+            constexpr index_t kBlockSize = Problem::kBlockSize / 2;
             constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
             constexpr index_t warpSize   = ck_tile::get_warp_size();
 
@@ -859,9 +859,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize/2;
+        constexpr index_t kBlockSize = Problem::kBlockSize / 2;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1/2;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1 / 2;
 
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -1020,18 +1020,17 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         return c_block_dstr;
     }
 
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledVRegBlockDescriptorV1()
     {
         // This descriptor only used when V layout is seqlen * hdim
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
         static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        constexpr index_t kBlockSize = Problem::kBlockSize/2;
+        constexpr index_t kBlockSize = Problem::kBlockSize / 2;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1/2;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1 / 2;
 
-        constexpr index_t N1           = 8; //GetAlignmentV<Problem>();
+        constexpr index_t N1           = 8; // GetAlignmentV<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
         static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
