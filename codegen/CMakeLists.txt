@@ -34,7 +34,7 @@ else()
 	set(CG_TARGETS ${GPU_TARGETS})
 endif()
 
-list(REMOVE_ITEM CG_TARGETS gfx900 gfx906 gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201)
+list(REMOVE_ITEM CG_TARGETS gfx900 gfx906 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201)
 set(offload_targets)
 foreach(target IN LISTS CG_TARGETS)
 	string(APPEND offload_targets "--offload-arch=${target} ")
