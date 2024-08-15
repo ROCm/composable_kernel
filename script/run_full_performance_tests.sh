@@ -107,10 +107,10 @@ print_log_header $grouped_conv_bwd_data_log $env_type $branch $host_name
 #run grouped_bwd_weight tests
 export grouped_conv_bwd_weight_log="perf_grouped_conv_bwd_weight.log"
 print_log_header $grouped_conv_bwd_weight_log $env_type $branch $host_name
-./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 0 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
-./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
-./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 2 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
-./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 1 $verify 1 0 1 256 4 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 0 2 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 2 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 2 2 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 2 $verify 1 0 1 256 4 2>&1 | tee -a $grouped_conv_bwd_weight_log
 
 #run resnet50 tests
 export resnet256_log="perf_resnet50_N256.log"
