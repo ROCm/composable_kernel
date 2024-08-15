@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,7 +19,7 @@ namespace device {
 template <index_t Rank, int NumReduceDim>
 std::pair<long_index_t, long_index_t> get_2d_lengths(const std::vector<index_t>& inLengths)
 {
-    static_assert(Rank <= 6, "bigger Rank size not supported!");
+    static_assert(Rank <= 12, "bigger Rank size not supported!");
 
     long_index_t invariant_total_length = 1;
     long_index_t reduce_total_length    = 1;
@@ -38,7 +38,7 @@ std::pair<long_index_t, long_index_t> get_2d_lengths(const std::vector<index_t>&
 template <index_t Rank, int NumReduceDim>
 std::pair<long_index_t, long_index_t> get_2d_lengths(const std::array<index_t, Rank>& inLengths)
 {
-    static_assert(Rank <= 6, "bigger Rank size not supported!");
+    static_assert(Rank <= 12, "bigger Rank size not supported!");
 
     long_index_t invariant_total_length = 1;
     long_index_t reduce_total_length    = 1;
