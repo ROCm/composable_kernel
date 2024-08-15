@@ -92,7 +92,7 @@ std::size_t
 GetInputByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& input_lengths)
 {
     // sizeof(InDataType) * (G * N * C * <input spatial lengths product>) +
-    return sizeof(InDataType) * GetTensorSize(input_lengths);
+    return sizeof(InDataType) * GetTensorSize<NumDimSpatial>(input_lengths);
 }
 
 template <typename WeiDataType, ck::index_t NumDimSpatial, ck::index_t NumNonSpatialDim = 3>
@@ -100,7 +100,7 @@ std::size_t
 GetWeightByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& weights_lengths)
 {
     // sizeof(WeiDataType) * (G * K * C * <filter spatial lengths product>) +
-    return sizeof(WeiDataType) * GetTensorSize(weights_lengths);
+    return sizeof(WeiDataType) * GetTensorSize<NumDimSpatial>(weights_lengths);
 }
 
 template <typename OutDataType, ck::index_t NumDimSpatial, ck::index_t NumNonSpatialDim = 3>
@@ -108,8 +108,40 @@ std::size_t
 GetOutputByte(const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& output_lengths)
 {
     // sizeof(OutDataType) * (G * N * K * <output spatial lengths product>);
-    return sizeof(OutDataType) * GetTensorSize(output_lengths);
+    return sizeof(OutDataType) * GetTensorSize<NumDimSpatial>(output_lengths);
 }
+
+template <typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename ConvElementOp,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          ck::index_t NumDimSpatial,
+          ck::index_t NumNonSpatialDim = 3,
+          typename AComputeType        = InDataType,
+          typename BComputeType        = AComputeType>
+bool ConvolutionScale(SimpleDeviceMem& in,
+                      SimpleDeviceMem& wei,
+                      SimpleDeviceMem& out,
+                      ConvElementOp elementwise_op,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& in_lengths,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& in_strides,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& wei_lengths,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& wei_strides,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& out_lengths,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& out_strides);
+
+template <typename InDataType,
+          typename OutDataType,
+          ck::index_t NumDimSpatial,
+          ck::index_t NumNonSpatialDim = 3>
+void TensorScaleConvert(SimpleDeviceMem& in,
+                        SimpleDeviceMem& out,
+                        float scale_out,
+                        const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
+                        const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides);
 
 template <typename InDataType,
           typename OutDataType,
@@ -188,22 +220,92 @@ bool run_grouped_conv_fwd_convscale_reduce(
     const std::array<ck::index_t, NumDimSpatial + 3> output_strides{
         K, Do * Ho * Wo * G * K, 1, Ho * Wo * G * K, Wo * G * K, G * K};
 
+    /*
+     * FP8 Convolution with Scaling
+     */
+    std::cout << "\n\nConvolution with scale Benchmarking:" << std::endl;
+    auto elementwise_op = ConvElementOp{ew::Scale{scale_in}, ew::Scale{scale_wei}, {}};
+    auto conv_ok        = ConvolutionScale<InDataType,
+                                    WeiDataType,
+                                    ConvOutDataType,
+                                    ConvElementOp,
+                                    InLayout,
+                                    WeiLayout,
+                                    OutLayout,
+                                    NumDimSpatial>(in,
+                                                   wei,
+                                                   conv_out,
+                                                   elementwise_op,
+                                                   input_lengths,
+                                                   input_strides,
+                                                   weights_lengths,
+                                                   weights_strides,
+                                                   output_lengths,
+                                                   output_strides);
+
+    if(!conv_ok)
+        return false;
+
+    /*
+     *  Scale with output weight and convert to FP8
+     */
+    std::cout << "\n\nElement-wise scale + convert Benchmarking:" << std::endl;
+    TensorScaleConvert<ConvOutDataType, OutDataType, NumDimSpatial>(
+        conv_out, out, scale_out, output_lengths, output_strides);
+
+    /*
+     *  Compute AMAX
+     */
+    std::cout << "\n\nAMAX Benchmarking:" << std::endl;
+    SimpleDeviceMem amax_device(sizeof(ConvOutDataType));
+    auto amax_host =
+        TensorFullReduction<ConvOutDataType,
+                            ConvOutDataType,
+                            ck::ReduceTensorOp::AMAX,
+                            NumDimSpatial>(conv_out, amax_device, output_lengths, output_strides);
+    return true;
+}
+
+template <typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename ConvElementOp,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          ck::index_t NumDimSpatial,
+          ck::index_t NumNonSpatialDim,
+          typename AComputeType,
+          typename BComputeType>
+bool ConvolutionScale(SimpleDeviceMem& in,
+                      SimpleDeviceMem& wei,
+                      SimpleDeviceMem& out,
+                      ConvElementOp elementwise_op,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& in_lengths,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& in_strides,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& wei_lengths,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& wei_strides,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& out_lengths,
+                      const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& out_strides)
+{
+
     const std::array<ck::index_t, NumDimSpatial> conv_filter_strides{1, 1, 1};
     const std::array<ck::index_t, NumDimSpatial> conv_filter_dilations{1, 1, 1};
     const std::array<ck::index_t, NumDimSpatial> input_left_pads{1, 1, 1};
     const std::array<ck::index_t, NumDimSpatial> input_right_pads{1, 1, 1};
 
-    std::cout << "\n\nConvolution with scale Benchmarking:" << std::endl;
+    const auto in_mem_size  = GetInputByte<InDataType, NumDimSpatial>(in_lengths);
+    const auto wei_mem_size = GetWeightByte<WeiDataType, NumDimSpatial>(wei_lengths);
+    const auto out_mem_size = GetOutputByte<OutDataType, NumDimSpatial>(out_lengths);
 
     std::size_t ds_size = 2; // 2 element-wise scale multipliers
     if constexpr(ck::is_same_v<ConvElementOp, ConvScaleRelu>)
     {
         ds_size += 1; // +1 element-wise relu
     }
-    std::size_t flop =
-        GetFlops<NumDimSpatial>(output_lengths, weights_lengths, ds_size); // correct!
+    std::size_t flop = GetFlops<NumDimSpatial>(out_lengths, wei_lengths, ds_size);
     std::size_t num_bytes =
-        in_mem_size + wei_mem_size + sizeof(float) + sizeof(float) + conv_out_mem_size; // correct!
+        in_mem_size + wei_mem_size + sizeof(float) + sizeof(float) + out_mem_size;
 
     using ConvDeviceOp =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
@@ -214,7 +316,7 @@ bool run_grouped_conv_fwd_convscale_reduce(
                                                                       InDataType,
                                                                       WeiDataType,
                                                                       ck::Tuple<>,
-                                                                      ConvOutDataType,
+                                                                      OutDataType,
                                                                       PassThrough,
                                                                       PassThrough,
                                                                       ConvElementOp,
@@ -235,8 +337,6 @@ bool run_grouped_conv_fwd_convscale_reduce(
     // profile device operation instances
     std::cout << "Run all convolution instances and do timing" << std::endl;
 
-    auto elementwise_op = ConvElementOp{ew::Scale{scale_in}, ew::Scale{scale_wei}, {}};
-
     for(int i = 0; i < conv_ptrs.size(); ++i)
     {
         auto& op_ptr      = conv_ptrs[i];
@@ -244,15 +344,15 @@ bool run_grouped_conv_fwd_convscale_reduce(
             in.GetDeviceBuffer(),
             wei.GetDeviceBuffer(),
             std::array<const void*, 0>{},
-            conv_out.GetDeviceBuffer(),
-            input_lengths,
-            input_strides,
-            weights_lengths,
-            weights_strides,
+            out.GetDeviceBuffer(),
+            in_lengths,
+            in_strides,
+            wei_lengths,
+            wei_strides,
             std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
             std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
-            output_lengths,
-            output_strides,
+            out_lengths,
+            out_strides,
             conv_filter_strides,
             conv_filter_dilations,
             input_left_pads,
@@ -298,7 +398,7 @@ bool run_grouped_conv_fwd_convscale_reduce(
     std::cout << "Best Perf: " << std::setw(10) << conv_best_avg_time << " ms, " << conv_best_tflops
               << " TFlops, " << conv_best_gb_per_sec << " GB/s, " << conv_best_op_name << std::endl;
 
-    // run the best intance
+    // run the best instance
     {
         auto& op_ptr = conv_ptrs[conv_best_op_id];
         std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
@@ -307,15 +407,15 @@ bool run_grouped_conv_fwd_convscale_reduce(
             in.GetDeviceBuffer(),
             wei.GetDeviceBuffer(),
             std::array<const void*, 0>{},
-            conv_out.GetDeviceBuffer(),
-            input_lengths,
-            input_strides,
-            weights_lengths,
-            weights_strides,
+            out.GetDeviceBuffer(),
+            in_lengths,
+            in_strides,
+            wei_lengths,
+            wei_strides,
             std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
             std::array<std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>, 0>{},
-            output_lengths,
-            output_strides,
+            out_lengths,
+            out_strides,
             conv_filter_strides,
             conv_filter_dilations,
             input_left_pads,
@@ -334,69 +434,83 @@ bool run_grouped_conv_fwd_convscale_reduce(
         std::cout << "Done" << std::endl;
     }
 
-    /*
-     *  Scale with output weight and convert to FP8
-     */
-    std::cout << "\n\nElement-wise scale + convert Benchmarking:" << std::endl;
-    std::size_t ew_flop =
-        2 * GetTensorSize<NumDimSpatial>(output_lengths); // element-wise scale + convert
+    return true;
+}
 
-    std::size_t ew_bytes =
-        conv_out_mem_size + sizeof(float) + out_mem_size; // read from conv_out, scale, write to out
+template <typename InDataType,
+          typename OutDataType,
+          ck::index_t NumDimSpatial,
+          ck::index_t NumNonSpatialDim>
+void TensorScaleConvert(SimpleDeviceMem& in,
+                        SimpleDeviceMem& out,
+                        float scale_out,
+                        const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
+                        const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides)
+{
+
+    const auto tensor_size = GetTensorSize<NumDimSpatial>(lengths);
+
+    const std::size_t in_mem_size  = sizeof(InDataType) * tensor_size;
+    const std::size_t out_mem_size = sizeof(OutDataType) * tensor_size;
+
+    std::size_t flop = 2 * tensor_size; // element-wise scale + convert
+
+    std::size_t bytes =
+        in_mem_size + sizeof(float) + out_mem_size; // read from in, scale, write to out
 
     using DeviceScaleConvert =
-        ck::tensor_operation::device::DeviceElementwise<ck::Tuple<ConvOutDataType>,
+        ck::tensor_operation::device::DeviceElementwise<ck::Tuple<InDataType>,
                                                         ck::Tuple<OutDataType>,
                                                         ew::Scale,
                                                         NumDimSpatial + NumNonSpatialDim>;
 
     // get device op instances
-    const auto ew_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceScaleConvert>::GetInstances();
 
-    std::cout << "found " << ew_ptrs.size() << " instances" << std::endl;
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
-    std::string ew_best_op_name;
-    int ew_best_op_id        = -1;
-    float ew_best_avg_time   = std::numeric_limits<float>::max();
-    float ew_best_gb_per_sec = 0;
-    float ew_best_tflops     = 0;
+    std::string best_op_name;
+    int best_op_id        = -1;
+    float best_avg_time   = std::numeric_limits<float>::max();
+    float best_gb_per_sec = 0;
+    float best_tflops     = 0;
 
     // profile device operation instances
     std::cout << "Run all DeviceScaleConvert instances and do timing" << std::endl;
 
     auto scale_convert = ew::Scale{scale_out};
 
-    for(int i = 0; i < ew_ptrs.size(); ++i)
+    for(int i = 0; i < op_ptrs.size(); ++i)
     {
-        auto& ew_ptr      = ew_ptrs[i];
-        auto argument_ptr = ew_ptr->MakeArgumentPointer(output_lengths,
-                                                        {output_strides},
-                                                        {output_strides},
-                                                        {conv_out.GetDeviceBuffer()},
+        auto& op_ptr      = op_ptrs[i];
+        auto argument_ptr = op_ptr->MakeArgumentPointer(lengths,
+                                                        {strides},
+                                                        {strides},
+                                                        {in.GetDeviceBuffer()},
                                                         {out.GetDeviceBuffer()},
                                                         scale_convert);
 
-        auto invoker_ptr    = ew_ptr->MakeInvokerPointer();
-        std::string op_name = ew_ptr->GetTypeString();
+        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
+        std::string op_name = op_ptr->GetTypeString();
 
-        if(ew_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
 
-            float tflops     = static_cast<float>(ew_flop) / 1.E9 / avg_time;
-            float gb_per_sec = ew_bytes / 1.E6 / avg_time;
+            float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+            float gb_per_sec = bytes / 1.E6 / avg_time;
 
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
                       << gb_per_sec << " GB/s, " << op_name << std::endl;
 
-            if(tflops > ew_best_tflops)
+            if(tflops > best_tflops)
             {
-                ew_best_op_id      = i;
-                ew_best_op_name    = op_name;
-                ew_best_avg_time   = avg_time;
-                ew_best_gb_per_sec = gb_per_sec;
-                ew_best_tflops     = tflops;
+                best_op_id      = i;
+                best_op_name    = op_name;
+                best_avg_time   = avg_time;
+                best_gb_per_sec = gb_per_sec;
+                best_tflops     = tflops;
             }
         }
         else
@@ -405,50 +519,35 @@ bool run_grouped_conv_fwd_convscale_reduce(
         }
     }
 
-    if(ew_best_op_id < 0)
+    if(best_op_id < 0)
     {
         std::cerr << "no suitable instance" << std::endl;
-        return false;
     }
-
-    std::cout << "Best Perf: " << std::setw(10) << ew_best_avg_time << " ms, " << ew_best_tflops
-              << " TFlops, " << ew_best_gb_per_sec << " GB/s, " << ew_best_op_name << std::endl;
-
-    // run the best intance
+    else
     {
-        auto& ew_ptr = ew_ptrs[ew_best_op_id];
-        std::cout << "Run the best instance without timing: " << ew_ptr->GetTypeString()
+        std::cout << "Best Perf: " << std::setw(10) << best_avg_time << " ms, " << best_tflops
+                  << " TFlops, " << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
+
+        // run the best intance
+        auto& op_ptr = op_ptrs[best_op_id];
+        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
                   << std::endl;
-        auto argument_ptr = ew_ptr->MakeArgumentPointer(output_lengths,
-                                                        {output_strides},
-                                                        {output_strides},
-                                                        {conv_out.GetDeviceBuffer()},
+        auto argument_ptr = op_ptr->MakeArgumentPointer(lengths,
+                                                        {strides},
+                                                        {strides},
+                                                        {in.GetDeviceBuffer()},
                                                         {out.GetDeviceBuffer()},
                                                         scale_convert);
 
-        auto invoker_ptr = ew_ptr->MakeInvokerPointer();
+        auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-        if(ew_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
         }
 
         std::cout << "Done" << std::endl;
     }
-
-    /*
-     *  Compute AMAX
-     */
-
-    std::cout << "\n\nAMAX Benchmarking:" << std::endl;
-
-    SimpleDeviceMem amax_device(sizeof(ConvOutDataType));
-    auto amax_host =
-        TensorFullReduction<ConvOutDataType,
-                            ConvOutDataType,
-                            ck::ReduceTensorOp::AMAX,
-                            NumDimSpatial>(conv_out, amax_device, output_lengths, output_strides);
-    return true;
 }
 
 template <typename InDataType,
@@ -485,8 +584,6 @@ TensorFullReduction(SimpleDeviceMem& tensor,
 
     std::array<ck::index_t, 1> reduce_out_lengths{1};
     std::array<ck::index_t, 1> reduce_out_strides{1};
-
-#if 1
 
     SimpleDeviceMem partial_reduce_tensor(sizeof(OutDataType) * spatial_dim_size);
     std::array<ck::index_t, NumDimSpatial> reduce_part_lengths;
@@ -721,124 +818,6 @@ TensorFullReduction(SimpleDeviceMem& tensor,
             std::cout << "Done" << std::endl;
         }
     }
-
-#else
-    using DeviceOp     = ck::tensor_operation::device::DeviceReduce<InDataType,
-                                                                OutDataType,
-                                                                OutDataType,
-                                                                NumDimSpatial + NumNonSpatialDim,
-                                                                NumDimSpatial + NumNonSpatialDim,
-                                                                ReduceOperation,
-                                                                InElementwiseOperation,
-                                                                AccElementwiseOperation,
-                                                                true,   // PropagateNan
-                                                                false>; // OutputIndex
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
-
-    std::string best_op_name;
-    bool found            = false;
-    int best_op_id        = -1;
-    float best_ave_time   = std::numeric_limits<float>::max();
-    float best_gb_per_sec = 0;
-
-    std::array<int, NumDimSpatial + NumNonSpatialDim> reduce_dims;
-    std::iota(reduce_dims.begin(), reduce_dims.end(), 0); // 0,..., NumDimSpatial+NumNonSpatialDim-1
-
-    // Hack convolution output strides for reduction as kernel expects stride 1 for the last
-    // dimension. This only works because the reduction is done on the whole tensor and result is
-    // independent of the order of elements.
-    std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim> reduction_strides{};
-    copy(HostTensorDescriptor(lengths).GetStrides(), reduction_strides);
-
-    ck::index_t num_in_elements  = tensor_size;
-    ck::index_t num_out_elements = 1;
-
-    // profile device operation instances
-    std::cout << "Run all instances and do timing" << std::endl;
-
-    for(int i = 0; i < op_ptrs.size(); ++i)
-    {
-        auto& op_ptr = op_ptrs[i];
-
-        auto argument_ptr   = op_ptr->MakeArgumentPointer(lengths,
-                                                        reduction_strides,
-                                                        reduce_out_lengths,
-                                                        reduce_out_strides,
-                                                        reduce_dims,
-                                                        1.0,
-                                                        0.0,
-                                                        tensor.GetDeviceBuffer(),
-                                                        nullptr,
-                                                        out_amax.GetDeviceBuffer(),
-                                                        nullptr,
-                                                        in_elementwise_op,
-                                                        acc_elementwise_op);
-        auto invoker_ptr    = op_ptr->MakeInvokerPointer();
-        std::string op_name = op_ptr->GetTypeString();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            float ave_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
-
-            std::size_t num_bytes =
-                num_in_elements * sizeof(InDataType) + num_out_elements * sizeof(OutDataType);
-
-            float gb_per_sec = num_bytes / 1.E6 / ave_time;
-
-            std::cout << "Perf: " << std::setw(10) << ave_time << " ms, " << gb_per_sec << " GB/s, "
-                      << op_name << std::endl;
-
-            if(ave_time < best_ave_time)
-            {
-                found           = true;
-                best_op_id      = i;
-                best_op_name    = op_name;
-                best_ave_time   = ave_time;
-                best_gb_per_sec = gb_per_sec;
-            }
-        }
-        else
-        {
-            std::cout << op_name << " does not support this problem" << std::endl;
-        }
-    }
-
-    if(found)
-    {
-        std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
-                  << best_op_name << std::endl;
-
-        // run the best intance
-        auto& op_ptr = op_ptrs[best_op_id];
-        std::cout << "Run the best instance without timing: " << op_ptr->GetTypeString()
-                  << std::endl;
-        auto argument_ptr = op_ptr->MakeArgumentPointer(lengths,
-                                                        strides,
-                                                        reduce_out_lengths,
-                                                        reduce_out_strides,
-                                                        reduce_dims,
-                                                        1.0,
-                                                        0.0,
-                                                        tensor.GetDeviceBuffer(),
-                                                        nullptr,
-                                                        out_amax.GetDeviceBuffer(),
-                                                        nullptr,
-                                                        in_elementwise_op,
-                                                        acc_elementwise_op);
-
-        auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
-        {
-            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
-        }
-
-        std::cout << "Done" << std::endl;
-    }
-#endif
 
     OutDataType out_amax_host;
     (void)hipMemcpy(
