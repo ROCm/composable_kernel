@@ -952,7 +952,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKTRegWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledKRegWriteBlockDescriptor()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -974,7 +974,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKTLdsWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledKLdsWriteBlockDescriptor()
     {
         // Hold all data
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
@@ -992,10 +992,10 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
-        auto kt_lds_block_desc = MakeKTLdsWriteBlockDescriptor<Problem>();
+        auto shuffled_k_lds_block_desc = MakeShuffledKLdsWriteBlockDescriptor<Problem>();
 
         return transform_tensor_descriptor(
-            kt_lds_block_desc,
+            shuffled_k_lds_block_desc,
             make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
                        make_pass_through_transform(number<kKPerBlock>{})),
             make_tuple(sequence<1>{}, sequence<0>{}),
@@ -1078,7 +1078,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTRegWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledQRegWriteBlockDescriptor()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -1100,7 +1100,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledQLdsWriteBlockDescriptor()
     {
         // Hold full block data
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
@@ -1119,10 +1119,10 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kM0;
 
-        auto qt_lds_block_desc = MakeQTLdsWriteBlockDescriptor<Problem>();
+        auto shuffled_q_lds_block_desc = MakeShuffledQLdsWriteBlockDescriptor<Problem>();
 
         return transform_tensor_descriptor(
-            qt_lds_block_desc,
+            shuffled_q_lds_block_desc,
             make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
                        make_pass_through_transform(number<kKPerBlock>{})),
             make_tuple(sequence<1>{}, sequence<0>{}),
@@ -1285,7 +1285,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTRegWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledOGradRegWriteBlockDescriptor()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -1307,7 +1307,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsWriteBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledOGradLdsWriteBlockDescriptor()
     {
         // Hold all data
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kVHeaddim;
@@ -1323,12 +1323,12 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeOGradTLdsReadBlockDescriptor()
     {
         // Hold all data
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kVHeaddim;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kM0;
-        auto dot_lds_block_desc      = MakeOGradTLdsWriteBlockDescriptor<Problem>();
+        constexpr index_t kNPerBlock    = Problem::BlockFmhaShape::kVHeaddim;
+        constexpr index_t kKPerBlock    = Problem::BlockFmhaShape::kM0;
+        auto shuffled_do_lds_block_desc = MakeShuffledOGradLdsWriteBlockDescriptor<Problem>();
 
         return transform_tensor_descriptor(
-            dot_lds_block_desc,
+            shuffled_do_lds_block_desc,
             make_tuple(make_pass_through_transform(number<kNPerBlock>{}),
                        make_pass_through_transform(number<kKPerBlock>{})),
             make_tuple(sequence<1>{}, sequence<0>{}),
@@ -1442,9 +1442,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         return ds_block_dstr;
     }
 
-    template <typename Problem, typename PTOutTensor, typename PTInTensor>
+    template <typename Problem, typename PTOutTensor, typename PInTensor>
     CK_TILE_DEVICE static constexpr void PTFromGemm0CToGemm1A(PTOutTensor& pt_out,
-                                                              const PTInTensor& pt_in)
+                                                              const PInTensor& p_in)
     {
         if constexpr(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 16)
         {
@@ -1475,7 +1475,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    pt_warp_tensor.get_thread_buffer() = pt_in.get_y_sliced_thread_data(
+                    pt_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
                         merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
@@ -1488,13 +1488,13 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
         else
         {
-            pt_out.get_thread_buffer() = pt_in.get_thread_buffer();
+            pt_out.get_thread_buffer() = p_in.get_thread_buffer();
         }
     }
 
-    template <typename Problem, typename SGradTOutTensor, typename SGradTInTensor>
+    template <typename Problem, typename SGradTOutTensor, typename SGradInTensor>
     CK_TILE_DEVICE static constexpr void SGradTFromGemm2CToGemm3A(SGradTOutTensor& dst_out,
-                                                                  const SGradTInTensor& dst_in)
+                                                                  const SGradInTensor& ds_in)
     {
         if constexpr(Problem::BlockFmhaShape::Gemm3WarpTile::at(number<0>{}) == 16)
         {
@@ -1525,7 +1525,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    dst_warp_tensor.get_thread_buffer() = dst_in.get_y_sliced_thread_data(
+                    dst_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
                         merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
@@ -1538,7 +1538,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
         else
         {
-            dst_out.get_thread_buffer() = dst_in.get_thread_buffer();
+            dst_out.get_thread_buffer() = ds_in.get_thread_buffer();
         }
     }
 
@@ -1597,7 +1597,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         constexpr index_t smem_size_qt =
             sizeof(typename Problem::QDataType) *
-            MakeQTLdsWriteBlockDescriptor<Problem>().get_element_space_size();
+            MakeShuffledQLdsWriteBlockDescriptor<Problem>().get_element_space_size();
 
         return smem_size_qt;
     }
@@ -1661,7 +1661,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         constexpr index_t smem_size_dot =
             sizeof(typename Problem::OGradDataType) *
-            MakeOGradTLdsWriteBlockDescriptor<Problem>().get_element_space_size();
+            MakeShuffledOGradLdsWriteBlockDescriptor<Problem>().get_element_space_size();
         return smem_size_dot;
     }
 
