@@ -256,8 +256,8 @@ int override_num_splits_if_necessary(
 template <typename DataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
-    std::string data_type    = arg_parser.get_str("prec");
-    int do_validation        = arg_parser.get_int("v");
+    std::string data_type = arg_parser.get_str("prec");
+    int do_validation     = arg_parser.get_int("v");
 
     ck_tile::index_t batch   = arg_parser.get_int("b");
     ck_tile::index_t nhead   = arg_parser.get_int("h");
@@ -307,9 +307,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    if((0 < seqlen_knew || 0 < page_block_size) && mode != mode_enum::batch) {
-        std::cerr << "kvcache enabled. ignoring the 'mode' option"
-                  << std::endl;
+    if((0 < seqlen_knew || 0 < page_block_size) && mode != mode_enum::batch)
+    {
+        std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
         mode = mode_enum::batch;
     }
 
@@ -780,7 +780,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
-            traits.is_group_mode = (mode == mode_enum::group);
+            traits.is_group_mode       = (mode == mode_enum::group);
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
             traits.has_lse             = lse;
@@ -871,12 +871,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         args.k_ptr = k_buf.GetDeviceBuffer();
         args.v_ptr = v_buf.GetDeviceBuffer();
 
-        args.batch        = batch;
-        args.seqlen_q     = shape_seqlen_q;
-        args.hdim_q       = hdim_q;
-        args.hdim_v       = hdim_v;
-        args.nhead_q      = nhead;
-        args.nhead_k      = nhead_k;
+        args.batch    = batch;
+        args.seqlen_q = shape_seqlen_q;
+        args.hdim_q   = hdim_q;
+        args.hdim_v   = hdim_v;
+        args.nhead_q  = nhead;
+        args.nhead_k  = nhead_k;
 
         args.stride_q       = stride_q;
         args.stride_k       = stride_k;
@@ -919,9 +919,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.lse_ptr  = lse_buf.GetDeviceBuffer();
             args.o_ptr    = o_buf.GetDeviceBuffer();
 
-            args.seqstart_q_ptr = (mode == mode_enum::group ? seqstart_q.GetDeviceBuffer() : nullptr);
-            args.seqstart_k_ptr = (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
-            args.seqlen_k_ptr = (0 < seqlen_knew || 0 < page_block_size || 0 <= k_paddings_[0] ? seqlen_k_buf.GetDeviceBuffer() : nullptr);
+            args.seqstart_q_ptr =
+                (mode == mode_enum::group ? seqstart_q.GetDeviceBuffer() : nullptr);
+            args.seqstart_k_ptr =
+                (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
+            args.seqlen_k_ptr = (0 < seqlen_knew || 0 < page_block_size || 0 <= k_paddings_[0]
+                                     ? seqlen_k_buf.GetDeviceBuffer()
+                                     : nullptr);
 
             args.seqlen_k     = (args.seqlen_k_ptr == nullptr ? shape_seqlen_k : -1);
             args.max_seqlen_q = max_seqlen_q;

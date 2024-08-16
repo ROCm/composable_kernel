@@ -128,78 +128,78 @@ struct FmhaFwdAppendKVKernel
         ck_tile::index_t rotary_dim;
     };
 
-    struct Kargs : BasicKargs,
-                            std::conditional_t<kApplyRoPE, RoPEKargs, EmptyKargs<0>>
-    {};
-
-    __host__ static constexpr Kargs
-    MakeKargs(void* q_ptr,
-              void* k_ptr,
-              const void* knew_ptr,
-              void* v_ptr,
-              const void* vnew_ptr,
-              ck_tile::index_t seqlen_q,
-              const void* seqlen_k_ptr,
-              ck_tile::index_t seqlen_knew,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              const void* rotary_cos_ptr,
-              const void* rotary_sin_ptr,
-              ck_tile::index_t rotary_dim,
-              const void* block_table_ptr,
-              ck_tile::index_t batch_stride_block_table,
-              ck_tile::index_t page_block_size,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_knew,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_vnew,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_knew,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_vnew,
-              ck_tile::index_t batch_stride_q,
-              ck_tile::index_t batch_stride_k,
-              ck_tile::index_t batch_stride_knew,
-              ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_vnew)
+    struct Kargs : BasicKargs, std::conditional_t<kApplyRoPE, RoPEKargs, EmptyKargs<0>>
     {
-        Kargs kargs{{q_ptr,
-                     k_ptr,
-                     knew_ptr,
-                     v_ptr,
-                     vnew_ptr,
-                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
-                     seqlen_q,
-                     -1, // seqlen_k will be updated by content of seqlen_k_ptr
-                     seqlen_knew,
-                     hdim_q,
-                     hdim_v,
-                     num_head_q,
-                     nhead_ratio_qk,
-                     block_table_ptr,
-                     batch_stride_block_table,
-                     page_block_size,
-                     stride_q,
-                     stride_k,
-                     stride_knew,
-                     stride_v,
-                     stride_vnew,
-                     nhead_stride_q,
-                     nhead_stride_k,
-                     nhead_stride_knew,
-                     nhead_stride_v,
-                     nhead_stride_vnew,
-                     batch_stride_q,
-                     batch_stride_k,
-                     batch_stride_knew,
-                     batch_stride_v,
-                     batch_stride_vnew}, // args for common karg
-                    {}                  // placeholder for rope
-                    };
+    };
+
+    __host__ static constexpr Kargs MakeKargs(void* q_ptr,
+                                              void* k_ptr,
+                                              const void* knew_ptr,
+                                              void* v_ptr,
+                                              const void* vnew_ptr,
+                                              ck_tile::index_t seqlen_q,
+                                              const void* seqlen_k_ptr,
+                                              ck_tile::index_t seqlen_knew,
+                                              ck_tile::index_t hdim_q,
+                                              ck_tile::index_t hdim_v,
+                                              ck_tile::index_t num_head_q,
+                                              ck_tile::index_t nhead_ratio_qk,
+                                              const void* rotary_cos_ptr,
+                                              const void* rotary_sin_ptr,
+                                              ck_tile::index_t rotary_dim,
+                                              const void* block_table_ptr,
+                                              ck_tile::index_t batch_stride_block_table,
+                                              ck_tile::index_t page_block_size,
+                                              ck_tile::index_t stride_q,
+                                              ck_tile::index_t stride_k,
+                                              ck_tile::index_t stride_knew,
+                                              ck_tile::index_t stride_v,
+                                              ck_tile::index_t stride_vnew,
+                                              ck_tile::index_t nhead_stride_q,
+                                              ck_tile::index_t nhead_stride_k,
+                                              ck_tile::index_t nhead_stride_knew,
+                                              ck_tile::index_t nhead_stride_v,
+                                              ck_tile::index_t nhead_stride_vnew,
+                                              ck_tile::index_t batch_stride_q,
+                                              ck_tile::index_t batch_stride_k,
+                                              ck_tile::index_t batch_stride_knew,
+                                              ck_tile::index_t batch_stride_v,
+                                              ck_tile::index_t batch_stride_vnew)
+    {
+        Kargs kargs{
+            {q_ptr,
+             k_ptr,
+             knew_ptr,
+             v_ptr,
+             vnew_ptr,
+             reinterpret_cast<const int32_t*>(seqlen_k_ptr),
+             seqlen_q,
+             -1, // seqlen_k will be updated by content of seqlen_k_ptr
+             seqlen_knew,
+             hdim_q,
+             hdim_v,
+             num_head_q,
+             nhead_ratio_qk,
+             block_table_ptr,
+             batch_stride_block_table,
+             page_block_size,
+             stride_q,
+             stride_k,
+             stride_knew,
+             stride_v,
+             stride_vnew,
+             nhead_stride_q,
+             nhead_stride_k,
+             nhead_stride_knew,
+             nhead_stride_v,
+             nhead_stride_vnew,
+             batch_stride_q,
+             batch_stride_k,
+             batch_stride_knew,
+             batch_stride_v,
+             batch_stride_vnew}, // args for common karg
+            {}                   // placeholder for rope
+        };
 
         if constexpr(kApplyRoPE)
         {
@@ -229,11 +229,14 @@ struct FmhaFwdAppendKVKernel
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
         const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
 
-        const long_index_t batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
-        const long_index_t batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
+        const long_index_t batch_offset_q =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
+        const long_index_t batch_offset_k =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
         const long_index_t batch_offset_knew =
             static_cast<long_index_t>(i_batch) * kargs.batch_stride_knew;
-        const long_index_t batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+        const long_index_t batch_offset_v =
+            static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
         const long_index_t batch_offset_vnew =
             static_cast<long_index_t>(i_batch) * kargs.batch_stride_vnew;
 

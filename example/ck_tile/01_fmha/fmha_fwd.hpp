@@ -164,9 +164,8 @@ struct fmha_fwd_splitkv_args
 
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
-    const void*
-        seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr, or 
-                      // kvcache is used 
+    const void* seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not
+                              // nullptr, or kvcache is used
 
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k; // only used if 'seqlen_k_ptr' is nullptr
@@ -521,38 +520,38 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
 {
     assert(args.nhead_q % args.nhead_k == 0);
     auto kargs = Kernel::MakeKargs(args.q_ptr,
-                                     args.k_ptr,
-                                     args.knew_ptr,
-                                     args.v_ptr,
-                                     args.vnew_ptr,
-                                     args.seqlen_q,
-                                     args.seqlen_k_ptr,
-                                     args.seqlen_knew,
-                                     args.hdim_q,
-                                     args.hdim_v,
-                                     args.nhead_q,
-                                     args.nhead_q / args.nhead_k,
-                                     args.rotary_cos_ptr,
-                                     args.rotary_sin_ptr,
-                                     args.rotary_dim,
-                                     args.block_table_ptr,
-                                     args.batch_stride_block_table,
-                                     args.page_block_size,
-                                     args.stride_q,
-                                     args.stride_k,
-                                     args.stride_knew,
-                                     args.stride_v,
-                                     args.stride_vnew,
-                                     args.nhead_stride_q,
-                                     args.nhead_stride_k,
-                                     args.nhead_stride_knew,
-                                     args.nhead_stride_v,
-                                     args.nhead_stride_vnew,
-                                     args.batch_stride_q,
-                                     args.batch_stride_k,
-                                     args.batch_stride_knew,
-                                     args.batch_stride_v,
-                                     args.batch_stride_vnew);
+                                   args.k_ptr,
+                                   args.knew_ptr,
+                                   args.v_ptr,
+                                   args.vnew_ptr,
+                                   args.seqlen_q,
+                                   args.seqlen_k_ptr,
+                                   args.seqlen_knew,
+                                   args.hdim_q,
+                                   args.hdim_v,
+                                   args.nhead_q,
+                                   args.nhead_q / args.nhead_k,
+                                   args.rotary_cos_ptr,
+                                   args.rotary_sin_ptr,
+                                   args.rotary_dim,
+                                   args.block_table_ptr,
+                                   args.batch_stride_block_table,
+                                   args.page_block_size,
+                                   args.stride_q,
+                                   args.stride_k,
+                                   args.stride_knew,
+                                   args.stride_v,
+                                   args.stride_vnew,
+                                   args.nhead_stride_q,
+                                   args.nhead_stride_k,
+                                   args.nhead_stride_knew,
+                                   args.nhead_stride_v,
+                                   args.nhead_stride_vnew,
+                                   args.batch_stride_q,
+                                   args.batch_stride_k,
+                                   args.batch_stride_knew,
+                                   args.batch_stride_v,
+                                   args.batch_stride_vnew);
 
     dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.seqlen_knew);
 

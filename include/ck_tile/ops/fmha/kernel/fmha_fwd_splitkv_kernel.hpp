@@ -223,7 +223,7 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t batch,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k, // only used if 'seqlen_k_ptr' is not specified
-              const void* seqlen_k_ptr, // only used for (paged-) kvcache
+              const void* seqlen_k_ptr,  // only used for (paged-) kvcache
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -495,7 +495,7 @@ struct FmhaFwdSplitKVKernel
             }
 
             // get real # queries & # keys under group mode
-            kargs.seqlen_q =  kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
+            kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
