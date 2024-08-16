@@ -426,8 +426,9 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_resnet50_N4.log"
                             archiveArtifacts "perf_batched_gemm.log"
                             archiveArtifacts "perf_grouped_gemm.log"
-                            archiveArtifacts "perf_conv_fwd.log"
-                            archiveArtifacts "perf_conv_bwd_data.log"
+                            archiveArtifacts "perf_grouped_conv_fwd.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
                             archiveArtifacts "perf_gemm_bilinear.log"
                             archiveArtifacts "perf_reduction.log"
                             archiveArtifacts "perf_splitK_gemm.log"
@@ -439,8 +440,9 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N4.log"
                             stash name: "perf_batched_gemm.log"
                             stash name: "perf_grouped_gemm.log"
-                            stash name: "perf_conv_fwd.log"
-                            stash name: "perf_conv_bwd_data.log"
+                            stash name: "perf_grouped_conv_fwd.log"
+                            stash name: "perf_grouped_conv_bwd_data.log"
+                            stash name: "perf_grouped_conv_bwd_weight.log"
                             stash name: "perf_gemm_bilinear.log"
                             stash name: "perf_reduction.log"
                             stash name: "perf_splitK_gemm.log"
@@ -648,8 +650,9 @@ def process_results(Map conf=[:]){
                         unstash "perf_resnet50_N4.log"
                         unstash "perf_batched_gemm.log"
                         unstash "perf_grouped_gemm.log"
-                        unstash "perf_conv_fwd.log"
-                        unstash "perf_conv_bwd_data.log"
+                        unstash "perf_grouped_conv_fwd.log"
+                        unstash "perf_grouped_conv_bwd_data.log"
+                        unstash "perf_grouped_conv_bwd_weight.log"
                         unstash "perf_gemm_bilinear.log"
                         unstash "perf_reduction.log"
                         unstash "perf_splitK_gemm.log"
@@ -747,6 +750,10 @@ pipeline {
             defaultValue: true,
             description: "Run the performance tests (default: ON)")
         booleanParam(
+            name: "RUN_GROUPED_CONV_LARGE_CASES_TESTS",
+            defaultValue: false,
+            description: "Run the grouped conv large cases tests (default: OFF)")
+        booleanParam(
             name: "RUN_CK_TILE_TESTS",
             defaultValue: false,
             description: "Run the ck_tile tests (default: OFF)")
@@ -832,6 +839,30 @@ pipeline {
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run Grouped Conv Large Case Tests")
+        {
+            parallel
+            {
+                stage("Run Grouped Conv Large Case Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_GROUPED_CONV_LARGE_CASES_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl && \
+                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl"""
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
