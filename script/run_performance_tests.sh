@@ -51,6 +51,21 @@ print_log_header $gemm_log $env_type $branch $host_name
 ./profile_gemm.sh gemm 2 3 $verify 1 0 1 | tee -a $gemm_log
 ./profile_gemm.sh gemm 3 3 $verify 1 0 1 | tee -a $gemm_log
 
+#run grouped_fwd fp16 tests
+export grouped_conv_fwd_log="perf_grouped_conv_fwd_fp16.log"
+print_log_header $conv_fwd_log $env_type $branch $host_name
+./profile_grouped_conv_fwd.sh grouped_conv_fwd 1 1 0 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_fwd_log
+
+#run grouped_bwd_data fp16 tests
+export grouped_conv_bwd_data_log="perf_grouped_conv_bwd_data_fp16.log"
+print_log_header $grouped_conv_bwd_data_log $env_type $branch $host_name
+./profile_grouped_conv_bwd_data.sh grouped_conv_bwd_data 1 1 $verify 1 0 1 256 2>&1 | tee -a $grouped_conv_bwd_data_log
+
+#run grouped_bwd_weight fp16 tests
+export grouped_conv_bwd_weight_log="perf_grouped_conv_bwd_weight_fp16.log"
+print_log_header $grouped_conv_bwd_weight_log $env_type $branch $host_name
+./profile_grouped_conv_bwd_weight.sh grouped_conv_bwd_weight 1 1 $verify 1 0 1 256 1 2>&1 | tee -a $grouped_conv_bwd_weight_log
+
 #run resnet50 tests
 export resnet256_log="perf_resnet50_N256.log"
 print_log_header $resnet256_log $env_type $branch $host_name

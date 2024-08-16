@@ -1341,7 +1341,7 @@ struct modulo : public base_transform<1, 1>
 };
 
 // 2D XOR, NOTE: "xor" is a keyword
-template <typename LowLengths, typename RightShift>
+template <typename LowLengths>
 struct xor_t : public base_transform<2, 2>
 {
     static constexpr auto type_enum = coord_transform_enum::xor_t;
@@ -1352,15 +1352,10 @@ struct xor_t : public base_transform<2, 2>
     using UpLengths = LowLengths;
 
     UpLengths up_lengths_;
-    RightShift right_shift_;
 
-    CK_TILE_HOST_DEVICE constexpr xor_t() : up_lengths_{}, right_shift_{} {}
+    CK_TILE_HOST_DEVICE constexpr xor_t() : up_lengths_{} {}
 
-    CK_TILE_HOST_DEVICE constexpr xor_t(const LowLengths& low_lengths,
-                                        const RightShift& right_shift)
-        : up_lengths_{low_lengths}, right_shift_{right_shift}
-    {
-    }
+    CK_TILE_HOST_DEVICE constexpr xor_t(const LowLengths& low_lengths) : up_lengths_{low_lengths} {}
 
     CK_TILE_HOST_DEVICE static constexpr auto get_type_enum()
     {
@@ -1378,13 +1373,8 @@ struct xor_t : public base_transform<2, 2>
 
         idx_low(number<0>{}) = idx_up[number<0>{}];
 
-        const auto idx_low_1_tmp =
-            (idx_up[number<1>{}] - idx_up[number<0>{}] * right_shift_) % up_lengths_[number<1>{}];
-
-        const auto idx_low_1 =
-            (idx_low_1_tmp >= 0) ? idx_low_1_tmp : up_lengths_[number<1>{}] + idx_low_1_tmp;
-
-        idx_low(number<1>{}) = idx_low_1;
+        idx_low(number<1>{}) =
+            idx_up[number<1>{}] ^ (idx_up[number<0>{}] % up_lengths_[number<1>{}]);
     }
 
     template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
@@ -1419,8 +1409,7 @@ struct xor_t : public base_transform<2, 2>
 
     CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time()
     {
-        return ck_tile::is_known_at_compile_time<UpLengths>::value &&
-               ck_tile::is_known_at_compile_time<RightShift>::value;
+        return ck_tile::is_known_at_compile_time<UpLengths>::value;
     }
 
     // MUST be static function
@@ -1431,14 +1420,6 @@ struct xor_t : public base_transform<2, 2>
     {
         array<index_t, 2> up_vector_lengths = low_vector_lengths;
         array<index_t, 2> up_vector_strides = low_vector_strides;
-
-        if constexpr(ck_tile::is_known_at_compile_time<RightShift>::value)
-        {
-            if(low_vector_lengths[1] != -1)
-            {
-                up_vector_lengths(1) = gcd(low_vector_lengths[1], abs(right_shift_));
-            }
-        }
 
         return make_tuple(up_vector_lengths, up_vector_strides);
     }
@@ -1451,10 +1432,6 @@ struct xor_t : public base_transform<2, 2>
         printf("up_lengths_: ");
         print(up_lengths_);
         printf(", ");
-
-        //
-        printf("right_shift_: ");
-        print(right_shift_);
 
         printf("}");
     }
@@ -1655,11 +1632,10 @@ CK_TILE_HOST_DEVICE constexpr auto make_modulo_transform(const Modulus& modulus,
     return modulo<Modulus, UpLength>{modulus, up_length};
 }
 
-template <typename LowLengths, typename RightShift>
-CK_TILE_HOST_DEVICE constexpr auto make_xor_transform(const LowLengths& low_lengths,
-                                                      const RightShift& right_shift)
+template <typename LowLengths>
+CK_TILE_HOST_DEVICE constexpr auto make_xor_transform(const LowLengths& low_lengths)
 {
-    return xor_t<LowLengths, RightShift>{low_lengths, right_shift};
+    return xor_t<LowLengths>{low_lengths};
 }
 
 template <typename LowLength, typename OffsetLength>
