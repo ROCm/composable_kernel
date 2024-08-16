@@ -37,8 +37,8 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProbl
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
     typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
     {F_bs},
-    {F_bsk}, 
-    {F_bd}, 
+    {F_bsk},
+    {F_bd},
     {F_bdv},
     {F_vlayout},
     fmha_trait_{F_idx}>;
@@ -328,8 +328,6 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 if receipt == 2:
                     cond = dtype in ['fp16', 'bf16']
                     cond &= pipeline.F_vlayout == 'row'
-                    cond &= pipeline.F_bias in ['no', 'alibi']
-                    cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
                 api_pool.register_traits(k.api_trait())
