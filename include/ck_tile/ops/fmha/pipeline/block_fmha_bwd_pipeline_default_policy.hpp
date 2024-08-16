@@ -1565,7 +1565,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasTLdsBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasLdsBlockDescriptor()
     {
         // Hold full block data
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -1578,7 +1578,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename BlockGemm>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasTTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasSTileDistribution()
     {
         using c_block_tensor_type = decltype(BlockGemm{}.MakeCBlockTile());
         return c_block_tensor_type::get_tile_distribution();
@@ -1680,7 +1680,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t smem_size_bias = [&]() {
             if constexpr(Problem::BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 return sizeof(typename Problem::BiasDataType) *
-                       MakeBiasTLdsBlockDescriptor<Problem>().get_element_space_size();
+                       MakeBiasLdsBlockDescriptor<Problem>().get_element_space_size();
             else
                 return 0;
         }();
