@@ -117,6 +117,15 @@ using int32x16_t = int32_t __attribute__((ext_vector_type(16)));
 using int32x32_t = int32_t __attribute__((ext_vector_type(32)));
 using int32x64_t = int32_t __attribute__((ext_vector_type(64)));
 
+// u32
+// using uint32_t = ...
+using uint32x2_t  = uint32_t __attribute__((ext_vector_type(2)));
+using uint32x4_t  = uint32_t __attribute__((ext_vector_type(4)));
+using uint32x8_t  = uint32_t __attribute__((ext_vector_type(8)));
+using uint32x16_t = uint32_t __attribute__((ext_vector_type(16)));
+using uint32x32_t = uint32_t __attribute__((ext_vector_type(32)));
+using uint32x64_t = uint32_t __attribute__((ext_vector_type(64)));
+
 // i16
 // using int16_t = ...
 using int16x2_t  = int16_t __attribute__((ext_vector_type(2)));
