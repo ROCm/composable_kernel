@@ -65,6 +65,12 @@ inline bool is_lds_direct_load_supported()
            ck::get_device_name() == "gfx941" || ck::get_device_name() == "gfx942";
 }
 
+inline bool is_bf16_atomic_supported()
+{
+    return ck::get_device_name() == "gfx940" || ck::get_device_name() == "gfx941" ||
+           ck::get_device_name() == "gfx942";
+}
+
 inline bool is_gfx101_supported()
 {
     return ck::get_device_name() == "gfx1010" || ck::get_device_name() == "gfx1011" ||
