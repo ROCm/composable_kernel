@@ -15,7 +15,11 @@ void add_device_permute_scale_6d_f32_f8_instances(
     std::vector<std::unique_ptr<DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F8>, Scale, 6>>>&
         instances)
 {
+#ifdef CK_ENABLE_FP8
     add_device_operation_instances(instances, device_permute_scale_f32_f8_instances<6, Scale>{});
+#else
+    ignore = instances;
+#endif
 }
 
 } // namespace instance
