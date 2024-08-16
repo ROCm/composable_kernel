@@ -307,7 +307,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    if ((0 < seqlen_knew || 0 < page_block_size) && mode != mode_enum::batch) {
+    if((0 < seqlen_knew || 0 < page_block_size) && mode != mode_enum::batch) {
         std::cerr << "kvcache enabled. ignoring the 'mode' option"
                   << std::endl;
         mode = mode_enum::batch;
@@ -730,11 +730,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // clang-format off
     auto layout_str = [&](bool permute){
-        if (permute) return std::string("bhsd");
+        if(permute) return std::string("bhsd");
         else return std::string("bshd");
     };
     auto io_layout = [&](bool iperm_, bool operm_) {
-        if (iperm_ == operm_) return layout_str(iperm_);
+        if(iperm_ == operm_) return layout_str(iperm_);
         else return layout_str(iperm_) + std::string("-") + layout_str(operm_);
     };
     // clang-format on
@@ -1109,7 +1109,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if (0 < page_block_size) {
+        if(0 < page_block_size) {
             if(i_perm) {
                 k_host_ref.ForEach([&](auto& self, auto i) {
                     self(i) = k_host(block_table_host(wb, i[1] / page_block_size), i[0] / nr, i[1] % page_block_size, i[2]);
@@ -1164,8 +1164,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 #endif
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if (0 < page_block_size) {
-            if (is_v_rowmajor) {
+        if(0 < page_block_size) {
+            if(is_v_rowmajor) {
                 if(i_perm) {
                     v_host_ref.ForEach([&](auto& self, auto i) { 
                         self(i) = v_host(block_table_host(wb, i[2] / page_block_size), i[0] / nr, i[2] % page_block_size, i[1]); 
@@ -1191,7 +1191,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         } else
 #endif
         {
-            if (is_v_rowmajor) {
+            if(is_v_rowmajor) {
                 //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
                 if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
                 //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
