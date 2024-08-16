@@ -87,11 +87,12 @@ run_fp16_appendkv_tests() {
     for ri in 0 1 ; do
     for rdim in 0 16 32 $hdim ; do
     for page_block_size in 0 128 ; do
+    for cache_batch_idx in 0 1 ; do
 
-    $EXE -prec=fp16 -b=3 -h=3 -d=$hdim -s=$s -s_k=$s_k -s_knew=$s_knew -rotary_dim=$rdim -rotary_interleaved=$ri -page_block_size=$page_block_size -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
+    $EXE -prec=fp16 -b=3 -h=3 -d=$hdim -s=$s -s_k=$s_k -s_knew=$s_knew -rotary_dim=$rdim -rotary_interleaved=$ri -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
 
     done ; done ; done ; done ; done 
-    done ; done
+    done ; done ; done
 }
 
 set -x
