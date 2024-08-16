@@ -7,7 +7,6 @@ KNAME=1
 export CK_WARMUP=0
 export CK_REPEAT=1
 
-MODE=(0)
 P_DROP=(0.0)
 NUM_SPLITS=(1)
 PAGE_BLOCK_SIZE=(0)
@@ -38,13 +37,12 @@ if [[ ($TEST_SPLITKV -eq 1) || ($TEST_APPENDKV -eq 1)]] ; then
     NUM_SPLITS+=(2 3)
     PAGE_BLOCK_SIZE+=(128)
 else
-    MODE+=(1)
     P_DROP+=(0.2)
 fi
 
 run_fp16_bf16_tests() {
     for prec in "fp16" "bf16" ; do
-    for mode in "${MODE[@]}" ; do
+    for mode in 1 0 ; do
     for perm in 0 1 ; do
     for vlayout in "r" "c" ; do
     for hdim in 32 64 128 256 ; do
