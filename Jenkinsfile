@@ -204,6 +204,9 @@ def cmake_build(Map conf=[:]){
             cd build
         """
     def invocation_tag=""
+    if (setup_args.contains("gfx12")){
+        invocation_tag="gfx12"
+    }
     if (setup_args.contains("gfx11")){
         invocation_tag="gfx11"
     }
@@ -423,8 +426,9 @@ def runCKProfiler(Map conf=[:]){
                             archiveArtifacts "perf_resnet50_N4.log"
                             archiveArtifacts "perf_batched_gemm.log"
                             archiveArtifacts "perf_grouped_gemm.log"
-                            archiveArtifacts "perf_conv_fwd.log"
-                            archiveArtifacts "perf_conv_bwd_data.log"
+                            archiveArtifacts "perf_grouped_conv_fwd.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_data.log"
+                            archiveArtifacts "perf_grouped_conv_bwd_weight.log"
                             archiveArtifacts "perf_gemm_bilinear.log"
                             archiveArtifacts "perf_reduction.log"
                             archiveArtifacts "perf_splitK_gemm.log"
@@ -436,8 +440,9 @@ def runCKProfiler(Map conf=[:]){
                             stash name: "perf_resnet50_N4.log"
                             stash name: "perf_batched_gemm.log"
                             stash name: "perf_grouped_gemm.log"
-                            stash name: "perf_conv_fwd.log"
-                            stash name: "perf_conv_bwd_data.log"
+                            stash name: "perf_grouped_conv_fwd.log"
+                            stash name: "perf_grouped_conv_bwd_data.log"
+                            stash name: "perf_grouped_conv_bwd_weight.log"
                             stash name: "perf_gemm_bilinear.log"
                             stash name: "perf_reduction.log"
                             stash name: "perf_splitK_gemm.log"
@@ -531,7 +536,7 @@ def Build_CK(Map conf=[:]){
                     //check whether to run performance tests on this node
                     def do_perf_tests = 0
                     sh 'rocminfo | tee rocminfo.log'
-                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
+                    if ( runShell('grep -n "gfx1030" rocminfo.log') || runShell('grep -n "gfx1101" rocminfo.log') || runShell('grep -n "gfx1201" rocminfo.log') || runShell('grep -n "gfx942" rocminfo.log') ){
                         do_perf_tests = 1
                         echo "Stash profiler and run performance tests"
                     }
@@ -645,8 +650,9 @@ def process_results(Map conf=[:]){
                         unstash "perf_resnet50_N4.log"
                         unstash "perf_batched_gemm.log"
                         unstash "perf_grouped_gemm.log"
-                        unstash "perf_conv_fwd.log"
-                        unstash "perf_conv_bwd_data.log"
+                        unstash "perf_grouped_conv_fwd.log"
+                        unstash "perf_grouped_conv_bwd_data.log"
+                        unstash "perf_grouped_conv_bwd_weight.log"
                         unstash "perf_gemm_bilinear.log"
                         unstash "perf_reduction.log"
                         unstash "perf_splitK_gemm.log"
@@ -678,8 +684,8 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2; RUN_CK_TILE_TESTS=true
                                               0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
-                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
 
 pipeline {
@@ -744,9 +750,9 @@ pipeline {
             defaultValue: true,
             description: "Run the performance tests (default: ON)")
         booleanParam(
-            name: "RUN_CODEGEN_TESTS",
-            defaultValue: true,
-            description: "Run the codegen tests (default: ON)")
+            name: "RUN_GROUPED_CONV_LARGE_CASES_TESTS",
+            defaultValue: false,
+            description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
             name: "RUN_CK_TILE_TESTS",
             defaultValue: false,
@@ -755,6 +761,11 @@ pipeline {
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
             description: "Test building instances for various architectures simultaneously (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX12",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx12 (default: OFF)")
+
     }
     environment{
         dbuser = "${dbuser}"
@@ -833,25 +844,22 @@ pipeline {
                 }
             }
         }
-        stage("Run Codegen Tests")
+        stage("Run Grouped Conv Large Case Tests")
         {
             parallel
             {
-                stage("Run Codegen Tests on gfx90a")
+                stage("Run Grouped Conv Large Case Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CODEGEN_TESTS.toBoolean() }
+                        expression { params.RUN_GROUPED_CONV_LARGE_CASES_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
-                                           cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                           -D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-                                           -D CMAKE_BUILD_TYPE=Release \
-                                           -D GPU_TARGETS="gfx90a" \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j check"""
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl && \
+                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl"""
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1022,6 +1030,26 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx1101" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
+                stage("Build CK and run Tests on gfx1201")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1201") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1201" -DDL_KERNELS=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
+                                           cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx1201" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
