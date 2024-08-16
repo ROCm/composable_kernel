@@ -449,9 +449,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-#if CK_TILE_FMHA_FWD_APPENDKV_API
     const bool is_rotary_interleaved = arg_parser.get_bool("rotary_interleaved");
-#endif
 
     ck_tile::index_t num_splits = arg_parser.get_int("num_splits");
 #if !CK_TILE_FMHA_FWD_SPLITKV_API
