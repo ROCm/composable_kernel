@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,7 +34,7 @@ inline __host__ __device__ constexpr double get_rtol()
     }
     else if constexpr(std::is_same_v<DataType, ck::f8_t>)
     {
-        return 1e-1; // 240 and 224 are acceptable
+        return 1e-3; // 240 and 224 are acceptable
     }
     else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
     {
@@ -75,7 +75,7 @@ inline __host__ __device__ constexpr double get_atol()
     }
     else if constexpr(std::is_same_v<DataType, ck::f8_t>)
     {
-        return 16.1; // 240 and 224 are acceptable
+        return 1e-3; // 240 and 224 are acceptable
     }
     else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
     {
