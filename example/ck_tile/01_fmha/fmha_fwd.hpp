@@ -162,6 +162,8 @@ struct fmha_fwd_splitkv_args
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
     ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
 
+    const void* cache_batch_idx;
+
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not
@@ -236,6 +238,8 @@ struct fmha_fwd_appendkv_args
     void* block_table_ptr;
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
     ck_tile::index_t page_block_size;          // only used if 'block_table_ptr' is not nullptr
+
+    const void* cache_batch_idx;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -374,9 +378,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.nhead_q,
                                      args.nhead_q / args.nhead_k,
                                      args.num_splits,
-                                     args.block_table_ptr,
-                                     args.batch_stride_block_table,
-                                     args.page_block_size,
                                      args.scale_s,
                                      args.scale_p,
                                      args.stride_q,
@@ -420,6 +421,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.block_table_ptr,
                                      args.batch_stride_block_table,
                                      args.page_block_size,
+                                     args.cache_batch_idx,
                                      args.scale_s,
                                      args.scale_p,
                                      args.stride_q,
@@ -537,6 +539,7 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                    args.block_table_ptr,
                                    args.batch_stride_block_table,
                                    args.page_block_size,
+                                   args.cache_batch_idx,
                                    args.stride_q,
                                    args.stride_k,
                                    args.stride_knew,

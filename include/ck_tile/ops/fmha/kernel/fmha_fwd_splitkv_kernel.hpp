@@ -46,6 +46,8 @@ struct FmhaFwdSplitKVKernel
     static constexpr auto BiasEnum          = FmhaPipeline::BiasEnum;
     static constexpr bool kDoFp8StaticQuant = FmhaPipeline::Problem::kDoFp8StaticQuant;
     static constexpr bool kIsPagedKV        = FmhaPipeline::Problem::kIsPagedKV;
+    static_assert(!kIsGroupMode || (kIsGroupMode && !kIsPagedKV),
+                  "paged-kvcache only supported by batch mode kernels");
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
@@ -120,10 +122,6 @@ struct FmhaFwdSplitKVKernel
         ck_tile::index_t nhead_ratio_qk;
         ck_tile::index_t num_splits;
 
-        const void* block_table_ptr;
-        ck_tile::index_t batch_stride_block_table;
-        ck_tile::index_t page_block_size;
-
         float scale_s;
 
         ck_tile::index_t stride_q;
@@ -175,6 +173,18 @@ struct FmhaFwdSplitKVKernel
         float scale_p;
     };
 
+    struct PageBlockTableKargs
+    {
+        const int32_t* block_table_ptr;
+        ck_tile::index_t batch_stride_block_table;
+        ck_tile::index_t page_block_size;
+    };
+
+    struct CacheBatchIdxKargs
+    {
+        const int32_t* cache_batch_idx;
+    };
+
     struct BatchModeKargs
         : CommonKargs,
           std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
@@ -183,7 +193,8 @@ struct FmhaFwdSplitKVKernel
                                                 AlibiKargs,
                                                 EmptyKargs<0>>>,
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
-          std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>
+          std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>,
+          std::conditional_t<kIsPagedKV, PageBlockTableKargs, CacheBatchIdxKargs>
     {
         const int32_t* seqlen_k_ptr;
 
@@ -232,6 +243,7 @@ struct FmhaFwdSplitKVKernel
               const void* block_table_ptr,
               ck_tile::index_t batch_stride_block_table,
               ck_tile::index_t page_block_size,
+              const void* cache_batch_idx,
               float scale_s,
               float scale_p,
               ck_tile::index_t stride_q,
@@ -270,9 +282,6 @@ struct FmhaFwdSplitKVKernel
                      num_head_q,
                      nhead_ratio_qk,
                      num_splits,
-                     block_table_ptr,
-                     batch_stride_block_table,
-                     page_block_size,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
@@ -294,6 +303,7 @@ struct FmhaFwdSplitKVKernel
                     {},                   // placeholder for bias
                     {},                   // placeholder for mask
                     {},                   // placeholder for fp8_static_quant args
+                    {},                   // placeholder for paged-block table or cache_batch_idx
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
                     batch_stride_q,
                     batch_stride_k,
@@ -321,6 +331,16 @@ struct FmhaFwdSplitKVKernel
         {
             kargs.scale_p = scale_p;
         }
+        if constexpr(kIsPagedKV)
+        {
+            kargs.block_table_ptr          = reinterpret_cast<const int32_t*>(block_table_ptr);
+            kargs.batch_stride_block_table = batch_stride_block_table;
+            kargs.page_block_size          = page_block_size;
+        }
+        else
+        {
+            kargs.cache_batch_idx = reinterpret_cast<const int32_t*>(cache_batch_idx);
+        }
 
         return kargs;
     }
@@ -342,9 +362,6 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t num_head_q,
               ck_tile::index_t nhead_ratio_qk,
               ck_tile::index_t num_splits,
-              const void* block_table_ptr,
-              ck_tile::index_t batch_stride_block_table,
-              ck_tile::index_t page_block_size,
               float scale_s,
               float scale_p,
               ck_tile::index_t stride_q,
@@ -381,9 +398,6 @@ struct FmhaFwdSplitKVKernel
                      num_head_q,
                      nhead_ratio_qk,
                      num_splits,
-                     block_table_ptr,
-                     batch_stride_block_table,
-                     page_block_size,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                      static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else

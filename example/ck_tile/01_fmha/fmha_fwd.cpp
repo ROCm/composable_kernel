@@ -125,7 +125,8 @@ auto create_args(int argc, char* argv[])
         .insert("num_splits",
                 "1",
                 "# of splits for key/value. 0 to determine actual number by heuristic")
-        .insert("page_block_size", "0", "paged-kvcache block size. 0 means not use paged-kvcahe.")
+        .insert("page_block_size", "0", "paged-kvcache block size. 0 means not use paged-kvcahe")
+        .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel");
 
@@ -304,6 +305,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cerr << "only paged-kvcache block size divisible by 128 are currently supported"
                   << std::endl;
         return false;
+    }
+
+    bool use_cache_batch_idx = arg_parser.get_bool("cache_batch_idx");
+    if(0 < page_block_size && use_cache_batch_idx)
+    {
+        std::cerr << "paged-kvcache does not support cache_batch_idx. ignoring the "
+                     "'cache_batch_idx' option"
+                  << std::endl;
+        use_cache_batch_idx = false;
     }
 
     auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
@@ -589,11 +599,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
-        1 < num_splits || 0 < seqlen_knew || 0 < page_block_size
+        1 < num_splits || 0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size
             ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || 0 < seqlen_knew || 0 < page_block_size
+        1 < num_splits || 0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size
             ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
@@ -612,6 +622,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<int32_t> block_table_host(
         0 < page_block_size ? std::array<ck_tile::index_t, 2>{batch, max_num_page_blocks / batch}
                             : std::array<ck_tile::index_t, 2>{1, 1});
+
+    ck_tile::HostTensor<int32_t> cache_batch_idx_host(use_cache_batch_idx
+                                                          ? std::array<ck_tile::index_t, 1>{batch}
+                                                          : std::array<ck_tile::index_t, 1>{1});
 
     if(init_method == "ui" || init_method == "0")
     {
@@ -691,6 +705,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
     }
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0);
+    iota_shuffle(cache_batch_idx_host.begin(), cache_batch_idx_host.end(), 0);
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
@@ -711,6 +726,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -727,6 +743,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
     block_table_buf.ToDevice(block_table_host.data());
+    cache_batch_idx_buf.ToDevice(cache_batch_idx_host.data());
 
     // clang-format off
     auto layout_str = [&](bool permute){
@@ -901,9 +918,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.rotary_dim     = rotary_dim;
 
             args.block_table_ptr =
-                0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr;
+                (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
             args.batch_stride_block_table = batch_stride_block_table;
             args.page_block_size          = page_block_size;
+
+            args.cache_batch_idx =
+                (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
 
             args.stride_knew       = stride_knew;
             args.stride_vnew       = stride_vnew;
@@ -935,7 +955,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.scale_o = scale_o;
 
             args.stride_bias =
-                bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead) : stride_bias;
+                (bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead) : stride_bias);
             args.stride_o          = stride_o;
             args.nhead_stride_bias = nhead_stride_bias;
             args.nhead_stride_lse  = nhead_stride_lse;
@@ -966,9 +986,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.o_acc_ptr   = o_acc_buf.GetDeviceBuffer();
 
                 args.block_table_ptr =
-                    0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr;
+                    (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);
                 args.batch_stride_block_table = batch_stride_block_table;
                 args.page_block_size          = page_block_size;
+
+                args.cache_batch_idx =
+                    (use_cache_batch_idx ? cache_batch_idx_buf.GetDeviceBuffer() : nullptr);
 
                 args.num_splits = num_splits;
 
@@ -1001,7 +1024,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits || 0 < seqlen_knew || 0 < page_block_size)
+        if(1 < num_splits || 0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);
@@ -1074,7 +1097,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
         // adjust matrix index according to the mode
-        const ck_tile::index_t b            = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t b_idx        = (mode == mode_enum::batch ? wb : 0);
         const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
         const ck_tile::index_t key_offset =
             (mode == mode_enum::batch
@@ -1094,8 +1117,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // clang-format off
         // permute
-        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[0], i[1] + query_offset, i[2]); });
-        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b, i[1] + query_offset, i[0], i[2]); });
+        if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
+        else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
         // optionally apply RoPE to the q_host_ref
@@ -1126,8 +1149,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         } else
 #endif 
         {
-            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[0] / nr, i[1] + key_offset, i[2]); });
-            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b, i[1] + key_offset, i[0] / nr, i[2]); });
+            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
+            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
         }
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
@@ -1197,14 +1220,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             if(is_v_rowmajor) {
                 //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[2] + key_offset, i[1]); });
+                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
                 //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[2] + key_offset, i[0] / nr, i[1]); });
+                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
             }
             else
             {
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[0] / nr, i[1], i[2] + key_offset); });
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b, i[1], i[0] / nr, i[2] + key_offset); });
+                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[0] / nr, i[1], i[2] + key_offset); });
+                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[1], i[0] / nr, i[2] + key_offset); });
             }
         }
 
@@ -1361,7 +1384,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ck_tile::HostTensor<RandValOutputDataType> randval_host_ref(
                 {nhead, real_seqlen_q, real_seqlen_k});
             randval_host_ref.ForEach([&](auto& self, auto idx) {
-                self(idx) = randval_host(b, idx[0], idx[1] + query_offset, idx[2]);
+                self(idx) = randval_host(b_idx, idx[0], idx[1] + query_offset, idx[2]);
             });
             ck_tile::reference_batched_dropout(
                 p_host_ref, randval_host_ref, p_undrop_in_uint8_t, rp_undrop);
@@ -1378,8 +1401,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
         // clang-format off
         // permute
-        if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b, idx[0], idx[1] + query_offset, idx[2]); });
-        else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b, idx[1] + query_offset, idx[0], idx[2]); });
+        if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
+        else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
         // clang-format on
 
         auto [rtol, atol] = get_elimit<DataType>(init_method);
