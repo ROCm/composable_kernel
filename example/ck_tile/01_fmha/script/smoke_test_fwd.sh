@@ -82,7 +82,7 @@ run_fp8_tests() {
 run_fp16_appendkv_tests() {
     for s in $(seq 63 1 65) ; do
     for s_k in 65 129 ; do
-    for s_knew in 64 $s_k ; do
+    for s_knew in 0 64 $s_k ; do
     for hdim in 32 64 128 256 ; do
     for ri in 0 1 ; do
     for rdim in 0 16 32 $hdim ; do
