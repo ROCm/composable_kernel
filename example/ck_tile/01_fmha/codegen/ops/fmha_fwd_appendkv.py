@@ -115,7 +115,7 @@ class FmhaFwdAppendKVApiTrait:
     @property
     def skcheck(self) -> str:
         # we do not check all the values in a.seqlen_k_ptr
-        return 't'
+        return 'true'
 
     @property
     def dcheck(self) -> str:
