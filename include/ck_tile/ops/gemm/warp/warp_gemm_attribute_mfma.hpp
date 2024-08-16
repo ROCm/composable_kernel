@@ -119,9 +119,9 @@ struct WarpGemmAtrributeMfmaIterateK
 
         static_for<0, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   reinterpret_cast<const buf_a>(a_vec)
+                   reinterpret_cast<const buf_a&>(a_vec)
                        .template get_as<typename Impl::AVecType>()[iKIter],
-                   reinterpret_cast<const buf_b>(b_vec)
+                   reinterpret_cast<const buf_b&>(b_vec)
                        .template get_as<typename Impl::BVecType>()[iKIter]);
         });
     }
@@ -135,15 +135,15 @@ struct WarpGemmAtrributeMfmaIterateK
 
         // c = a * b
         auto c_vec = Impl{}(
-            reinterpret_cast<const buf_a>(a_vec).template get_as<typename Impl::AVecType>()[I0],
-            reinterpret_cast<const buf_b>(b_vec).template get_as<typename Impl::BVecType>()[I0]);
+            reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0],
+            reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0]);
 
         // c += a * b
         static_for<1, kKIter, 1>{}([&](auto iKIter) {
             Impl{}(c_vec,
-                   reinterpret_cast<const buf_a>(a_vec)
+                   reinterpret_cast<const buf_a&>(a_vec)
                        .template get_as<typename Impl::AVecType>()[iKIter],
-                   reinterpret_cast<const buf_b>(b_vec)
+                   reinterpret_cast<const buf_b&>(b_vec)
                        .template get_as<typename Impl::BVecType>()[iKIter]);
         });
 
