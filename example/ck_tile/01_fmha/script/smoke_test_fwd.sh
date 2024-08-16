@@ -7,6 +7,8 @@ KNAME=1
 export CK_WARMUP=0
 export CK_REPEAT=1
 
+MODE=(0)
+P_DROP=(0.0)
 NUM_SPLITS=(1)
 PAGE_BLOCK_SIZE=(0)
 
@@ -35,17 +37,20 @@ done
 if [[ ($TEST_SPLITKV -eq 1) || ($TEST_APPENDKV -eq 1)]] ; then
     NUM_SPLITS+=(2 3)
     PAGE_BLOCK_SIZE+=(128)
+else
+    MODE+=(1)
+    P_DROP+=(0.2)
 fi
 
 run_fp16_bf16_tests() {
     for prec in "fp16" "bf16" ; do
-    for mode in 1 0 ; do
+    for mode in "${MODE[@]}" ; do
     for perm in 0 1 ; do
     for vlayout in "r" "c" ; do
     for hdim in 32 64 128 256 ; do
     for lse in 0 1 ; do
     for bias in "n" "e" "a" ; do
-    for p_drop in 0.0 0.2 ; do
+    for p_drop in "${P_DROP[@]}" ; do
     for num_splits in "${NUM_SPLITS[@]}" ; do
     for page_block_size in "${PAGE_BLOCK_SIZE[@]}" ; do
 
@@ -76,7 +81,6 @@ run_fp8_tests() {
 }
 
 run_appendkv_tests() {
-    for mode in 0 1 ; do
     for s in $(seq 63 1 65) ; do
     for s_k in 65 129 ; do
     for s_knew in 64 $s_k ; do
@@ -85,10 +89,10 @@ run_appendkv_tests() {
     for rdim in 0 16 32 $hdim ; do
     for page_block_size in "${PAGE_BLOCK_SIZE[@]}" ; do
 
-    $EXE -prec=fp16 -mode=$mode -b=3 -h=3 -d=$hdim -s=$s -s_k=$s_k -s_knew=$s_knew -rotary_dim=$rdim -rotary_interleaved=$ri -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
+    $EXE -prec=fp16 -b=3 -h=3 -d=$hdim -s=$s -s_k=$s_k -s_knew=$s_knew -rotary_dim=$rdim -rotary_interleaved=$ri -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
 
     done ; done ; done ; done ; done 
-    done ; done ; done
+    done ; done
 }
 
 set -x
