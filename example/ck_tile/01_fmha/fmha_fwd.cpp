@@ -325,7 +325,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    if((0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size) && mode != mode_enum::batch)
+    if((use_cache_batch_idx || 0 < page_block_size) && mode != mode_enum::batch)
     {
         std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
         mode = mode_enum::batch;
@@ -605,11 +605,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
-        1 < num_splits || 0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size
+        1 < num_splits || use_cache_batch_idx || 0 < page_block_size
             ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || 0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size
+        1 < num_splits || use_cache_batch_idx || 0 < page_block_size
             ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
@@ -1034,7 +1034,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits || 0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size)
+        if(1 < num_splits || use_cache_batch_idx || 0 < page_block_size)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);
