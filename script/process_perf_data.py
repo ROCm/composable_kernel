@@ -122,7 +122,7 @@ def parse_logfile(logfile):
         #sorted_kernels = [x for _,x in sorted(zip(tests,kernels))]
         test_list=list(range(1,len(tests)+1))
     #parse conv_fwd and conv_bwd performance tests:
-    elif 'conv_fwd' in logfile or 'conv_bwd_data' in logfile:
+    elif 'conv_fwd' in logfile or 'conv_bwd' in logfile:
         for line in open(logfile):
             if 'tflops:' in line:
                 lst=line.split()
@@ -274,14 +274,26 @@ def main():
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_grouped_gemm_tflops"
-        if 'conv_fwd' in filename:
+        if 'perf_conv_fwd' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_conv_fwd_tflops"
-        if 'conv_bwd_data' in filename:
+        if 'perf_conv_bwd_data' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
             table_name="ck_conv_bwd_data_tflops"
+        if 'grouped_conv_fwd' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_grouped_conv_fwd_tflops"
+        if 'grouped_conv_bwd_data' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_grouped_conv_bwd_data_tflops"
+        if 'grouped_conv_bwd_weight' in filename:
+            for i in range(1,len(results)+1):
+                testlist.append("Test%i"%i)
+            table_name="ck_grouped_conv_bwd_weight_tflops"
         if 'gemm_bilinear' in filename:
             for i in range(1,len(results)+1):
                 testlist.append("Test%i"%i)
