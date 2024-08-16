@@ -308,6 +308,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     bool use_cache_batch_idx = arg_parser.get_bool("cache_batch_idx");
+#if !CK_TILE_FMHA_FWD_SPLITKV_API
+    if(use_cache_batch_idx)
+    {
+        std::cerr << "split-kv is not supported. ignoring the 'cache_batch_idx' option"
+                  << std::endl;
+        use_cache_batch_idx = false;
+    }
+#endif
     if(0 < page_block_size && use_cache_batch_idx)
     {
         std::cerr << "paged-kvcache does not support cache_batch_idx. ignoring the "
@@ -317,7 +325,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    if((0 < seqlen_knew || 0 < page_block_size) && mode != mode_enum::batch)
+    if((0 < seqlen_knew || use_cache_batch_idx || 0 < page_block_size) && mode != mode_enum::batch)
     {
         std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
         mode = mode_enum::batch;
@@ -531,7 +539,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-    if(0 < p_drop && (1 < num_splits || 0 < page_block_size))
+    if(0 < p_drop && (1 < num_splits || use_cache_batch_idx || 0 < page_block_size))
     {
         std::cerr << "dropout is not supoprted by split-kv kernels. ignoring the 'p_drop' option"
                   << std::endl;
@@ -779,6 +787,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(0 < page_block_size)
     {
         std::cout << ", page_block_size:" << page_block_size;
+    }
+    if(use_cache_batch_idx)
+    {
+        std::cout << ", cache_batch_idx:" << use_cache_batch_idx;
     }
 #endif
     std::cout << std::flush;
@@ -1097,7 +1109,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
         // adjust matrix index according to the mode
-        const ck_tile::index_t b_idx        = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t b_idx = (mode == mode_enum::batch ? wb : 0);
+        const ck_tile::index_t cache_b_idx =
+            (use_cache_batch_idx ? cache_batch_idx_host(b_idx) : b_idx);
         const ck_tile::index_t query_offset = (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
         const ck_tile::index_t key_offset =
             (mode == mode_enum::batch
@@ -1149,8 +1163,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         } else
 #endif 
         {
-            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
-            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
+            if(i_perm) k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[0] / nr, i[1] + key_offset, i[2]); });
+            else       k_host_ref.ForEach([&](auto& self, auto i) { self(i) = k_host(cache_b_idx, i[1] + key_offset, i[0] / nr, i[2]); });
         }
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
@@ -1220,14 +1234,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         {
             if(is_v_rowmajor) {
                 //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, h_k, s, d]
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
+                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[2] + key_offset, i[1]); });
                 //                                                             v_host_ref: [nhead, hdim, seq], v_host: [b, s, h_k, d]
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
+                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[2] + key_offset, i[0] / nr, i[1]); });
             }
             else
             {
-                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[0] / nr, i[1], i[2] + key_offset); });
-                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(b_idx, i[1], i[0] / nr, i[2] + key_offset); });
+                if(i_perm) v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[0] / nr, i[1], i[2] + key_offset); });
+                else       v_host_ref.ForEach([&](auto& self, auto i) { self(i) = v_host(cache_b_idx, i[1], i[0] / nr, i[2] + key_offset); });
             }
         }
 

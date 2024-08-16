@@ -529,9 +529,21 @@ struct FmhaFwdSplitKVKernel
         }
         else
         {
+            const index_t i_cache_batch = [&, i_batch_ = i_batch] {
+                if constexpr(kIsPagedKV)
+                {
+                    return i_batch_;
+                }
+                else
+                {
+                    return (kargs.cache_batch_idx != nullptr ? kargs.cache_batch_idx[i_batch_]
+                                                             : i_batch_);
+                }
+            }();
+
             batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
-            batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
-            batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+            batch_offset_k = static_cast<long_index_t>(i_cache_batch) * kargs.batch_stride_k;
+            batch_offset_v = static_cast<long_index_t>(i_cache_batch) * kargs.batch_stride_v;
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
