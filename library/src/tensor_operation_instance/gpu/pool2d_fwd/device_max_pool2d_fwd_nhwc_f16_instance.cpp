@@ -18,6 +18,14 @@ void add_device_pool2d_fwd_nhwc_f16_instances(
         instances, device_pool2d_fwd_nhwc_instances<F16, F16, I32, F32, ReduceOpId, false>{});
 }
 
+void add_device_pool2d_fwd_nhwc_index_f16_instances(
+    std::vector<std::unique_ptr<DevicePoolFwd<4, 2, F16, F16, I32, NHWC, NHWC, ReduceOpId, true>>>&
+        instances)
+{
+    add_device_operation_instances(
+        instances, device_pool2d_fwd_nhwc_instances<F16, F16, I32, F32, ReduceOpId, true>{});
+}
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
