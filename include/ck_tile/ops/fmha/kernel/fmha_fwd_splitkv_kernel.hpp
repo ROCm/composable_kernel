@@ -108,7 +108,6 @@ struct FmhaFwdSplitKVKernel
         void* o_acc_ptr;
 
         ck_tile::index_t batch;
-        ck_tile::index_t max_seqlen_q;
 
         ck_tile::index_t seqlen_q;
         ck_tile::index_t seqlen_k;
@@ -186,6 +185,8 @@ struct FmhaFwdSplitKVKernel
           std::conditional_t<kHasMask, MaskKargs, EmptyKargs<1>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<2>>
     {
+        const int32_t* seqlen_k_ptr;
+
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
@@ -220,9 +221,9 @@ struct FmhaFwdSplitKVKernel
               void* lse_acc_ptr,
               void* o_acc_ptr,
               ck_tile::index_t batch,
-              ck_tile::index_t max_seqlen_q,
               ck_tile::index_t seqlen_q,
-              ck_tile::index_t seqlen_k,
+              ck_tile::index_t seqlen_k, // only used if 'seqlen_k_ptr' is not specified
+              const void* seqlen_k_ptr, // only used for (paged-) kvcache
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -262,7 +263,6 @@ struct FmhaFwdSplitKVKernel
                      lse_acc_ptr,
                      o_acc_ptr,
                      batch,
-                     max_seqlen_q,
                      seqlen_q,
                      seqlen_k,
                      hdim_q,
@@ -294,6 +294,7 @@ struct FmhaFwdSplitKVKernel
                     {},                   // placeholder for bias
                     {},                   // placeholder for mask
                     {},                   // placeholder for fp8_static_quant args
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr),
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v};
@@ -333,7 +334,6 @@ struct FmhaFwdSplitKVKernel
               void* lse_acc_ptr,
               void* o_acc_ptr,
               ck_tile::index_t batch,
-              ck_tile::index_t max_seqlen_q,
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
               const void* seqlen_k_ptr,
@@ -374,9 +374,8 @@ struct FmhaFwdSplitKVKernel
                      lse_acc_ptr,
                      o_acc_ptr,
                      batch,
-                     max_seqlen_q,
-                     -1, // seqlen will be updated by another pointer
-                     -1, //
+                     -1, // seqlen_q will be updated by another pointer
+                     -1, // seqlen_k will be updated by another pointer
                      hdim_q,
                      hdim_v,
                      num_head_q,
@@ -496,8 +495,7 @@ struct FmhaFwdSplitKVKernel
             }
 
             // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            kargs.seqlen_q =  kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
@@ -512,8 +510,7 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
-                const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+                kargs.seqlen_k = kargs.seqstart_k_ptr[i_batch + 1] - kargs.seqstart_k_ptr[i_batch];
             }
         }
         else
@@ -525,6 +522,11 @@ struct FmhaFwdSplitKVKernel
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
+            }
+
+            if(kargs.seqlen_k_ptr != nullptr)
+            {
+                kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
             }
         }
 

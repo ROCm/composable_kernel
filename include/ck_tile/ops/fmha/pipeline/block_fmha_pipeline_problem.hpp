@@ -139,7 +139,6 @@ template <typename QDataType_,
           index_t kK0_,
           index_t kN1_,
           bool IsVLayoutRowMajor_,
-          bool kIsGroupMode_,
           typename Traits_>
 struct BlockFmhaFwdAppendKVPipelineProblem
 {
@@ -149,7 +148,6 @@ struct BlockFmhaFwdAppendKVPipelineProblem
     using Traits    = remove_cvref_t<Traits_>;
 
     static constexpr index_t kBlockSize = 256;
-    static constexpr bool kIsGroupMode  = kIsGroupMode_;
 
     static constexpr index_t kM0 = kM0_;
     static constexpr index_t kN0 = kN0_;

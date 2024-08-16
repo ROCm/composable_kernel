@@ -258,7 +258,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 {
     std::string data_type    = arg_parser.get_str("prec");
     int do_validation        = arg_parser.get_int("v");
-    auto mode                = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+
     ck_tile::index_t batch   = arg_parser.get_int("b");
     ck_tile::index_t nhead   = arg_parser.get_int("h");
     ck_tile::index_t nhead_k = arg_parser.get_int("h_k");
@@ -278,7 +278,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t seqlen_knew = arg_parser.get_int("s_knew");
-#if !CK_TILE_FMHA_FWD_APPENDKV_API
+#if !CK_TILE_FMHA_FWD_APPENDKV_API || !CK_TILE_FMHA_FWD_SPLITKV_API
     if(seqlen_knew != 0)
     {
         std::cerr << "kvcache is not supported. ignoring the 's_knew' option" << std::endl;
@@ -288,6 +288,29 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(seqlen_knew < 0)
     {
         seqlen_knew = randint<ck_tile::index_t>(1, arg_parser.get_int("s"), seed);
+    }
+
+    ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
+#if !CK_TILE_FMHA_FWD_SPLITKV_API
+    if(0 < page_block_size)
+    {
+        std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
+                  << std::endl;
+        page_block_size = 0;
+    }
+#endif
+    if(!(page_block_size % 128 == 0))
+    {
+        std::cerr << "only paged-kvcache block size divisible by 128 are currently supported"
+                  << std::endl;
+        return false;
+    }
+
+    auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    if ((0 < seqlen_knew || 0 < page_block_size) && mode != mode_enum::batch) {
+        std::cerr << "kvcache enabled. ignoring the 'mode' option"
+                  << std::endl;
+        mode = mode_enum::batch;
     }
 
     auto [seqlen_qs, seqlen_ks, seqlen_kpads] = decode_seqlen(mode,
@@ -420,21 +443,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         num_splits = 1;
     }
 #endif
-    ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-#if !CK_TILE_FMHA_FWD_SPLITKV_API
-    if(0 < page_block_size)
-    {
-        std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
-                  << std::endl;
-        page_block_size = 0;
-    }
-#endif
-    if(!(page_block_size % 128 == 0))
-    {
-        std::cerr << "only paged-kvcache block size divisible by 128 are currently supported"
-                  << std::endl;
-        return false;
-    }
 
     int stream_warmup = arg_parser.get_int("warmup");
     int stream_repeat = arg_parser.get_int("repeat");
@@ -581,11 +589,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
-        1 < num_splits || 0 < page_block_size
+        1 < num_splits || 0 < seqlen_knew || 0 < page_block_size
             ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || 0 < page_block_size
+        1 < num_splits || 0 < seqlen_knew || 0 < page_block_size
             ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
@@ -762,7 +770,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         traits.hdim_q        = hdim_q;
         traits.hdim_v        = hdim_v;
         traits.data_type     = data_type;
-        traits.is_group_mode = (mode == mode_enum::group);
         traits.is_v_rowmajor = is_v_rowmajor;
 
         if constexpr(std::is_same_v<fmha_fwd_appendkv_traits, std::decay_t<decltype(traits)>>)
@@ -773,6 +780,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         else // fmha_fwd_traits or fmha_splitkv_traits
         {
+            traits.is_group_mode = (mode == mode_enum::group);
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
             traits.has_lse             = lse;
@@ -863,12 +871,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         args.k_ptr = k_buf.GetDeviceBuffer();
         args.v_ptr = v_buf.GetDeviceBuffer();
 
-        args.seqstart_q_ptr = seqstart_q.GetDeviceBuffer();
-        args.seqstart_k_ptr = seqstart_k.GetDeviceBuffer();
-
-        args.seqlen_q     = shape_seqlen_q;
         args.batch        = batch;
-        args.max_seqlen_q = max_seqlen_q;
+        args.seqlen_q     = shape_seqlen_q;
         args.hdim_q       = hdim_q;
         args.hdim_v       = hdim_v;
         args.nhead_q      = nhead;
@@ -891,7 +895,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.seqlen_knew = seqlen_knew;
 
             args.seqlen_k_ptr = cache_seqlen_k_buf.GetDeviceBuffer();
-            args.seqlen_k     = shape_seqlen_k - seqlen_knew; // kvcache seqlen for batch mode
 
             args.rotary_cos_ptr = rotary_cos_buf.GetDeviceBuffer();
             args.rotary_sin_ptr = rotary_sin_buf.GetDeviceBuffer();
@@ -916,8 +919,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.lse_ptr  = lse_buf.GetDeviceBuffer();
             args.o_ptr    = o_buf.GetDeviceBuffer();
 
-            args.seqlen_k_ptr = k_paddings_[0] < 0 ? nullptr : seqlen_k_buf.GetDeviceBuffer();
-            args.seqlen_k     = shape_seqlen_k;
+            args.seqstart_q_ptr = (mode == mode_enum::group ? seqstart_q.GetDeviceBuffer() : nullptr);
+            args.seqstart_k_ptr = (mode == mode_enum::group ? seqstart_k.GetDeviceBuffer() : nullptr);
+            args.seqlen_k_ptr = (0 < seqlen_knew || 0 < page_block_size || 0 <= k_paddings_[0] ? seqlen_k_buf.GetDeviceBuffer() : nullptr);
+
+            args.seqlen_k     = (args.seqlen_k_ptr == nullptr ? shape_seqlen_k : -1);
+            args.max_seqlen_q = max_seqlen_q;
 
             args.scale_s = scale_s;
             args.scale_p = scale_p;
@@ -990,7 +997,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float fwd_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-        if(1 < num_splits || 0 < page_block_size)
+        if(1 < num_splits || 0 < seqlen_knew || 0 < page_block_size)
         {
             fmha_fwd_splitkv_traits fmha_splitkv_traits;
             init_traits(fmha_splitkv_traits);

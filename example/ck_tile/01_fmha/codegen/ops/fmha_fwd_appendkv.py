@@ -41,7 +41,6 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProbl
     {F_bd}, 
     {F_bdv},
     {F_vlayout},
-    {F_mode},
     fmha_trait_{F_idx}>;
 
 using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipeline<
@@ -51,7 +50,7 @@ using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdAppendKVKernel<ck_tile::FmhaFwdAppendKVTilePartitioner<{F_bs}, {F_bsk}, {F_bd}, {F_bdv}>,
                   fmha_pipeline_{F_idx}>;
 
-using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout},
+using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout},
                         {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
 
 #include <iostream>
@@ -78,10 +77,10 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits t, fmha_fwd_appendkv_args a, co
 }}
 """
 
-FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) &&
+FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_v_rowmajor == {F_vlayout}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.rope_type == {F_rope_check}) &&
                         ((a.block_table_ptr != nullptr) == {F_pagedkv})) {{
-                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
+                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
                 return fmha_fwd_appendkv_<trait_>(s, a);
             }}
 """
@@ -91,7 +90,6 @@ class FmhaFwdAppendKVApiTrait:
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim      : str
     dtype     : str  # data type
-    mode      : str  # value from MODE_MAP
     bs        : int  # tile size along q seqlen
     bsk       : int  # tile size along k seqlen
     bd        : int  # tile size along qk gemm unroll
@@ -106,13 +104,11 @@ class FmhaFwdAppendKVApiTrait:
 
     @property
     def name(self) -> str:
-        return f'{self.hdim}-{self.dtype}-{self.mode}-{self.bs}-{self.bsk}-{self.bd}-{self.bdv}-'+\
-                    f'{self.vlayout}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.rope}-'+\
-                    f'{self.pagedkv}'
+        return f'{self.hdim}-{self.dtype}-{self.bs}-{self.bsk}-{self.bd}-{self.bdv}-{self.vlayout}-'+\
+               f'{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.rope}-{self.pagedkv}'
 
     @property
     def scheck(self) -> str:
-        if self.mode == 'group': return 'true/*group mode spad always true*/'  # group mode only generate spad/skpad == true
         if self.spad == 't' : return f'true /*a.seqlen_q % {self.bs} != 0*/'
         else :                return f'a.seqlen_q % {self.bs} == 0'
 
@@ -183,7 +179,7 @@ class FmhaFwdAppendKVApiPool:
                 inners=str()
                 for k, trait in enumerate(traits):
                     if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
+                    inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_rope_check=ROPE_CHECK_MAP[trait.rope],
                                    F_pagedkv=BOOL_MAP[trait.pagedkv], F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_rope=ROPE_MAP[trait.rope], F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
@@ -210,7 +206,6 @@ class FmhaFwdAppendKVKernel:
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
-    F_mode          : str  # value from MODE_MAP
     F_tile          : FmhaFwdAppendKVTileSize
     F_pipeline      : FmhaFwdAppendKVPipeline
     mask_impl       : str
@@ -234,13 +229,12 @@ class FmhaFwdAppendKVKernel:
                 F_dvpad         = BOOL_MAP[self.F_pipeline.F_dvpad],
                 F_rope          = ROPE_MAP[self.F_pipeline.F_rope],
                 F_pagedkv       = BOOL_MAP[self.F_pipeline.F_pagedkv],
-                F_occupancy     = self.F_tile.F_occupancy,
-                F_mode          = MODE_MAP[self.F_mode])
+                F_occupancy     = self.F_tile.F_occupancy)
 
     @property
     def name(self) -> str:
         # TODO: we don't encode idx here
-        return f"fmha_fwd_appendkv_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + \
+        return f"fmha_fwd_appendkv_d{self.F_hdim}_{self.F_dtype}_" + \
                 self.F_tile.name + '_' + self.F_pipeline.name
 
     @property
@@ -251,7 +245,6 @@ class FmhaFwdAppendKVKernel:
         return FmhaFwdAppendKVApiTrait(
                 hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
-                mode=self.F_mode,
                 bs=self.F_tile.F_bs,
                 bsk=self.F_tile.F_bsk,
                 bd=self.F_tile.F_bd,
@@ -320,19 +313,13 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
         d = get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype)
         if d == None:
             continue
-        #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
+        for hdim_str in d.keys():
             tile = d[hdim_str]
             hdim = int(hdim_str)
             for pipeline in get_pipelines(dtype, hdim):
-                if mode == "group":
-                    if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
-                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
-                        continue
                 k = FmhaFwdAppendKVKernel(F_idx=0,
                                   F_hdim=hdim,
                                   F_dtype=dtype,
-                                  F_mode=mode,
                                   F_tile=tile,
                                   F_pipeline=pipeline,
                                   mask_impl=mask_impl)

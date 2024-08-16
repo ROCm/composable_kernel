@@ -27,7 +27,6 @@ struct BlockFmhaFwdAppendKVPipeline
     static constexpr index_t kK0 = Problem::kK0;
     static constexpr index_t kN1 = Problem::kN1;
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
