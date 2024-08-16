@@ -83,7 +83,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-m",
         "--mask",
-        default="simplified",
+        default="generic",
         required=False,
         help="mask implementation, simplified/generic"
     )

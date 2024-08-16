@@ -6,6 +6,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/fmha/block/block_masking.hpp"
+#include "ck_tile/ops/fmha/block/masking_definitions.hpp"
 #include "ck_tile/ops/fmha/block/block_position_encoding.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_bwd_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_bwd_tile_partitioner.hpp"

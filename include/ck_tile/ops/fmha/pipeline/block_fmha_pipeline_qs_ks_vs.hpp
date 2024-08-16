@@ -188,15 +188,14 @@ struct BlockFmhaPipelineQSKSVS
         clear_tile(l);
 
         const auto q_origin = q_dram_block_window_tmp.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}) / kM0);
+        index_t seqlen_k_start = row_tile_idx_iter.start;
 
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking)
         {
-            if(num_total_loop <= 0)
+            if(row_tile_idx_iter.at_end()) // Iterator will initialize to end if row is empty
             {
                 if constexpr(kStoreLSE)
                 {
@@ -232,8 +231,14 @@ struct BlockFmhaPipelineQSKSVS
                              {0, seqlen_k_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
+        // Move to first tile in mask
+        index_t prev_row_tile_idx = 0;
+        index_t n0_step = row_tile_idx_iter.current - prev_row_tile_idx;
+        move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
+        move_tile_window(v_dram_window, {0, kN0 * n0_step});
+        move_tile_window(bias_dram_window, {0, kN0 * n0_step});
+
         // prefetch K tile
-        index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
@@ -359,21 +364,19 @@ struct BlockFmhaPipelineQSKSVS
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
             }
-            move_tile_window(bias_dram_window, {0, kN0});
+
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
+                                                           k_origin.at(number<0>{}));
                 if(need_perpixel_check)
                 {
                     set_tile_if(
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col);
+                            return mask.ElementwiseMask(row, col);
                         });
                 }
             }
@@ -515,8 +518,17 @@ struct BlockFmhaPipelineQSKSVS
                     move_tile_window(v_dram_window, {0, kK1});
                 });
             }
-            // move K tile windows
-            move_tile_window(k_dram_block_window, {kN0, 0});
+
+            // Update tile row indexing
+            prev_row_tile_idx = row_tile_idx_iter.current;
+            row_tile_idx_iter.advance();
+            n0_step = row_tile_idx_iter.current - prev_row_tile_idx;
+
+            // move K and V tile windows
+            move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
+            move_tile_window(v_dram_window, {0, kN0 * (n0_step - 1)});  // -1 we've already looped through current tile for KV gemm
+            move_tile_window(bias_dram_window, {0, kN0 * n0_step});
+
             // tail
             {
                 block_sync_lds();
@@ -525,7 +537,7 @@ struct BlockFmhaPipelineQSKSVS
                        v_lds_window);
                 block_sync_lds();
             }
-        } while(++i_total_loops < num_total_loop);
+        } while(!row_tile_idx_iter.at_end());
 
         // store lse
         if constexpr(kStoreLSE)

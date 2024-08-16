@@ -10,6 +10,8 @@
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
+#include <cstdio>
+
 namespace ck_tile {
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
@@ -263,15 +265,14 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        auto row_tile_idx_iter = mask.GetTileIndexIteratorAlongX(q_origin.at(number<0>{}) / kM0);
+        index_t seqlen_k_start = row_tile_idx_iter.start;
 
         // check early exit
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
-            if(num_total_loop <= 0)
+            if(row_tile_idx_iter.at_end()) // Iterator will initialize to end if row is empty
             {
                 if constexpr(kStoreLSE)
                 {
@@ -338,7 +339,13 @@ struct BlockFmhaPipelineQRKSVSAsync
         (void)q_element_func; // ??? rocm-6.x if use q element func will have scratch on hdim=64/32
         // auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
-        index_t i_total_loops      = 0;
+        // Move to first tile in mask
+        index_t prev_row_tile_idx = 0;
+        index_t n0_step = row_tile_idx_iter.current - prev_row_tile_idx;
+        move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
+        move_tile_window(v_dram_window, {0, kN0 * n0_step});
+        move_tile_window(bias_dram_window, {0, kN0 * n0_step});
+
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
@@ -446,14 +453,12 @@ struct BlockFmhaPipelineQRKSVSAsync
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
             }
-            move_tile_window(bias_dram_window, {0, kN0});
+
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
+                                                           k_origin.at(number<0>{}));
 
                 if(need_perpixel_check)
                 {
@@ -461,7 +466,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return mask.IsOutOfBound(row, col);
+                            return !mask.ElementwiseMask(row, col);
                         });
                 }
             }
@@ -597,7 +602,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr,
-                    seqlen_k_start + i_total_loops * kN0,
+                    seqlen_k_start + row_tile_idx_iter.current * kN0,
                     p_compute,
                     randval_dram_window);
             }
@@ -654,11 +659,19 @@ struct BlockFmhaPipelineQRKSVSAsync
                         move_tile_window(v_dram_window, {0, kK1});
                 });
             }
-            i_total_loops++;
-            if(i_total_loops < num_total_loop)
+
+            // Update tile row indexing
+            prev_row_tile_idx = row_tile_idx_iter.current;
+            row_tile_idx_iter.advance();
+            n0_step = row_tile_idx_iter.current - prev_row_tile_idx;
+
+            if(!row_tile_idx_iter.at_end())
             {
-                // move K tile windows
-                move_tile_window(k_dram_block_window, {kN0, 0});
+                // move K and V tile windows
+                move_tile_window(k_dram_block_window, {kN0 * n0_step, 0});
+                move_tile_window(v_dram_window, {0, kN0 * (n0_step - 1)});  // -1 we've already looped through current tile for KV gemm
+                move_tile_window(bias_dram_window, {0, kN0 * n0_step});
+
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&
@@ -679,7 +692,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{})) * kN1, 0>{},
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{}) + 1) * kN1, kK1>{}));
             }
-        } while(i_total_loops < num_total_loop);
+        } while(!row_tile_idx_iter.at_end());
 
         // store lse
         if constexpr(kStoreLSE)

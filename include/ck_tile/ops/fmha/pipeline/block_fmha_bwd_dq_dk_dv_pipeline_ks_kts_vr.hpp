@@ -278,15 +278,14 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
 
         __builtin_amdgcn_sched_barrier(0);
         const auto k_origin = k_dram_window.get_window_origin();
-        const auto [seqlen_q_start, seqlen_q_end] =
-            mask.GetTileRangeAlongY(k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0);
+        auto col_tile_idx_iter = mask.GetTileIndexIteratorAlongY(k_origin.at(number<0>{}) / kN0);
+        index_t seqlen_q_start = col_tile_idx_iter.start;
 
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking)
         {
-            if(num_total_loop <= 0)
+            if(col_tile_idx_iter.at_end()) // Iterator will initialize to end if col is empty
             {
                 // Note: here dk_acc&dv_acc are all cleard, return it
                 // Note: v loaded but no fence, ignore it.
@@ -401,7 +400,17 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
         auto randval_dram_window = dropout.MakeRandvalDramWindow<decltype(gemm_0), false>(
             randval_dram_block_window_tmp, seqlen_q_start);
 
-        index_t i_total_loops      = 0;
+        // Move to first tile in mask
+        index_t prev_col_tile_idx = 0;
+        index_t m0_step = col_tile_idx_iter.current - prev_col_tile_idx;
+        move_tile_window(q_dram_block_window, {kM0 * m0_step, 0});
+        move_tile_window(dq_dram_block_window, {kM0 * m0_step, 0});
+        move_tile_window(do_dram_block_window, {kM0 * m0_step, 0});
+        move_tile_window(lse_dram_window, {kM0 * m0_step});
+        move_tile_window(d_dram_window, {kM0 * m0_step});
+        move_tile_window(bias_dram_window, {kM0 * m0_step, 0});
+        move_tile_window(dbias_dram_block_window, {kM0 * m0_step, 0});
+
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kM0 / kK1;
         constexpr index_t k2_loops = kVHeaddim / kK2;
@@ -506,7 +515,6 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
                     },
                     st_acc,
                     biast_tile);
-                move_tile_window(bias_dram_window, {kM0, 0});
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
@@ -541,15 +549,13 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
             {
                 const auto q_origin      = q_dram_block_window.get_window_origin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
+                                                           k_origin.at(number<0>{}));
                 if(need_perpixel_check)
                 {
                     set_tile_if(st_acc, -numeric<AccDataType>::infinity(), [&](auto tile_idx) {
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                        return mask.IsOutOfBound(row, col);
+                        return !mask.ElementwiseMask(row, col);
                     });
                 }
             }
@@ -608,7 +614,7 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
             if constexpr(kHasDropout)
             {
                 dropout.Run<decltype(gemm_0), RandValOutputDataType>(
-                    seqlen_q_start + i_total_loops * kM0, pt, randval_dram_window);
+                    seqlen_q_start + col_tile_idx_iter.current * kM0, pt, randval_dram_window);
             }
 
             // STAGE 3, P^T@OGrad^T Gemm1
@@ -742,7 +748,6 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
                     Policy::template MakeBiasTileDistribution<Problem>());
                 shuffle_tile(dbiast_shuffle_tmp, dbiast_tile);
                 store_tile(dbias_dram_block_window, dbiast_shuffle_tmp);
-                move_tile_window(dbias_dram_block_window, {kM0, 0});
             }
 
             // STAGE 6, SGrad^T@Q^T Gemm3
@@ -817,13 +822,24 @@ struct BlockFmhaBwdDQDKDVPipelineKSKTSVR
             const auto dq = cast_tile<QGradDataType>(dq_acc);
             update_tile(dq_dram_block_window, dq);
 
+            // Update tile column indexing
+            prev_col_tile_idx = col_tile_idx_iter.current;
+            col_tile_idx_iter.advance();
+            m0_step = col_tile_idx_iter.current - prev_col_tile_idx;
+
             // move tile windows
-            move_tile_window(q_dram_block_window, {kM0, 0});
-            move_tile_window(dq_dram_block_window, {kM0, 0});
-            move_tile_window(do_dram_block_window, {kM0, 0});
-            move_tile_window(lse_dram_window, {kM0});
-            move_tile_window(d_dram_window, {kM0});
-        } while(++i_total_loops < num_total_loop);
+            move_tile_window(q_dram_block_window, {kM0 * m0_step, 0});
+            move_tile_window(dq_dram_block_window, {kM0 * m0_step, 0});
+            move_tile_window(do_dram_block_window, {kM0 * m0_step, 0});
+            move_tile_window(lse_dram_window, {kM0 * m0_step});
+            move_tile_window(d_dram_window, {kM0 * m0_step});
+
+            if constexpr(kHasBiasGrad)
+                move_tile_window(dbias_dram_block_window, {kM0 * m0_step, 0});
+
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                move_tile_window(bias_dram_window, {kM0 * m0_step, 0});
+        } while(!col_tile_idx_iter.at_end());
 
         // KGrad Scale
         if constexpr(kHasDropout)
