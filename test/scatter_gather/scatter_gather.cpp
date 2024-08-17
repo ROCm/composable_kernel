@@ -27,6 +27,11 @@
         }                                                                           \
     } while(0)
 
+/*
+TODO:
+This is a simple design of scatter/gather through indexing transform, with limitations
+We may design a scatter/gather adaptor layer directly inside tile window
+*/
 template <ck_tile::index_t ROW_TILE_SIZE = 8,
           ck_tile::index_t COL_TILE_SIZE = 32 * 8,
           ck_tile::index_t BLOCK_SIZE    = 256,
@@ -130,8 +135,8 @@ __global__ void row_scatter_gather(const INDEX_BUF_TYPE* src_row_idx_ptr,
         auto data = load_tile(src_tile);
         store_tile(dst_tile, data);
 
-        move_tile_window(src_tile, {0, COL_TILE_SIZE});
-        move_tile_window(dst_tile, {0, COL_TILE_SIZE});
+        move_tile_window(src_tile, {number<0>{}, number<COL_TILE_SIZE>{}});
+        move_tile_window(dst_tile, {number<0>{}, number<COL_TILE_SIZE>{}});
     }
 }
 
