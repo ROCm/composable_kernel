@@ -364,7 +364,8 @@ bool run_grouped_conv_fwd(bool do_verification,
     float reduce_time =
         reduce_invoker->Run(reduce_argument.get(), StreamConfig{nullptr, time_kernel});
 
-    std::cout << "Reduce time: " << reduce_time << " ms" << std::endl;
+    if(time_kernel)
+        std::cout << "\nReduce time: " << reduce_time << " ms" << std::endl;
 
     avg_time += reduce_time;
 
@@ -391,11 +392,15 @@ bool run_grouped_conv_fwd(bool do_verification,
     // AMAX
     num_btype += conv_param.GetOutputByte<ConvOutDataType>() + sizeof(float);
 
-    float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-    float gb_per_sec = num_btype / 1.E6 / avg_time;
-    std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
-    std::cout << "Kernels: " << kernels << std::endl;
+    if(time_kernel)
+    {
+        float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+        float gb_per_sec = num_btype / 1.E6 / avg_time;
+        std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                  << " GB/s, " << std::endl;
+    }
+
+    std::cout << "\nKernels: " << kernels << std::endl;
 
     if(do_verification)
     {
@@ -428,21 +433,23 @@ bool run_grouped_conv_fwd(bool do_verification,
         out_host.ForEach([&](auto&, auto idx) { scale_convert(out_host(idx), host_conv(idx)); });
 
         std::cout << "\nComparing output to reference: " << std::endl;
-        ck::utils::check_err(out_device, out_host, "");
-
-        std::cout << "\n\tApplying tolerances...\n";
-        std::cout << "\t\trtol = " << get_rtol<OutDataType>() << std::endl;
-        std::cout << "\t\tatol = " << get_atol<OutDataType>() << std::endl;
-        auto ret_val = ck::utils::check_err(out_device,
-                                            out_host,
-                                            "Error: incorrect convolution results!",
-                                            get_rtol<OutDataType>(),
-                                            get_atol<OutDataType>());
+        auto ret_val = ck::utils::check_err(out_device, out_host, "Error: ");
         if(!ret_val)
         {
-            return false;
+            std::cout << "\n\tRecompare applying tolerances...\n";
+            std::cout << "\t\trtol = " << get_rtol<OutDataType>() << std::endl;
+            std::cout << "\t\tatol = " << get_atol<OutDataType>() << std::endl;
+            ret_val = ck::utils::check_err(out_device,
+                                           out_host,
+                                           "Error: incorrect convolution results!",
+                                           get_rtol<OutDataType>(),
+                                           get_atol<OutDataType>());
+            if(!ret_val)
+            {
+                return false;
+            }
         }
-        std::cout << "Done." << std::endl;
+        std::cout << "Success!" << std::endl;
 
         /// Verify AMAX
 
