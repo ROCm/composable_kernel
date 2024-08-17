@@ -24,7 +24,7 @@ This will result in an executable `build/bin/tile_example_permute`
 ## some examples
 ```
 # torch
-x=torch.tensor.randn(2,3,4,6)
+x=torch.randn(2,3,4,6)
 y=x.permute(0,3,2,1).contiguous()
 
 # ck_tile
