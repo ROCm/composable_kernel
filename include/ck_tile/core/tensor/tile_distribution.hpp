@@ -763,8 +763,9 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
     return make_tuple(
         make_static_tile_distribution(
             tile_distribution_encoding<typename Encoding::RsLengths,
-                                       decltype(sliced_h_lengths), // only need to change the
-                                                                   // h_lengths type
+                                       remove_cvref_t<decltype(sliced_h_lengths)>, // only need to
+                                                                                   // change the
+                                                                                   // h_lengths type
                                        typename Encoding::Ps2RHssMajor,
                                        typename Encoding::Ps2RHssMinor,
                                        typename Encoding::Ys2RHsMajor,

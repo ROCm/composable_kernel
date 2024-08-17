@@ -62,8 +62,14 @@ if (DTYPES)
     endif()
     message("DTYPES macro set to ${DTYPES}")
 else()
-    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16)
-    set(CK_ENABLE_ALL_DTYPES "ON")
+    add_definitions(-DCK_ENABLE_INT8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_BF16 -DCK_ENABLE_FP8 -DCK_ENABLE_BF8)
+    set(CK_ENABLE_INT8 "ON")
+    set(CK_ENABLE_FP16 "ON")
+    set(CK_ENABLE_FP32 "ON")
+    set(CK_ENABLE_FP64 "ON")
+    set(CK_ENABLE_BF16 "ON")
+    set(CK_ENABLE_FP8 "ON")
+    set(CK_ENABLE_BF8 "ON")
 endif()
 
 #for f8/bf8_t type
@@ -106,21 +112,33 @@ list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/ll
 
 message("GPU_TARGETS= ${GPU_TARGETS}")
 
+find_package(hip)
+# No assumption that HIP kernels are launched with uniform block size for backward compatibility
+# SWDEV-413293 and https://reviews.llvm.org/D155213
+math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
+message("hip_version_flat=${hip_VERSION_FLAT}")
+
 message("checking which targets are supported")
 #This is the list of targets to be used in case GPU_TARGETS is not set on command line
 #These targets will be filtered and only supported ones will be used
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
-  if(NOT ENABLE_ASAN_PACKAGING)
-    #build CK for all supported targets
-    rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
-  else()
-    #build CK only for xnack-supported targets
-    rocm_check_target_ids(DEFAULT_GPU_TARGETS
-        TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
-    set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
-  endif()
+    if(NOT ENABLE_ASAN_PACKAGING)
+        #build CK for all supported targets
+        if(NOT WIN32 AND ${hip_VERSION_FLAT} LESS 600300000)
+            # WORKAROUND: compiler does not yet fully support gfx12 targets, need to fix version above
+            rocm_check_target_ids(DEFAULT_GPU_TARGETS
+                TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+        else()
+            rocm_check_target_ids(DEFAULT_GPU_TARGETS
+                TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
+        endif()
+    else()
+        #build CK only for xnack-supported targets
+        rocm_check_target_ids(DEFAULT_GPU_TARGETS
+            TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
+        set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
+    endif()
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)
@@ -169,20 +187,23 @@ endif()
 # CK config file to record supported datatypes, etc.
 configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
-find_package(hip)
-# No assumption that HIP kernels are launched with uniform block size for backward compatibility
-# SWDEV-413293 and https://reviews.llvm.org/D155213
-math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
-message("hip_version_flat=${hip_VERSION_FLAT}")
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
-   message("Adding the fno-offload-uniform-block compiler flag")
-   add_compile_options(-fno-offload-uniform-block)
+  check_cxx_compiler_flag("-fno-offload-uniform-block" HAS_NO_OFFLOAD_UNIFORM_BLOCK)
+  if(HAS_NO_OFFLOAD_UNIFORM_BLOCK)
+    message("Adding the fno-offload-uniform-block compiler flag")
+    add_compile_options(-fno-offload-uniform-block)
+  endif()
 endif()
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600140090)
-   message("Adding the enable-post-misched=0 compiler flag")
-   add_compile_options("SHELL: -mllvm -enable-post-misched=0")
+  check_cxx_compiler_flag("-mllvm -enable-post-misched=0" HAS_ENABLE_POST_MISCHED)
+  if(HAS_ENABLE_POST_MISCHED)
+    message("Adding the enable-post-misched=0 compiler flag")
+    add_compile_options("SHELL: -mllvm -enable-post-misched=0")
+  endif()
 endif()
-if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132 AND ${hip_VERSION_FLAT} LESS 600300000)
+set(check-coerce)
+check_cxx_compiler_flag(" -mllvm -amdgpu-coerce-illegal-types=1" check-coerce)
+if(NOT WIN32 AND check-coerce AND ${hip_VERSION_FLAT} GREATER 600241132 AND ${hip_VERSION_FLAT} LESS 600300000)
    message("Adding the amdgpu-coerce-illegal-types=1")
    add_compile_options("SHELL: -mllvm -amdgpu-coerce-illegal-types=1")
 endif()
@@ -532,6 +553,9 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
+   if(GPU_TARGETS MATCHES "gfx9" AND NOT INSTANCES_ONLY)
+      add_subdirectory(codegen)
+   endif()
    if(BUILD_TESTING)
       add_subdirectory(test)
    endif()
