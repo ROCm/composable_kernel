@@ -358,21 +358,22 @@ bool run(const ck_tile::ArgParser& arg_parser)
         use_cache_batch_idx = false;
     }
     // the input tensor layout for kvcache is same as batch mode
-    const bool use_kvcache =
-        (0 < seqlen_knew || 0 < rotary_dim || use_cache_batch_idx || 0 < page_block_size);
+    const bool need_append_kvcache = (0 < seqlen_knew || 0 < rotary_dim);
+    const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
     if(use_kvcache && mode != mode_enum::batch)
     {
         std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
         mode = mode_enum::batch;
     }
 
-    auto [seqlen_qs, seqlen_ks, seqlen_kpads] = decode_seqlen(mode,
-                                                              batch,
-                                                              arg_parser.get_str("s"),
-                                                              arg_parser.get_str("s_k"),
-                                                              arg_parser.get_str("s_kpad"),
-                                                              0 < seqlen_knew ? seqlen_knew : 0,
-                                                              use_kvcache);
+    auto [seqlen_qs, seqlen_ks, seqlen_kpads] =
+        decode_seqlen(mode,
+                      batch,
+                      arg_parser.get_str("s"),
+                      arg_parser.get_str("s_k"),
+                      arg_parser.get_str("s_kpad"),
+                      /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
+                      use_kvcache);
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -729,7 +730,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_buf(
         use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.size() * sizeof(int32_t) : 0);
-    ck_tile::DeviceMem cache_seqlen_k_buf(cache_seqlen_ks.size() * sizeof(int32_t));
+    ck_tile::DeviceMem cache_seqlen_k_buf(need_appendkv ? cache_seqlen_ks.size() * sizeof(int32_t)
+                                                        : 0);
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem rotary_sin_buf(rotary_sin_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
@@ -747,7 +749,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
                                             : seqstart_k_with_padding_host.data());
     seqlen_k_buf.ToDevice(use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.data() : nullptr);
-    cache_seqlen_k_buf.ToDevice(cache_seqlen_ks.data());
+    cache_seqlen_k_buf.ToDevice(need_append_kvcache ? cache_seqlen_ks.data() : nullptr);
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
@@ -1020,7 +1022,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const float appendkv_ave_time = [&] {
 #if CK_TILE_FMHA_FWD_APPENDKV_API
-        if(0 < seqlen_knew || 0 < rotary_dim)
+        if(need_append_kvcache)
         {
             fmha_fwd_appendkv_traits fwd_appendkv_traits;
             init_traits(fwd_appendkv_traits);
