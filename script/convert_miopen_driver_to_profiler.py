@@ -135,8 +135,6 @@ def run_ck_grouped_conv_bwd_weight(args):
     run_ck_profiler_cmd(cmd)
 
 # Get name of miopen driver, remove it from unknown
-
-
 def process_miopen_driver_name(args, unknown):
     if "convint8" in unknown:
         args.data_type = 'int8'
