@@ -730,8 +730,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_buf(
         use_kvcache || 0 <= seqlen_kpads[0] ? seqlen_ks.size() * sizeof(int32_t) : 0);
-    ck_tile::DeviceMem cache_seqlen_k_buf(need_appendkv ? cache_seqlen_ks.size() * sizeof(int32_t)
-                                                        : 0);
+    ck_tile::DeviceMem cache_seqlen_k_buf(
+        need_append_kvcache ? cache_seqlen_ks.size() * sizeof(int32_t) : 0);
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem rotary_sin_buf(rotary_sin_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
