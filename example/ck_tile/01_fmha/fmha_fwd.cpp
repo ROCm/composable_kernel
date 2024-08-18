@@ -327,7 +327,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto mode = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
     if((use_cache_batch_idx || 0 < page_block_size) && mode != mode_enum::batch)
     {
-        std::cerr << "kvcache enabled. ignoring the 'mode' option" << std::endl;
+        std::cerr << "both kvcache & split-kv enabled. ignoring the 'mode' option" << std::endl;
         mode = mode_enum::batch;
     }
 
