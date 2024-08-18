@@ -902,7 +902,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         args.v_ptr = v_buf.GetDeviceBuffer();
 
         args.batch    = batch;
-        args.seqlen_q = shape_seqlen_q;
+        args.seqlen_q = shape_seqlen_q; // unused in group mode
         args.hdim_q   = hdim_q;
         args.hdim_v   = hdim_v;
         args.nhead_q  = nhead;
@@ -959,7 +959,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             args.seqlen_k_ptr =
                 (use_kvcache || 0 <= k_paddings_[0] ? seqlen_k_buf.GetDeviceBuffer() : nullptr);
 
-            args.seqlen_k     = shape_seqlen_k;
+            args.seqlen_k     = shape_seqlen_k; // unused in group mode (or kvcache enabled)
             args.max_seqlen_q = max_seqlen_q;
 
             args.scale_s = scale_s;
