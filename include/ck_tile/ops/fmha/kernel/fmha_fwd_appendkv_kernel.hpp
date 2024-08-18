@@ -234,9 +234,9 @@ struct FmhaFwdAppendKVKernel
     __host__ static constexpr auto GridSize(ck_tile::index_t batch_size,
                                             ck_tile::index_t nhead,
                                             ck_tile::index_t seqlen_q,
-                                            ck_tile::index_t hdim_v)
+                                            ck_tile::index_t seqlen_knew)
     {
-        return TilePartitioner::GridSize(batch_size, nhead, seqlen_q, hdim_v);
+        return TilePartitioner::GridSize(batch_size, nhead, seqlen_q, seqlen_knew);
     }
 
     __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
