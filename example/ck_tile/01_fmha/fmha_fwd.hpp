@@ -164,13 +164,20 @@ struct fmha_fwd_splitkv_args
 
     const void* cache_batch_idx;
 
+    // the real seqlen_q & seqlen_k are decided by following:
+    // batch mode: seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.seqlen_k
+    // group mode: seqlen_q = kargs.seqstart_q_ptr[b + 1] - kargs.seqstart_q_ptr[b]
+    //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
+    // kvcache mode (use same kernel as batch mode):
+    //             seqlen_q = kargs.seqlen_q
+    //             seqlen_k = kargs.seqstart_k_ptr[b + 1] - kargs.seqstart_k_ptr[b]
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
-    const void* seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not
-                              // nullptr, or kvcache is used
+    const void* seqlen_k_ptr;
 
     ck_tile::index_t seqlen_q;
-    ck_tile::index_t seqlen_k; // only used if 'seqlen_k_ptr' is nullptr
+    ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
     ck_tile::index_t max_seqlen_q;
     ck_tile::index_t hdim_q;
