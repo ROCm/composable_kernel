@@ -88,7 +88,7 @@ std::vector<int32_t> generate_seqlens(unsigned count,
     return seqlens;
 }
 
-// return random integers generated uniformly in range [low, high]
+// return random integer generated uniformly in range [low, high]
 template <typename Int = int>
 auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
     -> std::enable_if_t<std::is_integral_v<Int>, Int>
