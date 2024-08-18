@@ -24,7 +24,7 @@ enum class rope_enum
 
 template <typename DataType>
 std::tuple<ck_tile::HostTensor<DataType>, ck_tile::HostTensor<DataType>>
-generate_rotary_cos_sin(ck_tile::index_t seqlen_k,
+generate_rotary_cos_sin(ck_tile::index_t seqlen,
                         ck_tile::index_t rotary_dim,
                         std::optional<unsigned> seed = std::nullopt)
 {
@@ -38,7 +38,7 @@ generate_rotary_cos_sin(ck_tile::index_t seqlen_k,
     std::mt19937 random_engine(seed.has_value() ? *seed : std::random_device{}());
     std::uniform_real_distribution<float> generator(0.0f, 1.0f);
 
-    const ck_tile::index_t num_rows = seqlen_k * 2;
+    const ck_tile::index_t num_rows = seqlen * 2;
     const ck_tile::index_t num_cols = rotary_dim / 2;
 
     using std::begin, std::end;
