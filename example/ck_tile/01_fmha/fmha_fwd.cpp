@@ -603,8 +603,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                    : std::array<ck_tile::index_t, 2>{batch, nhead})
             : std::array<ck_tile::index_t, 2>{1, 1});
 
-    auto [rotary_cos_host, rotary_sin_host] =
-        generate_rotary_cos_sin<KDataType>(shape_seqlen_k, rotary_dim, seed);
+    auto [rotary_cos_host, rotary_sin_host] = generate_rotary_cos_sin<KDataType>(
+        std::max(shape_seqlen_q, shape_seqlen_k), rotary_dim, seed);
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits || use_kvcache
