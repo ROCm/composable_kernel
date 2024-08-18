@@ -39,8 +39,7 @@ std::vector<int32_t> to_seqstarts(ck_tile::span<const int32_t> seqlens)
     return seqstarts;
 }
 
-std::vector<int32_t> generate_seqlens(mode_enum mode,
-                                      unsigned count,
+std::vector<int32_t> generate_seqlens(unsigned count,
                                       int32_t seqlen_avg,
                                       int32_t seqlen_min = -1, // if not negative, clamp min
                                       int32_t seqlen_max = -1, // if not negative, clamp max
@@ -54,7 +53,7 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
 
     std::vector<int32_t> seqlens(count, std::clamp(seqlen_avg, seqlen_min, seqlen_max));
 
-    if(mode == mode_enum::group && 1 < count)
+    if(1 < count)
     {
         using size_type = std::vector<int32_t>::size_type;
 
@@ -89,6 +88,31 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
     return seqlens;
 }
 
+// return random integers generated uniformly in range [low, high]
+template <typename Int = int>
+auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
+    -> std::enable_if_t<std::is_integral_v<Int>, Int>
+{
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::uniform_int_distribution<Int> dist(low, high);
+    return dist(engine);
+}
+
+// return random integers generated uniformly in range [low, high]
+template <typename Int, typename ForwardIterator>
+auto randints(ForwardIterator first,
+              ForwardIterator last,
+              Int low,
+              Int high,
+              std::optional<unsigned> seed = std::nullopt)
+    -> std::enable_if_t<std::is_integral_v<Int>>
+{
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::uniform_int_distribution<Int> dist(low, high);
+
+    std::generate(first, last, [&] { return dist(engine); });
+}
+
 /*
  * decode the seqlen string from cmdline
  * example (assume batch=3)
@@ -110,6 +134,7 @@ decode_seqlen(mode_enum mode,
               std::string k_val,
               std::string k_pad_val,
               ck_tile::index_t seqlen_k_min = 0,
+              bool use_kvcache              = false,
               std::optional<unsigned> seed  = std::nullopt)
 {
 #define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
@@ -118,8 +143,21 @@ decode_seqlen(mode_enum mode,
         ck_tile::index_t q = _S2I_(q_val);
         ck_tile::index_t k = _S2I_(k_val);
 
-        auto s_q    = std::vector<ck_tile::index_t>(batch, q);
-        auto s_k    = std::vector<ck_tile::index_t>(batch, k < 0 ? q : k);
+        auto s_q = std::vector<ck_tile::index_t>(batch, q);
+        auto s_k = [&] {
+            const ck_tile::index_t seqlen_k_max = (k < 0 ? q : k);
+            if(use_kvcache)
+            {
+                std::vector<ck_tile::index_t> seqlen_ks(batch);
+                randints<ck_tile::index_t>(
+                    seqlen_ks.begin(), seqlen_ks.end(), seqlen_k_min, seqlen_k_max, seed);
+                return seqlen_ks;
+            }
+            else
+            {
+                return std::vector<ck_tile::index_t>(batch, seqlen_k_max);
+            }
+        }();
         auto s_kpad = std::vector<ck_tile::index_t>(batch, -1); // TODO: batch not support k_padding
 
         // s_k should be greater than or equal to seqlen_k_min if provided
@@ -179,9 +217,9 @@ decode_seqlen(mode_enum mode,
         }
         if(idx < batch)
         {
-            auto rem_q = generate_seqlens(mode, batch - idx, s_q.back(), 1, s_kpad.back(), seed);
+            auto rem_q = generate_seqlens(batch - idx, s_q.back(), 1, s_kpad.back(), seed);
             auto rem_k =
-                generate_seqlens(mode, batch - idx, s_k.back(), seqlen_k_min, s_kpad.back(), seed);
+                generate_seqlens(batch - idx, s_k.back(), seqlen_k_min, s_kpad.back(), seed);
 
             s_q.insert(s_q.end(), rem_q.begin(), rem_q.end());
             s_k.insert(s_k.end(), rem_k.begin(), rem_k.end());
@@ -199,16 +237,6 @@ int env_get_int(const char* var_name, int default_int)
     if(v)
         r = std::atoi(v);
     return r;
-}
-
-// return random integers generated uniformly in range [low, high]
-template <typename Int = int>
-auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
-    -> std::enable_if_t<std::is_integral_v<Int>, Int>
-{
-    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
-    std::uniform_int_distribution<Int> dist(low, high);
-    return dist(engine);
 }
 
 template <typename RandomAccessIterator, typename Int>
