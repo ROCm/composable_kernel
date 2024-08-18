@@ -279,7 +279,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t seqlen_knew = arg_parser.get_int("s_knew");
-#if !CK_TILE_FMHA_FWD_APPENDKV_API || !CK_TILE_FMHA_FWD_SPLITKV_API
+#if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
         std::cerr << "kvcache is not supported. ignoring the 's_knew' option" << std::endl;
