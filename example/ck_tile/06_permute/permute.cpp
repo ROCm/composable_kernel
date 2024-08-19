@@ -14,6 +14,10 @@
 #include <utility>
 #include <vector>
 
+#ifdef PERMUTE_USE_ALTERNATIVE_IMPL
+#include "alternative_impl/matrix_core_swizzle.hpp"
+#endif
+
 namespace detail {
 template <int bytes>
 struct to_integer_type;
@@ -191,7 +195,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::string data_type = arg_parser.get_str("prec");
     int do_validation     = arg_parser.get_int("v");
 
-    auto x_shape      = decode_vec(arg_parser.get_str("shape"));
+    auto shape        = decode_vec(arg_parser.get_str("shape"));
     auto perm         = decode_vec(arg_parser.get_str("perm"));
     int stream_warmup = arg_parser.get_int("warmup");
     int stream_repeat = arg_parser.get_int("repeat");
@@ -206,7 +210,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
-    ck_tile::HostTensor<DataType> x(x_shape);
+    ck_tile::HostTensor<DataType> x(shape);
     ck_tile::FillUniformDistributionIntegerValue<DataType>{-15, 15, seed}(x);
 
     std::vector<ck_tile::index_t> y_shape = [&]() {
@@ -217,7 +221,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             // std::cout << "  i:" << i << ", perm:" << perm[i] << ", rak:" <<
             // static_cast<int>(rank)
             // << std::endl;
-            tmp[i] = x_shape[perm[i]];
+            tmp[i] = shape[perm[i]];
         }
         // std::cout << "@@@" << tmp << std::endl;
         return tmp;
@@ -230,26 +234,78 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     x_buf.ToDevice(x.data());
 
-    permute_args args;
-    args.p_src = x_buf.GetDeviceBuffer();
-    args.p_dst = y_buf.GetDeviceBuffer();
-    args.rank  = rank;
-    std::copy(x_shape.begin(), x_shape.end(), args.shape);
-    std::copy(perm.begin(), perm.end(), args.perm);
-
-    permute_traits trait;
-    trait.data_type = data_type;
-
-    std::cout << "[" << data_type << "] shape:" << x_shape << "->" << y_shape
-              << ", permute:" << perm << std::flush;
+    std::cout << "[" << data_type << "] shape:" << shape << "->" << y_shape << ", permute:" << perm
+              << std::flush;
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
                                          /* log_level = */ (kname ? 1 : 0),
                                          stream_warmup,
                                          stream_repeat};
+    float ave_time   = 0.f;
+    auto run_permute = [&]() {
+        permute_traits t;
+        t.data_type = data_type;
 
-    float ave_time = permute(trait, args, stream_config);
+        permute_args a;
+        a.p_src = x_buf.GetDeviceBuffer();
+        a.p_dst = y_buf.GetDeviceBuffer();
+        a.rank  = rank;
+        std::copy(shape.begin(), shape.end(), a.shape);
+        std::copy(perm.begin(), perm.end(), a.perm);
+
+        return permute(t, a, stream_config);
+    };
+#ifdef PERMUTE_USE_ALTERNATIVE_IMPL
+    // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
+    if(rank == 7 && (arg_parser.get_str("perm") == std::string("0,1,4,2,5,3,6") ||
+                     arg_parser.get_str("perm") == std::string("0,1,2,4,5,3,6")))
+    {
+        matrix_core_swizzle_traits t;
+        t.data_type = data_type;
+        t.permute   = arg_parser.get_str("perm");
+
+        matrix_core_swizzle_args a;
+        a.p_src = x_buf.GetDeviceBuffer();
+        a.p_dst = y_buf.GetDeviceBuffer();
+        a.batch = shape[0];
+        a.n     = shape[1] * shape[2] * shape[3];
+        a.k     = shape[4] * shape[5] * shape[6];
+        if(shape[6] == 8 && shape[3] == 32 && shape[5] == 2 && shape[2] == 4 && shape[4] % 8 == 0 &&
+           shape[1] % 2 == 0)
+        {
+            // 32x32x8 inst
+            // perm=0,1,4,2,5,3,6
+            // y_shape=*,2x,8x,4,2,32,8 (3,6,16,4,2,32,8)
+            // shape = *,2x,4,32,8x,2,8 (3,6,4,32,16,2,8)
+
+            t.inst = "32x32x8";
+            std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
+
+            ave_time = matrix_core_swizzle(t, a, stream_config);
+        }
+        else if(shape[6] == 8 && shape[3] == 16 && shape[5] == 4 && shape[2] == 4 &&
+                shape[4] % 4 == 0 && shape[1] % 4 == 0)
+        {
+            // 16x16x16 inst
+            // perm=0,1,4,2,5,3,6
+            // y_shape=*,4x,4x,4,4,16,8
+            // shape = *,4x,4,16,4x,4,8 (3,8,4,16,16,4,8)
+            t.inst = "16x16x16";
+            std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
+
+            ave_time = matrix_core_swizzle(t, a, stream_config);
+        }
+        else
+        {
+            ave_time = run_permute();
+        }
+    }
+    else
+#endif
+    {
+        ave_time = run_permute();
+    }
     std::cout << ", time:" << ave_time << "ms" << std::flush;
 
     bool pass = true;

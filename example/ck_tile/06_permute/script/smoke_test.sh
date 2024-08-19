@@ -9,6 +9,14 @@ if [ $# -ge 1 ] ; then
     set -x
 fi
 
+$EXE -prec=fp16 -shape=3,6,4,32,16,2,8 -perm=0,1,4,2,5,3,6  $COMMON_ARGS
+$EXE -prec=fp16 -shape=5,10,4,32,8,2,8 -perm=0,1,4,2,5,3,6  $COMMON_ARGS
+$EXE -prec=fp16 -shape=3,8,4,16,16,4,8 -perm=0,1,4,2,5,3,6  $COMMON_ARGS
+$EXE -prec=fp16 -shape=3,6,4,32,16,2,8 -perm=0,1,2,4,5,3,6  $COMMON_ARGS
+$EXE -prec=fp16 -shape=5,10,4,32,8,2,8 -perm=0,1,2,4,5,3,6  $COMMON_ARGS
+$EXE -prec=fp16 -shape=3,8,4,16,16,4,8 -perm=0,1,2,4,5,3,6  $COMMON_ARGS
+echo "------------------------------------------------------------------"
+
 for prec in "fp8" "fp16" "fp32" ; do
 
 $EXE -prec=$prec -shape=3,8 -perm=1,0 $COMMON_ARGS
