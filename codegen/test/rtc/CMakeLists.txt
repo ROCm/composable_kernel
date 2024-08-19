@@ -1,6 +1,21 @@
 
 find_package(hip)
+if(INSTANCES_ONLY)
+	set(CGT_TARGETS ${DEFAULT_GPU_TARGETS})
+else()
+	set(CGT_TARGETS ${GPU_TARGETS})
+endif()
+
+list(REMOVE_ITEM CGT_TARGETS gfx900 gfx906 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1200 gfx1201)
+set(offload_targets)
+foreach(target IN LISTS CGT_TARGETS)
+	string(APPEND offload_targets "--offload-arch=${target} ")
+endforeach()
+
 file(GLOB RTC_SOURCES CONFIGURE_DEPENDS src/*.cpp)
+foreach(rtc_source IN LISTS RTC_SOURCES)
+	set_source_files_properties(${rtc_source} PROPERTIES COMPILE_FLAGS ${offload_targets})
+endforeach()
 add_library(ck_rtc ${RTC_SOURCES})
 target_include_directories(ck_rtc PUBLIC include)
 target_link_libraries(ck_rtc PUBLIC hip::host)
