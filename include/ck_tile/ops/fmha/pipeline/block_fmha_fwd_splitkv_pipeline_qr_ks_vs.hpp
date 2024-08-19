@@ -223,13 +223,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 return seqlen_k_start_;
             }
         }();
-        const auto num_total_loop =
+        const index_t num_total_loop =
             integer_divide_ceil(seqlen_k_end - adjusted_seqlen_k_start, kN0);
 
         // check early exit if masked and no work to do.
         if constexpr(FmhaMask::IsMasking || kHasUnevenSplits)
         {
-            if(num_total_loop <= 0)
+            const index_t original_num_total_loop =
+                integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+            if(original_num_total_loop <= 0)
             {
                 if constexpr(kStoreLSE)
                 {
