@@ -787,18 +787,66 @@ struct Gelu
     }
 };
 
-struct Sigmoid
+struct Sigmoid : public UnaryOpBase
 {
-    template <typename T>
-    __host__ __device__ void operator()(T& y, const T& x) const
+
+    __host__ __device__ void operator()(float& y, const float& x) const override
     {
-        static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
-                          is_same<T, int32_t>::value,
-                      "Data type is not supported by this operation!");
-        constexpr T one = type_convert<T>(1);
-        y               = one / (one + ck::math::exp(-x));
-    };
+        y               = 1 / (1 + ck::math::exp(-x));
+    }
+
+    __host__ __device__ void operator()(double& y, const double& x) const override
+    {
+        y               = 1 / (1 + ck::math::exp(-x));
+    }
+
+    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    {
+       y               = 1 / (1 + ck::math::exp(-x));
+    }
+
+    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    {
+        y               = 1 / (1 + ck::math::exp(-x));
+    }
+
+    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    {
+        y               = 1 / (1 + ck::math::exp(-x));
+    }
+
+    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = ck::type_convert<float>(1) / (ck::type_convert<float>(1) + ck::math::exp(-x_f32));
+        y           = ck::type_convert<bhalf_t>(y_f32);
+    }
+
+    __host__ __device__ void operator()(bf8_t& y, const bf8_t& x) const override
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = ck::type_convert<float>(1) / (ck::type_convert<float>(1) + ck::math::exp(-x_f32));
+        y           = ck::type_convert<bf8_t>(y_f32);
+    }
+
+    __host__ __device__ void operator()(f8_t& y, const f8_t& x) const override
+    {
+        float x_f32 = ck::type_convert<float>(x);
+        float y_f32 = ck::type_convert<float>(1) / (ck::type_convert<float>(1) + ck::math::exp(-x_f32));
+        y           = ck::type_convert<f8_t>(y_f32);
+    }
+
+
+    // template <typename T>
+    // __host__ __device__ void operator()(T& y, const T& x) const
+    // {
+    //     static_assert(is_same<T, float>::value || is_same<T, double>::value ||
+    //                       is_same<T, ck::half_t>::value || is_same<T, int8_t>::value ||
+    //                       is_same<T, int32_t>::value,
+    //                   "Data type is not supported by this operation!");
+    //     constexpr T one = type_convert<T>(1);
+    //     y               = one / (one + ck::math::exp(-x));
+    // };
 };
 
 struct Silu
@@ -1350,6 +1398,10 @@ struct DynamicUnaryOp
 
     __host__ __device__ DynamicUnaryOp(const Relu&&) { unary_op_type_ = UnaryOpType::Relu; }
 
+    __host__ __device__ DynamicUnaryOp(const Sigmoid&) { unary_op_type_ = UnaryOpType::Sigmoid; }
+
+    __host__ __device__ DynamicUnaryOp(const Sigmoid&&) { unary_op_type_ = UnaryOpType::Sigmoid; }
+
     __host__ __device__ DynamicUnaryOp(const DynamicUnaryOp& dynamic_op) = default; //{
 
     __host__ __device__ DynamicUnaryOp(DynamicUnaryOp&& dynamic_op) = default; //{
@@ -1365,6 +1417,7 @@ struct DynamicUnaryOp
         switch(unary_op_type_)
         {
         case(UnaryOpType::Relu): unary_op_ptr_ = new Relu; break;
+        case(UnaryOpType::Sigmoid): unary_op_ptr_ = new Sigmoid; break;
         default: unary_op_ptr_ = nullptr; break;
         }
     }
@@ -1381,6 +1434,7 @@ struct DynamicUnaryOp
         switch(unary_op_type_)
         {
         case(UnaryOpType::Relu): Relu{}.operator()(y, x); break;
+        case(UnaryOpType::Sigmoid): Sigmoid{}.operator()(y, x); break;
         default: break;
         }
     }
@@ -1388,7 +1442,7 @@ struct DynamicUnaryOp
     private:
     enum class UnaryOpType
     {
-        Relu,
+        Relu, Sigmoid
     };
 
     public:
