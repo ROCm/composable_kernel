@@ -146,7 +146,7 @@ decode_seqlen(mode_enum mode,
         auto s_q = std::vector<ck_tile::index_t>(batch, q);
         auto s_k = [&] {
             const ck_tile::index_t seqlen_k_max = (k < 0 ? q : k);
-            if(use_kvcache)
+            if(1 < batch && use_kvcache)
             {
                 std::vector<ck_tile::index_t> seqlen_ks(batch);
                 randints(seqlen_ks.begin(), seqlen_ks.end(), seqlen_k_min, seqlen_k_max, seed);
