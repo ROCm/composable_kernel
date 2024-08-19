@@ -15,21 +15,18 @@
 #include "ck/tensor_operation/gpu/device/device_elementwise.hpp"
 #include "ck/tensor_operation/gpu/device/device_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
-#include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/type.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale.hpp"
 #include "ck/utility/reduction_enums.hpp"
 #include "ck/library/tensor_operation_instance/gpu/permute_scale.hpp"
 #include "ck/library/tensor_operation_instance/gpu/reduce/reduce.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
-namespace ew = ck::tensor_operation::element_wise;
-
-using PassThrough   = ew::PassThrough;
-using ConvScaleRelu = ew::UnaryCombinedOp<ew::Scale, ew::Scale, ew::Relu>;
-using ConvScale     = ew::UnaryCombinedOp<ew::Scale, ew::Scale, PassThrough>;
+using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
+using ConvScaleRelu = ck::tensor_operation::element_wise::ScaleScaleRelu;
+using ConvScale     = ck::tensor_operation::element_wise::ScaleScalePass;
 
 struct SimpleDeviceMem
 {
@@ -222,7 +219,9 @@ bool run_grouped_conv_fwd_convscale_reduce(
      * FP8 Convolution with Scaling
      */
     std::cout << "\n\nConvolution with scale Benchmarking:" << std::endl;
-    auto elementwise_op = ConvElementOp{ew::Scale{scale_in}, ew::Scale{scale_wei}, {}};
+    auto elementwise_op = ConvElementOp{ck::tensor_operation::element_wise::Scale{scale_in},
+                                        ck::tensor_operation::element_wise::Scale{scale_wei},
+                                        {}};
     auto conv_ok        = ConvolutionScale<InDataType,
                                     WeiDataType,
                                     ConvOutDataType,
@@ -459,7 +458,7 @@ void TensorScaleConvert(SimpleDeviceMem& in,
     using DeviceScaleConvert =
         ck::tensor_operation::device::DeviceElementwise<ck::Tuple<InDataType>,
                                                         ck::Tuple<OutDataType>,
-                                                        ew::Scale,
+                                                        ck::tensor_operation::element_wise::Scale,
                                                         NumDimSpatial + NumNonSpatialDim>;
 
     // get device op instances
@@ -477,7 +476,7 @@ void TensorScaleConvert(SimpleDeviceMem& in,
     // profile device operation instances
     std::cout << "Run all DeviceScaleConvert instances and do timing" << std::endl;
 
-    auto scale_convert = ew::Scale{scale_out};
+    auto scale_convert = ck::tensor_operation::element_wise::Scale{scale_out};
 
     for(int i = 0; i < op_ptrs.size(); ++i)
     {
