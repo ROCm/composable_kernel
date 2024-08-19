@@ -149,10 +149,7 @@ decode_seqlen(mode_enum mode,
             if(use_kvcache)
             {
                 std::vector<ck_tile::index_t> seqlen_ks(batch);
-                // generate random numbers in range [1, seqlen_k_max] if given seqlen_k_min = 0
-                ck_tile::index_t real_seqlen_k_min =
-                    std::min(std::max(1, seqlen_k_min), seqlen_k_max);
-                randints(seqlen_ks.begin(), seqlen_ks.end(), real_seqlen_k_min, seqlen_k_max, seed);
+                randints(seqlen_ks.begin(), seqlen_ks.end(), seqlen_k_min, seqlen_k_max, seed);
                 return seqlen_ks;
             }
             else
