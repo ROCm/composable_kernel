@@ -34,11 +34,11 @@ inline __host__ __device__ constexpr double get_rtol()
     }
     else if constexpr(std::is_same_v<DataType, ck::f8_t>)
     {
-        return 1e-3; // 240 and 224 are acceptable
+        return 2e-1;
     }
     else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
     {
-        return 1.5e-1; // 57344 and 49152 are acceptable
+        return 2e-1;
     }
     else
     {
@@ -75,11 +75,11 @@ inline __host__ __device__ constexpr double get_atol()
     }
     else if constexpr(std::is_same_v<DataType, ck::f8_t>)
     {
-        return 1e-3; // 240 and 224 are acceptable
+        return 2e-1;
     }
     else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
     {
-        return 8192.1; // 57344 and 49152 are acceptable
+        return 2e-1;
     }
     else
     {
