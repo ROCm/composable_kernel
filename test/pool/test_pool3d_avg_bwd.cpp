@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
-#include "profiler/profile_avg_pool3d_bwd_impl.hpp"
+#include "profiler/profile_pool3d_avg_bwd_impl.hpp"
 #include "test_pool_fwd_common.hpp"
 
 template <typename Tuple>
@@ -22,7 +22,7 @@ class TestAvgPool3dBwd : public ::testing::Test
         for(auto param : params)
         {
             bool success =
-                ck::profiler::profile_avg_pool3d_bwd_impl<DOutDataType,
+                ck::profiler::profile_pool3d_avg_bwd_impl<DOutDataType,
                                                           DInDataType,
                                                           ComputeDataType,
                                                           DOutLayout,
@@ -41,26 +41,9 @@ class TestAvgPool3dBwd : public ::testing::Test
     }
 };
 
-#if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP32)
 using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>,
                                      std::tuple<BF16, BF16, F32, NDHWC, NDHWC>,
                                      std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#elif defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP32)
-using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>,
-                                     std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#elif defined(CK_ENABLE_BF16) && defined(CK_ENABLE_FP32)
-using KernelTypes = ::testing::Types<std::tuple<BF16, BF16, F32, NDHWC, NDHWC>,
-                                     std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#elif defined(CK_ENABLE_FP16) && defined(CK_ENABLE_BF16)
-using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>,
-                                     std::tuple<BF16, BF16, F32, NDHWC, NDHWC>>;
-#elif defined(CK_ENABLE_FP16)
-using KernelTypes = ::testing::Types<std::tuple<F16, F16, F32, NDHWC, NDHWC>>;
-#elif defined(CK_ENABLE_BF16)
-using KernelTypes = ::testing::Types<std::tuple<BF16, BF16, F32, NDHWC, NDHWC>>;
-#elif defined(CK_ENABLE_FP32)
-using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, NDHWC, NDHWC>>;
-#endif
 
 TYPED_TEST_SUITE(TestAvgPool3dBwd, KernelTypes);
 TYPED_TEST(TestAvgPool3dBwd, Test_Pool)

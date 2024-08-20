@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
 #include <unordered_map>
 
 #include "profiler/data_type_enum.hpp"
-#include "profiler/profile_avg_pool3d_bwd_impl.hpp"
+#include "profiler/profile_pool3d_max_bwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "profiler_operation_registry.hpp"
 
 using ck::index_t;
@@ -49,7 +50,7 @@ struct maxPoolbwdArgParser
     }
 };
 
-void print_help_avg_pool3d_bwd()
+void print_help_pool3d_max_bwd()
 {
     std::cout << "arg1: data type (0: fp16; 1: fp32; 5: bf16)\n"
               << "arg2: verification (0: no; 1: yes)\n"
@@ -62,12 +63,12 @@ void print_help_avg_pool3d_bwd()
               << "--wdilation: window dilation for DHW (e.g, --wdilation 1 1 1) \n"
               << "--pad1: left side of padding in DHW (e.g, --pad1 1 1 1) \n"
               << "--pad2: right side of padding in DHW (e.g, --pad2 1 1 1) \n"
-              << "eg: ckProfiler avg_pool3d_bwd 0 1 2 0 1 --length 2 32 30 30 30 --wsize 2 2 2 "
+              << "eg: ckProfiler pool3d_max_bwd 0 1 2 0 1 --length 2 32 30 30 30 --wsize 2 2 2 "
                  "--wstride 2 2 2 --wdilation 1 1 1 --pad1 1 1 1 --pad2 1 1 1"
               << std::endl;
 }
 
-int profile_avg_pool3d_bwd(int argc, char* argv[])
+int profile_pool3d_max_bwd(int argc, char* argv[])
 {
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
     bool do_verification       = true;
@@ -84,7 +85,7 @@ int profile_avg_pool3d_bwd(int argc, char* argv[])
 
     if(argc != 2 && argc != 33)
     {
-        print_help_avg_pool3d_bwd();
+        print_help_pool3d_max_bwd();
         return 0;
     }
     else if(argc == 33)
@@ -106,38 +107,14 @@ int profile_avg_pool3d_bwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-#ifdef CK_ENABLE_FP16
-    using F16 = ck::half_t;
-#endif
-#ifdef CK_ENABLE_BF16
+    using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-#endif
-#ifdef CK_ENABLE_FP32
-    using F32 = float;
-#endif
-    using NDHWC = ck::tensor_layout::convolution::NDHWC;
+    using F32  = float;
+    using I32  = int32_t;
 
-    if(false)
-        ;
-#ifdef CK_ENABLE_FP16
-    else if(data_type == ck::DataTypeEnum::Half)
+    if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_avg_pool3d_bwd_impl<F16, F16, F16, NDHWC, NDHWC>(do_verification,
-                                                                               init_method,
-                                                                               do_log,
-                                                                               time_kernel,
-                                                                               in_length,
-                                                                               wsize,
-                                                                               wstride,
-                                                                               wdilation,
-                                                                               pad1,
-                                                                               pad2);
-    }
-#endif
-#ifdef CK_ENABLE_BF16
-    else if(data_type == ck::DataTypeEnum::BFloat16)
-    {
-        ck::profiler::profile_avg_pool3d_bwd_impl<BF16, BF16, BF16, NDHWC, NDHWC>(do_verification,
+        ck::profiler::profile_pool3d_max_bwd_impl<F16, F16, I32, F16, F16, false>(do_verification,
                                                                                   init_method,
                                                                                   do_log,
                                                                                   time_kernel,
@@ -148,22 +125,33 @@ int profile_avg_pool3d_bwd(int argc, char* argv[])
                                                                                   pad1,
                                                                                   pad2);
     }
-#endif
-#ifdef CK_ENABLE_FP32
+    else if(data_type == ck::DataTypeEnum::BFloat16)
+    {
+        ck::profiler::profile_pool3d_max_bwd_impl<BF16, BF16, I32, BF16, BF16, false>(
+            do_verification,
+            init_method,
+            do_log,
+            time_kernel,
+            in_length,
+            wsize,
+            wstride,
+            wdilation,
+            pad1,
+            pad2);
+    }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_avg_pool3d_bwd_impl<F32, F32, F32, NDHWC, NDHWC>(do_verification,
-                                                                               init_method,
-                                                                               do_log,
-                                                                               time_kernel,
-                                                                               in_length,
-                                                                               wsize,
-                                                                               wstride,
-                                                                               wdilation,
-                                                                               pad1,
-                                                                               pad2);
+        ck::profiler::profile_pool3d_max_bwd_impl<F32, F32, I32, F32, F32, false>(do_verification,
+                                                                                  init_method,
+                                                                                  do_log,
+                                                                                  time_kernel,
+                                                                                  in_length,
+                                                                                  wsize,
+                                                                                  wstride,
+                                                                                  wdilation,
+                                                                                  pad1,
+                                                                                  pad2);
     }
-#endif
     else
     {
         throw std::runtime_error("not implemented yet");
@@ -172,4 +160,4 @@ int profile_avg_pool3d_bwd(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("avg_pool3d_bwd", "max_pool bwd", profile_avg_pool3d_bwd);
+REGISTER_PROFILER_OPERATION("pool3d_max_bwd", "pool3d_max bwd", profile_pool3d_max_bwd);

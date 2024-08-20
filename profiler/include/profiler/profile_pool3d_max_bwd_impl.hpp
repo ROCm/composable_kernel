@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,39 +7,25 @@
 
 #include "ck/ck.hpp"
 #include "ck/library/tensor_operation_instance/gpu/pool3d_fwd.hpp"
-#include "ck/library/tensor_operation_instance/gpu/avg_pool3d_bwd.hpp"
+#include "ck/library/tensor_operation_instance/gpu/max_pool_bwd.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_avgpool_bwd.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_pool_fwd.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_maxpool_bwd.hpp"
 
 namespace ck {
 namespace profiler {
 
-template <typename TensorLayout>
-std::vector<ck::index_t> f_tensor_strides_ncdhw(ck::index_t N_,
-                                                ck::index_t C_,
-                                                ck::index_t D,
-                                                ck::index_t H,
-                                                ck::index_t W,
-                                                TensorLayout layout)
-{
-    using namespace ck::literals;
-    (void)N_;
-    if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NDHWC>::value)
-        return {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_};
-    else
-        throw std::runtime_error("not supported yet");
-};
-
-template <typename DOutDataType,
+template <typename InDataType,
+          typename OutDataType,
+          typename IndexDataType,
+          typename DOutDataType,
           typename DInDataType,
-          typename ComputeDataType,
-          typename DOutLayout,
-          typename DInLayout>
-bool profile_avg_pool3d_bwd_impl(int do_verification,
+          bool PropagateNan>
+bool profile_pool3d_max_bwd_impl(int do_verification,
                                  int init_method,
                                  bool do_log,
                                  bool time_kernel,
@@ -50,8 +36,13 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
                                  std::vector<index_t> input_left_pads,
                                  std::vector<index_t> input_right_pads)
 {
+    // AtomicAdd only support f32 for now. ComputeDataType must be float32
+    using ComputeDataType = float;
+
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
+
+    using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
     if(in_length.size() != InOutRank || window_spatial_lengths.size() != WindowRank ||
        window_strides.size() != WindowRank || window_dilations.size() != WindowRank ||
@@ -96,25 +87,66 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
                                         {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
         };
 
+    Tensor<InDataType> in_n_c_di_hi_wi(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
+    Tensor<OutDataType> out_n_c_do_ho_wo(f_host_tensor_descriptor(N, C, Do, Ho, Wo));
+    Tensor<IndexDataType> out_indices_n_c_do_ho_wo(f_host_tensor_descriptor(N, C, Do, Ho, Wo));
     Tensor<DOutDataType> dout_n_c_do_ho_wo(f_host_tensor_descriptor(N, C, Do, Ho, Wo));
-    Tensor<DInDataType> din_n_c_di_hi_wi_device(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
     Tensor<DInDataType> din_n_c_di_hi_wi_host(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
+
+    Tensor<DInDataType> din_n_c_di_hi_wi_device(f_host_tensor_descriptor(N, C, Di, Hi, Wi));
 
     switch(init_method)
     {
-    case 0: dout_n_c_do_ho_wo.GenerateTensorValue(GeneratorTensor_1<DOutDataType>{}); break;
-    case 1: dout_n_c_do_ho_wo.GenerateTensorValue(GeneratorTensor_2<DOutDataType>{-5, 5}); break;
-    default: dout_n_c_do_ho_wo.GenerateTensorValue(GeneratorTensor_3<DOutDataType>{-0.5, 0.5});
+    case 0:
+        in_n_c_di_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{});
+        dout_n_c_do_ho_wo.GenerateTensorValue(GeneratorTensor_1<DOutDataType>{});
+        break;
+    case 1:
+        in_n_c_di_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+        dout_n_c_do_ho_wo.GenerateTensorValue(GeneratorTensor_2<DOutDataType>{-5, 5});
+        break;
+    default:
+        in_n_c_di_hi_wi.GenerateTensorValue(GeneratorTensor_3<InDataType>{-0.5, 0.5});
+        dout_n_c_do_ho_wo.GenerateTensorValue(GeneratorTensor_3<DOutDataType>{-0.5, 0.5});
     }
 
+    DeviceMem indices_device_buf(sizeof(IndexDataType) *
+                                 out_indices_n_c_do_ho_wo.mDesc.GetElementSpaceSize());
     DeviceMem dout_device_buf(sizeof(DOutDataType) * dout_n_c_do_ho_wo.mDesc.GetElementSpaceSize());
     DeviceMem din_device_buf(sizeof(DInDataType) *
                              din_n_c_di_hi_wi_device.mDesc.GetElementSpaceSize());
 
+    // Generate index data from forwarding
+    {
+        using ReferencePoolingFwdInstance =
+            ck::tensor_operation::host::ReferencePoolingFwd<InOutRank,
+                                                            WindowRank,
+                                                            InDataType,
+                                                            OutDataType,
+                                                            ComputeDataType,
+                                                            IndexDataType,
+                                                            ck::ReduceTensorOp::MAX,
+                                                            false,
+                                                            true>;
+
+        ReferencePoolingFwdInstance ref_pooling_fwd;
+        auto ref_pooling_fwd_argument = ref_pooling_fwd.MakeArgument(in_n_c_di_hi_wi,
+                                                                     out_n_c_do_ho_wo,
+                                                                     out_indices_n_c_do_ho_wo,
+                                                                     window_spatial_lengths,
+                                                                     window_strides,
+                                                                     window_dilations,
+                                                                     input_left_pads,
+                                                                     input_right_pads);
+        auto ref_pooling_fwd_invoker  = ref_pooling_fwd.MakeInvoker();
+        ref_pooling_fwd_invoker.Run(ref_pooling_fwd_argument);
+    }
+
+    indices_device_buf.ToDevice(out_indices_n_c_do_ho_wo.mData.data());
     dout_device_buf.ToDevice(dout_n_c_do_ho_wo.mData.data());
 
-    using DeviceOp = ck::tensor_operation::device::
-        DeviceAvgPoolBwd<3, DOutDataType, DInDataType, DOutLayout, DInLayout>;
+    using DeviceOp =
+        ck::tensor_operation::device::DeviceMaxPoolBwd<DOutDataType, IndexDataType, DInDataType>;
 
     // get device op instances
     const auto instance_ptrs =
@@ -130,17 +162,15 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
     if(do_verification)
     {
         using ReferencePoolingBwdInstance =
-            ck::tensor_operation::host::ReferenceAvgPoolBwd<3, DInDataType, DOutDataType>;
+            ck::tensor_operation::host::ReferenceMaxPoolBwd<DOutDataType,
+                                                            IndexDataType,
+                                                            ComputeDataType,
+                                                            DInDataType,
+                                                            PassThrough>;
 
         ReferencePoolingBwdInstance ref_pooling_bwd;
-        auto ref_pooling_bwd_argument = ref_pooling_bwd.MakeArgument(din_n_c_di_hi_wi_host,
-                                                                     dout_n_c_do_ho_wo,
-                                                                     window_spatial_lengths,
-                                                                     window_strides,
-                                                                     window_dilations,
-                                                                     input_left_pads,
-                                                                     input_right_pads);
-
+        auto ref_pooling_bwd_argument = ref_pooling_bwd.MakeArgument(
+            dout_n_c_do_ho_wo, out_indices_n_c_do_ho_wo, din_n_c_di_hi_wi_host, PassThrough{});
         auto ref_invoker = ref_pooling_bwd.MakeInvoker();
         ref_invoker.Run(ref_pooling_bwd_argument);
     }
@@ -151,16 +181,13 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
             static_cast<DOutDataType*>(dout_device_buf.GetDeviceBuffer()),
+            static_cast<IndexDataType*>(indices_device_buf.GetDeviceBuffer()),
             static_cast<DInDataType*>(din_device_buf.GetDeviceBuffer()),
-            {N, C, Do, Ho, Wo},
-            {N, C, Di, Hi, Wi},
-            f_tensor_strides_ncdhw(N, C, Do, Ho, Wo, DOutLayout{}),
-            f_tensor_strides_ncdhw(N, C, Di, Hi, Wi, DInLayout{}),
+            dout_n_c_do_ho_wo.mDesc.GetElementSpaceSize(),
+            din_n_c_di_hi_wi_device.mDesc.GetElementSpaceSize(),
             window_spatial_lengths,
             window_strides,
-            window_dilations,
-            input_left_pads,
-            input_right_pads);
+            window_dilations);
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -177,13 +204,16 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
             continue;
         }
 
-        din_device_buf.SetZero();
+        size_t workspace_sz = inst_ptr->GetWorkSpaceSize(argument_ptr.get());
+        DeviceMem workspace_device_buf(workspace_sz);
+        inst_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_device_buf.GetDeviceBuffer());
 
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();
         float avg_time   = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
 
         std::size_t num_bytes =
             dout_n_c_do_ho_wo.mDesc.GetElementSize() * sizeof(DOutDataType) +
+            out_indices_n_c_do_ho_wo.mDesc.GetElementSize() * sizeof(IndexDataType) +
             din_n_c_di_hi_wi_device.mDesc.GetElementSize() * sizeof(DInDataType);
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
@@ -202,6 +232,7 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
         if(do_verification)
         {
             din_device_buf.FromDevice(din_n_c_di_hi_wi_device.mData.data());
+
             bool pass = ck::utils::check_err(din_n_c_di_hi_wi_device.mData,
                                              din_n_c_di_hi_wi_host.mData,
                                              "Error: Incorrect results",
@@ -210,6 +241,10 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
 
             if(do_log)
             {
+                LogRangeAsType<float>(
+                    std::cout << "out_indices_n_c_do_ho_wo: ", out_indices_n_c_do_ho_wo.mData, ",")
+                    << std::endl;
+
                 LogRangeAsType<float>(
                     std::cout << "din_n_c_di_hi_wi_device: ", din_n_c_di_hi_wi_device.mData, ",")
                     << std::endl;

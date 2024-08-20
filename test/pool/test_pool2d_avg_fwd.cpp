@@ -6,7 +6,7 @@
 #include "test_pool_fwd_common.hpp"
 
 template <typename Tuple>
-class TestMaxPool2dFwd : public ::testing::Test
+class TestAvgPool2dFwd : public ::testing::Test
 {
     protected:
     using InDataType      = std::tuple_element_t<0, Tuple>;
@@ -20,7 +20,7 @@ class TestMaxPool2dFwd : public ::testing::Test
     {
         for(auto param : params)
         {
-            // max pool
+            // avg pool
             bool success =
                 ck::profiler::profile_pool2d_fwd_impl<InDataType,
                                                       OutDataType,
@@ -28,7 +28,7 @@ class TestMaxPool2dFwd : public ::testing::Test
                                                       IndexDataType,
                                                       ck::tensor_layout::convolution::NHWC,
                                                       ck::tensor_layout::convolution::NHWC,
-                                                      ck::ReduceTensorOp::MAX,
+                                                      ck::ReduceTensorOp::AVG,
                                                       false,
                                                       false>(true,
                                                              2,
@@ -41,40 +41,15 @@ class TestMaxPool2dFwd : public ::testing::Test
                                                              param.input_left_pads_,
                                                              param.input_right_pads_);
             EXPECT_TRUE(success);
-
-            // max pool + index
-            success = ck::profiler::profile_pool2d_fwd_impl<InDataType,
-                                                            OutDataType,
-                                                            ComputeDataType,
-                                                            IndexDataType,
-                                                            ck::tensor_layout::convolution::NHWC,
-                                                            ck::tensor_layout::convolution::NHWC,
-                                                            ck::ReduceTensorOp::MAX,
-                                                            false,
-                                                            true>(true,
-                                                                  2,
-                                                                  false,
-                                                                  false,
-                                                                  param.length_,
-                                                                  param.window_spatial_lengths_,
-                                                                  param.window_strides_,
-                                                                  param.window_dilations_,
-                                                                  param.input_left_pads_,
-                                                                  param.input_right_pads_);
-            EXPECT_TRUE(success);
         }
     }
 };
 
-#ifdef CK_ENABLE_FP16
 using KernelTypes =
     ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
-#else
-using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
-#endif
 
-TYPED_TEST_SUITE(TestMaxPool2dFwd, KernelTypes);
-TYPED_TEST(TestMaxPool2dFwd, Test_Pool)
+TYPED_TEST_SUITE(TestAvgPool2dFwd, KernelTypes);
+TYPED_TEST(TestAvgPool2dFwd, Test_Pool)
 {
     // length, window_length, window_stride, window_dilation, left_pad, right_pad
     this->params = {{{1, 1, 1, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},

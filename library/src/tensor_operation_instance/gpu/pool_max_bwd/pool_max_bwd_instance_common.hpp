@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_max_pool_bwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_pool_max_bwd_impl.hpp"
 #include "ck/utility/data_type.hpp"
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
