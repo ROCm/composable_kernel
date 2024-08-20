@@ -10,7 +10,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-void add_device_grouped_conv3d_fwd_xdl_combconvscale_relu_ndhwgc_gkzyxc_ndhwgk_f8_f32_instances(
+void add_device_grouped_conv3d_fwd_xdl_combconvscale_relu_ndhwgc_gkzyxc_ndhwgk_f8_f8_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
@@ -28,31 +28,31 @@ void add_device_grouped_conv3d_fwd_xdl_combconvscale_relu_ndhwgc_gkzyxc_ndhwgk_f
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_outelementop_f8_f32_instances<3,
-                                                                  NDHWGC,
-                                                                  GKZYXC,
-                                                                  ck::Tuple<>,
-                                                                  NDHWGK,
-                                                                  ConvFwdDefault,
-                                                                  CombConvScaleRelu>{});
+        device_grouped_conv_fwd_xdl_outelementop_f8_f8_f32_instances<3,
+                                                                     NDHWGC,
+                                                                     GKZYXC,
+                                                                     ck::Tuple<>,
+                                                                     NDHWGK,
+                                                                     ConvFwdDefault,
+                                                                     CombConvScaleRelu>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_outelementop_f8_f32_instances<3,
-                                                                  NDHWGC,
-                                                                  GKZYXC,
-                                                                  ck::Tuple<>,
-                                                                  NDHWGK,
-                                                                  ConvFwd1x1P0,
-                                                                  CombConvScaleRelu>{});
+        device_grouped_conv_fwd_xdl_outelementop_f8_f8_f32_instances<3,
+                                                                     NDHWGC,
+                                                                     GKZYXC,
+                                                                     ck::Tuple<>,
+                                                                     NDHWGK,
+                                                                     ConvFwd1x1P0,
+                                                                     CombConvScaleRelu>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_outelementop_f8_f32_instances<3,
-                                                                  NDHWGC,
-                                                                  GKZYXC,
-                                                                  ck::Tuple<>,
-                                                                  NDHWGK,
-                                                                  ConvFwd1x1S1P0,
-                                                                  CombConvScaleRelu>{});
+        device_grouped_conv_fwd_xdl_outelementop_f8_f8_f32_instances<3,
+                                                                     NDHWGC,
+                                                                     GKZYXC,
+                                                                     ck::Tuple<>,
+                                                                     NDHWGK,
+                                                                     ConvFwd1x1S1P0,
+                                                                     CombConvScaleRelu>{});
 }
 
 } // namespace instance

@@ -132,7 +132,7 @@ template <typename InDataType,
           typename OutDataType,
           ck::index_t NumDimSpatial,
           ck::index_t NumNonSpatialDim = 3>
-void TensorScaleConvert(SimpleDeviceMem& in,
+bool TensorScaleConvert(SimpleDeviceMem& in,
                         SimpleDeviceMem& out,
                         float scale_out,
                         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
@@ -143,11 +143,10 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           ck::index_t NumDimSpatial,
           ck::index_t NumNonSpatialDim = 3>
-OutDataType
-TensorFullReduction(SimpleDeviceMem& tensor,
-                    SimpleDeviceMem& out_amax,
-                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
-                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides);
+bool TensorFullReduction(SimpleDeviceMem& tensor,
+                         SimpleDeviceMem& out_amax,
+                         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
+                         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides);
 
 template <ck::index_t NumDimSpatial,
           typename InDataType,
@@ -247,19 +246,26 @@ bool run_grouped_conv_fwd_convscale_reduce(
      *  Scale with output weight and convert to FP8
      */
     std::cout << "\n\nElement-wise scale + convert Benchmarking:" << std::endl;
-    TensorScaleConvert<ConvOutDataType, OutDataType, NumDimSpatial>(
+    auto elem_wise_ok = TensorScaleConvert<ConvOutDataType, OutDataType, NumDimSpatial>(
         conv_out, out, scale_out, output_lengths, output_strides);
+
+    if(!elem_wise_ok)
+        return false;
 
     /*
      *  Compute AMAX
      */
     std::cout << "\n\nAMAX Benchmarking:" << std::endl;
     SimpleDeviceMem amax_device(sizeof(ConvOutDataType));
-    auto amax_host =
+    auto reduction_ok =
         TensorFullReduction<ConvOutDataType,
                             ConvOutDataType,
                             ck::ReduceTensorOp::AMAX,
                             NumDimSpatial>(conv_out, amax_device, output_lengths, output_strides);
+
+    if(!reduction_ok)
+        return false;
+
     return true;
 }
 
@@ -438,7 +444,7 @@ template <typename InDataType,
           typename OutDataType,
           ck::index_t NumDimSpatial,
           ck::index_t NumNonSpatialDim>
-void TensorScaleConvert(SimpleDeviceMem& in,
+bool TensorScaleConvert(SimpleDeviceMem& in,
                         SimpleDeviceMem& out,
                         float scale_out,
                         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
@@ -518,7 +524,8 @@ void TensorScaleConvert(SimpleDeviceMem& in,
 
     if(best_op_id < 0)
     {
-        std::cerr << "no suitable instance" << std::endl;
+        std::cerr << "no suitable instance found." << std::endl;
+        return false;
     }
     else
     {
@@ -545,6 +552,8 @@ void TensorScaleConvert(SimpleDeviceMem& in,
 
         std::cout << "Done" << std::endl;
     }
+
+    return true;
 }
 
 template <typename InDataType,
@@ -552,11 +561,10 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           ck::index_t NumDimSpatial,
           ck::index_t NumNonSpatialDim>
-OutDataType
-TensorFullReduction(SimpleDeviceMem& tensor,
-                    SimpleDeviceMem& out_amax,
-                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
-                    const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides)
+bool TensorFullReduction(SimpleDeviceMem& tensor,
+                         SimpleDeviceMem& out_amax,
+                         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& lengths,
+                         const std::array<ck::index_t, NumDimSpatial + NumNonSpatialDim>& strides)
 {
     const auto spatial_dim_size = std::accumulate(std::next(std::begin(lengths), NumNonSpatialDim),
                                                   std::end(lengths),
@@ -609,7 +617,6 @@ TensorFullReduction(SimpleDeviceMem& tensor,
         std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
         std::string best_op_name;
-        bool found            = false;
         int best_op_id        = -1;
         float best_ave_time   = std::numeric_limits<float>::max();
         float best_gb_per_sec = 0;
@@ -656,7 +663,6 @@ TensorFullReduction(SimpleDeviceMem& tensor,
 
                 if(ave_time < best_ave_time)
                 {
-                    found           = true;
                     best_op_id      = i;
                     best_op_name    = op_name;
                     best_ave_time   = ave_time;
@@ -669,7 +675,12 @@ TensorFullReduction(SimpleDeviceMem& tensor,
             }
         }
 
-        if(found)
+        if(best_op_id < 0)
+        {
+            std::cerr << "no suitable instance found." << std::endl;
+            return false;
+        }
+        else
         {
             std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
                       << best_op_name << std::endl;
@@ -721,7 +732,6 @@ TensorFullReduction(SimpleDeviceMem& tensor,
         std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
         std::string best_op_name;
-        bool found            = false;
         int best_op_id        = -1;
         float best_ave_time   = std::numeric_limits<float>::max();
         float best_gb_per_sec = 0;
@@ -769,7 +779,6 @@ TensorFullReduction(SimpleDeviceMem& tensor,
 
                 if(ave_time < best_ave_time)
                 {
-                    found           = true;
                     best_op_id      = i;
                     best_op_name    = op_name;
                     best_ave_time   = ave_time;
@@ -782,7 +791,12 @@ TensorFullReduction(SimpleDeviceMem& tensor,
             }
         }
 
-        if(found)
+        if(best_op_id < 0)
+        {
+            std::cerr << "no suitable instance found." << std::endl;
+            return false;
+        }
+        else
         {
             std::cout << "Best Perf: " << best_ave_time << " ms, " << best_gb_per_sec << " GB/s, "
                       << best_op_name << std::endl;
@@ -816,9 +830,5 @@ TensorFullReduction(SimpleDeviceMem& tensor,
         }
     }
 
-    OutDataType out_amax_host;
-    (void)hipMemcpy(
-        &out_amax_host, out_amax.GetDeviceBuffer(), sizeof(OutDataType), hipMemcpyDeviceToHost);
-
-    return out_amax_host;
+    return true;
 }

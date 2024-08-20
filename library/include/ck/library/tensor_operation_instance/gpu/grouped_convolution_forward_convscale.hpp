@@ -178,7 +178,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 using CombConvScale = ck::tensor_operation::element_wise::ScaleScalePass;
 
 #ifdef CK_ENABLE_FP8
-void add_device_grouped_conv3d_fwd_xdl_combconvscale_ndhwgc_gkzyxc_ndhwgk_f8_f32_instances(
+void add_device_grouped_conv3d_fwd_xdl_combconvscale_ndhwgc_gkzyxc_ndhwgk_f8_f8_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
                                                                 GKZYXC,
@@ -248,7 +248,7 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<OutDataType, F32> && is_same_v<AComputeType, f8_t> &&
                          is_same_v<BComputeType, f8_t>)
             {
-                add_device_grouped_conv3d_fwd_xdl_combconvscale_ndhwgc_gkzyxc_ndhwgk_f8_f32_instances(
+                add_device_grouped_conv3d_fwd_xdl_combconvscale_ndhwgc_gkzyxc_ndhwgk_f8_f8_f32_instances(
                     op_ptrs);
             }
 #endif

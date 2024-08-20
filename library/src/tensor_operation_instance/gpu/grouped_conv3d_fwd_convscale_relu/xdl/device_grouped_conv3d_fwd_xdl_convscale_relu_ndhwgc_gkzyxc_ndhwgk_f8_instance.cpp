@@ -54,7 +54,6 @@ void add_device_grouped_conv3d_fwd_xdl_convscale_relu_ndhwgc_gkzyxc_ndhwgk_f8_in
                                                               ConvFwd1x1S1P0,
                                                               ConvScaleRelu>{});
 }
-
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
