@@ -564,9 +564,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
     const ck_tile::index_t shape_seqlen_q =
-        (mode == mode_enum::batch ? max_seqlen_q : seqstart_q_host.back());
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
-        (mode == mode_enum::batch ? max_seqlen_k
+        (mode == mode_enum::batch ? seqlen_ks[0]
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
                                                          : seqstart_k_with_padding_host.back()));
 

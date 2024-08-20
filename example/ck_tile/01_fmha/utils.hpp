@@ -146,16 +146,20 @@ decode_seqlen(mode_enum mode,
         auto s_q = std::vector<ck_tile::index_t>(batch, q);
         auto s_k = [&] {
             const ck_tile::index_t seqlen_k_max = (k < 0 ? q : k);
-            if(use_kvcache)
+            std::vector<ck_tile::index_t> seqlen_ks(batch, seqlen_k_max);
+
+            if(1 < batch && use_kvcache)
             {
-                std::vector<ck_tile::index_t> seqlen_ks(batch);
-                randints(seqlen_ks.begin(), seqlen_ks.end(), seqlen_k_min, seqlen_k_max, seed);
+                // we always use seqlen_k_max in first batch
+                randints(std::next(seqlen_ks.begin()),
+                         seqlen_ks.end(),
+                         seqlen_k_min,
+                         seqlen_k_max,
+                         seed);
                 return seqlen_ks;
             }
-            else
-            {
-                return std::vector<ck_tile::index_t>(batch, seqlen_k_max);
-            }
+
+            return seqlen_ks;
         }();
         auto s_kpad = std::vector<ck_tile::index_t>(batch, -1); // TODO: batch not support k_padding
 
