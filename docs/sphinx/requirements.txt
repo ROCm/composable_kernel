@@ -103,7 +103,7 @@ requests==2.32.3
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.7.0
+rocm-docs-core==1.7.1
     # via -r requirements.in
 six==1.16.0
     # via pybtex
