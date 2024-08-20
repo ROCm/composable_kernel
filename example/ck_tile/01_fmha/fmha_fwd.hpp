@@ -185,7 +185,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.nhead_stride_randval,
                                          args.nhead_stride_lse,
                                          args.nhead_stride_o,
-                                         args.batch_stride_lse,
                                          args.window_size_left,
                                          args.window_size_right,
                                          args.mask_type,
@@ -284,7 +283,6 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_args args)
                                      args.nhead_stride_randval,
                                      args.nhead_stride_lse_acc,
                                      args.nhead_stride_o_acc,
-                                     args.batch_stride_lse_acc,
                                      args.batch_stride_o_acc,
                                      args.split_stride_lse_acc,
                                      args.split_stride_o_acc,
@@ -376,9 +374,7 @@ auto fmha_fwd_splitkv_combine_create_kargs_and_grids(fmha_fwd_args args)
                                      args.nhead_stride_o_acc,
                                      args.nhead_stride_lse,
                                      args.nhead_stride_o,
-                                     args.batch_stride_lse_acc,
                                      args.batch_stride_o_acc,
-                                     args.batch_stride_lse,
                                      args.split_stride_lse_acc,
                                      args.split_stride_o_acc);
         }
