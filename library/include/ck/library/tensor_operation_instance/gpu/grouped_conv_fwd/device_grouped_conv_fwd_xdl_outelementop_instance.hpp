@@ -191,7 +191,7 @@ template <index_t NDimSpatial,
           typename ELayout,
           ConvolutionForwardSpecialization ConvSpec,
           typename OutElementOp>
-using device_grouped_conv_fwd_xdl_outelementop_f8_f32_instances = std::tuple<
+using device_grouped_conv_fwd_xdl_outelementop_f8_f8_f32_instances = std::tuple<
 // clang-format off
         //########################################|     NumDim|      A|      B|          Ds|      E| AData| BData| AccData| CShuffle|       Ds| EData|           A|           B|           CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer| Compute| Compute|
         //########################################|    Spatial| Layout| Layout|      Layout| Layout|  Type|  Type|    Type| DataType| DataType|  Type| Elementwise| Elementwise|   Elementwise| Specialization| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|   TypeA|   TypeB|

@@ -372,8 +372,8 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::size_t flop    = conv_param.GetFlops();      // convolution FLOPs
     auto conv_out_elems = host_conv.GetElementSize(); // number of elements in conv result tensor
 
-    // 3 element-wise scale multipliers  + 1 FP8 conversion + 1 AMAX
-    std::size_t elementwise_ops = 3 + 1 + 1;
+    // 3 element-wise scale multipliers + 1 AMAX
+    std::size_t elementwise_ops = 3 + 1;
     if constexpr(ck::is_same_v<ConvElementOp, ConvScaleRelu>)
     {
         elementwise_ops += 1; // +1 element-wise relu
@@ -433,18 +433,18 @@ bool run_grouped_conv_fwd(bool do_verification,
         out_host.ForEach([&](auto&, auto idx) { scale_convert(out_host(idx), host_conv(idx)); });
 
         std::cout << "\nComparing output to reference: " << std::endl;
-        auto ret_val = ck::utils::check_err(out_device, out_host, "Error: ");
-        if(!ret_val)
+        auto tight_tol_check = ck::utils::check_err(out_device, out_host, "Error: ");
+        if(!tight_tol_check)
         {
             std::cout << "\n\tRecompare applying tolerances...\n";
             std::cout << "\t\trtol = " << get_rtol<OutDataType>() << std::endl;
             std::cout << "\t\tatol = " << get_atol<OutDataType>() << std::endl;
-            ret_val = ck::utils::check_err(out_device,
-                                           out_host,
-                                           "Error: incorrect convolution results!",
-                                           get_rtol<OutDataType>(),
-                                           get_atol<OutDataType>());
-            if(!ret_val)
+            auto loose_tol_check = ck::utils::check_err(out_device,
+                                                        out_host,
+                                                        "Error: incorrect convolution results!",
+                                                        get_rtol<OutDataType>(),
+                                                        get_atol<OutDataType>());
+            if(!loose_tol_check)
             {
                 return false;
             }
