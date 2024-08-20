@@ -7,6 +7,12 @@ if(GPU_TARGETS MATCHES "gfx9" OR GPU_TARGETS MATCHES "gfx11")
     endif()
 endif()
 
+if(GPU_TARGETS MATCHES "gfx9")
+    add_executable(test_grouped_convnd_fwd_large_cases_xdl test_grouped_convnd_fwd_large_cases_xdl.cpp)
+    target_compile_options(test_grouped_convnd_fwd_large_cases_xdl PRIVATE -Wno-global-constructors -Wno-undef)
+    target_link_libraries(test_grouped_convnd_fwd_large_cases_xdl PRIVATE gtest_main getopt::getopt utility device_grouped_conv1d_fwd_instance device_grouped_conv2d_fwd_instance device_grouped_conv3d_fwd_instance)
+endif()
+
 add_gtest_executable(test_grouped_convnd_fwd_multi_ab_interface test_grouped_convnd_fwd_multi_ab_interface.cpp)
 if(result EQUAL 0)
     target_link_libraries(test_grouped_convnd_fwd_multi_ab_interface PRIVATE utility)

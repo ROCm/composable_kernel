@@ -85,7 +85,7 @@ struct FmhaFwdSplitKVKernel
             "w" + _TS_(gwt::at(ck_tile::number<0>{})) + "x" + _TS_(gwt::at(ck_tile::number<1>{})) + "x" + _TS_(gwt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
-            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
+            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kHasDropout ? "_dropout" : "" ) + (kDoFp8StaticQuant ? "_squant" : "" );
         #undef _SS_
         #undef _TS_
@@ -136,7 +136,6 @@ struct FmhaFwdSplitKVKernel
         ck_tile::index_t nhead_stride_lse_acc;
         ck_tile::index_t nhead_stride_o_acc;
 
-        ck_tile::index_t batch_stride_lse_acc;
         ck_tile::index_t batch_stride_o_acc;
 
         ck_tile::index_t split_stride_lse_acc;
@@ -216,6 +215,7 @@ struct FmhaFwdSplitKVKernel
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
+        ck_tile::index_t batch_stride_lse_acc;
     };
 
     struct GroupModeKargs
@@ -313,7 +313,6 @@ struct FmhaFwdSplitKVKernel
                      nhead_stride_v,
                      nhead_stride_lse_acc,
                      nhead_stride_o_acc,
-                     batch_stride_lse_acc,
                      batch_stride_o_acc,
                      split_stride_lse_acc,
                      split_stride_o_acc}, // args for common karg
@@ -323,7 +322,8 @@ struct FmhaFwdSplitKVKernel
                     {},                   // placeholder for dropout
                     batch_stride_q,
                     batch_stride_k,
-                    batch_stride_v};
+                    batch_stride_v,
+                    batch_stride_lse_acc};
 
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
@@ -394,7 +394,6 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse_acc,
               ck_tile::index_t nhead_stride_o_acc,
-              ck_tile::index_t batch_stride_lse_acc,
               ck_tile::index_t batch_stride_o_acc,
               ck_tile::index_t split_stride_lse_acc,
               ck_tile::index_t split_stride_o_acc,
@@ -433,7 +432,6 @@ struct FmhaFwdSplitKVKernel
                      nhead_stride_v,
                      nhead_stride_lse_acc,
                      nhead_stride_o_acc,
-                     batch_stride_lse_acc,
                      batch_stride_o_acc,
                      split_stride_lse_acc,
                      split_stride_o_acc}, // args for common karg
@@ -511,8 +509,7 @@ struct FmhaFwdSplitKVKernel
         long_index_t batch_offset_v       = 0;
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_randval = 0;
-        const long_index_t batch_offset_lse_acc =
-            static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
+        long_index_t batch_offset_lse_acc = 0;
         const long_index_t batch_offset_o_acc =
             static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
 
@@ -522,8 +519,9 @@ struct FmhaFwdSplitKVKernel
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
 
-            batch_offset_q = query_start * kargs.stride_q;
-            batch_offset_k = key_start * kargs.stride_k;
+            batch_offset_q       = query_start * kargs.stride_q;
+            batch_offset_k       = key_start * kargs.stride_k;
+            batch_offset_lse_acc = query_start;
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 batch_offset_v = key_start * kargs.stride_v;
@@ -564,9 +562,10 @@ struct FmhaFwdSplitKVKernel
         }
         else
         {
-            batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
-            batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
-            batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+            batch_offset_q       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
+            batch_offset_k       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
+            batch_offset_v       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
+            batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;

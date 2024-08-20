@@ -59,6 +59,22 @@ constexpr bool is_GNDHWK_GKZYXC_GNDHWC()
            is_same_v<OutLayout, tensor_layout::convolution::GNDHWK>;
 }
 
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NSpatialGK_GKSpatial_NSpatialGC()
+{
+    return is_NWGK_GKXC_NWGC<InLayout, WeiLayout, OutLayout>() ||
+           is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
+           is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>();
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_GNSpatialK_GKSpatial_GNSpatialC()
+{
+    return is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>() ||
+           is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>() ||
+           is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>();
+}
+
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0, typename = void>
 struct ComputePtrOffsetOfStridedBatch
 {

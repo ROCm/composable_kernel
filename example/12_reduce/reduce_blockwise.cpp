@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <initializer_list>
@@ -257,17 +257,32 @@ int main(int argc, char* argv[])
         // for testing half_t
         pass =
             pass && reduce_blockwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+                        true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+        pass =
+            pass && reduce_blockwise_test<ck::half_t, float, ReduceOpId, PropagateNan, OutputIndex>(
                         true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
         // for testing float
+        pass =
+            pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                        true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+
         pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
                            true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
         // for testing double
+        pass =
+            pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
+                        true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+
         pass = pass && reduce_blockwise_test<float, float, ReduceOpId, PropagateNan, OutputIndex>(
                            true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
         // for testing bhalf_t
+        pass = pass &&
+               reduce_blockwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
+                   true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+
         pass = pass &&
                reduce_blockwise_test<ck::bhalf_t, float, ReduceOpId, PropagateNan, OutputIndex>(
                    true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
@@ -275,14 +290,26 @@ int main(int argc, char* argv[])
         // for testing int8_t
         pass =
             pass && reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
+                        true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+
+        pass =
+            pass && reduce_blockwise_test<int8_t, int32_t, ReduceOpId, PropagateNan, OutputIndex>(
                         true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
         // for testing int4_t using AVG operation
+        pass =
+            pass && reduce_blockwise_test<int4_t, int32_t, ReduceTensorOp::AVG, false, false>(
+                        true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+
         pass = pass && reduce_blockwise_test<int4_t, int32_t, ReduceTensorOp::AVG, false, false>(
                            true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 
         // for testing int4_t using MAX operation
+        pass =
+            pass && reduce_blockwise_test<int4_t, int8_t, ReduceTensorOp::MAX, false, false>(
+                        true, 2, true, {3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}, {0, 1, 2}, 1.0f, 0.0f);
+
         pass = pass && reduce_blockwise_test<int4_t, int8_t, ReduceTensorOp::MAX, false, false>(
                            true, 2, true, {16, 64, 32, 960}, {0, 1, 2}, 1.0f, 0.0f);
 #endif
