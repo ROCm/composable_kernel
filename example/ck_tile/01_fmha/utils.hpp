@@ -150,7 +150,7 @@ decode_seqlen(mode_enum mode,
 
             if(1 < batch && use_kvcache)
             {
-                // we always use seqlen_k_max in first batch
+                // to keep the original s_k value, we always use seqlen_k_max in first batch
                 randints(std::next(seqlen_ks.begin()),
                          seqlen_ks.end(),
                          seqlen_k_min,
