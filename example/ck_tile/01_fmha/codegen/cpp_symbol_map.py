@@ -88,11 +88,10 @@ ROPE_MAP = {
     "half" : "ck_tile::RotaryEmbeddingEnum::HALF_ROTATED"
 }
 
-# TODO: avoid duplication
 ROPE_CHECK_MAP = {
-    "no" : "rope_enum::none",
-    "inter"  : "rope_enum::interleaved",
-    "half" : "rope_enum::half_rotated"
+    "no"    : "rope_enum::none",
+    "inter" : "rope_enum::interleaved",
+    "half"  : "rope_enum::half_rotated"
 }
 
 MODE_MAP = {
