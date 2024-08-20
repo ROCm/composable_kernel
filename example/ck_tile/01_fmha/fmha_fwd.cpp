@@ -609,16 +609,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::HostTensor<LSEDataType> lse_acc_host(
         1 < num_splits || use_kvcache
-            ? std::array<ck_tile::index_t, 4>{num_splits, batch, nhead, max_seqlen_q}
+            ? std::array<ck_tile::index_t, 4>{num_splits, shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
         1 < num_splits || use_kvcache
             ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
             : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
-    // self define lse data layout as [batch, nhead, max_seqlen_q]
+    // batch mode of lse data layout is [batch, nhead, seqlen_q]
+    // group mode of lse data layout is [nhead, total_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
-        lse ? std::array<ck_tile::index_t, 3>{batch, nhead, max_seqlen_q}
+        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<ODataType> o_host(
@@ -874,8 +875,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * shape_seqlen_k : 0 * shape_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse     = max_seqlen_q;
-        const ck_tile::index_t nhead_stride_lse_acc = max_seqlen_q;
+        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
+        const ck_tile::index_t nhead_stride_lse_acc = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_o_acc   = (max_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
@@ -890,13 +891,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_vnew    = (nhead_k * hdim_v * seqlen_knew);
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * shape_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t batch_stride_lse     = (nhead * max_seqlen_q);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * max_seqlen_q);
+        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_o_acc   = (nhead * max_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
         // setup split_stride_* arguments (only used in split-kv kernel)
-        const ck_tile::index_t split_stride_lse_acc = (batch * nhead * max_seqlen_q);
+        const ck_tile::index_t split_stride_lse_acc = (shape_batch * nhead * shape_seqlen_q);
         const ck_tile::index_t split_stride_o_acc   = (batch * nhead * max_seqlen_q * hdim_v);
 
         args.q_ptr = q_buf.GetDeviceBuffer();
@@ -1439,8 +1440,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(lse)
         {
             ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-            lse_host_result.ForEach(
-                [&](auto& self, auto idx) { self(idx) = lse_host(wb, idx[0], idx[1]); });
+            lse_host_result.ForEach([&](auto& self, auto idx) {
+                self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset);
+            });
 
             cur_pass = ck_tile::check_err(lse_host_result,
                                           lse_host_ref,
