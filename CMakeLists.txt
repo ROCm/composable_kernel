@@ -139,7 +139,6 @@ if(NOT PROFILER_ONLY)
             TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
         set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
     endif()
->>>>>>> composable_kernel/develop
 else()
     add_definitions(-DPROFILER_ONLY)
     set(GPU_TARGETS "" CACHE STRING "" FORCE)
