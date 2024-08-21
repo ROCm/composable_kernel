@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,7 +38,8 @@ struct ReduceShape
     static constexpr ck::index_t NumReduceDim_ = NumReduceDim;
 };
 
-using reduce_shape_instances = std::tuple<ReduceShape<3, 1>,
+using reduce_shape_instances = std::tuple<ReduceShape<12, 3>,
+                                          ReduceShape<3, 1>,
                                           ReduceShape<3, 2>,
                                           ReduceShape<4, 1>,
                                           ReduceShape<4, 2>,

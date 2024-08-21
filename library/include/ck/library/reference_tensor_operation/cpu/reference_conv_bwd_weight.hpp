@@ -40,10 +40,10 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
             const Tensor<InDataType>& in_n_c_hi_wi,
             Tensor<WeiDataType>& wei_k_c_y_x,
             const Tensor<OutDataType>& out_n_k_ho_wo,
-            std::vector<ck::index_t> conv_filter_strides,
-            std::vector<ck::index_t> conv_filter_dilations,
-            std::vector<ck::index_t> input_left_pads,
-            std::vector<ck::index_t> input_right_pads,
+            std::vector<ck::long_index_t> conv_filter_strides,
+            std::vector<ck::long_index_t> conv_filter_dilations,
+            std::vector<ck::long_index_t> input_left_pads,
+            std::vector<ck::long_index_t> input_right_pads,
             InElementwiseOperation in_element_op,
             WeiElementwiseOperation wei_element_op,
             OutElementwiseOperation out_element_op,
@@ -74,10 +74,10 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
         const std::array<Tensor<InDataType>, NumBElementwiseTensor>& elementwise_b_tensors_;
         const std::array<Tensor<WeiDataType>, NumDElementwiseTensor>& elementwise_d_tensors_;
 
-        std::vector<index_t> conv_strides_;
-        std::vector<index_t> conv_dilations_;
-        std::vector<index_t> in_left_pads_;
-        std::vector<index_t> in_right_pads_;
+        std::vector<long_index_t> conv_strides_;
+        std::vector<long_index_t> conv_dilations_;
+        std::vector<long_index_t> in_left_pads_;
+        std::vector<long_index_t> in_right_pads_;
 
         InElementwiseOperation in_element_op_;
         WeiElementwiseOperation wei_element_op_;
@@ -402,10 +402,10 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
         const Tensor<InDataType>& in_n_c_hi_wi,
         Tensor<WeiDataType>& wei_k_c_y_x,
         const Tensor<OutDataType>& out_n_k_ho_wo,
-        std::vector<ck::index_t> conv_filter_strides,
-        std::vector<ck::index_t> conv_filter_dilations,
-        std::vector<ck::index_t> input_left_pads,
-        std::vector<ck::index_t> input_right_pads,
+        std::vector<ck::long_index_t> conv_filter_strides,
+        std::vector<ck::long_index_t> conv_filter_dilations,
+        std::vector<ck::long_index_t> input_left_pads,
+        std::vector<ck::long_index_t> input_right_pads,
         InElementwiseOperation in_element_op,
         WeiElementwiseOperation wei_element_op,
         OutElementwiseOperation out_element_op,

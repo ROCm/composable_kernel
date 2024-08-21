@@ -10,6 +10,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+using F8  = ck::f8_t;
 using F16 = ck::half_t;
 using F32 = float;
 
@@ -183,6 +184,51 @@ using device_permute_scale_f32_instances = std::tuple<
          DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, ElementwiseOp,  NDims, 32,   32,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
          DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F32>, ElementwiseOp,  NDims, 32,   16,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>
     >;
+
+#ifdef CK_ENABLE_FP8
+template <index_t NDims,
+          typename ElementwiseOp>
+using device_permute_scale_f32_f8_instances = std::tuple<
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256,  64,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256, 128,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256,  32, 128, 4, 4,  ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  64,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  32,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  16, 128, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128, 128,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   32,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   16,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   64,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 32,   32,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 32,   16,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<4>, ck::Sequence<4>>,
+
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256, 128, 128, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256, 256,  64, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256,  64, 256, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128, 128,  64, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  64, 128, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  32, 256, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128, 256,  32, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   64,  64, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   32, 128, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,  128,  32, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 32,   64,  32, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 32,   32,  64, 8, 8, ck::Sequence<1, 0>, ck::Sequence<8>, ck::Sequence<8>>,
+
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256,  64,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256, 128,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 256,  32, 128, 4, 4,  ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  64,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  32,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128,  16, 128, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 128, 128,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   32,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   16,  64, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 64,   64,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 32,   32,  16, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>,
+         DeviceElementwiseImpl<ck::Tuple<F32>, ck::Tuple<F8>, ElementwiseOp,  NDims, 32,   16,  32, 4, 4, ck::Sequence<1, 0>, ck::Sequence<1>, ck::Sequence<1>>
+    >;
+#endif
 // clang-format on
 
 } // namespace instance

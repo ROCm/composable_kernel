@@ -4,11 +4,11 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_dot_do_o_default_policy.hpp"
+#include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_pipeline_default_policy.hpp"
 
 namespace ck_tile {
 
-template <typename Problem, typename Policy = BlockFmhaBwdOGradDotODefaultPolicy>
+template <typename Problem, typename Policy = BlockFmhaBwdPipelineDefaultPolicy>
 struct BlockFmhaBwdOGradDotO
 {
     using ODataType     = remove_cvref_t<typename Problem::ODataType>;
@@ -26,7 +26,7 @@ struct BlockFmhaBwdOGradDotO
     static constexpr index_t kAlignmentO =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentOGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
 

@@ -111,6 +111,7 @@ list(APPEND GEMM_INSTANCES
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_kn_mn_instance.cpp
     device_gemm_xdl_c_shuffle_fp8_fp8_fp8_km_nk_mn_instance.cpp)
 
+
 list(APPEND GEMM_INSTANCES
     device_gemm_wmma_f16_f16_f16_mk_kn_mn_instance.cpp
     device_gemm_wmma_f16_f16_f16_mk_nk_mn_instance.cpp

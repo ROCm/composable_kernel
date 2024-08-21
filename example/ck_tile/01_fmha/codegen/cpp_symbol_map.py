@@ -66,6 +66,22 @@ BIAS_CHECK_MAP = {
     "alibi" : "bias_enum::alibi"
 }
 
+DROPOUT_MAP = {
+    "no"                        : "ck_tile::BlockDropoutBwd<false, true,  false>",
+    "dropout_wg32"              : "ck_tile::BlockDropoutBwd<true,  true,  false>",
+    "dropout_wg32_storerandval" : "ck_tile::BlockDropoutBwd<true,  true,  true >",
+    "dropout_wg16"              : "ck_tile::BlockDropoutBwd<true,  false, false>",
+    "dropout_wg16_storerandval" : "ck_tile::BlockDropoutBwd<true,  false, true >"
+}
+
+DROPOUT_CHECK_MAP = {
+    "no"                        : "t.has_dropout == false",
+    "dropout_wg32"              : "t.has_dropout == true && t.is_store_randval == false",
+    "dropout_wg32_storerandval" : "t.has_dropout == true && t.is_store_randval == true",
+    "dropout_wg16"              : "t.has_dropout == true && t.is_store_randval == false",
+    "dropout_wg16_storerandval" : "t.has_dropout == true && t.is_store_randval == true",
+}
+
 MODE_MAP = {
     "batch" : "false",
     "group" : "true"

@@ -86,7 +86,7 @@ struct FmhaFwdKernel
             "w" + _TS_(gwt::at(ck_tile::number<0>{})) + "x" + _TS_(gwt::at(ck_tile::number<1>{})) + "x" + _TS_(gwt::at(ck_tile::number<2>{})) + "_" +
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) +
-            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) + 
+            (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasMask ? "_" + _SS_(FmhaMask::name) : "") + (kStoreLSE ? "_lse" : "" ) + (kHasDropout ? "_dropout" : "" ) + (kDoFp8StaticQuant ? "_squant" : "" );
         #undef _SS_
         #undef _TS_
@@ -387,7 +387,6 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t batch_stride_lse,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
@@ -448,7 +447,6 @@ struct FmhaFwdKernel
         {
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
-            kargs.batch_stride_lse = batch_stride_lse;
         }
         if constexpr(kDoFp8StaticQuant)
         {
@@ -524,7 +522,7 @@ struct FmhaFwdKernel
             }
             if constexpr(kStoreLSE)
             {
-                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
+                batch_offset_lse = query_start;
             }
             if constexpr(kHasDropout)
             {

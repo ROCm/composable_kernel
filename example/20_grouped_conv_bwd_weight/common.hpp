@@ -23,12 +23,8 @@
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
-#ifdef CK_ENABLE_FP8
-using F8 = ck::f8_t;
-#endif
-#ifdef CK_ENABLE_BF8
-using BF8 = ck::bf8_t;
-#endif
+using F8   = ck::f8_t;
+using BF8  = ck::bf8_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

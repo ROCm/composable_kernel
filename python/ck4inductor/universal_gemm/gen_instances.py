@@ -62,17 +62,13 @@ def parse_instances(str_instances: List[str]) -> List[CKGemmOperation]:
                     i_current = i_next + 1
             if i_next == -1:
                 break
-        # pad with `None`s for the fields which are not defined in the instance
+
+        template_args.insert(2, tuple())  # ds layout
+        template_args.insert(6, tuple())  # ds dtype
+
         new_instance = CKGemmOperation(
             *template_args,  # type: ignore[arg-type]
-            *((None,) * (len(fields(CKGemmOperation)) - len(template_args))),
         )
-        # the last 2 template parameters are optional
-        # if they are absent, substitute them with default values from Universal Gemm C++ template declaration
-        if new_instance.a_compute_dtype is None:
-            new_instance.a_compute_dtype = new_instance.c_element_dtype
-        if new_instance.b_compute_dtype is None:
-            new_instance.b_compute_dtype = new_instance.c_element_dtype
 
         op_instances.append(new_instance)
     return op_instances
@@ -208,6 +204,8 @@ def gen_ops_preselected() -> List[CKGemmOperation]:
         a_layout="Row",
         b_layout="Col",
         c_layout="Row",
+        ds_element_dtypes=tuple(),
+        ds_layouts=tuple(),
         a_element_dtype="F16",
         b_element_dtype="F16",
         c_element_dtype="F16",
