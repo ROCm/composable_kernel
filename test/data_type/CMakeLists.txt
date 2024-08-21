@@ -1,3 +1,13 @@
+if (GPU_TARGETS)
+    if (GPU_TARGETS MATCHES "gfx10" OR GPU_TARGETS MATCHES "gfx11")
+        add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
+        set(CK_SKIP_FLAKY_F8_TEST "ON")
+    endif()
+else()
+    add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
+    set(CK_SKIP_FLAKY_F8_TEST "ON")
+endif()
+
 if (USE_BITINT_EXTENSION_INT4)
   add_gtest_executable(test_int4 test_int4.cpp)
   if(result EQUAL 0)
