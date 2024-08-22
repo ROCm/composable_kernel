@@ -24,9 +24,9 @@
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using F16 = ck::half_t;
-using FP8 = ck::f8_t;
-using F32 = float;
+using BF16 = ck::bhalf_t;
+using FP8  = ck::f8_t;
+using F32  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -38,7 +38,7 @@ using CShuffleDataType = F32;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = F16;
+using EDataType        = BF16;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -54,12 +54,12 @@ struct MultiplyMultiply
     operator()(E& e, const C& c, const D0& d0, const D1& d1) const;
 
     template <>
-    __host__ __device__ constexpr void operator()<ck::half_t, float, float, float>(
-        ck::half_t& e, const float& c, const float& d0, const float& d1) const
+    __host__ __device__ constexpr void operator()<ck::bhalf_t, float, float, float>(
+        ck::bhalf_t& e, const float& c, const float& d0, const float& d1) const
     {
         const float x0_f = c * d0 * d1;
 
-        e = ck::type_convert<ck::half_t>(x0_f);
+        e = ck::type_convert<ck::bhalf_t>(x0_f);
     }
 };
 
@@ -69,7 +69,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = MultiplyMultiply;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
     // clang-format off
@@ -80,7 +80,16 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
 ///###### RRR
       ///<      Row,      Row, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   256,   128,    64,  16,   4,  32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,    S<16, 16, 1>,    S<0, 2, 1>,     S<0, 2, 1>,             1,               8,              4,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
 ///###### RCR
-         <      Row,      Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   256,   256,   128,    64,  16,  16,  32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,               2,             16,             16,          0,     S<4, 64, 1>,    S<1, 0, 2>,     S<1, 0, 2>,             2,              16,             16,          0,          1,           1,               S<1, 32, 1, 8>,      S<8, 8, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, FP8>;
+         <      Row,      Col, DsLayout, ELayout,
+        A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
+        AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
+        256, 256, 128,
+        16,  16,
+        16,  16,
+        8,   8,
+        S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+        S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+        1,   2,  S<1, 32, 1, 8>, S<8, 8, 1>, ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -256,7 +265,8 @@ int main(int argc, char* argv[])
                                                                                 AccDataType,
                                                                                 PassThrough,
                                                                                 PassThrough,
-                                                                                PassThrough>;
+                                                                                PassThrough,
+                                                                                FP8>;
         auto ref_gemm               = ReferenceGemmInstance{};
         auto ref_invoker            = ref_gemm.MakeInvoker();
 

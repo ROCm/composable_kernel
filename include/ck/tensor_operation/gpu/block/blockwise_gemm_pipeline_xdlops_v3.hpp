@@ -276,7 +276,9 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
               typename BGridBuffer,
               typename BBlockBuffer,
               typename BBlockTransferStep,
-              typename CThreadBuffer>
+              typename CThreadBuffer,
+              typename AThreadBuffer,
+              typename BThreadBuffer>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -290,6 +292,8 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
+                        AThreadBuffer& a_thread_buf_tail,
+                        BThreadBuffer& b_thread_buf_tail,
                         index_t num_loop) const
     {
         __builtin_amdgcn_sched_barrier(0);
@@ -419,6 +423,9 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         // tail
         if constexpr(TailNum == TailNumber::Full)
         {
+            a_thread_buf_tail = a_thread_buf;
+            b_thread_buf_tail = b_thread_buf;
+#if 0
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
@@ -446,11 +453,12 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
-            __builtin_amdgcn_sched_barrier(0);
+#endif
+            // __builtin_amdgcn_sched_barrier(0);
         }
     }
 
-    protected:
+    // protected:
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;
     using Base::b_thread_copy_;

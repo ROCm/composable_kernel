@@ -8,8 +8,8 @@
 using ADataType        = ck::f8_t;
 using BDataType        = ck::f8_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
-using CDataType        = ck::half_t;
+using CShuffleDataType = ck::bhalf_t;
+using CDataType        = ck::bhalf_t;
 
 using ALayout = Row;
 using BLayout = Col;
@@ -28,10 +28,10 @@ using DeviceGemmV2Instance =
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
         256,
-        224, 256, 
+        256, 256, 
         128, 16, 16,
         16,   16,
-        7,    8, 
+        8,    8, 
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 16, 16, 0,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
@@ -40,8 +40,14 @@ using DeviceGemmV2Instance =
         ck::BlockGemmPipelineScheduler::Intrawave,ck::BlockGemmPipelineVersion::v3, ck::f8_t>;
 // clang-format on
 
-using ReferenceGemmInstance = ck::tensor_operation::host::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
+                                                                        BDataType,
+                                                                        CDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp,
+                                                                        ck::f8_t>;
 
 #include "run_gemm_example_v2.inc"
 
