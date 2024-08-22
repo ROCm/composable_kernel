@@ -807,7 +807,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if constexpr(std::is_same_v<fmha_fwd_appendkv_traits, std::decay_t<decltype(traits)>>)
         {
-            traits.has_mask  = (mask.type != mask_enum::no_mask);
             traits.rope_type = (0 < rotary_dim ? (is_rotary_interleaved ? rope_enum::interleaved
                                                                         : rope_enum::half_rotated)
                                                : rope_enum::none);
@@ -930,9 +929,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             args.seqlen_k_ptr = cache_seqlen_k_buf.GetDeviceBuffer();
 
-            args.rotary_cos_ptr = rotary_cos_buf.GetDeviceBuffer();
-            args.rotary_sin_ptr = rotary_sin_buf.GetDeviceBuffer();
+            args.rotary_cos_ptr = (0 < rotary_dim ? rotary_cos_buf.GetDeviceBuffer() : nullptr);
+            args.rotary_sin_ptr = (0 < rotary_dim ? rotary_sin_buf.GetDeviceBuffer() : nullptr);
             args.rotary_dim     = rotary_dim;
+            args.has_mask       = (mask.type != mask_enum::no_mask);
 
             args.block_table_ptr =
                 (0 < page_block_size ? block_table_buf.GetDeviceBuffer() : nullptr);

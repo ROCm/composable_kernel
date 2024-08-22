@@ -26,7 +26,6 @@ struct FmhaFwdAppendKVKernel
 
     using VLayout                    = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
     static constexpr bool kApplyRoPE = FmhaPipeline::RotaryEnum != RotaryEmbeddingEnum::NONE;
-    static constexpr bool kHasMask   = FmhaPipeline::Problem::kHasMask;
     static constexpr bool kIsPagedKV = FmhaPipeline::kIsPagedKV;
 
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
@@ -61,8 +60,7 @@ struct FmhaFwdAppendKVKernel
             _SS_("fmha_fwd_appendkv_d") + _TS_(FmhaPipeline::kK0) + "_" + _SS_(t2s<QDataType>::name) + "_"
             "b" + _TS_(FmhaPipeline::kM0) + "x" + _TS_(FmhaPipeline::kN0) + "x" + _TS_(FmhaPipeline::kK0) + "x" +
                   _TS_(FmhaPipeline::kN1) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
-            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") 
-            + (kHasMask ? "_mask" : "") + (pn.empty() ? "" : "_" + pn) 
+            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
             + (!kApplyRoPE ? _SS_("") : (_SS_("_") + RotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name))
             + (kIsPagedKV ? "_pagedkv" : "" );
         #undef _SS_
@@ -124,6 +122,7 @@ struct FmhaFwdAppendKVKernel
         const void* rotary_cos_ptr;
         const void* rotary_sin_ptr;
         ck_tile::index_t rotary_dim;
+        bool has_mask;
     };
 
     struct PageBlockTableKargs
@@ -159,6 +158,7 @@ struct FmhaFwdAppendKVKernel
                                               const void* rotary_cos_ptr,
                                               const void* rotary_sin_ptr,
                                               ck_tile::index_t rotary_dim,
+                                              bool has_mask,
                                               const void* block_table_ptr,
                                               ck_tile::index_t batch_stride_block_table,
                                               ck_tile::index_t page_block_size,
@@ -217,6 +217,7 @@ struct FmhaFwdAppendKVKernel
             kargs.rotary_cos_ptr = rotary_cos_ptr;
             kargs.rotary_sin_ptr = rotary_sin_ptr;
             kargs.rotary_dim     = rotary_dim;
+            kargs.has_mask       = has_mask;
         }
 
         if constexpr(kIsPagedKV)
@@ -507,7 +508,7 @@ struct FmhaFwdAppendKVKernel
                         reinterpret_cast<const QDataType*>(kargs.rotary_cos_ptr) +
                             kargs.seqlen_k * (kargs.rotary_dim / 2),
                         make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
-                        make_tuple(kHasMask * (kargs.rotary_dim / 2), 1),
+                        make_tuple(kargs.has_mask * (kargs.rotary_dim / 2), 1),
                         number<8>{},
                         number<1>{});
 
@@ -533,7 +534,7 @@ struct FmhaFwdAppendKVKernel
                         reinterpret_cast<const QDataType*>(kargs.rotary_sin_ptr) +
                             kargs.seqlen_k * (kargs.rotary_dim / 2),
                         make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
-                        make_tuple(kHasMask * (kargs.rotary_dim / 2), 1),
+                        make_tuple(kargs.has_mask * (kargs.rotary_dim / 2), 1),
                         number<8>{},
                         number<1>{});
 

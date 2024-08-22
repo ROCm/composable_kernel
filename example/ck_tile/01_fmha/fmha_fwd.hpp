@@ -241,6 +241,7 @@ struct fmha_fwd_appendkv_args
     const void* rotary_cos_ptr; // only used if 'rotary_dim' > 0
     const void* rotary_sin_ptr; // only used if 'rotary_dim' > 0
     ck_tile::index_t rotary_dim;
+    bool has_mask;
 
     void* block_table_ptr;
     ck_tile::index_t batch_stride_block_table; // only used if 'block_table_ptr' is not nullptr
@@ -540,6 +541,7 @@ auto fmha_fwd_appendkv_create_kargs_and_grids(fmha_fwd_appendkv_args args)
                                    args.rotary_cos_ptr,
                                    args.rotary_sin_ptr,
                                    args.rotary_dim,
+                                   args.has_mask,
                                    args.block_table_ptr,
                                    args.batch_stride_block_table,
                                    args.page_block_size,
@@ -699,7 +701,6 @@ template <ck_tile::index_t HDim_,
           ck_tile::index_t kTileSizeD_,
           ck_tile::index_t kTileSizeDv_,
           bool kIsVLayoutRowMajor_,
-          bool kHasMask_,
           bool kPadS_,
           bool kPadSk_,
           bool kPadD_,
@@ -715,7 +716,6 @@ struct fmha_fwd_appendkv_traits_
     static constexpr ck_tile::index_t kTileSizeD  = kTileSizeD_;
     static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
     static constexpr bool kIsVLayoutRowMajor      = kIsVLayoutRowMajor_;
-    static constexpr bool kHasMask                = kHasMask_;
     static constexpr bool kPadS                   = kPadS_;
     static constexpr bool kPadSk                  = kPadSk_;
     static constexpr bool kPadD                   = kPadD_;
@@ -767,7 +767,6 @@ struct fmha_fwd_appendkv_traits
     int hdim_v;
     std::string data_type;
     bool is_v_rowmajor;
-    bool has_mask;
     rope_enum rope_type;
 };
 float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,
