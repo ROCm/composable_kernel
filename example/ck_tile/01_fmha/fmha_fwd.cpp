@@ -807,6 +807,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         if constexpr(std::is_same_v<fmha_fwd_appendkv_traits, std::decay_t<decltype(traits)>>)
         {
+            traits.has_mask  = (mask.type != mask_enum::no_mask);
             traits.rope_type = (0 < rotary_dim ? (is_rotary_interleaved ? rope_enum::interleaved
                                                                         : rope_enum::half_rotated)
                                                : rope_enum::none);

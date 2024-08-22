@@ -41,6 +41,7 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProbl
     {F_bd},
     {F_bdv},
     {F_vlayout},
+    {F_mask},
     fmha_trait_{F_idx}>;
 
 using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipeline<
@@ -51,7 +52,7 @@ using fmha_kernel_{F_idx} =
                   fmha_pipeline_{F_idx}>;
 
 using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout},
-                        {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
+                        {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
 
 #include <iostream>
 
@@ -77,10 +78,10 @@ float fmha_fwd_appendkv(fmha_fwd_appendkv_traits t, fmha_fwd_appendkv_args a, co
 }}
 """
 
-FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_v_rowmajor == {F_vlayout}) &&
+FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_v_rowmajor == {F_vlayout}) && (t.has_mask == {F_mask}) &&
                         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.rope_type == {F_rope_check}) &&
                         ((a.block_table_ptr != nullptr) == {F_pagedkv})) {{
-                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
+                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
                 return fmha_fwd_appendkv_<trait_>(s, a);
             }}
 """
@@ -95,6 +96,7 @@ class FmhaFwdAppendKVApiTrait:
     bd        : int  # tile size along qk gemm unroll
     bdv       : int  # tile size along kv gemm unroll
     vlayout   : str
+    mask      : str  # 't'/'f'
     spad      : str
     skpad     : str
     dpad      : str
@@ -105,7 +107,7 @@ class FmhaFwdAppendKVApiTrait:
     @property
     def name(self) -> str:
         return f'{self.hdim}-{self.dtype}-{self.bs}-{self.bsk}-{self.bd}-{self.bdv}-{self.vlayout}-'+\
-               f'{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.rope}-{self.pagedkv}'
+               f'{self.mask}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.rope}-{self.pagedkv}'
 
     @property
     def scheck(self) -> str:
@@ -130,6 +132,7 @@ class FmhaFwdAppendKVApiTrait:
 @dataclass
 class FmhaFwdAppendKVPipeline:
     F_vlayout   : str  # row/col
+    F_mask      : str
     F_spad      : str  # true/false
     F_skpad     : str  #
     F_dpad      : str  #
@@ -149,9 +152,10 @@ class FmhaFwdAppendKVPipeline:
             return n
         pn = pad_name()
         n = f'v{self.F_vlayout[0]}'
+        if self.F_mask == 't': n += '_mask'
         if pn != '' : n += f'_{pn}'
         if self.F_rope != 'no': n += f'_{self.F_rope}'
-        if self.F_pagedkv == 't': n += f'_pagedkv'
+        if self.F_pagedkv == 't': n += '_pagedkv'
         return n
 
 class FmhaFwdAppendKVApiPool:
@@ -178,7 +182,7 @@ class FmhaFwdAppendKVApiPool:
                 inners=str()
                 for k, trait in enumerate(traits):
                     if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_vlayout=LAYOUT_MAP[trait.vlayout],
+                    inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_vlayout=LAYOUT_MAP[trait.vlayout], F_mask=BOOL_MAP[trait.mask],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_rope_check=ROPE_CHECK_MAP[trait.rope],
                                    F_pagedkv=BOOL_MAP[trait.pagedkv], F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_rope=ROPE_MAP[trait.rope], F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=DTYPE_MAP[dtype])
@@ -222,6 +226,7 @@ class FmhaFwdAppendKVKernel:
                 F_bd            = self.F_tile.F_bd,
                 F_bdv           = self.F_tile.F_bdv,
                 F_vlayout       = LAYOUT_MAP[self.F_pipeline.F_vlayout],
+                F_mask          = BOOL_MAP[self.F_pipeline.F_mask],
                 F_spad          = BOOL_MAP[self.F_pipeline.F_spad],
                 F_skpad         = BOOL_MAP[self.F_pipeline.F_skpad],
                 F_dpad          = BOOL_MAP[self.F_pipeline.F_dpad],
@@ -249,6 +254,7 @@ class FmhaFwdAppendKVKernel:
                 bd=self.F_tile.F_bd,
                 bdv=self.F_tile.F_bdv,
                 vlayout=self.F_pipeline.F_vlayout,
+                mask=self.F_pipeline.F_mask,
                 spad=self.F_pipeline.F_spad,
                 skpad=self.F_pipeline.F_skpad,
                 dpad=self.F_pipeline.F_dpad,
@@ -288,19 +294,20 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
         if dtype in ['fp16', 'bf16']:
             # NOTICE: it will be very complicated if we consider all the hdim_q padding cases while
             #         applying rotary embedding, so I just use 't' in inter/half pipelines
-            for vlayout in ['row', 'col']:
+            for vlayout, mask in itertools.product(['row', 'col'], ['t', 'f']):
                 for pagedkv in ["t", "f"]:
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 'f', 'f', 'no', pagedkv))
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'no', pagedkv))
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, mask, 'f', 't', 'f', 'f', 'no', pagedkv))
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, mask, 't', 't', 't', 't', 'no', pagedkv))
 
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 't', 'f', 'inter', pagedkv))
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'inter', pagedkv))
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, mask, 'f', 't', 't', 'f', 'inter', pagedkv))
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, mask, 't', 't', 't', 't', 'inter', pagedkv))
 
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 't', 'f', 'half', pagedkv))
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'half', pagedkv))
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, mask, 'f', 't', 't', 'f', 'half', pagedkv))
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, mask, 't', 't', 't', 't', 'half', pagedkv))
         elif dtype in ['fp8', 'bf8']:
             # rope/paged-kv is not supported
-            pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', 'no', 'f'))
+            for mask in ['t', 'f']:
+                pipelines.append(FmhaFwdAppendKVPipeline('col', mask, 't', 't', 't', 't', 'no', 'f'))
         else:
             assert False
         return pipelines

@@ -24,7 +24,8 @@ struct FmhaFwdAppendKVKernel
     using KDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
 
-    using VLayout = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
+    using VLayout                  = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
+    static constexpr bool kHasMask = FmhaPipeline::Problem::kHasMask;
 
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
@@ -60,7 +61,8 @@ struct FmhaFwdAppendKVKernel
             _SS_("fmha_fwd_appendkv_d") + _TS_(FmhaPipeline::kK0) + "_" + _SS_(t2s<QDataType>::name) + "_"
             "b" + _TS_(FmhaPipeline::kM0) + "x" + _TS_(FmhaPipeline::kN0) + "x" + _TS_(FmhaPipeline::kK0) + "x" +
                   _TS_(FmhaPipeline::kN1) + "_" + (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) +
-            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "" : "_" + pn) 
+            "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") 
+            + (kHasMask ? "_mask" : "") + (pn.empty() ? "" : "_" + pn) 
             + (!kApplyRoPE ? _SS_("") : (_SS_("_") + RotaryEmbeddingEnumToStr<FmhaPipeline::RotaryEnum>::name))
             + (kIsPagedKV ? "_pagedkv" : "" );
         #undef _SS_
@@ -505,7 +507,7 @@ struct FmhaFwdAppendKVKernel
                         reinterpret_cast<const QDataType*>(kargs.rotary_cos_ptr) +
                             kargs.seqlen_k * (kargs.rotary_dim / 2),
                         make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
-                        make_tuple(0, 1),
+                        make_tuple(kHasMask * (kargs.rotary_dim / 2), 1),
                         number<8>{},
                         number<1>{});
 
@@ -531,7 +533,7 @@ struct FmhaFwdAppendKVKernel
                         reinterpret_cast<const QDataType*>(kargs.rotary_sin_ptr) +
                             kargs.seqlen_k * (kargs.rotary_dim / 2),
                         make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
-                        make_tuple(0, 1),
+                        make_tuple(kHasMask * (kargs.rotary_dim / 2), 1),
                         number<8>{},
                         number<1>{});
 

@@ -699,6 +699,7 @@ template <ck_tile::index_t HDim_,
           ck_tile::index_t kTileSizeD_,
           ck_tile::index_t kTileSizeDv_,
           bool kIsVLayoutRowMajor_,
+          bool kHasMask_,
           bool kPadS_,
           bool kPadSk_,
           bool kPadD_,
@@ -714,6 +715,7 @@ struct fmha_fwd_appendkv_traits_
     static constexpr ck_tile::index_t kTileSizeD  = kTileSizeD_;
     static constexpr ck_tile::index_t kTileSizeDv = kTileSizeDv_;
     static constexpr bool kIsVLayoutRowMajor      = kIsVLayoutRowMajor_;
+    static constexpr bool kHasMask                = kHasMask_;
     static constexpr bool kPadS                   = kPadS_;
     static constexpr bool kPadSk                  = kPadSk_;
     static constexpr bool kPadD                   = kPadD_;
@@ -765,6 +767,7 @@ struct fmha_fwd_appendkv_traits
     int hdim_v;
     std::string data_type;
     bool is_v_rowmajor;
+    bool has_mask;
     rope_enum rope_type;
 };
 float fmha_fwd_appendkv(fmha_fwd_appendkv_traits,

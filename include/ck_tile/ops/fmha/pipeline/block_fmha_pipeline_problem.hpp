@@ -138,7 +138,8 @@ template <typename QDataType_,
           index_t kN0_,
           index_t kK0_,
           index_t kN1_,
-          bool IsVLayoutRowMajor_,
+          bool kIsVLayoutRowMajor_,
+          bool kHasMask_,
           typename Traits_>
 struct BlockFmhaFwdAppendKVPipelineProblem
 {
@@ -154,9 +155,11 @@ struct BlockFmhaFwdAppendKVPipelineProblem
     static constexpr index_t kK0 = kK0_;
     static constexpr index_t kN1 = kN1_;
 
-    using VLayout = std::conditional_t<IsVLayoutRowMajor_,
+    using VLayout = std::conditional_t<kIsVLayoutRowMajor_,
                                        ck_tile::tensor_layout::gemm::RowMajor,
                                        ck_tile::tensor_layout::gemm::ColumnMajor>;
+
+    static constexpr bool kHasMask = kHasMask_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
