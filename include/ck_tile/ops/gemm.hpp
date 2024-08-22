@@ -30,3 +30,6 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_impl.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_matrix_type.hpp"

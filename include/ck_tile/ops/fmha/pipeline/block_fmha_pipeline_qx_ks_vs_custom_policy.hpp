@@ -80,9 +80,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                      typename Problem::KDataType,
                                      typename Problem::SaccDataType,
                                      Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN0,
-                                                   Problem::BlockFmhaShape::kK0>>;
+                                     TileGemmShape<sequence<
+                                                    Problem::BlockFmhaShape::BlockTile::kM0,
+                                                    Problem::BlockFmhaShape::BlockTile::kN0,
+                                                    Problem::BlockFmhaShape::BlockTile::kK0
+                                                   >,
+                                                   Problem::BlockFmhaShape::Gemm0BlockWarps_,
+                                                   Problem::BlockFmhaShape::Gemm0WarpTile_>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -203,9 +207,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                                      typename Problem::KDataType,
                                      typename Problem::SaccDataType,
                                      Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN0,
-                                                   Problem::BlockFmhaShape::kK0>>;
+                                     TileGemmShape<sequence<
+                                                    Problem::BlockFmhaShape::BlockTile::kM0,
+                                                    Problem::BlockFmhaShape::BlockTile::kN0,
+                                                    Problem::BlockFmhaShape::BlockTile::kK0
+                                                   >,
+                                                   Problem::BlockFmhaShape::Gemm0BlockWarps_,
+                                                   Problem::BlockFmhaShape::Gemm0WarpTile_>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -947,9 +955,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                      typename Problem::VDataType,
                                      typename Problem::OaccDataType,
                                      Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN1,
-                                                   Problem::BlockFmhaShape::kK1>>;
+                                     TileGemmShape<sequence<
+                                                    Problem::BlockFmhaShape::BlockTile::kM0,
+                                                    Problem::BlockFmhaShape::BlockTile::kN1,
+                                                    Problem::BlockFmhaShape::BlockTile::kK1
+                                                   >,
+                                                   Problem::BlockFmhaShape::Gemm1BlockWarps_,
+                                                   Problem::BlockFmhaShape::Gemm1WarpTile_>>;
 
         auto warp_gemm = [&]() {
             if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
