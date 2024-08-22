@@ -502,9 +502,10 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto rotary_cos_dram_native =
                     make_naive_tensor_view<address_space_enum::global>(
-                        reinterpret_cast<const QDataType*>(kargs.rotary_cos_ptr),
-                        make_tuple(kargs.seqlen_k + kargs.seqlen_q, kargs.rotary_dim / 2),
-                        make_tuple(kargs.rotary_dim / 2, 1),
+                        reinterpret_cast<const QDataType*>(kargs.rotary_cos_ptr) +
+                            kargs.seqlen_k * (kargs.rotary_dim / 2),
+                        make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
+                        make_tuple(0, 1),
                         number<8>{},
                         number<1>{});
 
@@ -514,9 +515,8 @@ struct FmhaFwdAppendKVKernel
                                            sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }();
 
-                return make_tile_window(rotary_cos_dram,
-                                        q_rotary_cos_sin_dram_window_lengths,
-                                        {kargs.seqlen_k + i_m0, 0});
+                return make_tile_window(
+                    rotary_cos_dram, q_rotary_cos_sin_dram_window_lengths, {i_m0, 0});
             }
             else
             {
@@ -528,9 +528,10 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto rotary_sin_dram_native =
                     make_naive_tensor_view<address_space_enum::global>(
-                        reinterpret_cast<const QDataType*>(kargs.rotary_sin_ptr),
-                        make_tuple(kargs.seqlen_k + kargs.seqlen_q, kargs.rotary_dim / 2),
-                        make_tuple(kargs.rotary_dim / 2, 1),
+                        reinterpret_cast<const QDataType*>(kargs.rotary_sin_ptr) +
+                            kargs.seqlen_k * (kargs.rotary_dim / 2),
+                        make_tuple(kargs.seqlen_q, kargs.rotary_dim / 2),
+                        make_tuple(0, 1),
                         number<8>{},
                         number<1>{});
 
@@ -540,9 +541,8 @@ struct FmhaFwdAppendKVKernel
                                            sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }();
 
-                return make_tile_window(rotary_sin_dram,
-                                        q_rotary_cos_sin_dram_window_lengths,
-                                        {kargs.seqlen_k + i_m0, 0});
+                return make_tile_window(
+                    rotary_sin_dram, q_rotary_cos_sin_dram_window_lengths, {i_m0, 0});
             }
             else
             {
@@ -557,8 +557,9 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto rotary_cos_dram_native =
                     make_naive_tensor_view<address_space_enum::global>(
-                        reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr),
-                        make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
+                        reinterpret_cast<const KDataType*>(kargs.rotary_cos_ptr) +
+                            kargs.seqlen_k * (kargs.rotary_dim / 2),
+                        make_tuple(kargs.seqlen_knew, kargs.rotary_dim / 2),
                         make_tuple(kargs.rotary_dim / 2, 1),
                         number<8>{},
                         number<1>{});
@@ -569,9 +570,8 @@ struct FmhaFwdAppendKVKernel
                                            sequence<kPadSeqLenK, kPadHeadDimQ>{});
                 }();
 
-                return make_tile_window(rotary_cos_dram,
-                                        knew_rotary_cos_sin_dram_window_lengths,
-                                        {kargs.seqlen_k + i_n0, 0});
+                return make_tile_window(
+                    rotary_cos_dram, knew_rotary_cos_sin_dram_window_lengths, {i_n0, 0});
             }
             else
             {
@@ -583,8 +583,9 @@ struct FmhaFwdAppendKVKernel
             {
                 const auto rotary_sin_dram_native =
                     make_naive_tensor_view<address_space_enum::global>(
-                        reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr),
-                        make_tuple(kargs.seqlen_k + kargs.seqlen_knew, kargs.rotary_dim / 2),
+                        reinterpret_cast<const KDataType*>(kargs.rotary_sin_ptr) +
+                            kargs.seqlen_k * (kargs.rotary_dim / 2),
+                        make_tuple(kargs.seqlen_knew, kargs.rotary_dim / 2),
                         make_tuple(kargs.rotary_dim / 2, 1),
                         number<8>{},
                         number<1>{});
@@ -595,9 +596,8 @@ struct FmhaFwdAppendKVKernel
                                            sequence<kPadSeqLenK, kPadHeadDimQ>{});
                 }();
 
-                return make_tile_window(rotary_sin_dram,
-                                        knew_rotary_cos_sin_dram_window_lengths,
-                                        {kargs.seqlen_k + i_n0, 0});
+                return make_tile_window(
+                    rotary_sin_dram, knew_rotary_cos_sin_dram_window_lengths, {i_n0, 0});
             }
             else
             {
