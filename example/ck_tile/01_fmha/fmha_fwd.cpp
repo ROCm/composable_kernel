@@ -1147,7 +1147,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 slice_rotary_cos_sin(rotary_cos_host, rotary_sin_host, cache_seqlen_ks[wb], real_seqlen_q);
 
             ck_tile::reference_batched_rotary_position_embedding(
-                q_host_ref, rotary_cos_slice, rotary_sin_slice, is_rotary_interleaved, q_host_ref_ro);
+                q_host_ref, rotary_cos_slice, rotary_sin_slice, is_rotary_interleaved, q_host_ref_ro,
+                /*use_1_row_sin_cos=*/mask.type != mask_enum::no_mask);
 
             q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
         }
