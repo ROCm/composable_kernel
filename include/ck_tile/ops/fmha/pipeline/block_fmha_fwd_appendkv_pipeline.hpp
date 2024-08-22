@@ -27,12 +27,13 @@ struct BlockFmhaFwdAppendKVPipeline
     static constexpr index_t kK0 = Problem::kK0;
     static constexpr index_t kN1 = Problem::kN1;
 
+    static constexpr auto RotaryEnum = Problem::RotaryEnum;
+    static constexpr bool kIsPagedKV = Problem::kIsPagedKV;
+
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr auto RotaryEnum   = Problem::RotaryEnum;
-    static constexpr bool kIsPagedKV   = Problem::kIsPagedKV;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -147,20 +148,17 @@ struct BlockFmhaFwdAppendKVPipeline
                                                         thread_end);
             }
 
+            store_tile(k_dram_block_window, knew_tile);
+
+            // write tile to another block if nesscary
             if constexpr(kIsPagedKV)
             {
-                store_tile(k_dram_block_window, knew_tile);
-                // write tile to another block if nesscary
                 if(k_page_block_navigator.is_cross_block(i_page_block_k, k_dram_block_window))
                 {
                     k_page_block_navigator.move_to_block(
                         i_page_block_k, k_dram_block_window, i_page_block_k + 1);
                     store_tile(k_dram_block_window, knew_tile);
                 }
-            }
-            else
-            {
-                store_tile(k_dram_block_window, knew_tile);
             }
 
             // append Vnew to V
@@ -172,20 +170,17 @@ struct BlockFmhaFwdAppendKVPipeline
                 return tile_elementwise_in(vnew_element_func, vnew);
             }();
 
+            store_tile(v_dram_block_window, vnew_tile);
+
+            // write tile to another block if nesscary
             if constexpr(kIsPagedKV)
             {
-                store_tile(v_dram_block_window, vnew_tile);
-                // write tile to another block if nesscary
                 if(v_page_block_navigator.is_cross_block(i_page_block_v, v_dram_block_window))
                 {
                     v_page_block_navigator.move_to_block(
                         i_page_block_v, v_dram_block_window, i_page_block_v + 1);
                     store_tile(v_dram_block_window, vnew_tile);
                 }
-            }
-            else
-            {
-                store_tile(v_dram_block_window, vnew_tile);
             }
         }
 

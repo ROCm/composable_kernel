@@ -139,7 +139,9 @@ template <typename QDataType_,
           index_t kK0_,
           index_t kN1_,
           bool kIsVLayoutRowMajor_,
+          RotaryEmbeddingEnum RotaryEnum_,
           bool kHasMask_,
+          bool kIsPagedKV_,
           typename Traits_>
 struct BlockFmhaFwdAppendKVPipelineProblem
 {
@@ -159,15 +161,15 @@ struct BlockFmhaFwdAppendKVPipelineProblem
                                        ck_tile::tensor_layout::gemm::RowMajor,
                                        ck_tile::tensor_layout::gemm::ColumnMajor>;
 
-    static constexpr bool kHasMask = kHasMask_;
+    static constexpr auto RotaryEnum = RotaryEnum_;
+    static constexpr bool kHasMask   = kHasMask_;
+    static constexpr bool kIsPagedKV = kIsPagedKV_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr auto RotaryEnum     = Traits::RotaryEnum;
-    static constexpr bool kIsPagedKV     = Traits::kIsPagedKV;
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
 };
 

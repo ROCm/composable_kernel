@@ -24,15 +24,15 @@ struct FmhaFwdAppendKVKernel
     using KDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
 
-    using VLayout                  = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
-    static constexpr bool kHasMask = FmhaPipeline::Problem::kHasMask;
+    using VLayout                    = ck_tile::remove_cvref_t<typename FmhaPipeline::VLayout>;
+    static constexpr bool kApplyRoPE = FmhaPipeline::RotaryEnum != RotaryEmbeddingEnum::NONE;
+    static constexpr bool kHasMask   = FmhaPipeline::Problem::kHasMask;
+    static constexpr bool kIsPagedKV = FmhaPipeline::kIsPagedKV;
 
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
-    static constexpr bool kApplyRoPE   = FmhaPipeline::RotaryEnum != RotaryEmbeddingEnum::NONE;
-    static constexpr bool kIsPagedKV   = FmhaPipeline::Problem::kIsPagedKV;
 
     // clang-format off
     template <typename T> struct t2s;

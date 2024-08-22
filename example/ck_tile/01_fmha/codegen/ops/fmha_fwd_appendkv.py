@@ -28,8 +28,6 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdAppendKVTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
-                                                    {F_rope},
-                                                    {F_pagedkv},
                                                     {F_occupancy}>;
 
 using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProblem<
@@ -41,7 +39,9 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipelineProbl
     {F_bd},
     {F_bdv},
     {F_vlayout},
+    {F_rope},
     {F_mask},
+    {F_pagedkv},
     fmha_trait_{F_idx}>;
 
 using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaFwdAppendKVPipeline<
