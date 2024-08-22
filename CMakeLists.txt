@@ -553,9 +553,6 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   if(GPU_TARGETS MATCHES "gfx9" AND NOT INSTANCES_ONLY)
-      add_subdirectory(codegen)
-   endif()
    if(BUILD_TESTING)
       add_subdirectory(test)
    endif()
@@ -573,6 +570,10 @@ if(NOT DEFINED INSTANCES_ONLY)
     )
     add_subdirectory(profiler)
   endif()
+endif()
+
+if(NOT DEFINED PROFILER_ONLY AND (GPU_TARGETS MATCHES "gfx9" OR DEFINED INSTANCES_ONLY))
+  add_subdirectory(codegen)
 endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
