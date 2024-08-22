@@ -3,6 +3,7 @@
 
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/stringutils.hpp"
+#include "ck/host/types.hpp"
 #include "ck/host/utils.hpp"
 #include <cassert>
 
@@ -32,11 +33,11 @@ static std::string GetGemmSpec(const std::size_t m,
 }
 
 // function to update prologue/epilogue with user provided operation
-void Operation_Xdl_CShuffle::update_prologue(const std::string& prologue)
+void Operation_Xdl_CShuffle::update_prologue(const std::string& pro)
 {
-    if(!prologue.empty())
+    if(!pro.empty())
     {
-        this->prologue    = prologue;
+        this->prologue    = pro;
         this->cde_elem_op = "CDEElementOp";
     }
     else
@@ -45,11 +46,11 @@ void Operation_Xdl_CShuffle::update_prologue(const std::string& prologue)
     }
 }
 
-void Operation_Xdl_CShuffle::update_epilogue(const std::string& epilogue)
+void Operation_Xdl_CShuffle::update_epilogue(const std::string& epi)
 {
-    if(!epilogue.empty())
+    if(!epi.empty())
     {
-        this->epilogue    = epilogue;
+        this->epilogue    = epi;
         this->cde_elem_op = "CDEElementOp";
     }
     else
