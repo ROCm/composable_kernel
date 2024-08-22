@@ -266,12 +266,14 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-        build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
-
         if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+            echo "running ninja build trace"
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake -G Ninja ${setup_args}   .. ")
             build_cmd = conf.get("build_cmd", "${build_envs} ninja && make  -j${nt} ${config_targets}")
+        }
+        else{
+            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
+            build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
         }
         cmd = conf.get("cmd", """
             ${setup_cmd}
