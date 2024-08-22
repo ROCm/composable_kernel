@@ -262,10 +262,17 @@ def cmake_build(Map conf=[:]){
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
     def cmd
+    def setup_cmd
+    def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-        def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
+        setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
+        build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
+
+        if (params.BUILD_NINJA_TRACE){
+            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake -G Ninja ${setup_args}   .. ")
+            build_cmd = conf.get("build_cmd", "${build_envs} ninja && make  -j${nt} ${config_targets}")
+        }
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
@@ -282,6 +289,10 @@ def cmake_build(Map conf=[:]){
 
     dir("build"){
         sh cmd
+        if (params.BUILD_NINJA_TRACE){
+            sh "./ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
+            archiveArtifacts "ck_build_trace.json"
+        }
     }
 
     // Only archive from master or develop
@@ -765,7 +776,10 @@ pipeline {
             name: "BUILD_GFX12",
             defaultValue: false,
             description: "Build CK and run tests on gfx12 (default: OFF)")
-
+        booleanParam(
+            name: "NINJA_BUILD_TRACE",
+            defaultValue: false,
+            description: "Generate a ninja build trace (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -967,10 +981,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1100;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1100;gfx90a" \
+                                           -DGPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
