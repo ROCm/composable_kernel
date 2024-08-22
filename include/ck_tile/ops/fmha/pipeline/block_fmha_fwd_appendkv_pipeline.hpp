@@ -145,6 +145,7 @@ struct BlockFmhaFwdAppendKVPipeline
                                                         rotary_sin_window,
                                                         rotary_dim,
                                                         thread_end);
+                __builtin_amdgcn_s_barrier();
             }
 
             if constexpr(kIsPagedKV)
@@ -222,6 +223,7 @@ struct BlockFmhaFwdAppendKVPipeline
 
                 BlockRotaryEmbedding<RotaryEnum>::apply(
                     q_tile, q_window, rotary_cos_window, rotary_sin_window, rotary_dim, thread_end);
+                __builtin_amdgcn_s_barrier();
 
                 store_tile(q_dram_block_window, q_tile);
             }
