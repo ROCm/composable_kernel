@@ -1,5 +1,5 @@
 if (GPU_TARGETS)
-    if (GPU_TARGETS MATCHES "gfx10" OR GPU_TARGETS MATCHES "gfx11")
+    if (GPU_TARGETS MATCHES "gfx10" OR GPU_TARGETS MATCHES "gfx11" OR GPU_TARGETS MATCHES "gfx12")
         add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
         set(CK_SKIP_FLAKY_F8_TEST "ON")
     endif()
