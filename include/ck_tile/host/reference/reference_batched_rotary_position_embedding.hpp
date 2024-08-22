@@ -16,7 +16,8 @@ CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<D
                                                               const HostTensor<DataType>& cos_sd,
                                                               const HostTensor<DataType>& sin_sd,
                                                               bool interleaved,
-                                                              HostTensor<DataType>& output_bsd)
+                                                              HostTensor<DataType>& output_bsd,
+                                                              bool use_1_row_sin_cos = false)
 {
     assert(cos_sd.get_num_of_dimension() == 2 && sin_sd.get_num_of_dimension() == 2);
     assert(cos_sd.get_length(0) == sin_sd.get_length(0) &&
@@ -34,12 +35,15 @@ CK_TILE_HOST void reference_batched_rotary_position_embedding(const HostTensor<D
         }
         assert(i_d < rotary_dim);
 
-        const index_t i_s = i[1];
+        const index_t i_s         = i[1];
+        const index_t i_s_cos_sin = (use_1_row_sin_cos ? 0 : i_s);
 
         const ComputeDataType cos = type_convert<ComputeDataType>(
-            interleaved ? cos_sd(i_s, i_d / 2) : cos_sd(i_s, i_d % cos_sd.get_length(1)));
+            interleaved ? cos_sd(i_s_cos_sin, i_d / 2)
+                        : cos_sd(i_s_cos_sin, i_d % cos_sd.get_length(1)));
         const ComputeDataType sin = type_convert<ComputeDataType>(
-            interleaved ? sin_sd(i_s, i_d / 2) : sin_sd(i_s, i_d % sin_sd.get_length(1)));
+            interleaved ? sin_sd(i_s_cos_sin, i_d / 2)
+                        : sin_sd(i_s_cos_sin, i_d % sin_sd.get_length(1)));
 
         const ComputeDataType half_rotated_input = [&] {
             const index_t i_b = i[0];
