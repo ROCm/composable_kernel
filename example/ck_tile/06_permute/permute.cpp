@@ -258,47 +258,89 @@ bool run(const ck_tile::ArgParser& arg_parser)
     };
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
     // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
-    if(rank == 7 && (arg_parser.get_str("perm") == std::string("0,1,4,2,5,3,6") ||
-                     arg_parser.get_str("perm") == std::string("0,1,2,4,5,3,6")))
+    if((arg_parser.get_str("perm") == std::string("0,1,4,2,5,3,6") ||
+        arg_parser.get_str("perm") == std::string("0,1,2,4,5,3,6") ||
+        arg_parser.get_str("perm") == std::string("0,1,3,4,2,5")))
     {
-        matrix_core_swizzle_traits t;
-        t.data_type = data_type;
-        t.permute   = arg_parser.get_str("perm");
-
-        matrix_core_swizzle_args a;
-        a.p_src = x_buf.GetDeviceBuffer();
-        a.p_dst = y_buf.GetDeviceBuffer();
-        a.batch = shape[0];
-        a.n     = shape[1] * shape[2] * shape[3];
-        a.k     = shape[4] * shape[5] * shape[6];
-        if(shape[6] == 8 && shape[3] == 32 && shape[5] == 2 && shape[2] == 4 && shape[4] % 8 == 0 &&
-           shape[1] % 2 == 0)
+        if(arg_parser.get_str("perm") == std::string("0,1,3,4,2,5"))
         {
-            // 32x32x8 inst
-            // perm=0,1,4,2,5,3,6
-            // y_shape=*,2x,8x,4,2,32,8 (3,6,16,4,2,32,8)
-            // shape = *,2x,4,32,8x,2,8 (3,6,4,32,16,2,8)
+            // permute_b_nr_kr_kw_nw_kv = 2,   // 0,1,3,4,2,5
+            matrix_core_swizzle_traits t;
+            t.data_type = data_type;
+            t.permute   = arg_parser.get_str("perm");
 
-            t.inst = "32x32x8";
-            std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
+            matrix_core_swizzle_args a;
+            a.p_src = x_buf.GetDeviceBuffer();
+            a.p_dst = y_buf.GetDeviceBuffer();
+            a.batch = shape[0];
 
-            ave_time = matrix_core_swizzle(t, a, stream_config);
-        }
-        else if(shape[6] == 8 && shape[3] == 16 && shape[5] == 4 && shape[2] == 4 &&
-                shape[4] % 4 == 0 && shape[1] % 4 == 0)
-        {
-            // 16x16x16 inst
-            // perm=0,1,4,2,5,3,6
-            // y_shape=*,4x,4x,4,4,16,8
-            // shape = *,4x,4,16,4x,4,8 (3,8,4,16,16,4,8)
-            t.inst = "16x16x16";
-            std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
+            auto nr = shape[1];
+            auto nw = shape[2];
+            auto kr = shape[3];
+            auto kw = shape[4];
+            auto kv = shape[5];
+            a.n     = nr * nw;
+            a.k     = kr * kw * kv;
+            if(kv == 8 && kw == 4 && nw == 16 && nr % 4 == 0 && kr % 8 == 0)
+            {
+                t.inst = "16x16x16";
+                std::cout << ", matrix_core_swizzle_waveflatten_" << t.inst << std::flush;
 
-            ave_time = matrix_core_swizzle(t, a, stream_config);
+                ave_time = matrix_core_swizzle(t, a, stream_config);
+            }
+            else if(kv == 8 && kw == 2 && nw == 32 && nr % 4 == 0 && kr % 8 == 0)
+            {
+                t.inst = "32x32x8";
+                std::cout << ", matrix_core_swizzle_waveflatten_" << t.inst << std::flush;
+
+                ave_time = matrix_core_swizzle(t, a, stream_config);
+            }
+            else
+            {
+                ave_time = run_permute();
+            }
         }
         else
         {
-            ave_time = run_permute();
+            matrix_core_swizzle_traits t;
+            t.data_type = data_type;
+            t.permute   = arg_parser.get_str("perm");
+
+            matrix_core_swizzle_args a;
+            a.p_src = x_buf.GetDeviceBuffer();
+            a.p_dst = y_buf.GetDeviceBuffer();
+            a.batch = shape[0];
+            a.n     = shape[1] * shape[2] * shape[3];
+            a.k     = shape[4] * shape[5] * shape[6];
+            if(shape[6] == 8 && shape[3] == 32 && shape[5] == 2 && shape[2] == 4 &&
+               shape[4] % 8 == 0 && shape[1] % 2 == 0)
+            {
+                // 32x32x8 inst
+                // perm=0,1,4,2,5,3,6
+                // y_shape=*,2x,8x,4,2,32,8 (3,6,16,4,2,32,8)
+                // shape = *,2x,4,32,8x,2,8 (3,6,4,32,16,2,8)
+
+                t.inst = "32x32x8";
+                std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
+
+                ave_time = matrix_core_swizzle(t, a, stream_config);
+            }
+            else if(shape[6] == 8 && shape[3] == 16 && shape[5] == 4 && shape[2] == 4 &&
+                    shape[4] % 4 == 0 && shape[1] % 4 == 0)
+            {
+                // 16x16x16 inst
+                // perm=0,1,4,2,5,3,6
+                // y_shape=*,4x,4x,4,4,16,8
+                // shape = *,4x,4,16,4x,4,8 (3,8,4,16,16,4,8)
+                t.inst = "16x16x16";
+                std::cout << ", matrix_core_swizzle_" << t.inst << std::flush;
+
+                ave_time = matrix_core_swizzle(t, a, stream_config);
+            }
+            else
+            {
+                ave_time = run_permute();
+            }
         }
     }
     else

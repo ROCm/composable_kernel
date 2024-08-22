@@ -37,6 +37,18 @@ float matrix_core_swizzle(matrix_core_swizzle_traits t,
 
                 return ave_time;
             }
+            else if(t.permute.compare("0,1,3,4,2,5") == 0)
+            {
+                constexpr matrix_core_permute_style pstyle =
+                    matrix_core_permute_style::permute_b_nr_kr_kw_nw_kv;
+                using Kernel =
+                    matrix_core_swizzle_kernel<BLOCK_SIZE, NPerBlock, KPerBlock, pstyle, Inst>;
+
+                auto k         = Kernel(a);
+                float ave_time = ck_tile::launch_kernel(s, k);
+
+                return ave_time;
+            }
         }
         else if(t.inst.compare("16x16x16") == 0)
         {
@@ -60,6 +72,18 @@ float matrix_core_swizzle(matrix_core_swizzle_traits t,
             {
                 constexpr matrix_core_permute_style pstyle =
                     matrix_core_permute_style::permute_b_n0_n1_k0_k1_n2_k2;
+                using Kernel =
+                    matrix_core_swizzle_kernel<BLOCK_SIZE, NPerBlock, KPerBlock, pstyle, Inst>;
+
+                auto k         = Kernel(a);
+                float ave_time = ck_tile::launch_kernel(s, k);
+
+                return ave_time;
+            }
+            else if(t.permute.compare("0,1,3,4,2,5") == 0)
+            {
+                constexpr matrix_core_permute_style pstyle =
+                    matrix_core_permute_style::permute_b_nr_kr_kw_nw_kv;
                 using Kernel =
                     matrix_core_swizzle_kernel<BLOCK_SIZE, NPerBlock, KPerBlock, pstyle, Inst>;
 

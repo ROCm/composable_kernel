@@ -32,10 +32,13 @@ struct to_warp_gemm<matrix_core_inst_enum::MFMA_16x16x16_F16>
 template <matrix_core_inst_enum Inst>
 using to_warp_gemm_t = typename detail::to_warp_gemm<Inst>::type;
 
+// TODO: in below permute pattern, the last 3 dim is within wave
 enum class matrix_core_permute_style
 {
     permute_b_n0_k0_n1_k1_n2_k2 = 0, // 0,1,4,2,5,3,6
     permute_b_n0_n1_k0_k1_n2_k2 = 1, // 0,1,2,4,5,3,6
+    permute_b_nr_kr_kw_nw_kv    = 2, // 0,1,3,4,2,5
+    permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv,
 };
 
 // assume this is B matrix, originally we have batch*n*k
@@ -80,7 +83,10 @@ struct matrix_core_swizzle_kernel
     using karg = matrix_core_swizzle_host_args;
     using harg = matrix_core_swizzle_host_args;
 
-    static constexpr int BLOCK_SIZE                   = BLOCK_SIZE_;
+    static constexpr int BLOCK_SIZE      = BLOCK_SIZE_;
+    static constexpr int WavesPerBlock_N = 4;
+    static constexpr int WavesPerBlock_K = 1;
+    static_assert(WavesPerBlock_N * WavesPerBlock_K * 64 == BLOCK_SIZE);
     static constexpr int NPerBlock                    = NPerBlock_;
     static constexpr int KPerBlock                    = KPerBlock_;
     static constexpr matrix_core_permute_style pstyle = pstyle_;
@@ -171,7 +177,7 @@ struct matrix_core_swizzle_kernel
                         sequence<0, 0, 0>>{});
                 // clang-format on
             }
-            else
+            else if constexpr(pstyle == matrix_core_permute_style::permute_b_n0_n1_k0_k1_n2_k2)
             {
                 // clang-format off
                 return make_static_tile_distribution(
@@ -187,6 +193,39 @@ struct matrix_core_swizzle_kernel
                         //       N0 K0 K2
                         sequence<1, 3, 6>,
                         sequence<0, 0, 0>>{});
+                // clang-format on
+            }
+            else
+            {
+                // clang-format off
+                // permute_b_nr_kr_kw_nw_kv or permute_b_nr_kr_waveflatten
+                constexpr index_t Kv = Alignment;
+                constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+                constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+
+                static_assert(KPerBlock % (K1 * K2) == 0);
+                constexpr index_t Nr = NPerBlock / Nw;
+                constexpr index_t Kr = KPerBlock / (Kv * Kw);
+
+                constexpr index_t Nr_p = WavesPerBlock_N;
+                constexpr index_t Kr_p = WavesPerBlock_K;
+                constexpr index_t Nr_y = Nr / Nr_p;
+                constexpr index_t Kr_y = Kr / Kr_p;
+
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<
+                        sequence<1>,// 0
+                        // major       1                     2                     3
+                        // minor       0     1               0     1               0   1   2
+                        tuple<sequence<Nr_y, Nr_p>, sequence<Kr_y, Kr_p>, sequence<Kw, Nw, Kv>>,
+
+                        //            Nr_p, Kr_p         Kw Nw
+                        tuple<sequence<1  , 2>, sequence<3, 3>>,
+                        tuple<sequence<1  , 1>, sequence<0, 1>>,
+
+                        //       Nr_y Kr_y Kv
+                        sequence<1,   2,   3>,
+                        sequence<0,   0,   2>>{});
                 // clang-format on
             }
         }
@@ -242,11 +281,26 @@ struct matrix_core_swizzle_kernel
                         number<Alignment>{}); // control vector load
                     return tmp;
                 }
-                else
+                else if constexpr(pstyle == matrix_core_permute_style::permute_b_n0_n1_k0_k1_n2_k2)
                 {
                     auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                         p_dst,
                         make_tuple(n0, n1, k0, k1, n2, k2),
+                        number<Alignment>{}); // control vector load
+                    return tmp;
+                }
+                else
+                {
+                    // permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv,
+                    constexpr index_t kv          = Alignment;
+                    constexpr index_t nw          = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+                    constexpr index_t kw          = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+                    constexpr index_t waveflatten = kw * nw * kv;
+                    const index_t kr              = a_.k / (k1 * k2);
+                    const index_t nr              = a_.n / nw;
+                    auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
+                        p_dst,
+                        make_tuple(nr, kr, waveflatten),
                         number<Alignment>{}); // control vector load
                     return tmp;
                 }
@@ -265,7 +319,7 @@ struct matrix_core_swizzle_kernel
                                             {i_n * n0_tile, i_k * k0_tile, 0, 0, 0, 0},
                                             get_dst_dist());
                 }
-                else
+                else if constexpr(pstyle == matrix_core_permute_style::permute_b_n0_n1_k0_k1_n2_k2)
                 {
                     return make_tile_window(dst_view,
                                             make_tuple(number<n0_tile>{},
@@ -275,6 +329,22 @@ struct matrix_core_swizzle_kernel
                                                        number<n2_tile>{},
                                                        number<k2_tile>{}),
                                             {i_n * n0_tile, 0, i_k * k0_tile, 0, 0, 0},
+                                            get_dst_dist());
+                }
+                else
+                {
+                    // permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv
+                    constexpr index_t kv = Alignment;
+                    constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+                    constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+                    constexpr index_t waveflatten_tile = kw * nw * kv;
+                    constexpr index_t nr_tile          = NPerBlock / nw;
+                    constexpr index_t kr_tile          = KPerBlock / (kw * kv);
+                    return make_tile_window(dst_view,
+                                            make_tuple(number<nr_tile>{},
+                                                       number<kr_tile>{},
+                                                       number<waveflatten_tile>{}),
+                                            {i_n * nr_tile, i_k * kr_tile, 0},
                                             get_dst_dist());
                 }
             }();
