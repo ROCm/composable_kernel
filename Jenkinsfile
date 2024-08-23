@@ -292,7 +292,7 @@ def cmake_build(Map conf=[:]){
     dir("build"){
         sh cmd
         if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
-            sh "./ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
+            sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
             archiveArtifacts "ck_build_trace.json"
         }
     }
