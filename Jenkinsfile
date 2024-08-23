@@ -273,7 +273,7 @@ def cmake_build(Map conf=[:]){
         }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
+            build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j${nt} ${config_targets}")
         }
         cmd = conf.get("cmd", """
             ${setup_cmd}
@@ -297,10 +297,10 @@ def cmake_build(Map conf=[:]){
             if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 archiveArtifacts "ck_build_trace.json"
-                sh "ninja -j check"
+                sh "ninja check"
             }
             else{
-                sh "make -j check"
+                sh "make check"
             }
         }
     }
