@@ -269,7 +269,7 @@ def cmake_build(Map conf=[:]){
         if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
             echo "running ninja build trace"
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake -G Ninja ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} && ninja  -j${nt} ${config_targets}")
+            build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
         }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
@@ -294,6 +294,10 @@ def cmake_build(Map conf=[:]){
         if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
             sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
             archiveArtifacts "ck_build_trace.json"
+            sh "ninja -j check"
+        }
+        else{
+            sh "make -j check"
         }
     }
 
@@ -556,7 +560,7 @@ def Build_CK(Map conf=[:]){
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
-                        sh 'make -j check'
+                        //sh 'make -j check'
                         if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
                             //do not stash profiler on nodes where we don't need to run performance tests
