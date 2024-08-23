@@ -823,6 +823,7 @@ pipeline {
                     }
                     agent{ label rocmnode("nogpu") }
                     environment{
+                        setup_args = "NO_CK_BUILD"
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
                                 -o -not -path \'*.git*\' -iname \'*.hpp\' \
                                 -o -not -path \'*.git*\' -iname \'*.cpp\' \
@@ -839,7 +840,7 @@ pipeline {
                                 --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                         archiveArtifacts "build/ck_cppcheck.log"
                         cleanWs()
                     }
@@ -851,6 +852,7 @@ pipeline {
                     }
                     agent{ label rocmnode("nogpu") }
                     environment{
+                        setup_args = "NO_CK_BUILD"
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
                                 -o -not -path \'*.git*\' -iname \'*.hpp\' \
                                 -o -not -path \'*.git*\' -iname \'*.cpp\' \
@@ -862,7 +864,7 @@ pipeline {
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\'"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                         cleanWs()
                     }
                 }
@@ -1098,7 +1100,7 @@ pipeline {
                     options { retry(1) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
-                        setup_args = """ -DGPU_TARGETS="gfx90a" -DBUILD_DEV=On """
+                        setup_args = "NO_CK_BUILD"
                     }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')
