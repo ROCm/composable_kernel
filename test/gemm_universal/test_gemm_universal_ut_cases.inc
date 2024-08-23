@@ -34,12 +34,14 @@ TYPED_TEST(TestGemmUniversal_KM_KN, SmallM)
     constexpr int N = 512;
     constexpr int K = 320;
 
-    constexpr int StrideA = K;
     constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_KM_NK, SmallM)
@@ -48,12 +50,14 @@ TYPED_TEST(TestGemmUniversal_KM_NK, SmallM)
     constexpr int N = 512;
     constexpr int K = 320;
 
-    constexpr int StrideA = K;
-    constexpr int StrideB = K;
+    constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_MK_KN, MidLargeM)
@@ -90,12 +94,14 @@ TYPED_TEST(TestGemmUniversal_KM_KN, MidLargeM)
     constexpr int N = 512;
     constexpr int K = 320;
 
-    constexpr int StrideA = K;
     constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_KM_NK, MidLargeM)
@@ -104,12 +110,14 @@ TYPED_TEST(TestGemmUniversal_KM_NK, MidLargeM)
     constexpr int N = 512;
     constexpr int K = 320;
 
-    constexpr int StrideA = K;
-    constexpr int StrideB = K;
+    constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_MK_KN, PaddK)
@@ -146,12 +154,14 @@ TYPED_TEST(TestGemmUniversal_KM_KN, PaddK)
     constexpr int N = 512;
     constexpr int K = 437;
 
-    constexpr int StrideA = K;
     constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_KM_NK, PaddK)
@@ -160,12 +170,14 @@ TYPED_TEST(TestGemmUniversal_KM_NK, PaddK)
     constexpr int N = 512;
     constexpr int K = 437;
 
-    constexpr int StrideA = K;
-    constexpr int StrideB = K;
+    constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_MK_KN, Regular)
@@ -202,12 +214,14 @@ TYPED_TEST(TestGemmUniversal_KM_KN, Regular)
     constexpr int N = 512;
     constexpr int K = 512;
 
-    constexpr int StrideA = K;
     constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
 
 TYPED_TEST(TestGemmUniversal_KM_NK, Regular)
@@ -216,10 +230,12 @@ TYPED_TEST(TestGemmUniversal_KM_NK, Regular)
     constexpr int N = 512;
     constexpr int K = 512;
 
-    constexpr int StrideA = K;
-    constexpr int StrideB = K;
+    constexpr int StrideB = N;
     constexpr int StrideC = N;
 
     for(int M : Ms)
+    {
+        int StrideA = M;
         this->Run(M, N, K, StrideA, StrideB, StrideC);
+    }
 }
