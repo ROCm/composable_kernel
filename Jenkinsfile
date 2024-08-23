@@ -290,11 +290,13 @@ def cmake_build(Map conf=[:]){
     echo cmd
 
     dir("build"){
-        sh 
+        //build CK
+        sh cmd
+        //run tests
         if(!setup_args.contains("NO_CK_BUILD")){
             if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
-                 "ck_build_trace.json"
+                archiveArtifacts "ck_build_trace.json"
                 sh "ninja -j check"
             }
             else{
