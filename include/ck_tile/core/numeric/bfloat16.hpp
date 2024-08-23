@@ -15,6 +15,7 @@ namespace ck_tile {
 enum class bf16_rounding_mode
 {
     standard = 0, // rtn
+    standard_asm,
     truncate_with_nan,
     truncate,
 };
@@ -105,7 +106,7 @@ using bf16_t     = bfloat16_t;
 using bf16_raw_t = uint16_t;
 #endif
 // round to nearest
-CK_TILE_HOST
+CK_TILE_HOST_DEVICE
 constexpr uint16_t float_to_bf16_rtn_raw(float f)
 {
     union
@@ -148,28 +149,11 @@ constexpr uint16_t float_to_bf16_rtn_raw(float f)
     return uint16_t(u.int32 >> 16);
 }
 
-// CK_TILE_HOST_DEVICE
-// constexpr uint16_t float_to_bf16_rtn_raw(float f)
-// {
-//     union
-//     {
-//         float fp32;
-//         uint32_t int32;
-//     } u = {f};
-
-//     bool exponent_not_all1s = ~u.int32 & 0x7f800000;
-//     uint32_t rounded        = 0x7fff + ((u.int32 >> 16) & 1);
-//     rounded += u.int32;
-//     uint32_t res      = exponent_not_all1s ? rounded : u.int32;
-//     bool preserve_nan = u.int32 & 0xffff;
-//     uint32_t nan      = u.int32 | 0x10000;
-//     res               = (!exponent_not_all1s & preserve_nan) ? nan : res;
-
-//     return uint16_t(res >> 16);
-// }
+CK_TILE_HOST
+constexpr uint16_t float_to_bf16_rtn_asm(float f) { return float_to_bf16_rtn_raw(f); }
 
 CK_TILE_DEVICE
-uint16_t float_to_bf16_rtn_raw(float f)
+uint16_t float_to_bf16_rtn_asm(float f)
 {
     union
     {
@@ -177,9 +161,10 @@ uint16_t float_to_bf16_rtn_raw(float f)
         uint32_t int32;
     } u = {f};
 
-    static constexpr uint32_t FP32_NAN = 0x7fff0000;
+    static constexpr uint32_t FP32_NAN            = 0x7fff0000;
     static constexpr uint32_t ROUND_BIAS_FOR_BF16 = 0x7fff;
-    using uint32x2_t  = uint32_t __attribute__((ext_vector_type(2)));
+
+    using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
     uint32x2_t check_nan;
     uint32_t tmp;
     asm volatile("\n \
@@ -191,16 +176,7 @@ uint16_t float_to_bf16_rtn_raw(float f)
             "
                  : "=s"(check_nan), "+v"(tmp), "+v"(u.fp32)
                  : "v"(ROUND_BIAS_FOR_BF16), "v"(FP32_NAN));
-    // asm volatile("\n \
-    //         v_cmp_u_f32 vcc, %1, %1 \n \
-    //         v_bfe_u32 %0, %1, 16, 1 \n \
-    //         v_add3_u32 %0, %1, %0, %2 \n \
-    //         v_cndmask_b32 %1, %0, %3, vcc \n \
-    //         v_lshrrev_b32 %1, 16, %1 \n \
-    //         "
-    //              : "+v"(tmp), "+v"(u.fp32)
-    //              : "v"(ROUND_BIAS_FOR_BF16), "v"(FP32_NAN)
-    //              : "vcc");
+
     return uint16_t(u.int32);
 }
 
@@ -233,6 +209,8 @@ CK_TILE_HOST_DEVICE constexpr uint16_t float_to_bf16_raw(float f, constant<round
 {
     if constexpr(rounding == bf16_rounding_mode::standard)
         return float_to_bf16_rtn_raw(f);
+    else if constexpr(rounding == bf16_rounding_mode::standard_asm)
+        return float_to_bf16_rtn_asm(f);
     else if constexpr(rounding == bf16_rounding_mode::truncate_with_nan)
         return float_to_bf16_truc_nan_raw(f);
     else
