@@ -15,9 +15,9 @@ namespace ck_tile {
 enum class bf16_rounding_mode
 {
     standard = 0, // rtn
-    standard_asm,
     truncate_with_nan,
     truncate,
+    standard_asm,
 };
 
 template <bf16_rounding_mode rounding =
