@@ -297,7 +297,7 @@ def cmake_build(Map conf=[:]){
             if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 archiveArtifacts "ck_build_trace.json"
-                sh "ninja check"
+                sh "ninja test"
             }
             else{
                 sh "make check"
