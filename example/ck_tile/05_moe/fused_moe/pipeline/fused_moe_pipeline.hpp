@@ -117,7 +117,7 @@ struct BlockFmhaPipelineQRKSVSAsync
     // this is the thread-offset along row/col
     CK_TILE_HOST_DEVICE static auto GetAIndex()
     {
-        constexpr auto a_dist = Policy::template MakeAGlobalTileDistribution<Problem>();
+        constexpr auto a_dist = Policy::template MakeGlobalTileDistribution_A<Problem>();
         const auto a_coord    = a_dist.calculate_index();
         return a_coord;
     }
@@ -142,7 +142,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                                    OGlobalTensorView& o_gtile_window_tmp,
                                    //  const void  *  sorted_weight_ptr,
                                    ScaleDataType scale,
-                                   void* smem_ptr,
+                                   CK_TILE_LDS_ADDR void* smem_0,
+                                   CK_TILE_LDS_ADDR void* smem_1,
                                    index_t dim_size,
                                    index_t hidden_size)
     {
@@ -153,25 +154,25 @@ struct BlockFmhaPipelineQRKSVSAsync
             make_tile_window(a_gtile_window_tmp.get_bottom_tensor_view(),
                              a_gtile_window_tmp.get_window_lengths(),
                              a_gtile_window_tmp.get_window_origin(),
-                             Policy::template MakeAGlobalTileDistribution<Problem>());
+                             Policy::template MakeGlobalTileDistribution_A<Problem>());
 
         auto g_gtile_window =
             make_tile_window(g_gtile_window_tmp.get_bottom_tensor_view(),
                              g_gtile_window_tmp.get_window_lengths(),
                              g_gtile_window_tmp.get_window_origin(),
-                             Policy::template MakeGGlobalTileDistribution<Problem>());
+                             Policy::template MakeGlobalTileDistribution_G<Problem>());
 
         auto u_gtile_window =
             make_tile_window(u_gtile_window_tmp.get_bottom_tensor_view(),
                              u_gtile_window_tmp.get_window_lengths(),
                              u_gtile_window_tmp.get_window_origin(),
-                             Policy::template MakeUGlobalTileDistribution<Problem>());
+                             Policy::template MakeGlobalTileDistribution_U<Problem>());
 
         auto d_gtile_window =
             make_tile_window(d_gtile_window_tmp.get_bottom_tensor_view(),
                              d_gtile_window_tmp.get_window_lengths(),
                              d_gtile_window_tmp.get_window_origin(),
-                             Policy::template MakeDGlobalTileDistribution<Problem>());
+                             Policy::template MakeGlobalTileDistribution_D<Problem>());
 
         auto o_gtile_window =
             make_tile_window(o_gtile_window_tmp.get_bottom_tensor_view(),
@@ -187,12 +188,13 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         auto a_smem_ptr = reinterpret_cast<ADataType*>(smem_ptr) + a_smem_offset;
 
-        make_tile_window(make_tensor_view<address_space_enum::lds>(
-                             a_smem_ptr, Policy::template MakeALdsStoreBlockDescriptor<Problem>()),
-                         Policy::template MakeALdsStoreBlockDescriptor<Problem>().get_lengths(),
-                         {0, 0});
+        auto smem_0_window = make_tile_window(
+            make_tensor_view<address_space_enum::lds>(
+                smem_0, Policy::template MakeLdsStoreBlockDescriptor_A<Problem>()),
+            Policy::template MakeLdsStoreBlockDescriptor_A<Problem>().get_lengths(),
+            {0, 0});
 
-        async_load_tile_raw(k_lds_store(LdsSeq.at(number<0>{})), a_gtile_window);
+        async_load_tile(k_lds_store(LdsSeq.at(number<0>{})));
         for(index_t i_0 = 0; i_0 < loops_0; i_0++) {}
     }
 
@@ -351,8 +353,8 @@ struct BlockFmhaPipelineQRKSVSAsync
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
-                buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
-                                      // otherwise will have compute error(maybe compiler bug?)
+                buffer_load_fence_raw(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
+                                          // otherwise will have compute error(maybe compiler bug?)
 
                 // Note: here occ are all cleard, return it
                 return o_acc;
@@ -403,7 +405,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         move_tile_window(k_dram_window, {0, kK0});
         __builtin_amdgcn_sched_barrier(0);
 
-        buffer_load_fence(k_dram_window.get_num_access(), q.get_thread_buffer());
+        buffer_load_fence_raw(k_dram_window.get_num_access(), q.get_thread_buffer());
         (void)q_element_func; // ??? rocm-6.x if use q element func will have scratch on hdim=64/32
         // auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
@@ -428,7 +430,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     if constexpr(i_k0 < k0_loops - 1)
                         move_tile_window(k_dram_window, {0, kK0});
 
-                    async_load_fence(k_dram_window.get_num_access());
+                    async_load_fence_raw(k_dram_window.get_num_access());
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     gemm_0(s_acc,
@@ -450,7 +452,7 @@ struct BlockFmhaPipelineQRKSVSAsync
             if constexpr(k0_loops <= 2)
                 __builtin_amdgcn_sched_barrier(0);
 
-            async_load_fence();
+            async_load_fence_raw();
             __builtin_amdgcn_s_barrier();
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile

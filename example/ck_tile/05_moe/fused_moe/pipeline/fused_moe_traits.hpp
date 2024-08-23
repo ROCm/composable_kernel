@@ -12,21 +12,22 @@
 
 namespace ck_tile {
 
-template <bool GateUpPreShuffled_ = false,
-          bool DownPreShuffled_   = false,
-          index_t NumPrefetchA_   = 2,
-          index_t NumPrefetchG_   = 2,
-          index_t NumPrefetchU_   = 2,
-          index_t NumPrefetchD_   = 2,
-          index_t kBlockPerCu_    = -1 /* overwrite occupancy if not -1 */>
+enum class FusedMoePermuteStyle
+{
+    // permute_b_n0_k0_n1_k1_n2_k2 = 0, // 0,1,4,2,5,3,6
+    // permute_b_n0_n1_k0_k1_n2_k2 = 1, // 0,1,2,4,5,3,6
+    permute_b_nr_kr_kw_nw_kv    = 2, // 0,1,3,4,2,5
+    permute_b_nr_kr_waveflatten = permute_b_nr_kr_kw_nw_kv,
+    no_permute                  = 999,
+};
+
+template <bool DownPreShuffled_              = false,
+          FusedMoePermuteStyle PermuteStyle_ = FusedMoePermuteStyle::permute_b_nr_kr_kw_nw_kv,
+          index_t kBlockPerCu_               = -1 /* overwrite occupancy if not -1 */>
 struct FusedMoeTraits
 {
-    static constexpr bool GateUpPreShuffled = GateUpPreShuffled_;
-    static constexpr bool DownPreShuffled   = DownPreShuffled_;
-    static constexpr index_t NumPrefetchA   = NumPrefetchA_;
-    static constexpr index_t NumPrefetchG   = NumPrefetchG_;
-    static constexpr index_t NumPrefetchU   = NumPrefetchU_;
-    static constexpr index_t NumPrefetchD   = NumPrefetchD_;
-    static constexpr index_t kBlockPerCu    = kBlockPerCu_;
+    static constexpr bool DownPreShuffled              = DownPreShuffled_;
+    static constexpr FusedMoePermuteStyle PermuteStyle = PermuteStyle_;
+    static constexpr index_t kBlockPerCu               = kBlockPerCu_;
 };
 } // namespace ck_tile

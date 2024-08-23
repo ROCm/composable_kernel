@@ -252,7 +252,7 @@ struct FusedMoeKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
+        // __shared__ char smem_ptr[GetSmemSize()];
         ck_tile::index_t num_sorted_tiles = __builtin_amdgcn_readfirstlane(
             *reinterpret_cast<const ck_tile::index_t*>(kargs.num_sorted_tiles_ptr));
         ck_tile::index_t tile_id = __builtin_amdgcn_readfirstlane(blockIdx.x;);
@@ -436,8 +436,7 @@ struct FusedMoeKernel
                                u_gtile_window,
                                d_gtile_window,
                                o_gtile_window,
-                               scale,
-                               smem_ptr);
+                               scale);
 
             tile_id += gridDim.x;
         }
