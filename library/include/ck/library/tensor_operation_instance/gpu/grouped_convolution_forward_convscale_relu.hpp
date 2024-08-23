@@ -9,7 +9,6 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
 namespace ck {
@@ -100,8 +99,7 @@ struct DeviceOperationInstanceFactory<
     }
 };
 
-namespace ew            = ck::tensor_operation::element_wise;
-using CombConvScaleRelu = ew::UnaryCombinedOp<ew::Scale, ew::Scale, ew::Relu>;
+using CombConvScaleRelu = ck::tensor_operation::element_wise::ScaleScaleRelu;
 
 #ifdef CK_ENABLE_FP8
 void add_device_grouped_conv3d_fwd_xdl_combconvscale_relu_ndhwgc_gkzyxc_ndhwgk_f8_f8_f32_instances(

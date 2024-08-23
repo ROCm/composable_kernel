@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -272,7 +272,8 @@ check_err(const Range& out,
     }
     if(!res)
     {
-        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err
+                  << " number of errors: " << err_count << std::endl;
     }
     return res;
 }
