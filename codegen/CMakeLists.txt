@@ -50,6 +50,4 @@ rocm_install(
 )
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-if(BUILD_TESTING)
 add_subdirectory(test)
-endif()
