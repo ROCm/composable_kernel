@@ -20,9 +20,6 @@ auto create_args(int argc, char* argv[]) {
     .insert("m", "1024", "m dimension")
     .insert("n", "2048", "n dimension")
     .insert("k", "32", "k dimension")
-    .insert("layoutA", "MK", "matrix A layout")
-    .insert("layoutB", "NK", "matrix B layout")
-    .insert("layoutC", "MN", "matrix C layout")
     .insert("stride_a", "0", "stride on apply the m,k A block")
     .insert("stride_b", "0", "stride on apply the n,k B block")
     .insert("stride_c", "0", "stride on apply the m,n C block")
@@ -34,15 +31,16 @@ auto create_args(int argc, char* argv[]) {
     .insert("e", "1e-5", "epsilon")
     .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
     .insert("following_op", "no", "combined_op. bias/relu/gelu...")
-    .insert("warmup", "5", "number of iterations before benchmark the kernel")
-    .insert("repeat", "20", "number of iterations to benchmark the kernel")
+    .insert("warmup", "10", "number of iterations before benchmark the kernel")
+    .insert("repeat", "100", "number of iterations to benchmark the kernel")
     .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s) {
+template <typename Layouts>
+float gemm_calc(gemm_basic_args& args, const ck_tile::stream_config& s) {
     // ToDo: This will be modified by the codegen code later.
     constexpr ck_tile::index_t M_Tile          = 128;
     constexpr ck_tile::index_t N_Tile          = 128;
@@ -79,11 +77,11 @@ float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s) {
                                                     ODataType, kPadA, kPadB>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM. 
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, Layouts>;
 
     auto kargs = Kernel::MakeKargs(
         args.p_x, args.p_y, args.p_z, args.batch_size, args.epsilon, args.M, args.N, 
-        args.K, args.stride_A, args.stride_B, args.stride_C, args.layout_a
+        args.K, args.stride_A, args.stride_B, args.stride_C
     );
 
     const dim3 grids        = Kernel::GridSize(args.M, args.N, args.batch_size);
@@ -95,11 +93,10 @@ float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s) {
     return ave_time;
 }
 
-template <typename DataType>
+template <typename DataType, typename Layouts>
 float OperatorExecution(ck_tile::DeviceMem& x_buf, ck_tile::DeviceMem& y_buf, 
                         ck_tile::DeviceMem& z_buf, 
-                        const ck_tile::ArgParser& arg_parser, 
-                        const ck_tile::MatrixALayout matrix_a_layout){
+                        const ck_tile::ArgParser& arg_parser){
     
     std::string data_type           = arg_parser.get_str("prec");
 
@@ -128,30 +125,45 @@ float OperatorExecution(ck_tile::DeviceMem& x_buf, ck_tile::DeviceMem& y_buf,
     args.M = M;
     args.N = N;
     args.K = K;
-    args.layout_a = matrix_a_layout;
-    // args.layout_b = layout_b;
-    // args.layout_c = layout_c;
 
-    // Only set stride_M and stride_N if they are non-zero and not equal to K
+    // Only set stride_M and stride_N if they are non-zero and not equal to K.
     if (stride_a != 0) {
         args.stride_A = stride_a;
     } else {
-        args.stride_A = K;
+        args.stride_A = [&](){
+            if constexpr (Layouts::LayoutA == ck_tile::MatrixALayout::KM) {
+                return M;
+            } else {
+                return K;
+            }
+        }();
     }
 
     if (stride_b != 0) {
         args.stride_B = stride_b;
     } else {
-        args.stride_B = K;
+        args.stride_B = [&](){
+            if constexpr (Layouts::LayoutB == ck_tile::MatrixBLayout::KN) {
+                return N;
+            } else {
+                return K;
+            }
+        }();
     }
 
     if(stride_c != 0) {
         args.stride_C = stride_c;
     } else {
-        args.stride_C = N;
+        args.stride_C = [&](){
+            if constexpr (Layouts::LayoutC == ck_tile::MatrixCLayout::NM) {
+                return M;
+            } else {
+                return N;
+            }
+        }();
     }
 
-    float ave_time = gemm_calc(args, ck_tile::stream_config{nullptr, true});
+    float ave_time = gemm_calc<Layouts>(args, ck_tile::stream_config{nullptr, true});
     std::size_t num_byte = sizeof(XDataType) * M * K + sizeof(YDataType) * N * K+
                            sizeof(ODataType) * M * N;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
@@ -170,19 +182,17 @@ int main(int argc, char* argv[]) {
     if(!result)
         return -1;
 
-    std::string layout_a = arg_parser.get_str("layoutA");
-    std::string layout_b = arg_parser.get_str("layoutB");
-    std::string layout_c = arg_parser.get_str("layoutC");
-    ck_tile::MatrixALayout matrix_a_layout = ck_tile::parse_layout_a(layout_a);
-    ck_tile::MatrixBLayout matrix_b_layout = ck_tile::parse_layout_b(layout_b);
-    ck_tile::MatrixCLayout matrix_c_layout = ck_tile::parse_layout_c(layout_c);
-
     bool grouped_enable = arg_parser.get_bool("grouped");
     std::string following_op_descrp = arg_parser.get_str("following_op");
     ck_tile::index_t M    = arg_parser.get_int("m");
     ck_tile::index_t N    = arg_parser.get_int("n");
     ck_tile::index_t K    = arg_parser.get_int("k");
 
+    constexpr ck_tile::MatrixALayout matrix_a_layout = ck_tile::MatrixALayout::MK;
+    constexpr ck_tile::MatrixBLayout matrix_b_layout = ck_tile::MatrixBLayout::NK;
+    constexpr ck_tile::MatrixCLayout matrix_c_layout = ck_tile::MatrixCLayout::MN;
+
+    using Layouts = LayoutConfig<matrix_a_layout, matrix_b_layout, matrix_c_layout>;
     // host verify
     std::vector<int> x_dimensions = (matrix_a_layout == ck_tile::MatrixALayout::MK) ? 
                                 std::vector<int>{M, K} : std::vector<int>{K, M};
@@ -197,8 +207,6 @@ int main(int argc, char* argv[]) {
     ck_tile::HostTensor<ODataType> z_host_ref(z_dimensions);
     ck_tile::HostTensor<ODataType> z_host_dev(z_dimensions);
 
-    // ck_tile::FillConstant<XDataType>{1.f}(x_host);
-    // ck_tile::FillConstant<YDataType>{1.f}(y_host);
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
     ck_tile::FillUniformDistribution<YDataType>{-5.f, 5.f}(y_host);
     
@@ -214,7 +222,7 @@ int main(int argc, char* argv[]) {
         return -1;
     }
     
-    OperatorExecution<ck_tile::half_t>(x_buf, y_buf, z_buf, arg_parser, matrix_a_layout);
+    OperatorExecution<ck_tile::half_t, Layouts>(x_buf, y_buf, z_buf, arg_parser);
 
     bool pass = true;
 

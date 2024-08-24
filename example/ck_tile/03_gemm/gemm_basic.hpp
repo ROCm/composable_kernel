@@ -23,6 +23,14 @@ struct GemmBasicTypeConfig<ck_tile::half_t> {
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
+template<ck_tile::MatrixALayout A, ck_tile::MatrixBLayout B, 
+         ck_tile::MatrixCLayout C>
+struct LayoutConfig {
+    static constexpr ck_tile::MatrixALayout LayoutA = A;
+    static constexpr ck_tile::MatrixBLayout LayoutB = B;
+    static constexpr ck_tile::MatrixCLayout LayoutC = C;
+};
+
 template<typename T>
 struct DataTypeTraits;
 
@@ -54,9 +62,6 @@ struct gemm_basic_args {
     const void* p_y;
     void* p_z;
     float epsilon;
-    ck_tile::MatrixALayout layout_a;
-    // std::string layout_b;
-    // std::string layout_c;
     ck_tile::index_t batch_size;
     ck_tile::index_t M;
     ck_tile::index_t N;
