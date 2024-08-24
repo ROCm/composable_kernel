@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -146,7 +146,7 @@ check_err(const Range& out,
     bool res{true};
     int err_count  = 0;
     double err     = 0;
-    double max_err = std::numeric_limits<ranges::range_value_t<Range>>::min();
+    double max_err = NumericLimits<ranges::range_value_t<Range>>::Min();
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
@@ -178,7 +178,9 @@ check_err(const Range& out,
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_integral_v<ranges::range_value_t<Range>> &&
-                  !std::is_same_v<ranges::range_value_t<Range>, bhalf_t>)
+                  !std::is_same_v<ranges::range_value_t<Range>, bhalf_t> &&
+                  !std::is_same_v<ranges::range_value_t<Range>, f8_t> &&
+                  !std::is_same_v<ranges::range_value_t<Range>, bf8_t>)
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
                      || std::is_same_v<ranges::range_value_t<Range>, int4_t>
 #endif
@@ -270,7 +272,8 @@ check_err(const Range& out,
     }
     if(!res)
     {
-        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err << std::endl;
+        std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err
+                  << " number of errors: " << err_count << std::endl;
     }
     return res;
 }
