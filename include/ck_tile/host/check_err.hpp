@@ -67,7 +67,7 @@ check_err(const Range& out,
     int err_count  = 0;
     double err     = 0;
     double max_err = std::numeric_limits<double>::min();
-    for(std::size_t i = 4190; i < ref.size(); ++i)
+    for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = *std::next(std::begin(out), i);
         const double r = *std::next(std::begin(ref), i);
@@ -127,7 +127,7 @@ check_err(const Range& out,
     double err    = 0;
     // TODO: This is a hack. We should have proper specialization for bf16_t data type.
     double max_err = std::numeric_limits<float>::min();
-    for(std::size_t i = 4190; i < ref.size(); ++i)
+    for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
@@ -186,7 +186,7 @@ check_err(const Range& out,
     int err_count  = 0;
     double err     = 0;
     double max_err = static_cast<double>(std::numeric_limits<ranges::range_value_t<Range>>::min());
-    for(std::size_t i = 4190; i < ref.size(); ++i)
+    for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
@@ -314,7 +314,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     int err_count  = 0;
     double err     = 0;
     double max_err = std::numeric_limits<float>::min();
-    for(std::size_t i = 4190; i < ref.size(); ++i)
+    for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const fp8_t o_fp8   = *std::next(std::begin(out), i);
         const fp8_t r_fp8   = *std::next(std::begin(ref), i);
@@ -372,7 +372,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     int err_count  = 0;
     double err     = 0;
     double max_err = std::numeric_limits<float>::min();
-    for(std::size_t i = 4190; i < ref.size(); ++i)
+    for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));

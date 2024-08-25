@@ -40,7 +40,8 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() {
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
         return Policy::template GetSmemSize<Problem>();
     }
 
@@ -149,7 +150,8 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
         }
 
         index_t iCounter = num_loop - 1;
-        while(iCounter > 0) {
+        while(iCounter > 0)
+        {
             // global read i + 1
             a_block_tile = load_tile(a_copy_dram_window);
             b_block_tile = load_tile(b_copy_dram_window);
@@ -174,7 +176,6 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
             store_tile(b_copy_lds_window, b_block_tile_tmp);
 
             iCounter--;
-
         }
 
         // tail

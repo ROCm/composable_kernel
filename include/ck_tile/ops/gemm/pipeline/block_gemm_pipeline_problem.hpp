@@ -22,14 +22,13 @@ struct BlockGemmPipelineProblem
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * 64;
-    static constexpr bool kPadA = kPadA_;
-    static constexpr bool kPadB = kPadB_;
-    static constexpr bool kPadC = kPadC_;
+    static constexpr bool kPadA         = kPadA_;
+    static constexpr bool kPadB         = kPadB_;
+    static constexpr bool kPadC         = kPadC_;
 
     static constexpr index_t AlignmentA = kPadA ? 16 / sizeof(ADataType) : 1;
     static constexpr index_t AlignmentB = kPadB ? 16 / sizeof(BDataType) : 1;
     static constexpr index_t AlignmentC = kPadC ? 16 / sizeof(CDataType) : 1;
-    
 };
 
 } // namespace ck_tile

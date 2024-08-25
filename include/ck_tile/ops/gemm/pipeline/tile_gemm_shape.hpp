@@ -7,17 +7,21 @@
 
 namespace ck_tile {
 
-template <typename BlockTile_,
-          typename BlockWarps_,
-          typename WarpTile_>
-struct TileGemmShape
+template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile>
+struct TileGemmShape {
+    static constexpr index_t kM = kMPerTile;
+    static constexpr index_t kN = kNPerTile;
+    static constexpr index_t kK = kKPerTile;
+};
+
+template <typename BlockTile_, typename BlockWarps_, typename WarpTile_>
+struct TileGemmShapeNewGemm
 {
-    using BlockTile     = remove_cvref_t<BlockTile_>;
-    using BlockWarps    = remove_cvref_t<BlockWarps_>;
+    using BlockTile  = remove_cvref_t<BlockTile_>;
+    using BlockWarps = remove_cvref_t<BlockWarps_>;
     using WarpTile   = remove_cvref_t<WarpTile_>;
 
-    static constexpr index_t NumWarps = 
-        reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
+    static constexpr index_t NumWarps = reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
 
     static constexpr index_t kM = BlockTile::at(number<0>{});
     static constexpr index_t kN = BlockTile::at(number<1>{});

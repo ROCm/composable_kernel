@@ -48,7 +48,9 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
                           std::is_same_v<typename Problem::CDataType, float>)
         {
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
-        } else {
+        }
+        else
+        {
             static_assert(false, "Unsupported data type configuration for GEMM warp execution.");
         }
     }

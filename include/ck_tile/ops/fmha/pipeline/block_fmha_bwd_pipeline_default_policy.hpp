@@ -1144,17 +1144,11 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::QDataType,
-                                     typename Problem::KDataType,
-                                     typename Problem::AccDataType,
-                                     TileGemmShape<sequence<
-                                                    Problem::BlockFmhaShape::BlockTile::kM0,
-                                                    Problem::BlockFmhaShape::BlockTile::kN0,
-                                                    Problem::BlockFmhaShape::BlockTile::kK0
-                                                   >,
-                                                   Problem::BlockFmhaShape::Gemm0BlockWarps_,
-                                                   Problem::BlockFmhaShape::Gemm0WarpTile_>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem < typename Problem::QDataType,
+              typename Problem::KDataType, typename Problem::AccDataType,
+              TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kM0,
+                                     Problem::BlockFmhaShape::BlockTile::kN0,
+                                     Problem::BlockFmhaShape::BlockTile::kK0>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -1184,18 +1178,11 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetPTOGradTBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::GemmDataType,
-                                     typename Problem::OGradDataType,
-                                     typename Problem::AccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<sequence<
-                                                    Problem::BlockFmhaShape::BlockTile::kN0,
-                                                    Problem::BlockFmhaShape::BlockTile::kVHeaddim,
-                                                    Problem::BlockFmhaShape::BlockTile::kK1
-                                                   >,
-                                                   Problem::BlockFmhaShape::Gemm1BlockWarps_,
-                                                   Problem::BlockFmhaShape::Gemm1WarpTile_>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem < typename Problem::GemmDataType,
+              typename Problem::OGradDataType, typename Problem::AccDataType, Problem::kBlockSize,
+              TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kN0,
+                                     Problem::BlockFmhaShape::BlockTile::kVHeaddim,
+                                     Problem::BlockFmhaShape::BlockTile::kK1>>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
@@ -1217,18 +1204,11 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetOGradVBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::OGradDataType,
-                                     typename Problem::VDataType,
-                                     typename Problem::AccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<sequence<
-                                                    Problem::BlockFmhaShape::BlockTile::kM0,
-                                                    Problem::BlockFmhaShape::BlockTile::kN0,
-                                                    Problem::BlockFmhaShape::BlockTile::kK2
-                                                   >,
-                                                   Problem::BlockFmhaShape::Gemm2BlockWarps_,
-                                                   Problem::BlockFmhaShape::Gemm2WarpTile_>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem < typename Problem::OGradDataType,
+              typename Problem::VDataType, typename Problem::AccDataType, Problem::kBlockSize,
+              TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kM0,
+                                     Problem::BlockFmhaShape::BlockTile::kN0,
+                                     Problem::BlockFmhaShape::BlockTile::kK2>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::OGradDataType, half_t> &&
@@ -1295,18 +1275,11 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSGradTQTBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::GemmDataType,
-                                     typename Problem::QDataType,
-                                     typename Problem::AccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<sequence<
-                                                    Problem::BlockFmhaShape::BlockTile::kN0,
-                                                    Problem::BlockFmhaShape::BlockTile::kQKHeaddim,
-                                                    Problem::BlockFmhaShape::BlockTile::kK3
-                                                   >,
-                                                   Problem::BlockFmhaShape::Gemm3BlockWarps_,
-                                                   Problem::BlockFmhaShape::Gemm3WarpTile_>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem < typename Problem::GemmDataType,
+              typename Problem::QDataType, typename Problem::AccDataType, Problem::kBlockSize,
+              TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kN0,
+                                     Problem::BlockFmhaShape::BlockTile::kQKHeaddim,
+                                     Problem::BlockFmhaShape::BlockTile::kK3>>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
@@ -1328,18 +1301,11 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSGradKTBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::GemmDataType,
-                                     typename Problem::KDataType,
-                                     typename Problem::AccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<sequence<
-                                                    Problem::BlockFmhaShape::BlockTile::kM0,
-                                                    Problem::BlockFmhaShape::BlockTile::kQKHeaddim,
-                                                    Problem::BlockFmhaShape::BlockTile::kK4
-                                                   >,
-                                                   Problem::BlockFmhaShape::Gemm4BlockWarps_,
-                                                   Problem::BlockFmhaShape::Gemm4WarpTile_>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem < typename Problem::GemmDataType,
+              typename Problem::KDataType, typename Problem::AccDataType, Problem::kBlockSize,
+              TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kM0,
+                                     Problem::BlockFmhaShape::BlockTile::kQKHeaddim,
+                                     Problem::BlockFmhaShape::BlockTile::kK4>>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::GemmDataType,
