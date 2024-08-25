@@ -62,9 +62,9 @@ using ODataType   = Types::ODataType;
 
 struct gemm_basic_args
 {
-    const void* p_x;
-    const void* p_y;
-    void* p_z;
+    const void* p_a;
+    const void* p_b;
+    void* p_c;
     float epsilon;
     ck_tile::index_t batch_size;
     ck_tile::index_t M;
