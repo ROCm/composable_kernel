@@ -17,6 +17,10 @@
 #include <utility>
 #include <vector>
 
+#if CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
+#error "we should enable fmha_splitkv() api in order to cooperate with fmha_appendkv() api"
+#endif
+
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 {
@@ -284,7 +288,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         hdim_v = hdim_q;
 
     ck_tile::index_t seqlen_knew = arg_parser.get_int("s_knew");
-#if !(CK_TILE_FMHA_FWD_APPENDKV_API && CK_TILE_FMHA_FWD_SPLITKV_API)
+#if !CK_TILE_FMHA_FWD_APPENDKV_API
     if(seqlen_knew != 0)
     {
         std::cerr << "kvcache is not supported. ignoring the 's_knew' option" << std::endl;
@@ -306,7 +310,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return false;
         }
     }
-#if !(CK_TILE_FMHA_FWD_APPENDKV_API && CK_TILE_FMHA_FWD_SPLITKV_API)
+#if !CK_TILE_FMHA_FWD_APPENDKV_API
     else if(0 < rotary_dim)
     {
         std::cerr << "rotary embedding is not supported. ignoring the 'rotary_dim' option"
@@ -326,7 +330,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-#if !CK_TILE_FMHA_FWD_SPLITKV_API
+#if !CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
     if(0 < page_block_size)
     {
         std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
@@ -342,7 +346,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     bool use_cache_batch_idx = arg_parser.get_bool("cache_batch_idx");
-#if !CK_TILE_FMHA_FWD_SPLITKV_API
+#if !CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
     if(use_cache_batch_idx)
     {
         std::cerr << "split-kv is not supported. ignoring the 'cache_batch_idx' option"
