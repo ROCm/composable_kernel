@@ -833,16 +833,16 @@ struct FmhaFwdSplitKVKernel
 #endif
                 if constexpr(kHasMask)
                 {
-                    return make_alibi_from_lr_mask<SaccDataType, true>(slope,
-                                                                       kargs.window_size_left,
-                                                                       kargs.window_size_right,
-                                                                       kargs.seqlen_q,
-                                                                       kargs.seqlen_k,
-                                                                       kargs.mask_type);
+                    return make_alibi_from_lr_mask<SaccDataType, true, 32>(slope,
+                                                                           kargs.window_size_left,
+                                                                           kargs.window_size_right,
+                                                                           kargs.seqlen_q,
+                                                                           kargs.seqlen_k,
+                                                                           kargs.mask_type);
                 }
                 else
                 {
-                    return Alibi<SaccDataType, true>{
+                    return Alibi<SaccDataType, true, 32>{
                         slope, kargs.seqlen_q, kargs.seqlen_k, AlibiMode::FROM_BOTTOM_RIGHT};
                 }
             }
