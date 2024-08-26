@@ -104,9 +104,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     }
 
     template <typename QDramBlockWindowTmp,
-              typename KDramBlockWindowTmp,
+              typename KDramBlockWindowLengths,
               typename KPageBlockNavigator,
-              typename VDramBlockWindowTmp,
+              typename VDramBlockWindowLengths,
               typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
@@ -122,10 +122,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               const KDramBlockWindowLengths& k_dram_block_window_lengths, // N0*K0 tile
                const KPageBlockNavigator& k_page_block_navigator,
                const KElementFunction& k_element_func,
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const VDramBlockWindowLengths& v_dram_block_window_lengths, // N1*K1 tile
                const VPageBlockNavigator& v_page_block_navigator,
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
@@ -144,15 +144,15 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
-                std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
-                std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
+                std::is_same_v<KDataType, remove_cvref_t<typename KPageBlockNavigator::DataType>> &&
+                std::is_same_v<VDataType, remove_cvref_t<typename VPageBlockNavigator::DataType>>,
             "wrong!");
 
         static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kK0 == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                          kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                          kN0 == KDramBlockWindowLengths{}[number<0>{}] &&
+                          kK0 == KDramBlockWindowLengths{}[number<1>{}] &&
+                          kN1 == VDramBlockWindowLengths{}[number<0>{}] &&
+                          kK1 == VDramBlockWindowLengths{}[number<1>{}] &&
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
@@ -251,7 +251,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             integer_divide_ceil(seqlen_k_end - adjusted_seqlen_k_start, kN0);
 
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
-            k_dram_block_window_tmp.get_window_lengths(), {adjusted_seqlen_k_start, 0});
+            k_dram_block_window_lengths, {adjusted_seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window  = make_tile_window(
@@ -261,7 +261,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             Policy::template MakeBiasDramTileDistribution<Problem, decltype(gemm_0)>());
 
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
-            v_dram_block_window_tmp.get_window_lengths(),
+            v_dram_block_window_lengths,
             {0, adjusted_seqlen_k_start}, // TODO: hdim split?
             Policy::template MakeVDramTileDistribution<Problem>());
 
@@ -635,18 +635,18 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     }
 
     template <typename QDramBlockWindowTmp,
-              typename KDramBlockWindowTmp,
+              typename KDramBlockWindowLengths,
               typename KPageBlockNavigator,
-              typename VDramBlockWindowTmp,
+              typename VDramBlockWindowLengths,
               typename VPageBlockNavigator,
               typename BiasDramBlockWindowTmp,
               typename LSEaccDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,         // M0*K0 tile
+               const KDramBlockWindowLengths& k_dram_block_window_lengths, // N0*K0 tile
                const KPageBlockNavigator& k_page_block_navigator,
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const VDramBlockWindowLengths& v_dram_block_window_lengths, // N1*K1 tile
                const VPageBlockNavigator& v_page_block_navigator,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp,  // M0*1 tile
@@ -659,10 +659,10 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
-                          k_dram_block_window_tmp,
+                          k_dram_block_window_lengths,
                           k_page_block_navigator,
                           identity{},
-                          v_dram_block_window_tmp,
+                          v_dram_block_window_lengths,
                           v_page_block_navigator,
                           identity{},
                           bias_dram_block_window_tmp,

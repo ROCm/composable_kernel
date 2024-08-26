@@ -741,13 +741,11 @@ struct FmhaFwdSplitKVKernel
             }(),
             {i_m0, 0});
 
-        auto k_dram_window = make_tile_window(
-            k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
+        auto k_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{});
+        auto v_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{});
 
-        auto v_dram_window =
-            make_tile_window(v_dram,
-                             make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                             {i_n1, 0});
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20
         const auto bias_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -854,10 +852,10 @@ struct FmhaFwdSplitKVKernel
             {
                 return FmhaPipeline{}(q_dram_window,
                                       identity{}, // q_element_func
-                                      k_dram_window,
+                                      k_dram_window_lengths,
                                       k_page_block_navigator,
                                       identity{}, // k_element_func
-                                      v_dram_window,
+                                      v_dram_window_lengths,
                                       v_page_block_navigator,
                                       identity{}, // v_element_func
                                       bias_dram_window,
@@ -877,9 +875,9 @@ struct FmhaFwdSplitKVKernel
             else
             {
                 return FmhaPipeline{}(q_dram_window,
-                                      k_dram_window,
+                                      k_dram_window_lengths,
                                       k_page_block_navigator,
-                                      v_dram_window,
+                                      v_dram_window_lengths,
                                       v_page_block_navigator,
                                       bias_dram_window,
                                       lse_acc_dram_window,
