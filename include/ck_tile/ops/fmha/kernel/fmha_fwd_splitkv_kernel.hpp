@@ -618,7 +618,7 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
-                return make_k_dram(k_ptr, kargs.hdim_q);
+                return make_k_dram(k_ptr, kargs.seqlen_k);
             }
         }();
 
@@ -647,9 +647,8 @@ struct FmhaFwdSplitKVKernel
             else
             {
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                    data,
-                    make_tuple(kargs.hdim_v,
-                               length), // will update this pointer if using paged-kvcache
+                    data, // will update this pointer if using paged-kvcache
+                    make_tuple(kargs.hdim_v, length),
                     make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
