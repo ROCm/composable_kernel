@@ -12,6 +12,7 @@ namespace ck_tile {
 template <typename TensorView>
 struct TrivialPageBlockNavigator
 {
+    using DataType     = typename TensorView::DataType;
     using WindowOrigin = multi_index<2>;
 
     CK_TILE_HOST_DEVICE constexpr TrivialPageBlockNavigator(const TensorView& tensor_view_)
@@ -68,9 +69,11 @@ struct TrivialPageBlockNavigator
 
 // default page-block navigator, assume that tensor view size is same as page-block size or smaller
 // if tile window on at last page-block
-template <typename DataType, index_t VirtualDim, typename TensorView>
+template <typename DataType_, index_t VirtualDim, typename TensorView>
 struct PageBlockNavigator
 {
+    using DataType = DataType_;
+    static_assert(std::is_same_v<DataType, typename TensorView::DataType>);
     static_assert(VirtualDim == 0 || VirtualDim == 1, "only support 2d tile window");
     using WindowOrigin = multi_index<2>;
 
