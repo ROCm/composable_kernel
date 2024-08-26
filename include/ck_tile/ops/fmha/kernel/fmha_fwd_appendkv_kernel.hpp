@@ -569,7 +569,8 @@ struct FmhaFwdAppendKVKernel
                     kargs.page_block_size,
                     k_dram,
                     make_k_dram(nullptr,
-                                kargs.seqlen_k - (num_blocks - 1) * kargs.page_block_size));
+                                (kargs.seqlen_k + kargs.seqlen_knew) -
+                                    (num_blocks - 1) * kargs.page_block_size));
             }
             else
             {
@@ -599,7 +600,8 @@ struct FmhaFwdAppendKVKernel
                     kargs.page_block_size,
                     v_dram,
                     make_v_dram(nullptr,
-                                kargs.seqlen_k - (num_blocks - 1) * kargs.page_block_size));
+                                (kargs.seqlen_k + kargs.seqlen_knew) -
+                                    (num_blocks - 1) * kargs.page_block_size));
             }
             else
             {
