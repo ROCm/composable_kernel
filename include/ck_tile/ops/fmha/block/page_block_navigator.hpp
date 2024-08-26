@@ -173,12 +173,7 @@ struct PageBlockNavigator
 
     CK_TILE_HOST_DEVICE bool is_last_block(index_t block_index) const
     {
-#if 0
-        (void) block_index;
-        return false;
-#else
         return block_index == num_blocks - 1;
-#endif
     }
 
     template <typename TileWindow>
