@@ -95,7 +95,7 @@ struct PageBlockNavigator
 
     template <typename WindowLengths>
     CK_TILE_HOST_DEVICE auto make_tile_window(
-        const TensorView&, // ignore the given argument, use complete_view or last view instead
+        const TensorView&, // ignore the given argument, use complete_view or last_view instead
         const WindowLengths& window_lengths,
         const WindowOrigin& window_origin)
     {
@@ -111,6 +111,8 @@ struct PageBlockNavigator
         return make_tuple(block_index, new_tile_window);
     }
 
+    // create new tile window using complete_view or last_view. this function only reuse the tile
+    // window lengths
     template <typename WindowLengths>
     CK_TILE_HOST_DEVICE auto
     make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
@@ -119,7 +121,10 @@ struct PageBlockNavigator
         const index_t block_index              = get_block_index(window_origin);
         const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
 
-        auto new_tile_window = ck_tile::make_tile_window(tile_window, local_window_origin);
+        auto new_tile_window =
+            ck_tile::make_tile_window(is_last_block(block_index) ? last_view : complete_view,
+                                      tile_window.get_window_lengths(),
+                                      local_window_origin);
         new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
 
         return make_tuple(block_index, new_tile_window);
@@ -135,7 +140,10 @@ struct PageBlockNavigator
         const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
 
         auto new_tile_window =
-            ck_tile::make_tile_window(tile_window, local_window_origin, tile_distribution);
+            ck_tile::make_tile_window(is_last_block(block_index) ? last_view : complete_view,
+                                      tile_window.get_window_lengths(),
+                                      local_window_origin,
+                                      tile_distribution);
         new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
 
         return make_tuple(block_index, new_tile_window);
@@ -155,6 +163,8 @@ struct PageBlockNavigator
         const WindowOrigin local_window_origin = to_local_window_origin(global_window_origin);
 
         const index_t new_block_index = get_block_index(global_window_origin);
+        tile_window.bottom_tensor_view_ =
+            (is_last_block(new_block_index) ? last_view : complete_view);
         tile_window.set_window_origin(local_window_origin);
         tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
 
@@ -163,7 +173,12 @@ struct PageBlockNavigator
 
     CK_TILE_HOST_DEVICE bool is_last_block(index_t block_index) const
     {
+#if 0
+        (void) block_index;
+        return false;
+#else
         return block_index == num_blocks - 1;
+#endif
     }
 
     template <typename TileWindow>
@@ -191,6 +206,8 @@ struct PageBlockNavigator
             }
         }();
 
+        tile_window.bottom_tensor_view_ =
+            (is_last_block(new_block_index) ? last_view : complete_view);
         tile_window.set_window_origin(tile_window.get_window_origin() + step);
         tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
     }
