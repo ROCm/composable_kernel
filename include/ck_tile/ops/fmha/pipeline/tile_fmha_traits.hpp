@@ -86,4 +86,14 @@ struct TileFmhaBwdOGradDotOTraits
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          index_t kBlockPerCu_ = 2 /* hint to occupancy */>
+struct TileFmhaBwdConvertQGradTraits
+{
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimQ   = kPadHeadDimQ_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+};
+
 } // namespace ck_tile

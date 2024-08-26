@@ -69,7 +69,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = MultiplyMultiply;
 
-static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
+static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 
 using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3
     // clang-format off
@@ -99,6 +99,8 @@ int main(int argc, char* argv[])
     ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
 
+    ck::index_t KBatch = 1;
+
     if(argc == 1)
     {
         // use default case
@@ -109,7 +111,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 11)
+    else if(argc == 12)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -123,13 +125,16 @@ int main(int argc, char* argv[])
         StrideB = std::stoi(argv[8]);
         StrideD = std::stoi(argv[9]);
         StrideE = std::stoi(argv[10]);
+
+        KBatch = std::stoi(argv[11]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE\n");
+        printf(
+            "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, KBatch\n");
         exit(0);
     }
 
@@ -212,6 +217,7 @@ int main(int argc, char* argv[])
                                StrideB,
                                std::array<ck::index_t, NumDTensor>{I0, I0},
                                StrideE,
+                               KBatch,
                                a_element_op,
                                b_element_op,
                                cde_element_op);
@@ -236,10 +242,12 @@ int main(int argc, char* argv[])
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s"
               << std::endl;
 
-    e_device_buf.FromDevice(e_m_n_device_result.mData.data());
-
     if(do_verification)
     {
+        invoker.Run(argument, StreamConfig{nullptr, false});
+
+        e_device_buf.FromDevice(e_m_n_device_result.mData.data());
+
         Tensor<CShuffleDataType> c_m_n({M, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,

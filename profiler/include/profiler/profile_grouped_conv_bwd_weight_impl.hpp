@@ -136,9 +136,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
-    float best_avg_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
+    float best_avg_time      = 0;
+    float best_tflops        = 0;
+    float best_gb_per_sec    = 0;
+    ck::index_t best_split_k = 1;
 
     // profile device Conv instances
     bool all_pass = true;
@@ -167,99 +168,111 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     range_copy(conv_param.input_left_pads_, begin(input_left_pads));
     range_copy(conv_param.input_right_pads_, begin(input_right_pads));
 
+    std::vector<ck::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
+
+    if(split_k > 0)
+    {
+        split_k_list = {split_k};
+    }
+
     for(auto& op_ptr : op_ptrs)
     {
-        auto argument_ptr =
-            op_ptr->MakeArgumentPointer(static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
-                                        static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
-                                        static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
-                                        input_lengths,
-                                        input_strides,
-                                        filter_lengths,
-                                        weights_strides,
-                                        output_lengths,
-                                        output_strides,
-                                        conv_filter_strides,
-                                        conv_filter_dilations,
-                                        input_left_pads,
-                                        input_right_pads,
-                                        in_element_op,
-                                        wei_element_op,
-                                        out_element_op,
-                                        split_k);
-
-        const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
-        DeviceMem workspace_dev(workspace_sz);
-        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
-
-        if(op_ptr->IsSupportedArgument(argument_ptr.get()))
+        for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
         {
-            // using atomic add, so need to reset input
-            wei_device_buf.SetZero();
+            auto argument_ptr = op_ptr->MakeArgumentPointer(
+                static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                input_lengths,
+                input_strides,
+                filter_lengths,
+                weights_strides,
+                output_lengths,
+                output_strides,
+                conv_filter_strides,
+                conv_filter_dilations,
+                input_left_pads,
+                input_right_pads,
+                in_element_op,
+                wei_element_op,
+                out_element_op,
+                split_k_list[split_k_id]);
 
-            std::string op_name = op_ptr->GetTypeString();
+            const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
+            DeviceMem workspace_dev(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
-            auto invoker_ptr = op_ptr->MakeInvokerPointer();
-
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
-
-            std::size_t flop      = conv_param.GetFlops();
-            std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-            float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-            float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops << " TFlops, "
-                      << gb_per_sec << " GB/s, " << op_name << std::endl;
-
-            if(tflops > best_tflops)
+            if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_avg_time   = avg_time;
-                best_gb_per_sec = gb_per_sec;
-            }
+                // using atomic add, so need to reset input
+                wei_device_buf.SetZero();
 
-            if(do_verification)
-            {
-                wei_device_buf.FromDevice(weight_device_result.mData.data());
+                std::string op_name = op_ptr->GetTypeString();
 
-                bool pass = ck::utils::check_err(weight_device_result, weight_host_result);
+                auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-                if(!pass)
+                float avg_time =
+                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+
+                std::size_t flop      = conv_param.GetFlops();
+                std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+                float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+                float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+                std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
+                          << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", SplitK "
+                          << split_k_list[split_k_id] << std::endl;
+
+                if(tflops > best_tflops)
                 {
-                    std::cout << "Fail info: " << op_ptr->GetTypeString() << std::endl;
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_avg_time   = avg_time;
+                    best_gb_per_sec = gb_per_sec;
+                    best_split_k    = split_k_list[split_k_id];
                 }
 
-                all_pass &= pass;
-
-                if(do_log)
+                if(do_verification)
                 {
-                    LogRangeAsType<float>(std::cout << "output : ", output.mData, ",") << std::endl;
-                    ;
-                    LogRangeAsType<float>(
-                        std::cout << "weight (device): ", weight_device_result.mData, ",")
-                        << std::endl;
-                    ;
-                    LogRangeAsType<float>(
-                        std::cout << "weight (host): ", weight_host_result.mData, ",")
-                        << std::endl;
-                    ;
-                    LogRangeAsType<float>(std::cout << "input: ", input.mData, ",") << std::endl;
-                    ;
+                    wei_device_buf.FromDevice(weight_device_result.mData.data());
+
+                    bool pass = ck::utils::check_err(weight_device_result, weight_host_result);
+
+                    if(!pass)
+                    {
+                        std::cout << "Fail info: " << op_ptr->GetTypeString() << std::endl;
+                    }
+
+                    all_pass &= pass;
+
+                    if(do_log)
+                    {
+                        LogRangeAsType<float>(std::cout << "output : ", output.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "weight (device): ", weight_device_result.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "weight (host): ", weight_host_result.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "input: ", input.mData, ",")
+                            << std::endl;
+                    }
                 }
             }
-        }
-        else
-        {
-            std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
+            else
+            {
+                std::cout << op_ptr->GetTypeString() << " does not support this problem"
+                          << std::endl;
+            }
         }
     }
 
     std::cout << "Best configuration parameters:"
               << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << ", SplitK "
+              << best_split_k << std::endl;
 
     return all_pass;
 }
