@@ -18,7 +18,7 @@
 #include <vector>
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API && !CK_TILE_FMHA_FWD_SPLITKV_API
-#error "we should enable fmha_splitkv() api in order to cooperate with fmha_appendkv() api"
+#error "we should enable fmha_fwd_splitkv() api in order to cooperate with fmha_fwd_appendkv()"
 #endif
 
 template <typename T>
