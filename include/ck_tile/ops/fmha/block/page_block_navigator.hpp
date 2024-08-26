@@ -67,11 +67,10 @@ struct TrivialPageBlockNavigator
 };
 
 // default page-block navigator, assume that tensor view size is same as page-block size
-template <typename DataType_, index_t VirtualDim_>
+template <typename DataType_, index_t VirtualDim, typename TensorView>
 struct PageBlockNavigator
 {
-    using DataType                      = DataType_;
-    static constexpr index_t VirtualDim = VirtualDim_;
+    using DataType = DataType_;
     static_assert(VirtualDim == 0 || VirtualDim == 1, "only support 2d tile window");
     using WindowOrigin = multi_index<2>;
 
@@ -80,32 +79,39 @@ struct PageBlockNavigator
                                                      long_index_t fixed_offset_,
                                                      const int32_t* physical_block_indices_,
                                                      index_t num_blocks_,
-                                                     index_t page_block_size_)
+                                                     index_t page_block_size_,
+                                                     const TensorView& complete_view_,
+                                                     const TensorView& last_view_)
         : physical_blocks(reinterpret_cast<DataType*>(physical_blocks_)),
           block_stride(block_stride_),
           fixed_offset(fixed_offset_),
           physical_block_indices(physical_block_indices_),
           num_blocks(num_blocks_),
-          page_block_size(page_block_size_)
+          page_block_size(page_block_size_),
+          complete_view(complete_view_),
+          last_view(last_view_)
     {
     }
 
-    template <typename TensorView, typename WindowLengths>
-    CK_TILE_HOST_DEVICE auto make_tile_window(const TensorView& tensor_view,
-                                              const WindowLengths& window_lengths,
-                                              const WindowOrigin& window_origin)
+    template <typename WindowLengths>
+    CK_TILE_HOST_DEVICE auto make_tile_window(
+        const TensorView&, // ignore the given argument, use complete_view or last view instead
+        const WindowLengths& window_lengths,
+        const WindowOrigin& window_origin)
     {
         const index_t block_index              = get_block_index(window_origin);
         const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
 
         auto new_tile_window =
-            ck_tile::make_tile_window(tensor_view, window_lengths, local_window_origin);
+            ck_tile::make_tile_window(is_last_block(block_index) ? last_view : complete_view,
+                                      window_lengths,
+                                      local_window_origin);
         new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
 
         return make_tuple(block_index, new_tile_window);
     }
 
-    template <typename TensorView, typename WindowLengths>
+    template <typename WindowLengths>
     CK_TILE_HOST_DEVICE auto
     make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                      const WindowOrigin& window_origin) const
@@ -119,7 +125,7 @@ struct PageBlockNavigator
         return make_tuple(block_index, new_tile_window);
     }
 
-    template <typename TensorView, typename WindowLengths, typename TileDistribution>
+    template <typename WindowLengths, typename TileDistribution>
     CK_TILE_HOST_DEVICE auto
     make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                      const WindowOrigin& window_origin,
@@ -153,6 +159,11 @@ struct PageBlockNavigator
         tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
 
         return new_block_index;
+    }
+
+    CK_TILE_HOST_DEVICE bool is_last_block(index_t block_index) const
+    {
+        return block_index == num_blocks - 1;
     }
 
     template <typename TileWindow>
@@ -239,6 +250,29 @@ struct PageBlockNavigator
     const int32_t* physical_block_indices;
     index_t num_blocks;
     index_t page_block_size;
+
+    TensorView complete_view;
+    TensorView last_view;
 };
+
+template <typename DataType, index_t VirtualDim, typename TensorView>
+CK_TILE_HOST_DEVICE auto make_page_block_navigator(copy_const_t<DataType, void>* physical_blocks,
+                                                   long_index_t block_stride,
+                                                   long_index_t fixed_offset,
+                                                   const int32_t* physical_block_indices,
+                                                   index_t num_blocks,
+                                                   index_t page_block_size,
+                                                   const TensorView& complete_view,
+                                                   const TensorView& last_view)
+{
+    return PageBlockNavigator<DataType, VirtualDim, TensorView>(physical_blocks,
+                                                                block_stride,
+                                                                fixed_offset,
+                                                                physical_block_indices,
+                                                                num_blocks,
+                                                                page_block_size,
+                                                                complete_view,
+                                                                last_view);
+}
 
 } // namespace ck_tile
