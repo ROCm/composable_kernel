@@ -8,38 +8,35 @@
 
 namespace ck_tile {
 
-// assume that we have only 1 page-block
+// assume that we have only 1 page-block/tensor view
+template <typename TensorView>
 struct TrivialPageBlockNavigator
 {
     using WindowOrigin = multi_index<2>;
 
-    template <typename TensorView, typename WindowLengths>
-    CK_TILE_HOST_DEVICE static constexpr auto make_tile_window(const TensorView& tensor_view,
-                                                               const WindowLengths& window_lengths,
-                                                               const WindowOrigin& window_origin)
+    CK_TILE_HOST_DEVICE constexpr TrivialPageBlockNavigator(const TensorView& tensor_view_)
+        : tensor_view(tensor_view_)
+    {
+    }
+
+    template <typename WindowLengths>
+    CK_TILE_HOST_DEVICE constexpr auto make_tile_window(const WindowLengths& window_lengths,
+                                                        const WindowOrigin& window_origin) const
     {
         return make_tuple(/*block_index=*/0,
                           ck_tile::make_tile_window(tensor_view, window_lengths, window_origin));
     }
 
-    template <typename TensorView, typename WindowLengths>
-    CK_TILE_HOST_DEVICE static constexpr auto
-    make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                     const WindowOrigin& window_origin)
-    {
-        return make_tuple(
-            /*block_index=*/0, ck_tile::make_tile_window(tile_window, window_origin));
-    }
-
-    template <typename TensorView, typename WindowLengths, typename TileDistribution>
-    CK_TILE_HOST_DEVICE static constexpr auto
-    make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+    template <typename WindowLengths, typename TileDistribution>
+    CK_TILE_HOST_DEVICE constexpr auto
+    make_tile_window(const WindowLengths& window_lengths,
                      const WindowOrigin& window_origin,
-                     const TileDistribution& tile_distribution)
+                     const TileDistribution& tile_distribution) const
     {
         return make_tuple(
             /*block_index=*/0,
-            ck_tile::make_tile_window(tile_window, window_origin, tile_distribution));
+            ck_tile::make_tile_window(
+                tensor_view, window_lengths, window_origin, tile_distribution));
     }
 
     template <typename TileWindow>
@@ -64,13 +61,16 @@ struct TrivialPageBlockNavigator
     {
         return local_window_origin;
     }
+
+    private:
+    TensorView tensor_view;
 };
 
-// default page-block navigator, assume that tensor view size is same as page-block size
-template <typename DataType_, index_t VirtualDim, typename TensorView>
+// default page-block navigator, assume that tensor view size is same as page-block size or smaller
+// if tile window on at last page-block
+template <typename DataType, index_t VirtualDim, typename TensorView>
 struct PageBlockNavigator
 {
-    using DataType = DataType_;
     static_assert(VirtualDim == 0 || VirtualDim == 1, "only support 2d tile window");
     using WindowOrigin = multi_index<2>;
 
@@ -94,10 +94,8 @@ struct PageBlockNavigator
     }
 
     template <typename WindowLengths>
-    CK_TILE_HOST_DEVICE auto make_tile_window(
-        const TensorView&, // ignore the given argument, use complete_view or last_view instead
-        const WindowLengths& window_lengths,
-        const WindowOrigin& window_origin)
+    CK_TILE_HOST_DEVICE auto make_tile_window(const WindowLengths& window_lengths,
+                                              const WindowOrigin& window_origin) const
     {
         const index_t block_index              = get_block_index(window_origin);
         const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
@@ -111,37 +109,17 @@ struct PageBlockNavigator
         return make_tuple(block_index, new_tile_window);
     }
 
-    // create new tile window using complete_view or last_view. this function only reuse the tile
-    // window lengths
-    template <typename WindowLengths>
-    CK_TILE_HOST_DEVICE auto
-    make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                     const WindowOrigin& window_origin) const
-    {
-        const index_t block_index              = get_block_index(window_origin);
-        const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
-
-        auto new_tile_window =
-            ck_tile::make_tile_window(is_last_block(block_index) ? last_view : complete_view,
-                                      tile_window.get_window_lengths(),
-                                      local_window_origin);
-        new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
-
-        return make_tuple(block_index, new_tile_window);
-    }
-
     template <typename WindowLengths, typename TileDistribution>
-    CK_TILE_HOST_DEVICE auto
-    make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                     const WindowOrigin& window_origin,
-                     const TileDistribution& tile_distribution) const
+    CK_TILE_HOST_DEVICE auto make_tile_window(const WindowLengths& window_lengths,
+                                              const WindowOrigin& window_origin,
+                                              const TileDistribution& tile_distribution) const
     {
         const index_t block_index              = get_block_index(window_origin);
         const WindowOrigin local_window_origin = to_local_window_origin(window_origin);
 
         auto new_tile_window =
             ck_tile::make_tile_window(is_last_block(block_index) ? last_view : complete_view,
-                                      tile_window.get_window_lengths(),
+                                      window_lengths,
                                       local_window_origin,
                                       tile_distribution);
         new_tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(block_index));
@@ -163,8 +141,9 @@ struct PageBlockNavigator
         const WindowOrigin local_window_origin = to_local_window_origin(global_window_origin);
 
         const index_t new_block_index = get_block_index(global_window_origin);
-        tile_window.bottom_tensor_view_ =
-            (is_last_block(new_block_index) ? last_view : complete_view);
+        /// TODO: only update necessary attributes
+        tile_window.bottom_tensor_view_.desc_ =
+            (is_last_block(new_block_index) ? last_view : complete_view).get_tensor_descriptor();
         tile_window.set_window_origin(local_window_origin);
         tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
 
@@ -201,8 +180,9 @@ struct PageBlockNavigator
             }
         }();
 
-        tile_window.bottom_tensor_view_ =
-            (is_last_block(new_block_index) ? last_view : complete_view);
+        /// TODO: only update necessary attributes
+        tile_window.bottom_tensor_view_.desc_ =
+            (is_last_block(new_block_index) ? last_view : complete_view).get_tensor_descriptor();
         tile_window.set_window_origin(tile_window.get_window_origin() + step);
         tile_window.set_bottom_tensor_view_data_ptr(get_block_ptr(new_block_index));
     }
@@ -266,6 +246,12 @@ struct PageBlockNavigator
     TensorView complete_view;
     TensorView last_view;
 };
+
+template <typename TensorView>
+CK_TILE_HOST_DEVICE auto make_page_block_navigator(const TensorView& tensor_view)
+{
+    return TrivialPageBlockNavigator<TensorView>(tensor_view);
+}
 
 template <typename DataType, index_t VirtualDim, typename TensorView>
 CK_TILE_HOST_DEVICE auto make_page_block_navigator(copy_const_t<DataType, void>* physical_blocks,

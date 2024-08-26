@@ -696,7 +696,7 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator();
+                return make_page_block_navigator(k_dram);
             }
         }();
 
@@ -726,7 +726,7 @@ struct FmhaFwdSplitKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator();
+                return make_page_block_navigator(v_dram);
             }
         }();
 

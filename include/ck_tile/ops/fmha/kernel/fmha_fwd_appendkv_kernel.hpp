@@ -574,7 +574,7 @@ struct FmhaFwdAppendKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator();
+                return make_page_block_navigator(k_dram);
             }
         }();
 
@@ -605,7 +605,7 @@ struct FmhaFwdAppendKVKernel
             }
             else
             {
-                return TrivialPageBlockNavigator();
+                return make_page_block_navigator(v_dram);
             }
         }();
 
@@ -617,7 +617,6 @@ struct FmhaFwdAppendKVKernel
         const bool skip_append_kv = kargs.seqlen_knew <= i_n0;
         // window origin = (0, 0) if no work to do for current block
         auto [i_page_block_k, k_dram_window] = k_page_block_navigator.make_tile_window(
-            k_dram,
             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
             {!skip_append_kv * (kargs.seqlen_k + i_n0), 0});
 
@@ -628,7 +627,6 @@ struct FmhaFwdAppendKVKernel
 
         // window origin = (0, 0) if no work to do for current block
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
-            v_dram,
             make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
             {0, !skip_append_kv * (kargs.seqlen_k + i_n0)});
 
