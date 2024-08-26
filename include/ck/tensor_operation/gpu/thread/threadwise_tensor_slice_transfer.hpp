@@ -602,7 +602,6 @@ struct ThreadwiseTensorSliceTransfer_v2r1
     SrcCoord src_coord_;
 }; // namespace ck
 
-
 // Assume:
 //   1. src_desc and dst_desc are not known at compile-time
 //   2. SrcBuffer and DstBuffer are DynamicBuffer
