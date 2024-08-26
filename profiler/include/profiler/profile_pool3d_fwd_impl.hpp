@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -222,7 +222,6 @@ bool profile_pool3d_fwd_impl(int do_verification,
             if constexpr(OutputIndex)
             {
                 out_indices_device_buf.FromDevice(out_indices_n_c_do_ho_wo_device.mData.data());
-
                 pass = pass && ck::utils::check_err(out_indices_n_c_do_ho_wo_device,
                                                     out_indices_n_c_do_ho_wo_host);
             }

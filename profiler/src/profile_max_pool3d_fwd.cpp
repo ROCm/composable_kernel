@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <vector>
@@ -51,7 +51,7 @@ struct maxPoolFwdArgParser
 
 void print_help_max_pool3d_fwd()
 {
-    std::cout << "arg1: data type (0: fp16; 1: fp32; 5: bf16)\n"
+    std::cout << "arg1: data type (0: fp16; 1: fp32; 3: int8; 5: bf16; 7: fp8)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
@@ -118,7 +118,9 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
 #ifdef CK_ENABLE_FP32
     using F32 = float;
 #endif
+    using I8    = int8_t;
     using I32   = int32_t;
+    using F8    = ck::f8_t;
     using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
 #if 1
@@ -234,6 +236,64 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
                     pad2);
     }
 #endif
+    else if(data_type == ck::DataTypeEnum::Float8)
+    {
+        if(return_index)
+            return ck::profiler::
+                profile_pool3d_fwd_impl<F8, F8, F8, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+        else
+            return ck::profiler::
+                profile_pool3d_fwd_impl<F8, F8, F8, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+    }
+    else if(data_type == ck::DataTypeEnum::Int8)
+    {
+        if(return_index)
+            return ck::profiler::
+                profile_pool3d_fwd_impl<I8, I8, I8, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+        else
+            return ck::profiler::
+                profile_pool3d_fwd_impl<I8, I8, I8, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+    }
     else
     {
         throw std::runtime_error("not implemented yet");

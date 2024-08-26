@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,6 +37,22 @@ void add_device_pool3d_fwd_ndhwc_index_f16_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
 #endif
+#ifdef CK_ENABLE_FP8
+using F8 = ck::f8_t;
+// F8
+void add_device_pool3d_fwd_ndhwc_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, MaxOp, false>>>&);
+
+void add_device_pool3d_fwd_ndhwc_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, AvgOp, false>>>&);
+
+// FP8 - return index
+void add_device_pool3d_fwd_ndhwc_index_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+#endif
 #ifdef CK_ENABLE_BF16
 // BF16
 void add_device_pool3d_fwd_ndhwc_bf16_instances(
@@ -67,6 +83,21 @@ void add_device_pool3d_fwd_ndhwc_index_f32_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NDHWC, NDHWC, MaxOp, true>>>&);
 #endif
+using I8 = int8_t;
+// I8
+void add_device_pool3d_fwd_ndhwc_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NDHWC, NDHWC, MaxOp, false>>>&);
+
+void add_device_pool3d_fwd_ndhwc_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NDHWC, NDHWC, AvgOp, false>>>&);
+
+// I8 - return index
+void add_device_pool3d_fwd_ndhwc_index_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+
 template <typename InDataType,
           typename OutDataType,
           typename IndexDataType,
@@ -141,6 +172,32 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                 }
             }
 #endif
+#ifdef CK_ENABLE_FP8
+            else if constexpr(is_same_v<InDataType, F8> && is_same_v<OutDataType, F8> &&
+                              is_same_v<IndexDataType, I32>)
+            {
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_f8_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_f8_instances(op_ptrs);
+                }
+            }
+#endif
+            else if constexpr(is_same_v<InDataType, I8> && is_same_v<OutDataType, I8> &&
+                              is_same_v<IndexDataType, I32>)
+            {
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_i8_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_i8_instances(op_ptrs);
+                }
+            }
         }
 
         return op_ptrs;

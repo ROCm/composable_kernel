@@ -355,10 +355,19 @@ struct UnaryDivide
     __host__ __device__ void operator()(T& y, const T& x) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "Data type is not supported by this operation!");
 
         y = x / type_convert<T>(divider_);
+    };
+
+    template <>
+    __host__ __device__ void operator()<f8_t>(f8_t& y, const f8_t& x) const
+    {
+        float x_         = type_convert<float>(x);
+        float divider_f_ = type_convert<float>(divider_);
+
+        y = type_convert<f8_t>(x_ / divider_f_);
     };
 
     int32_t divider_ = 1;
