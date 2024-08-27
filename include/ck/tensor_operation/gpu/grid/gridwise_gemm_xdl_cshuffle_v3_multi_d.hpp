@@ -647,12 +647,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = blockIdx.z * karg.KRead * karg.M;
+                a_k_split_offset = blockIdx.z * karg.KRead * karg.StrideA;
             }
 
             if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = blockIdx.z * karg.KRead * karg.N;
+                b_k_split_offset = blockIdx.z * karg.KRead * karg.StrideB;
             }
             else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
