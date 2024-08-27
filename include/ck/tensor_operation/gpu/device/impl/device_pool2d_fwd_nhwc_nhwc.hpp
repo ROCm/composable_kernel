@@ -44,10 +44,6 @@ struct DevicePool2dFwd_NHWC_NHWC : public DevicePoolFwd<4,
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
-    static constexpr auto I2 = Number<2>{};
-    static constexpr auto I3 = Number<3>{};
-    static constexpr auto I4 = Number<4>{};
-    static constexpr auto I5 = Number<5>{};
 
     static constexpr index_t InOutRank  = 4;
     static constexpr index_t WindowRank = 2;

@@ -57,14 +57,14 @@ void print_help_max_pool2d_fwd()
               << "arg4: print tensor value (0: no; 1: yes)\n"
               << "arg5: time kernel (0=no, 1=yes)\n"
               << "arg6: return index (0=no, 1=yes)\n"
-              << "--length: input tensor length for NCDHW(e.g, --length 2 32 30 30 30) \n"
-              << "--wsize: window size for ZYX (e.g, --wsize 2 2 2) \n"
-              << "--wstride: window stride for DHW (e.g, --wstride 2 2 2) \n"
-              << "--wdilation: window dilation for DHW (e.g, --wdilation 1 1 1) \n"
-              << "--pad1: left side of padding in DHW (e.g, --pad1 1 1 1) \n"
-              << "--pad2: right side of padding in DHW (e.g, --pad2 1 1 1) \n"
-              << "eg: ckProfiler max_pool3d_fwd 0 1 2 0 1 0 --length 2 32 30 30 30 --wsize 2 2 2 "
-                 "--wstride 2 2 2 --wdilation 1 1 1 --pad1 1 1 1 --pad2 1 1 1"
+              << "--length: input tensor length for NCHW(e.g, --length 2 32 30 30) \n"
+              << "--wsize: window size for YX (e.g, --wsize 2 2) \n"
+              << "--wstride: window stride for HW (e.g, --wstride 2 2) \n"
+              << "--wdilation: window dilation for HW (e.g, --wdilation 1 1) \n"
+              << "--pad1: left side of padding in HW (e.g, --pad1 1 1) \n"
+              << "--pad2: right side of padding in HW (e.g, --pad2 1 1) \n"
+              << "eg: ckProfiler max_pool2d_fwd 0 1 2 0 1 0 --length 2 32 30 30 --wsize 2 2"
+                 "--wstride 2 2 --wdilation 1 1 --pad1 1 1 --pad2 1 1"
               << std::endl;
 }
 
@@ -89,7 +89,7 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
         print_help_max_pool2d_fwd();
         return 0;
     }
-    else if(argc == 34)
+    else if(argc == 28)
     {
         data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
         do_verification = std::stoi(argv[3]);
@@ -109,30 +109,17 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-#ifdef CK_ENABLE_FP16
     using F16 = ck::half_t;
-#endif
-#ifdef CK_ENABLE_BF16
     using BF16 = ck::bhalf_t;
-#endif
-#ifdef CK_ENABLE_FP32
     using F32 = float;
-#endif
     using I32  = int32_t;
     using NHWC = ck::tensor_layout::convolution::NHWC;
 
-#if 1
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
-#else
-    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
-#endif
 
-    if(false)
-        ;
-#ifdef CK_ENABLE_FP16
-    else if(data_type == ck::DataTypeEnum::Half)
+    if(data_type == ck::DataTypeEnum::Half)
     {
-        if(return_index)
+        if(return_index) {
             ck::profiler::
                 profile_pool2d_fwd_impl<F16, F16, F16, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -145,7 +132,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        else
+        }
+        else {
             ck::profiler::
                 profile_pool2d_fwd_impl<F16, F16, F16, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
@@ -158,12 +146,10 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-    }
-#endif
-#ifdef CK_ENABLE_BF16
-    else if(data_type == ck::DataTypeEnum::BFloat16)
+        }
+    }else if(data_type == ck::DataTypeEnum::BFloat16)
     {
-        if(return_index)
+        if(return_index) {
             ck::profiler::
                 profile_pool2d_fwd_impl<BF16, BF16, BF16, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -176,7 +162,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        else
+        }
+        else {
             ck::profiler::profile_pool2d_fwd_impl<BF16,
                                                   BF16,
                                                   BF16,
@@ -195,12 +182,11 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                                                          wdilation,
                                                          pad1,
                                                          pad2);
+        }
     }
-#endif
-#ifdef CK_ENABLE_FP32
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        if(return_index)
+        if(return_index) {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -213,7 +199,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        else
+        }
+        else {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
@@ -226,8 +213,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
+        }
     }
-#endif
     else
     {
         throw std::runtime_error("not implemented yet");

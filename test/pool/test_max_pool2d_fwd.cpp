@@ -13,6 +13,7 @@ class TestMaxPool2dFwd : public ::testing::Test
     using OutDataType     = std::tuple_element_t<1, Tuple>;
     using ComputeDataType = std::tuple_element_t<2, Tuple>;
     using IndexDataType   = std::tuple_element_t<3, Tuple>;
+    static constexpr bool ReturnIndex = std::tuple_element_t<4, Tuple>::value;
 
     std::vector<PoolingParam> params;
 
@@ -30,7 +31,7 @@ class TestMaxPool2dFwd : public ::testing::Test
                                                       ck::tensor_layout::convolution::NHWC,
                                                       ck::ReduceTensorOp::MAX,
                                                       false,
-                                                      false>(true,
+                                                      ReturnIndex>(true,
                                                              2,
                                                              false,
                                                              false,
@@ -41,37 +42,22 @@ class TestMaxPool2dFwd : public ::testing::Test
                                                              param.input_left_pads_,
                                                              param.input_right_pads_);
             EXPECT_TRUE(success);
-
-            // max pool + index
-            success = ck::profiler::profile_pool2d_fwd_impl<InDataType,
-                                                            OutDataType,
-                                                            ComputeDataType,
-                                                            IndexDataType,
-                                                            ck::tensor_layout::convolution::NHWC,
-                                                            ck::tensor_layout::convolution::NHWC,
-                                                            ck::ReduceTensorOp::MAX,
-                                                            false,
-                                                            true>(true,
-                                                                  2,
-                                                                  false,
-                                                                  false,
-                                                                  param.length_,
-                                                                  param.window_spatial_lengths_,
-                                                                  param.window_strides_,
-                                                                  param.window_dilations_,
-                                                                  param.input_left_pads_,
-                                                                  param.input_right_pads_);
-            EXPECT_TRUE(success);
         }
     }
 };
 
-#ifdef CK_ENABLE_FP16
-using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
-#else
-using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
-#endif
+using true_t  = std::integral_constant<bool, true>;
+using false_t = std::integral_constant<bool, false>;
+
+using KernelTypes = std::conditional_t<
+    CK_ENABLE_FP16,
+    ::testing::Types<std::tuple<F16, F16, F32, I32, true_t>,
+                     std::tuple<F16, F16, F32, I32, false_t>,
+                     std::tuple<F32, F32, F32, I32, true_t>,
+                     std::tuple<F32, F32, F32, I32, false_t>>,
+    ::testing::Types<std::tuple<F32, F32, F32, I32, true_t>,
+                     std::tuple<F32, F32, F32, I32, false_t>>
+>;
 
 TYPED_TEST_SUITE(TestMaxPool2dFwd, KernelTypes);
 TYPED_TEST(TestMaxPool2dFwd, Test_Pool)

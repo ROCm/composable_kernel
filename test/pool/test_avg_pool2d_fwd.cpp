@@ -45,12 +45,15 @@ class TestAvgPool2dFwd : public ::testing::Test
     }
 };
 
-#ifdef CK_ENABLE_FP16
-using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
-#else
-using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
-#endif
+using KernelTypes = std::conditional_t<
+    CK_ENABLE_FP16,
+    ::testing::Types<std::tuple<F16, F16, F32, I32>,
+                     std::tuple<F16, F16, F32, I32>,
+                     std::tuple<F32, F32, F32, I32>,
+                     std::tuple<F32, F32, F32, I32>>,
+    ::testing::Types<std::tuple<F32, F32, F32, I32>,
+                     std::tuple<F32, F32, F32, I32>>
+>;
 
 TYPED_TEST_SUITE(TestAvgPool2dFwd, KernelTypes);
 TYPED_TEST(TestAvgPool2dFwd, Test_Pool)
