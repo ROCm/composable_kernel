@@ -110,13 +110,4 @@ CK_TILE_DEVICE void lower_prio()
     " ::);
 }
 
-CK_TILE_DEVICE void s_nop(index_t cnt = 0)
-{
-#if 1
-    asm volatile("s_nop %0" : : "n"(cnt) :);
-#else
-    __builtin_amdgcn_sched_barrier(cnt);
-#endif
-}
-
 } // namespace ck_tile
