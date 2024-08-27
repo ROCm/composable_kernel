@@ -21,7 +21,6 @@
 #error "we should enable fmha_fwd_splitkv() api in order to cooperate with fmha_fwd_appendkv()"
 #endif
 
-
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 {
