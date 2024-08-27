@@ -9,10 +9,10 @@ set(PROFILER_SOURCES
     profile_layernorm_bwd_gamma_beta.cpp
     profile_groupnorm_bwd_gamma_beta.cpp
     profile_layernorm_fwd.cpp
-    profile_pool2d_max_fwd.cpp
-    profile_pool3d_max_fwd.cpp
-    profile_pool3d_avg_bwd.cpp
-    profile_pool3d_max_bwd.cpp
+    profile_max_pool2d_fwd.cpp
+    profile_max_pool3d_fwd.cpp
+    profile_avg_pool3d_bwd.cpp
+    profile_max_pool3d_bwd.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
     profile_batchnorm_bwd.cpp
@@ -101,8 +101,8 @@ target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_reduce_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_batchnorm_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool2d_fwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool3d_fwd_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool3d_avg_bwd_instance)
-target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_pool_max_bwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_avg_pool3d_bwd_instance)
+target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_max_pool_bwd_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_image_to_column_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_column_to_image_instance)
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE device_transpose_instance)

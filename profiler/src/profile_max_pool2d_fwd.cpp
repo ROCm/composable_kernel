@@ -49,7 +49,7 @@ struct maxPoolFwdArgParser
     }
 };
 
-void print_help_pool2d_max_fwd()
+void print_help_max_pool2d_fwd()
 {
     std::cout << "arg1: data type (0: fp16; 1: fp32; 5: bf16)\n"
               << "arg2: verification (0: no; 1: yes)\n"
@@ -68,7 +68,7 @@ void print_help_pool2d_max_fwd()
               << std::endl;
 }
 
-int profile_pool2d_max_fwd(int argc, char* argv[])
+int profile_max_pool2d_fwd(int argc, char* argv[])
 {
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
     bool do_verification       = true;
@@ -109,18 +109,30 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16  = ck::half_t;
+#ifdef CK_ENABLE_FP16
+    using F16 = ck::half_t;
+#endif
+#ifdef CK_ENABLE_BF16
     using BF16 = ck::bhalf_t;
-    using F32  = float;
+#endif
+#ifdef CK_ENABLE_FP32
+    using F32 = float;
+#endif
     using I32  = int32_t;
     using NHWC = ck::tensor_layout::convolution::NHWC;
 
+#if 1
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
+#else
+    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
+#endif
 
-    if(data_type == ck::DataTypeEnum::Half)
+    if(false)
+        ;
+#ifdef CK_ENABLE_FP16
+    else if(data_type == ck::DataTypeEnum::Half)
     {
         if(return_index)
-        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F16, F16, F16, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -133,9 +145,7 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        }
         else
-        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F16, F16, F16, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
@@ -148,12 +158,12 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        }
     }
+#endif
+#ifdef CK_ENABLE_BF16
     else if(data_type == ck::DataTypeEnum::BFloat16)
     {
         if(return_index)
-        {
             ck::profiler::
                 profile_pool2d_fwd_impl<BF16, BF16, BF16, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -166,9 +176,7 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        }
         else
-        {
             ck::profiler::profile_pool2d_fwd_impl<BF16,
                                                   BF16,
                                                   BF16,
@@ -187,12 +195,12 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
                                                          wdilation,
                                                          pad1,
                                                          pad2);
-        }
     }
+#endif
+#ifdef CK_ENABLE_FP32
     else if(data_type == ck::DataTypeEnum::Float)
     {
         if(return_index)
-        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -205,9 +213,7 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        }
         else
-        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
@@ -220,8 +226,8 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
                     wdilation,
                     pad1,
                     pad2);
-        }
     }
+#endif
     else
     {
         throw std::runtime_error("not implemented yet");
@@ -230,4 +236,4 @@ int profile_pool2d_max_fwd(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("pool2d_max_fwd", "pool2d_max fwd", profile_pool2d_max_fwd);
+REGISTER_PROFILER_OPERATION("max_pool2d_fwd", "max_pool2d fwd", profile_max_pool2d_fwd);

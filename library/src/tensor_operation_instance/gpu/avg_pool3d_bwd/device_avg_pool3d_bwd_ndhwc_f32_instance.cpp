@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "pool3d_avg_bwd_ndhwc_instance_common.hpp"
+#include "avg_pool3d_bwd_ndhwc_instance_common.hpp"
 
 namespace ck {
 namespace tensor_operation {
