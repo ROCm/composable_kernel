@@ -68,7 +68,7 @@ struct TrivialPageBlockNavigator
 };
 
 // default page-block navigator, assume that tensor view size is same as page-block size or smaller
-// if tile window on at last page-block
+// if tile window on last page-block
 template <typename DataType_, index_t VirtualDim, typename TensorView>
 struct PageBlockNavigator
 {
