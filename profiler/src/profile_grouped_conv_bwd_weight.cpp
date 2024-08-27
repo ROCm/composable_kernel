@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <initializer_list>
@@ -81,6 +81,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 9, argv);
 
     ck::index_t split_k = std::stoi(argv[8 + 1 + 4 + 6 * num_dim_spatial]);
+    split_k             = std::max(1, split_k);
 
     using F32  = float;
     using F16  = ck::half_t;

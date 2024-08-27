@@ -70,12 +70,6 @@ void add_device_permute_scale_6d_f32_instances(
         DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F32>, element_wise::Scale, 6>>>&);
 #endif
 
-#ifdef CK_ENABLE_FP8
-void add_device_permute_scale_6d_f32_f8_instances(
-    std::vector<std::unique_ptr<
-        DeviceElementwise<ck::Tuple<F32>, ck::Tuple<F8>, element_wise::Scale, 6>>>&);
-#endif
-
 template <typename InDataTypeTuple,
           typename OutDataTypeTuple,
           typename ElementwiseOperation,
@@ -189,13 +183,6 @@ struct DeviceOperationInstanceFactory<
                          is_same_v<OutDataTypeTuple, ck::Tuple<F16>>)
             {
                 add_device_permute_scale_6d_f16_instances(op_ptrs);
-            }
-#endif
-#ifdef CK_ENABLE_FP8
-            if constexpr(is_same_v<InDataTypeTuple, ck::Tuple<F32>> &&
-                         is_same_v<OutDataTypeTuple, ck::Tuple<F8>>)
-            {
-                add_device_permute_scale_6d_f32_f8_instances(op_ptrs);
             }
 #endif
         }

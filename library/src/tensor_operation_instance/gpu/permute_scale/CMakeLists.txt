@@ -1,4 +1,4 @@
-add_instance_library(device_permute_scale_instance
+add_instance_library(device_permute_scale_instance 
 	device_permute_scale_1d_fp16_instances.cpp
 	device_permute_scale_2d_fp16_instances.cpp
 	device_permute_scale_3d_fp16_instances.cpp
@@ -10,5 +10,4 @@ add_instance_library(device_permute_scale_instance
 	device_permute_scale_3d_fp32_instances.cpp
 	device_permute_scale_4d_fp32_instances.cpp
 	device_permute_scale_5d_fp32_instances.cpp
-	device_permute_scale_6d_fp32_instances.cpp
-	device_permute_scale_6d_fp32_fp8_instances.cpp)
+	device_permute_scale_6d_fp32_instances.cpp)
