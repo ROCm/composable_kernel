@@ -53,7 +53,7 @@ bool profile_pool2d_fwd_impl(int do_verification,
     out_length[0] = N;
     out_length[1] = C;
 
-    // Calculate Do, Ho, Wo
+    // Calculate Ho, Wo
     for(int i = 2; i < InOutRank; ++i)
     {
         auto pad1             = input_left_pads[i - 2];

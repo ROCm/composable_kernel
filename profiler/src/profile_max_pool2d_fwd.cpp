@@ -84,7 +84,7 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
     std::vector<index_t> pad1      = {1, 1};
     std::vector<index_t> pad2      = {1, 1};
 
-    if(argc != 2 && argc != 34)
+    if(argc != 2 && argc != 28)
     {
         print_help_max_pool2d_fwd();
         return 0;
@@ -109,9 +109,9 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
         pad2      = arg_parser.long_opts["pad2"];
     }
 
-    using F16 = ck::half_t;
+    using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-    using F32 = float;
+    using F32  = float;
     using I32  = int32_t;
     using NHWC = ck::tensor_layout::convolution::NHWC;
 
@@ -119,7 +119,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
 
     if(data_type == ck::DataTypeEnum::Half)
     {
-        if(return_index) {
+        if(return_index)
+        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F16, F16, F16, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -133,7 +134,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     pad1,
                     pad2);
         }
-        else {
+        else
+        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F16, F16, F16, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
@@ -147,9 +149,11 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     pad1,
                     pad2);
         }
-    }else if(data_type == ck::DataTypeEnum::BFloat16)
+    }
+    else if(data_type == ck::DataTypeEnum::BFloat16)
     {
-        if(return_index) {
+        if(return_index)
+        {
             ck::profiler::
                 profile_pool2d_fwd_impl<BF16, BF16, BF16, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -163,7 +167,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     pad1,
                     pad2);
         }
-        else {
+        else
+        {
             ck::profiler::profile_pool2d_fwd_impl<BF16,
                                                   BF16,
                                                   BF16,
@@ -186,7 +191,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        if(return_index) {
+        if(return_index)
+        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, true>(
                     do_verification,
@@ -200,7 +206,8 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     pad1,
                     pad2);
         }
-        else {
+        else
+        {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
