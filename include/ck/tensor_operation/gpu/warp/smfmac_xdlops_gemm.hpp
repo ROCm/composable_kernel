@@ -37,11 +37,11 @@ struct smfmac<SmfmacInstr::smfmac_f32_16x16x32f16>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
-              int32_t idx_part,
+              index_t idx_part,
               class FloatA,
               class FloatB,
               class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, const int32_t& idx, FloatC& reg_c) const
+    __device__ void run(const FloatA& a, const FloatB& b, const index_t& idx, FloatC& reg_c) const
     {
         intrin_smfmac_f32_16x16x32f16<MPerXdlops, NPerXdlops>::Run<FloatC, idx_part>(
             a, b, idx, reg_c);
@@ -65,11 +65,11 @@ struct smfmac<SmfmacInstr::smfmac_f32_32x32x16f16>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
-              int32_t idx_part,
+              index_t idx_part,
               class FloatA,
               class FloatB,
               class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, const int32_t& idx, FloatC& reg_c) const
+    __device__ void run(const FloatA& a, const FloatB& b, const index_t& idx, FloatC& reg_c) const
     {
         intrin_smfmac_f32_32x32x16f16<MPerXdlops, NPerXdlops>::Run<FloatC, idx_part>(
             a, b, idx, reg_c);
@@ -93,11 +93,11 @@ struct smfmac<SmfmacInstr::smfmac_f32_16x16x32bf16>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
-              int32_t idx_part,
+              index_t idx_part,
               class FloatA,
               class FloatB,
               class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, const int32_t& idx, FloatC& reg_c) const
+    __device__ void run(const FloatA& a, const FloatB& b, const index_t& idx, FloatC& reg_c) const
     {
         intrin_smfmac_f32_16x16x32bf16<MPerXdlops, NPerXdlops>::Run<FloatC, idx_part>(
             a, b, idx, reg_c);
@@ -121,11 +121,11 @@ struct smfmac<SmfmacInstr::smfmac_f32_32x32x16bf16>
 
     template <index_t MPerXdlops,
               index_t NPerXdlops,
-              int32_t idx_part,
+              index_t idx_part,
               class FloatA,
               class FloatB,
               class FloatC>
-    __device__ void run(const FloatA& a, const FloatB& b, const int32_t& idx, FloatC& reg_c) const
+    __device__ void run(const FloatA& a, const FloatB& b, const index_t& idx, FloatC& reg_c) const
     {
         intrin_smfmac_f32_32x32x16bf16<MPerXdlops, NPerXdlops>::Run<FloatC, idx_part>(
             a, b, idx, reg_c);

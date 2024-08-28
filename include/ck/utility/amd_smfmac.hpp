@@ -14,9 +14,9 @@ struct intrin_smfmac_f32_16x16x32f16;
 template <>
 struct intrin_smfmac_f32_16x16x32f16<16, 16>
 {
-    template <class FloatC, int abid = 0>
+    template <class FloatC, index_t abid = 0>
     __device__ static void
-    Run(const half4_t& reg_a, const half8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
+    Run(const half4_t& reg_a, const half8_t& reg_b, const index_t& reg_idx, FloatC& reg_c)
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_smfmac_f32_16x16x32_f16(
@@ -36,9 +36,9 @@ struct intrin_smfmac_f32_16x16x32bf16;
 template <>
 struct intrin_smfmac_f32_16x16x32bf16<16, 16>
 {
-    template <class FloatC, int abid = 0>
+    template <class FloatC, index_t abid = 0>
     __device__ static void
-    Run(const bhalf4_t& reg_a, const bhalf8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
+    Run(const bhalf4_t& reg_a, const bhalf8_t& reg_b, const index_t& reg_idx, FloatC& reg_c)
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_smfmac_f32_16x16x32_bf16(
@@ -58,9 +58,9 @@ struct intrin_smfmac_f32_32x32x16f16;
 template <>
 struct intrin_smfmac_f32_32x32x16f16<32, 32>
 {
-    template <class FloatC, int abid = 0>
+    template <class FloatC, index_t abid = 0>
     __device__ static void
-    Run(const half4_t& reg_a, const half8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
+    Run(const half4_t& reg_a, const half8_t& reg_b, const index_t& reg_idx, FloatC& reg_c)
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_smfmac_f32_32x32x16_f16(
@@ -80,9 +80,9 @@ struct intrin_smfmac_f32_32x32x16bf16;
 template <>
 struct intrin_smfmac_f32_32x32x16bf16<32, 32>
 {
-    template <class FloatC, int abid = 0>
+    template <class FloatC, index_t abid = 0>
     __device__ static void
-    Run(const bhalf4_t& reg_a, const bhalf8_t& reg_b, const int32_t& reg_idx, FloatC& reg_c)
+    Run(const bhalf4_t& reg_a, const bhalf8_t& reg_b, const index_t& reg_idx, FloatC& reg_c)
     {
 #if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_smfmac_f32_32x32x16_bf16(
