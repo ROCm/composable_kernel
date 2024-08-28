@@ -17,6 +17,25 @@
 namespace ck {
 namespace profiler {
 
+struct MaxPoolFwdInputParams
+{
+    int do_verification;
+    int init_method;
+    bool do_log;
+    bool time_kernel;
+    bool return_index;
+};
+
+struct MaxPoolFwdKernelParams
+{
+    std::vector<index_t> in_length; // NCDHW
+    std::vector<index_t> window_spatial_lengths;
+    std::vector<index_t> window_strides;
+    std::vector<index_t> window_dilations;
+    std::vector<index_t> input_left_pads;
+    std::vector<index_t> input_right_pads;
+};
+
 template <typename InDataType,
           typename OutDataType,
           typename ComputeDataType,
@@ -26,29 +45,24 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
-bool profile_pool3d_fwd_impl(int do_verification,
-                             int init_method,
-                             bool do_log,
-                             bool time_kernel,
-                             std::vector<index_t> in_length, // NCDHW
-                             std::vector<index_t> window_spatial_lengths,
-                             std::vector<index_t> window_strides,
-                             std::vector<index_t> window_dilations,
-                             std::vector<index_t> input_left_pads,
-                             std::vector<index_t> input_right_pads)
+bool profile_pool3d_fwd_impl(MaxPoolFwdInputParams& in_params,
+                             MaxPoolFwdKernelParams& kernel_params)
 {
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
 
-    if(in_length.size() != InOutRank || window_spatial_lengths.size() != WindowRank ||
-       window_strides.size() != WindowRank || window_dilations.size() != WindowRank ||
-       input_left_pads.size() != WindowRank || input_right_pads.size() != WindowRank)
+    if(kernel_params.in_length.size() != InOutRank ||
+       kernel_params.window_spatial_lengths.size() != WindowRank ||
+       kernel_params.window_strides.size() != WindowRank ||
+       kernel_params.window_dilations.size() != WindowRank ||
+       kernel_params.input_left_pads.size() != WindowRank ||
+       kernel_params.input_right_pads.size() != WindowRank)
         return false;
 
     std::vector<index_t> out_length(InOutRank);
 
-    int N = in_length[0];
-    int C = in_length[1];
+    int N = kernel_params.in_length[0];
+    int C = kernel_params.in_length[1];
 
     out_length[0] = N;
     out_length[1] = C;
@@ -56,18 +70,18 @@ bool profile_pool3d_fwd_impl(int do_verification,
     // Calculate Do, Ho, Wo
     for(int i = 2; i < InOutRank; ++i)
     {
-        auto pad1             = input_left_pads[i - 2];
-        auto pad2             = input_right_pads[i - 2];
-        auto windows_size     = window_spatial_lengths[i - 2];
-        auto windows_stride   = window_strides[i - 2];
-        auto windows_dilation = window_dilations[i - 2];
+        auto pad1             = kernel_params.input_left_pads[i - 2];
+        auto pad2             = kernel_params.input_right_pads[i - 2];
+        auto windows_size     = kernel_params.window_spatial_lengths[i - 2];
+        auto windows_stride   = kernel_params.window_strides[i - 2];
+        auto windows_dilation = kernel_params.window_dilations[i - 2];
         auto eff              = (windows_size - 1) * windows_dilation + 1;
-        out_length[i]         = (in_length[i] + pad1 + pad2 - eff) / windows_stride + 1;
+        out_length[i] = (kernel_params.in_length[i] + pad1 + pad2 - eff) / windows_stride + 1;
     }
 
-    int Di = in_length[2];
-    int Hi = in_length[3];
-    int Wi = in_length[4];
+    int Di = kernel_params.in_length[2];
+    int Hi = kernel_params.in_length[3];
+    int Wi = kernel_params.in_length[4];
     int Do = out_length[2];
     int Ho = out_length[3];
     int Wo = out_length[4];
@@ -88,7 +102,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
     Tensor<IndexDataType> out_indices_n_c_do_ho_wo_device(
         f_host_tensor_descriptor(N, C, Do, Ho, Wo));
 
-    switch(init_method)
+    switch(in_params.init_method)
     {
     case 0: in_n_c_di_hi_wi.GenerateTensorValue(GeneratorTensor_1<InDataType>{}); break;
     case 1: in_n_c_di_hi_wi.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5}); break;
@@ -125,7 +139,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
 
-    if(do_verification)
+    if(in_params.do_verification)
     {
         using ReferenceInstance = ck::tensor_operation::host::ReferencePoolingFwd<InOutRank,
                                                                                   WindowRank,
@@ -141,11 +155,11 @@ bool profile_pool3d_fwd_impl(int do_verification,
         auto ref_argument = ref.MakeArgument(in_n_c_di_hi_wi,
                                              out_n_c_do_ho_wo_host,
                                              out_indices_n_c_do_ho_wo_host,
-                                             window_spatial_lengths,
-                                             window_strides,
-                                             window_dilations,
-                                             input_left_pads,
-                                             input_right_pads);
+                                             kernel_params.window_spatial_lengths,
+                                             kernel_params.window_strides,
+                                             kernel_params.window_dilations,
+                                             kernel_params.input_left_pads,
+                                             kernel_params.input_right_pads);
         auto ref_invoker  = ref.MakeInvoker();
         ref_invoker.Run(ref_argument);
     }
@@ -158,16 +172,16 @@ bool profile_pool3d_fwd_impl(int do_verification,
             static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
             static_cast<IndexDataType*>(out_indices_device_buf.GetDeviceBuffer()),
-            in_length,
-            window_spatial_lengths,
+            kernel_params.in_length,
+            kernel_params.window_spatial_lengths,
             out_length,
             {Di * C * Hi * Wi, 1, C * Hi * Wi, Wi * C, C},
             {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
             {Do * C * Ho * Wo, 1, C * Ho * Wo, Wo * C, C},
-            window_strides,
-            window_dilations,
-            input_left_pads,
-            input_right_pads,
+            kernel_params.window_strides,
+            kernel_params.window_dilations,
+            kernel_params.input_left_pads,
+            kernel_params.input_right_pads,
             {2, 3, 4});
 
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -176,10 +190,11 @@ bool profile_pool3d_fwd_impl(int do_verification,
         }
         else
         {
-            if(time_kernel)
+            if(in_params.time_kernel)
             {
                 std::cout << inst_ptr->GetTypeString() << " skipped due to unsupported argument: ";
-                LogRange(std::cout << "input lengths = ", in_length, ", ") << std::endl;
+                LogRange(std::cout << "input lengths = ", kernel_params.in_length, ", ")
+                    << std::endl;
             }
 
             continue;
@@ -187,7 +202,8 @@ bool profile_pool3d_fwd_impl(int do_verification,
 
         auto invoker_ptr = inst_ptr->MakeInvokerPointer();
 
-        float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+        float avg_time =
+            invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, in_params.time_kernel});
 
         std::size_t num_bytes = in_n_c_di_hi_wi.mDesc.GetElementSize() * sizeof(InDataType) +
                                 out_n_c_do_ho_wo_host.mDesc.GetElementSize() * sizeof(OutDataType);
@@ -198,7 +214,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
 
         float gb_per_sec = num_bytes / 1.E6 / avg_time;
 
-        if(time_kernel)
+        if(in_params.time_kernel)
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << gb_per_sec << " GB/s, "
                       << inst_ptr->GetTypeString() << std::endl;
 
@@ -209,7 +225,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
             best_gb_per_sec    = gb_per_sec;
         }
 
-        if(do_verification)
+        if(in_params.do_verification)
         {
             out_device_buf.FromDevice(out_n_c_do_ho_wo_device.mData.data());
 
@@ -226,7 +242,7 @@ bool profile_pool3d_fwd_impl(int do_verification,
                                                     out_indices_n_c_do_ho_wo_host);
             }
 
-            if(do_log)
+            if(in_params.do_log)
             {
                 LogRangeAsType<float>(
                     std::cout << "in_n_c_di_hi_wi  : ", in_n_c_di_hi_wi.mData, ",")
@@ -248,20 +264,21 @@ bool profile_pool3d_fwd_impl(int do_verification,
             if(!pass)
             {
                 std::cout << inst_ptr->GetTypeString() << " failed verification: ";
-                LogRange(std::cout << "lengths = [", in_length, ", ") << "]." << std::endl;
+                LogRange(std::cout << "lengths = [", kernel_params.in_length, ", ")
+                    << "]." << std::endl;
                 return false;
             }
             else
             {
-                if(time_kernel)
+                if(in_params.time_kernel)
                     std::cout << "pass" << std::endl;
             }
         }
     }
 
-    if(time_kernel)
+    if(in_params.time_kernel)
     {
-        LogRange(std::cout << "length = ", in_length, ",") << std::endl;
+        LogRange(std::cout << "length = ", kernel_params.in_length, ",") << std::endl;
         std::cout << "best perf = " << best_avg_time << " ms, " << best_gb_per_sec << " GB/s, "
                   << best_instance_name << std::endl;
     }

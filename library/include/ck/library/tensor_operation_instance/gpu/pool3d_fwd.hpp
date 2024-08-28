@@ -130,7 +130,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
         if constexpr(is_same_v<InLayout, NDHWC> && is_same_v<OutLayout, NDHWC>)
         {
-#ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, F16> && is_same_v<OutDataType, F16> &&
                          is_same_v<IndexDataType, I32>)
             {
@@ -143,8 +142,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_f16_instances(op_ptrs);
                 }
             }
-#endif
-#ifdef CK_ENABLE_BF16
             else if constexpr(is_same_v<InDataType, BF16> && is_same_v<OutDataType, BF16> &&
                               is_same_v<IndexDataType, I32>)
             {
@@ -157,8 +154,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_bf16_instances(op_ptrs);
                 }
             }
-#endif
-#ifdef CK_ENABLE_FP32
             else if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
                               is_same_v<IndexDataType, I32>)
             {
@@ -171,8 +166,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_f32_instances(op_ptrs);
                 }
             }
-#endif
-#ifdef CK_ENABLE_FP8
             else if constexpr(is_same_v<InDataType, F8> && is_same_v<OutDataType, F8> &&
                               is_same_v<IndexDataType, I32>)
             {
@@ -185,7 +178,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_f8_instances(op_ptrs);
                 }
             }
-#endif
             else if constexpr(is_same_v<InDataType, I8> && is_same_v<OutDataType, I8> &&
                               is_same_v<IndexDataType, I32>)
             {
