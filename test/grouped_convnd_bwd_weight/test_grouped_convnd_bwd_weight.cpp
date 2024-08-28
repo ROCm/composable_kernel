@@ -139,7 +139,8 @@ using KernelTypes2d = ::testing::Types<
     std::tuple<ck::bhalf_t, float, ck::bhalf_t, GNHWC, GKYXC, GNHWK, ck::Number<2>>,
     std::tuple<float, float, float, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
-    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>>;
+    std::tuple<ck::bhalf_t, float, ck::bhalf_t, NHWGC, GKYXC, NHWGK, ck::Number<2>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCHW, GKYXC, NGKHW, ck::Number<2>>>;
 using KernelTypes3d = ::testing::Types<
     std::tuple<float, float, float, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, GNDHWC, GKZYXC, GNDHWK, ck::Number<3>>,
@@ -148,7 +149,8 @@ using KernelTypes3d = ::testing::Types<
     std::tuple<float, float, float, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
     std::tuple<ck::half_t, ck::half_t, ck::half_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
     std::tuple<ck::bhalf_t, float, ck::bhalf_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
-    std::tuple<int8_t, int8_t, int8_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>>;
+    std::tuple<int8_t, int8_t, int8_t, NDHWGC, GKZYXC, NDHWGK, ck::Number<3>>,
+    std::tuple<ck::half_t, ck::half_t, ck::half_t, NGCDHW, GKZYXC, NGKDHW, ck::Number<3>>>;
 
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight1d, KernelTypes1d);
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight2d, KernelTypes2d);

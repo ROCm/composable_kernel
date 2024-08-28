@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -45,6 +45,24 @@ std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
                       ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GNKW>)
     {
         return {0, 1, 2, 3};
+    }
+    else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGCW> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCX> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGKW>)
+    {
+        return {1, 0, 2, 3};
+    }
+    else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGCHW> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCYX> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGKHW>)
+    {
+        return {1, 0, 2, 3, 4};
+    }
+    else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGCDHW> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCZYX> ||
+                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGKDHW>)
+    {
+        return {1, 0, 2, 3, 4, 5};
     }
     else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GNCHW> ||
                       ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCYX> ||
@@ -132,6 +150,18 @@ make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck::utils::conv::ConvPa
                                 param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
     // separate from legacy code above
+    else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::NGCW> ||
+                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::NGCHW> ||
+                      ck::is_same_v<InLayout, ck::tensor_layout::convolution::NGCDHW>)
+    {
+        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
+                                                    static_cast<std::size_t>(param.G_),
+                                                    static_cast<std::size_t>(param.C_)};
+
+        physical_lengths.insert(physical_lengths.end(),
+                                param.input_spatial_lengths_.begin(),
+                                param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
+    }
     else if constexpr(ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCW> ||
                       ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCHW> ||
                       ck::is_same_v<InLayout, ck::tensor_layout::convolution::GNCDHW>)
@@ -308,6 +338,19 @@ make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck::utils::conv::ConvP
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),
+                                                    static_cast<std::size_t>(param.K_)};
+
+        physical_lengths.insert(physical_lengths.end(),
+                                param.output_spatial_lengths_.begin(),
+                                param.output_spatial_lengths_.begin() + param.num_dim_spatial_);
+    }
+    // separate from legacy code above
+    else if constexpr(ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NGKW> ||
+                      ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NGKHW> ||
+                      ck::is_same_v<OutLayout, ck::tensor_layout::convolution::NGKDHW>)
+    {
+        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
+                                                    static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.K_)};
 
         physical_lengths.insert(physical_lengths.end(),
