@@ -255,7 +255,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
-    __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
+    __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
         index_t M, index_t MPad, index_t K, index_t KPad, index_t StrideA, index_t AK0)
     {
         const auto a_grid_desc_mraw_kraw = [&]() {
@@ -337,7 +337,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         }
     }
 
-    __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
+    __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
         const auto b_grid_desc_nraw_kraw = [&]() {
