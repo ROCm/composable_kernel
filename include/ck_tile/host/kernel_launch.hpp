@@ -73,17 +73,17 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables... callables)
 {
     // clang-format off
     if(!s.time_kernel_) {
-        (callables(s),...); hip_check_error(hipGetLastError());
+        (callables(s),...); HIP_CHECK_ERROR(hipGetLastError());
         return 0;
     }
     if(s.is_gpu_timer_) {
         gpu_timer timer {};
 
         // warmup
-        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } HIP_CHECK_ERROR(hipGetLastError());
 
         timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } HIP_CHECK_ERROR(hipGetLastError());
         timer.stop(s.stream_id_);
 
         return timer.duration() / s.nrepeat_;
@@ -92,10 +92,10 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables... callables)
         cpu_timer timer {};
 
         // warmup
-        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        for(int i = 0; i < s.cold_niters_; i++) { (callables(s),...); } HIP_CHECK_ERROR(hipGetLastError());
 
         timer.start(s.stream_id_);
-        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } hip_check_error(hipGetLastError());
+        for(int i = 0; i < s.nrepeat_; i++) { (callables(s),...); } HIP_CHECK_ERROR(hipGetLastError());
         timer.stop(s.stream_id_);
 
         return timer.duration() / s.nrepeat_;
