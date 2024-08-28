@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck/utility/data_type.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 namespace ck {
@@ -106,6 +105,9 @@ struct TrinaryWithUnaryCombinedOp
     UnaryOp1 unary_op1_{};
     UnaryOp2 unary_op2_{};
 };
+
+using ScaleScalePass = UnaryCombinedOp<Scale, Scale, PassThrough>;
+using ScaleScaleRelu = UnaryCombinedOp<Scale, Scale, Relu>;
 
 } // namespace element_wise
 } // namespace tensor_operation
