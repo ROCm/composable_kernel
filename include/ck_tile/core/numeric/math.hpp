@@ -519,7 +519,7 @@ CK_TILE_DEVICE
 double sqrt(double x) { return __builtin_amdgcn_sqrt(x); };
 
 CK_TILE_DEVICE
-float exp(float x) { return __expf(x); };
+float exp(float x) { return __ocml_exp_f32(x); };
 
 CK_TILE_HOST
 float exp(float x) { return std::expf(x); }
@@ -536,13 +536,20 @@ float log(float x) { return __logf(x); };
 CK_TILE_HOST
 float log(float x) { return std::logf(x); };
 
-CK_TILE_DEVICE uint32_t sad(uint32_t x, uint32_t y, uint32_t acc)
+CK_TILE_DEVICE uint16_t sad_u16(uint16_t x, uint16_t y, uint16_t acc)
 {
-    // TODO: this is hacky, we use u16
     return __builtin_amdgcn_sad_u16(x, y, acc);
 }
 
-CK_TILE_HOST uint32_t sad(uint32_t x, uint32_t y, uint32_t acc)
+CK_TILE_DEVICE uint32_t sad_u32(uint32_t x, uint32_t y, uint32_t acc)
+{
+    /// TODO: replace inline asm when intrinsic is available
+    uint32_t res;
+    asm volatile("v_sad_u32 %0, %1, %2, %3" : "=v"(res) : "v"(x), "v"(y), "v"(acc));
+    return res;
+}
+
+CK_TILE_HOST uint32_t sad_u32(uint32_t x, uint32_t y, uint32_t acc)
 {
     return (x > y ? (x - y) : (y - x)) + acc;
 }

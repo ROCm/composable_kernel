@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
 
 namespace ck_tile {
 
@@ -32,30 +33,31 @@ struct TileFmhaTraits
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
 };
 
-template <bool kPadSeqLenQ /* padding for seqlen_q */,
-          bool kPadSeqLenK /* padding for seqlen_k */,
-          bool kPadHeadDimQ /* paddding for hdim_q */,
-          bool kPadHeadDimV /* paddding for hdim_v */,
-          BlockAttentionBiasEnum BiasEnum,
-          bool kHasBiasGrad,
-          bool kStoreLSE,
-          bool kHasDropout,
-          bool kDoFp8StaticQuant,
-          bool kHasUnevenSplits_ = true,
-          index_t kBlockPerCu    = -1 /* overwrite occupancy if not -1 */>
-struct TileFmhaFwdSplitKVTraits : TileFmhaTraits<kPadSeqLenQ,
-                                                 kPadSeqLenK,
-                                                 kPadHeadDimQ,
-                                                 kPadHeadDimV,
-                                                 BiasEnum,
-                                                 kHasBiasGrad,
-                                                 kStoreLSE,
-                                                 kHasDropout,
-                                                 kDoFp8StaticQuant,
-                                                 kBlockPerCu>
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadSeqLenK_ /* padding for seqlen_k */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          BlockAttentionBiasEnum BiasEnum_,
+          bool kHasBiasGrad_,
+          bool kStoreLSE_,
+          bool kDoFp8StaticQuant_,
+          bool kIsPagedKV_,
+          bool kHasUnevenSplits_,
+          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
+struct TileFmhaFwdSplitKVTraits
 {
+    static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
+    static constexpr bool kPadSeqLenK       = kPadSeqLenK_;
+    static constexpr bool kPadHeadDimQ      = kPadHeadDimQ_;
+    static constexpr bool kPadHeadDimV      = kPadHeadDimV_;
+    static constexpr auto BiasEnum          = BiasEnum_;
+    static constexpr bool kHasBiasGrad      = kHasBiasGrad_;
+    static constexpr bool kStoreLSE         = kStoreLSE_;
+    static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
+    static constexpr bool kIsPagedKV        = kIsPagedKV_;
     // determine if some split (length) is not divisible by tile size
     static constexpr bool kHasUnevenSplits = kHasUnevenSplits_;
+    static constexpr index_t kBlockPerCu   = kBlockPerCu_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
@@ -77,12 +79,36 @@ struct TileFmhaFwdSplitKVCombineTraits
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadSeqLenK_ /* padding for seqlen_k */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          bool kPadHeadDimV_ /* paddding for hdim_v */,
+          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
+struct TileFmhaFwdAppendKVTraits
+{
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadSeqLenK    = kPadSeqLenK_;
+    static constexpr bool kPadHeadDimQ   = kPadHeadDimQ_;
+    static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+};
+
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDimV_ /* paddding for hdim_v */,
           index_t kBlockPerCu_ = 2 /* hint to occupancy */>
 struct TileFmhaBwdOGradDotOTraits
 {
     static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
     static constexpr bool kPadHeadDimV   = kPadHeadDimV_;
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+};
+
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimQ_ /* paddding for hdim_q */,
+          index_t kBlockPerCu_ = 2 /* hint to occupancy */>
+struct TileFmhaBwdConvertQGradTraits
+{
+    static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimQ   = kPadHeadDimQ_;
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 

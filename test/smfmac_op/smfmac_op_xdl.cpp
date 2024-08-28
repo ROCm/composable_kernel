@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "test/smfmac_op/smfmac_op_util.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 using BF16        = ck::bhalf_t;
 using F16         = ck::half_t;
@@ -38,40 +39,43 @@ class TestSmfmac : public ::testing::Test
 
     void Run()
     {
-        bool pass                     = true;
-        constexpr auto matmul_default = ck::smfmac_op_util::matmul<Src1Type,
-                                                                   Src1VecSize,
-                                                                   Src2Type,
-                                                                   Src2VecSize,
-                                                                   GPUAccType,
-                                                                   AccVecSize,
-                                                                   DstType,
-                                                                   M,
-                                                                   N,
-                                                                   K>;
+        bool pass = true;
+        if(ck::get_device_name() == "gfx942")
+        {
+            constexpr auto matmul_default = ck::smfmac_op_util::matmul<Src1Type,
+                                                                       Src1VecSize,
+                                                                       Src2Type,
+                                                                       Src2VecSize,
+                                                                       GPUAccType,
+                                                                       AccVecSize,
+                                                                       DstType,
+                                                                       M,
+                                                                       N,
+                                                                       K>;
 
-        constexpr auto smfmac_kernel_container = std::make_tuple(matmul_default);
+            constexpr auto smfmac_kernel_container = std::make_tuple(matmul_default);
 
-        ck::static_for<0, std::tuple_size_v<decltype(smfmac_kernel_container)>, 1>{}([&](auto i) {
-            pass &= ck::smfmac_op_util::TestSmfmac<
-                std::tuple_element_t<i.value, decltype(smfmac_kernel_container)>,
-                Src1Type,
-                Src2Type,
-                DstType,
-                GPUAccType,
-                CPUAccType,
-                decltype(Row{}),
-                decltype(Row{}),
-                decltype(Row{}),
-                PassThrough,
-                PassThrough,
-                PassThrough,
-                AccVecSize,
-                M,
-                N,
-                K>{}(std::get<ck::Number<i>{}>(smfmac_kernel_container));
-        });
-
+            ck::static_for<0, std::tuple_size_v<decltype(smfmac_kernel_container)>, 1>{}(
+                [&](auto i) {
+                    pass &= ck::smfmac_op_util::TestSmfmac<
+                        std::tuple_element_t<i.value, decltype(smfmac_kernel_container)>,
+                        Src1Type,
+                        Src2Type,
+                        DstType,
+                        GPUAccType,
+                        CPUAccType,
+                        decltype(Row{}),
+                        decltype(Row{}),
+                        decltype(Row{}),
+                        PassThrough,
+                        PassThrough,
+                        PassThrough,
+                        AccVecSize,
+                        M,
+                        N,
+                        K>{}(std::get<ck::Number<i>{}>(smfmac_kernel_container));
+                });
+        }
         EXPECT_TRUE(pass);
     }
 };

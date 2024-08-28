@@ -43,7 +43,15 @@ std::ostream& LogRangeAsType(std::ostream& os, Range&& range, std::string delim)
             first = false;
         else
             os << delim;
-        os << static_cast<T>(v);
+
+        if constexpr(std::is_same_v<T, ck::f8_t> || std::is_same_v<T, ck::bf8_t>)
+        {
+            os << ck::type_convert<float>(v);
+        }
+        else
+        {
+            os << static_cast<T>(v);
+        }
     }
     return os;
 }
@@ -88,9 +96,16 @@ struct HostTensorDescriptor
         this->CalculateStrides();
     }
 
+    HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens)
+        : mLens(lens.begin(), lens.end())
+    {
+        this->CalculateStrides();
+    }
+
     template <typename Lengths,
               typename = std::enable_if_t<
-                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t>>>
+                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> ||
+                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t>>>
     HostTensorDescriptor(const Lengths& lens) : mLens(lens.begin(), lens.end())
     {
         this->CalculateStrides();
@@ -106,11 +121,19 @@ struct HostTensorDescriptor
     {
     }
 
+    HostTensorDescriptor(const std::initializer_list<ck::long_index_t>& lens,
+                         const std::initializer_list<ck::long_index_t>& strides)
+        : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
+    {
+    }
+
     template <typename Lengths,
               typename Strides,
               typename = std::enable_if_t<
-                  std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
-                  std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>>>
+                  (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, std::size_t> &&
+                   std::is_convertible_v<ck::ranges::range_value_t<Strides>, std::size_t>) ||
+                  (std::is_convertible_v<ck::ranges::range_value_t<Lengths>, ck::long_index_t> &&
+                   std::is_convertible_v<ck::ranges::range_value_t<Strides>, ck::long_index_t>)>>
     HostTensorDescriptor(const Lengths& lens, const Strides& strides)
         : mLens(lens.begin(), lens.end()), mStrides(strides.begin(), strides.end())
     {
