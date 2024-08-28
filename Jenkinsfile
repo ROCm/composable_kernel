@@ -262,10 +262,19 @@ def cmake_build(Map conf=[:]){
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
     def cmd
+    def setup_cmd
+    def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        def setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-        def build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make  -j${nt} ${config_targets}")
+        if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+            echo "running ninja build trace"
+            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake -G Ninja ${setup_args}   .. ")
+            build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
+        }
+        else{
+            setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
+            build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j${nt} ${config_targets}")
+        }
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
@@ -281,7 +290,19 @@ def cmake_build(Map conf=[:]){
     echo cmd
 
     dir("build"){
+        //build CK
         sh cmd
+        //run tests
+        if(!setup_args.contains("NO_CK_BUILD")){
+            if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
+                sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
+                archiveArtifacts "ck_build_trace.json"
+                sh "ninja test"
+            }
+            else{
+                sh "make check"
+            }
+        }
     }
 
     // Only archive from master or develop
@@ -543,7 +564,7 @@ def Build_CK(Map conf=[:]){
                     cmake_build(conf)
                     dir("build"){
                         //run tests and examples
-                        sh 'make -j check'
+                        //sh 'make -j check'
                         if (params.RUN_PERFORMANCE_TESTS && do_perf_tests == 0 ){
                             //we only need the ckProfiler to run the performance tests, so we pack and stash it
                             //do not stash profiler on nodes where we don't need to run performance tests
@@ -684,8 +705,8 @@ def process_results(Map conf=[:]){
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2; RUN_CK_TILE_TESTS=true
                                               0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
-                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false
-                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false
+                                              0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
+                                              0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
 
 pipeline {
@@ -765,7 +786,10 @@ pipeline {
             name: "BUILD_GFX12",
             defaultValue: false,
             description: "Build CK and run tests on gfx12 (default: OFF)")
-
+        booleanParam(
+            name: "NINJA_BUILD_TRACE",
+            defaultValue: false,
+            description: "Generate a ninja build trace (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -799,6 +823,7 @@ pipeline {
                     }
                     agent{ label rocmnode("nogpu") }
                     environment{
+                        setup_args = "NO_CK_BUILD"
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
                                 -o -not -path \'*.git*\' -iname \'*.hpp\' \
                                 -o -not -path \'*.git*\' -iname \'*.cpp\' \
@@ -815,7 +840,7 @@ pipeline {
                                 --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                         archiveArtifacts "build/ck_cppcheck.log"
                         cleanWs()
                     }
@@ -827,6 +852,7 @@ pipeline {
                     }
                     agent{ label rocmnode("nogpu") }
                     environment{
+                        setup_args = "NO_CK_BUILD"
                         execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
                                 -o -not -path \'*.git*\' -iname \'*.hpp\' \
                                 -o -not -path \'*.git*\' -iname \'*.cpp\' \
@@ -838,7 +864,7 @@ pipeline {
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\'"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
                         cleanWs()
                     }
                 }
@@ -967,10 +993,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx1100;gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
-                                           -DGPU_TARGETS="gfx1100;gfx90a" \
+                                           -DGPU_TARGETS="gfx90a" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
@@ -1074,7 +1100,7 @@ pipeline {
                     options { retry(1) }
                     agent{ label rocmnode("gfx90a")}
                     environment{
-                        setup_args = """ -DGPU_TARGETS="gfx90a" -DBUILD_DEV=On """
+                        setup_args = "NO_CK_BUILD"
                     }
                     steps{
                         runPerfTest(setup_args:setup_args, config_targets: "ckProfiler", no_reboot:true, build_type: 'Release')

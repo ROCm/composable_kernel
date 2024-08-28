@@ -46,7 +46,7 @@ def parse_layouts(args):
 def parse_data_type(args):
     if args.data_type == "fp32":
         if args.ck_profier_op == "grouped_conv_bwd_weight" or \
-           args.ck_profier_op == "grouped_conv_bwd_weight" or \
+           args.ck_profier_op == "grouped_conv_bwd_data" or \
            args.ck_profier_op == "grouped_conv_fwd":
             args.data_type = 0
     if args.data_type == "fp16":
