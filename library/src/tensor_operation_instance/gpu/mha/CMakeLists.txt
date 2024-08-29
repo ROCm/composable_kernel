@@ -2,7 +2,16 @@ set(FMHA_CPP_FOLDER ${CMAKE_CURRENT_BINARY_DIR})
 set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
 set(CK_TILE_SRC_FOLDER ${CMAKE_SOURCE_DIR}/include/ck_tile/)
 # python stuff
-find_package(PythonInterp 3 REQUIRED)
+if(NOT RHEL)
+  find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+else()
+  message("trying to locate newer python on RHEL")
+  find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+  add_definitions(-DPython3_EXECUTABLE="/opt/Python-3.8.13/bin/python3.8")
+  set(Python3_EXECUTABLE "/opt/Python-3.8.13/bin/python3.8")
+  set(PYTHON_EXECUTABLE "/opt/Python-3.8.13/bin/python3.8")
+  set(ENV{LD_LIBRARY_PATH} "/opt/Python-3.8.13/lib:$ENV{LD_LIBRARY_PATH}")
+endif()
 
 rocm_install(DIRECTORY ${CK_TILE_SRC_FOLDER} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile)
 

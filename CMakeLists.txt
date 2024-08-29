@@ -26,7 +26,16 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
-find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+if(NOT RHEL)
+    find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+else()
+message("trying to locate newer python on RHEL")
+    set(EXTRA_PYTHON_PATH "/opt/Python-3.8.13")
+    find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+    add_definitions(-DPython3_EXECUTABLE="/opt/Python-3.8.13/bin/python3.8")
+    set(Python3_EXECUTABLE "/opt/Python-3.8.13/bin/python3.8")
+    set(ENV{LD_LIBRARY_PATH} "/opt/Python-3.8.13/lib:$ENV{LD_LIBRARY_PATH}")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
