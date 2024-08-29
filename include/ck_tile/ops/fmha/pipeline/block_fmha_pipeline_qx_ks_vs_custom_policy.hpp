@@ -711,16 +711,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         if constexpr(AsyncCopyK)
         {
-            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
+            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>(0);
         }
         else
         {
-            return ck_tile::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>());
+            return ck_tile::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>(0));
         }
     }
 
+    // this method is only available when Problem::kHasDropout is present
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
+    CK_TILE_HOST_DEVICE static constexpr std::
+        enable_if_t<std::is_convertible_v<decltype(Problem::kHasDropout), bool>, ck_tile::index_t>
+        GetSmemSizeDropout(int)
     {
         if constexpr(Problem::kHasDropout)
         {
@@ -738,6 +741,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         {
             return 0;
         }
+    }
+
+    // fallback version if Problem::kHasDropout is not exist
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout(...)
+    {
+        return 0;
     }
 
     template <typename Problem>
