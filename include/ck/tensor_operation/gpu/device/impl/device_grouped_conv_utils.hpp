@@ -12,7 +12,7 @@ namespace device {
 
 // 1d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_NWGK_GKXC_NWGC()
+constexpr bool is_NWGC_GKXC_NWGK()
 {
     return is_same_v<InLayout, tensor_layout::convolution::NWGC> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
@@ -20,7 +20,7 @@ constexpr bool is_NWGK_GKXC_NWGC()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_GNWK_GKXC_GNWC()
+constexpr bool is_GNWC_GKXC_GNWK()
 {
     return is_same_v<InLayout, tensor_layout::convolution::GNWC> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
@@ -28,7 +28,7 @@ constexpr bool is_GNWK_GKXC_GNWC()
 }
 // 2d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_NHWGK_GKYXC_NHWGC()
+constexpr bool is_NHWGC_GKYXC_NHWGK()
 {
     return is_same_v<InLayout, tensor_layout::convolution::NHWGC> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
@@ -36,7 +36,7 @@ constexpr bool is_NHWGK_GKYXC_NHWGC()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_GNHWK_GKYXC_GNHWC()
+constexpr bool is_GNHWC_GKYXC_GNHWK()
 {
     return is_same_v<InLayout, tensor_layout::convolution::GNHWC> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
@@ -44,7 +44,7 @@ constexpr bool is_GNHWK_GKYXC_GNHWC()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_NGKHW_GKYXC_NGCHW()
+constexpr bool is_NGCHW_GKYXC_NGKHW()
 {
     return is_same_v<InLayout, tensor_layout::convolution::NGCHW> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKYXC> &&
@@ -52,7 +52,7 @@ constexpr bool is_NGKHW_GKYXC_NGCHW()
 }
 // 3d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_NDHWGK_GKZYXC_NDHWGC()
+constexpr bool is_NDHWGC_GKZYXC_NDHWGK()
 {
     return is_same_v<InLayout, tensor_layout::convolution::NDHWGC> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
@@ -60,7 +60,7 @@ constexpr bool is_NDHWGK_GKZYXC_NDHWGC()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_GNDHWK_GKZYXC_GNDHWC()
+constexpr bool is_GNDHWC_GKZYXC_GNDHWK()
 {
     return is_same_v<InLayout, tensor_layout::convolution::GNDHWC> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
@@ -68,7 +68,7 @@ constexpr bool is_GNDHWK_GKZYXC_GNDHWC()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_NGKDHW_GKZYXC_NGCDHW()
+constexpr bool is_NGCDHW_GKZYXC_NGKDHW()
 {
     return is_same_v<InLayout, tensor_layout::convolution::NGCDHW> &&
            is_same_v<WeiLayout, tensor_layout::convolution::GKZYXC> &&
@@ -76,19 +76,19 @@ constexpr bool is_NGKDHW_GKZYXC_NGCDHW()
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_NSpatialGK_GKSpatial_NSpatialGC()
+constexpr bool is_NSpatialGC_GKSpatial_NSpatialGK()
 {
-    return is_NWGK_GKXC_NWGC<InLayout, WeiLayout, OutLayout>() ||
-           is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
-           is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>();
+    return is_NWGC_GKXC_NWGK<InLayout, WeiLayout, OutLayout>() ||
+           is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
+           is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>();
 }
 
 template <typename InLayout, typename WeiLayout, typename OutLayout>
-constexpr bool is_GNSpatialK_GKSpatial_GNSpatialC()
+constexpr bool is_GNSpatialC_GKSpatial_GNSpatialK()
 {
-    return is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>() ||
-           is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>() ||
-           is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>();
+    return is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>() ||
+           is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>() ||
+           is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>();
 }
 
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0, typename = void>

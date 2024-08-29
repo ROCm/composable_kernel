@@ -181,17 +181,9 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     }
     else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
     {
-        if(data_type == ConvDataType::F32_F32_F32)
-        {
-            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
-        }
         if(data_type == ConvDataType::F16_F16_F16)
         {
             return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
-        }
-        if(data_type == ConvDataType::BF16_F32_BF16)
-        {
-            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
     if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
