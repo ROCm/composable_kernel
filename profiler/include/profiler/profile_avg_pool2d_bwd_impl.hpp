@@ -231,7 +231,9 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
             else
             {
                 if(time_kernel)
+                {
                     std::cout << "pass" << std::endl;
+                }
             }
         }
     }

@@ -13,6 +13,7 @@ set(PROFILER_SOURCES
     profile_avg_pool3d_bwd.cpp
     profile_max_pool3d_bwd.cpp
     profile_avg_pool2d_bwd.cpp
+    profile_max_pool2d_bwd.cpp
     profile_softmax.cpp
     profile_batchnorm_fwd.cpp
     profile_batchnorm_bwd.cpp

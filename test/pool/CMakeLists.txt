@@ -5,9 +5,11 @@ add_gtest_executable(test_max_pool3d_bwd test_max_pool3d_bwd.cpp)
 add_gtest_executable(test_avg_pool3d_fwd test_avg_pool3d_fwd.cpp)
 add_gtest_executable(test_max_pool3d_fwd test_max_pool3d_fwd.cpp)
 add_gtest_executable(test_avg_pool2d_bwd test_avg_pool2d_bwd.cpp)
+add_gtest_executable(test_max_pool2d_bwd test_max_pool2d_bwd.cpp)
 
 target_link_libraries(test_avg_pool3d_bwd PRIVATE utility device_avg_pool3d_bwd_instance)
 target_link_libraries(test_avg_pool2d_bwd PRIVATE utility device_avg_pool2d_bwd_instance)
+target_link_libraries(test_max_pool2d_bwd PRIVATE utility device_max_pool_bwd_instance)
 target_link_libraries(test_max_pool3d_bwd PRIVATE utility device_max_pool_bwd_instance)
 target_link_libraries(test_avg_pool3d_fwd PRIVATE utility device_pool3d_fwd_instance)
 target_link_libraries(test_max_pool3d_fwd PRIVATE utility device_pool3d_fwd_instance)
@@ -16,7 +18,6 @@ add_dependencies(test_pool test_avg_pool3d_bwd)
 add_dependencies(test_pool test_max_pool3d_bwd)
 add_dependencies(test_pool test_avg_pool3d_fwd)
 add_dependencies(test_pool test_max_pool3d_fwd)
-add_dependencies(test_pool test_avg_pool2d_fwd)
-
-
+add_dependencies(test_pool test_avg_pool2d_bwd)
+add_dependencies(test_pool test_max_pool2d_bwd)
 

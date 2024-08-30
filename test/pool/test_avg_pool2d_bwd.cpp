@@ -105,7 +105,7 @@ TYPED_TEST(AvgPool2DB_bf16, AvgPool2DBTest_bf16)
     this->Run();
 }
 
-// TODO: (mozga-amd) F8 type works only for a specyfic inputs
+// TODO: (mozga-amd) F8 type works only for specific inputs.
 /*
 TYPED_TEST(AvgPool2DB_f8, AvgPool2DBTest_f8)
 {
