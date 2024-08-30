@@ -3,15 +3,17 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <optional>
 #include <ostream>
+#include <sstream>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <functional>
-#include <string>
 
 #include "ck_tile/core/container/span.hpp"
 
@@ -40,13 +42,17 @@ std::vector<int32_t> to_seqstarts(ck_tile::span<const int32_t> seqlens)
 std::vector<int32_t> generate_seqlens(mode_enum mode,
                                       unsigned count,
                                       int32_t seqlen_avg,
+                                      int32_t seqlen_min = -1, // if not negative, clamp min
                                       int32_t seqlen_max = -1, // if not negative, clamp max
                                       std::optional<unsigned> seed = std::nullopt)
 {
     assert(0 < count);
 
-    std::vector<int32_t> seqlens(
-        count, seqlen_max > 0 ? (seqlen_avg < seqlen_max ? seqlen_avg : seqlen_max) : seqlen_avg);
+    seqlen_min = (0 < seqlen_min ? seqlen_min : 1);
+    seqlen_max = (0 < seqlen_max ? seqlen_max : std::numeric_limits<int32_t>::max());
+    assert(seqlen_min <= seqlen_max);
+
+    std::vector<int32_t> seqlens(count, std::clamp(seqlen_avg, seqlen_min, seqlen_max));
 
     if(mode == mode_enum::group && 1 < count)
     {
@@ -62,15 +68,15 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
         for(unsigned repeat = seqlen_avg * (count / 2); 0 < repeat; --repeat)
         {
             const size_type to_decrease = next_idx();
-            // make sure each elements of seqlens is always greater than 0
-            if(seqlens[to_decrease] == 1)
+            // make sure each elements of seqlens is in range [seqlen_min, seqlen_max]
+            if(seqlens[to_decrease] == seqlen_min)
             {
                 continue;
             }
 
             const size_type to_increase = (to_decrease + next_step()) % count;
 
-            if(seqlen_max > 0 && seqlens[to_increase] >= seqlen_max)
+            if(seqlens[to_increase] >= seqlen_max)
             {
                 continue;
             }
@@ -86,10 +92,36 @@ std::vector<int32_t> generate_seqlens(mode_enum mode,
 std::vector<int32_t> generate_seqstarts(mode_enum mode,
                                         unsigned count,
                                         int32_t seqlen_avg,
+                                        int32_t seqlen_min           = -1,
                                         int32_t seqlen_max           = -1,
                                         std::optional<unsigned> seed = std::nullopt)
 {
-    return to_seqstarts(generate_seqlens(mode, count, seqlen_avg, seqlen_max, seed));
+    return to_seqstarts(generate_seqlens(mode, count, seqlen_avg, seqlen_min, seqlen_max, seed));
+}
+
+// return random integer generated uniformly in range [low, high]
+template <typename Int = int>
+auto randint(Int low, Int high, std::optional<unsigned> seed = std::nullopt)
+    -> std::enable_if_t<std::is_integral_v<Int>, Int>
+{
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::uniform_int_distribution<Int> dist(low, high);
+    return dist(engine);
+}
+
+// return random integers generated uniformly in range [low, high]
+template <typename Int, typename ForwardIterator>
+auto randints(ForwardIterator first,
+              ForwardIterator last,
+              Int low,
+              Int high,
+              std::optional<unsigned> seed = std::nullopt)
+    -> std::enable_if_t<std::is_integral_v<Int>>
+{
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::uniform_int_distribution<Int> dist(low, high);
+
+    std::generate(first, last, [&] { return dist(engine); });
 }
 
 /*
@@ -112,16 +144,45 @@ decode_seqlen(mode_enum mode,
               std::string q_val,
               std::string k_val,
               std::string k_pad_val,
-              std::optional<unsigned> seed = std::nullopt)
+              ck_tile::index_t seqlen_k_min = 0,
+              bool use_kvcache              = false,
+              std::optional<unsigned> seed  = std::nullopt)
 {
 #define _S2I_(str_) static_cast<ck_tile::index_t>(std::atoi((str_).c_str()))
     if(mode == mode_enum::batch)
     {
         ck_tile::index_t q = _S2I_(q_val);
         ck_tile::index_t k = _S2I_(k_val);
-        auto s_q           = std::vector<ck_tile::index_t>(batch, q);
-        auto s_k           = std::vector<ck_tile::index_t>(batch, k < 0 ? q : k);
+
+        auto s_q = std::vector<ck_tile::index_t>(batch, q);
+        auto s_k = [&] {
+            const ck_tile::index_t seqlen_k_max = (k < 0 ? q : k);
+            std::vector<ck_tile::index_t> seqlen_ks(batch, seqlen_k_max);
+
+            if(1 < batch && use_kvcache)
+            {
+                // to keep the original s_k value, we always use seqlen_k_max in first batch
+                randints(std::next(seqlen_ks.begin()),
+                         seqlen_ks.end(),
+                         seqlen_k_min,
+                         seqlen_k_max,
+                         seed);
+                return seqlen_ks;
+            }
+
+            return seqlen_ks;
+        }();
         auto s_kpad = std::vector<ck_tile::index_t>(batch, -1); // TODO: batch not support k_padding
+
+        // s_k should be greater than or equal to seqlen_k_min if provided
+        if(s_k.back() < seqlen_k_min)
+        {
+            std::ostringstream msg;
+            msg << __FILE__ << ":" << __LINE__ << ": seqlen_k (=" << s_k.back()
+                << ") is less than minimum seqlen_k (=" << seqlen_k_min << ")";
+            throw std::runtime_error(msg.str());
+        }
+
         return std::make_tuple(s_q, s_k, s_kpad);
     }
     else
@@ -149,6 +210,16 @@ decode_seqlen(mode_enum mode,
             s_q.push_back(q);
             s_k.push_back(k < 0 ? q : k);
             s_kpad.push_back(kp);
+
+            // s_k should be greater than or equal to seqlen_k_min
+            if(s_k.back() < seqlen_k_min)
+            {
+                std::ostringstream msg;
+                msg << __FILE__ << ":" << __LINE__ << ": seqlen_k (=" << s_k.back()
+                    << ") is less than minimum seqlen_k (=" << seqlen_k_min << ")";
+                throw std::runtime_error(msg.str());
+            }
+
             idx++;
             if(found_q == std::string::npos || idx >= batch)
             {
@@ -160,8 +231,9 @@ decode_seqlen(mode_enum mode,
         }
         if(idx < batch)
         {
-            auto rem_q = generate_seqlens(mode, batch - idx, s_q.back(), s_kpad.back(), seed);
-            auto rem_k = generate_seqlens(mode, batch - idx, s_k.back(), s_kpad.back(), seed);
+            auto rem_q = generate_seqlens(mode, batch - idx, s_q.back(), 1, s_kpad.back(), seed);
+            auto rem_k =
+                generate_seqlens(mode, batch - idx, s_k.back(), seqlen_k_min, s_kpad.back(), seed);
 
             s_q.insert(s_q.end(), rem_q.begin(), rem_q.end());
             s_k.insert(s_k.end(), rem_k.begin(), rem_k.end());
@@ -179,4 +251,16 @@ int env_get_int(const char* var_name, int default_int)
     if(v)
         r = std::atoi(v);
     return r;
+}
+
+template <typename RandomAccessIterator, typename Int>
+std::enable_if_t<std::is_integral_v<Int>> iota_shuffle(RandomAccessIterator first,
+                                                       RandomAccessIterator last,
+                                                       Int value,
+                                                       std::optional<unsigned> seed = std::nullopt)
+{
+    std::iota(first, last, value);
+
+    std::mt19937 engine(seed.has_value() ? *seed : std::random_device{}());
+    std::shuffle(first, last, engine);
 }
