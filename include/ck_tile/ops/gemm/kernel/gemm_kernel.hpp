@@ -5,7 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "gemm_matrix_type.hpp"
 #include <iostream>
 
 #include <string>
@@ -15,13 +14,17 @@ namespace ck_tile {
 template <typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_,
-          typename Layouts_>
+          typename LayoutA_,
+          typename LayoutB_,
+          typename LayoutC_>
 struct GemmKernel
 {
     using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
-    using Layouts                       = remove_cvref_t<Layouts_>;
+    using LayoutA                       = remove_cvref_t<LayoutA_>;
+    using LayoutB                       = remove_cvref_t<LayoutB_>;
+    using LayoutC                       = remove_cvref_t<LayoutC_>;
     static constexpr index_t kBlockSize = GemmPipeline::kBlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
@@ -31,8 +34,6 @@ struct GemmKernel
 
     __host__ static constexpr auto GridSize(index_t M_size, index_t N_size, index_t Batch_size)
     {
-        auto x = TilePartitioner::GridSize(M_size, N_size, Batch_size);
-        printf("GridDimX: %d, GridDimY: %d, %d", x.x, x.y, x.z);
         return TilePartitioner::GridSize(M_size, N_size, Batch_size);
     }
 
@@ -46,7 +47,6 @@ struct GemmKernel
 
         float epsilon;
 
-        ck_tile::index_t batch_size;
         ck_tile::index_t M;
         ck_tile::index_t N;
         ck_tile::index_t K;
@@ -59,7 +59,6 @@ struct GemmKernel
                                                             const void* b_ptr,
                                                             void* c_ptr,
                                                             float epsilon,
-                                                            ck_tile::index_t batch_size,
                                                             ck_tile::index_t M,
                                                             ck_tile::index_t N,
                                                             ck_tile::index_t K,
@@ -67,8 +66,7 @@ struct GemmKernel
                                                             ck_tile::index_t stride_B,
                                                             ck_tile::index_t stride_C)
     {
-        return GemmCommonKargs{
-            a_ptr, b_ptr, c_ptr, epsilon, batch_size, M, N, K, stride_A, stride_B, stride_C};
+        return GemmCommonKargs{a_ptr, b_ptr, c_ptr, epsilon, M, N, K, stride_A, stride_B, stride_C};
     }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
@@ -86,7 +84,7 @@ struct GemmKernel
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
         // Convert pointers to tensor views
         auto a_tensor_view = [&]() {
-            if constexpr(Layouts::LayoutA == ck_tile::MatrixALayout::KM)
+            if constexpr(std::is_same_v<LayoutA, tensor_layout::gemm::ColumnMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_start,
@@ -107,7 +105,7 @@ struct GemmKernel
         }();
 
         auto b_tensor_view = [&]() {
-            if constexpr(Layouts::LayoutB == ck_tile::MatrixBLayout::KN)
+            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     b_start,
@@ -142,13 +140,12 @@ struct GemmKernel
 
         const index_t num_loop = (kargs.K + TilePartitioner::kK - 1) / TilePartitioner::kK;
 
-        auto acc = BlockGemmPipelineAGmemBGmemCRegV1<GemmPipeline>{}(
-            ABlockWindow, BBlockWindow, num_loop, smem_ptr);
+        auto acc = GemmPipeline{}(ABlockWindow, BBlockWindow, num_loop, smem_ptr);
 
         CODataType* c_start = static_cast<CODataType*>(kargs.c_ptr);
 
         auto c_tensor_view = [&]() {
-            if constexpr(Layouts::LayoutC == ck_tile::MatrixCLayout::NM)
+            if constexpr(std::is_same_v<LayoutC, tensor_layout::gemm::ColumnMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     c_start,

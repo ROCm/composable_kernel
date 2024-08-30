@@ -240,7 +240,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     int err_count   = 0;
     int64_t err     = 0;
     int64_t max_err = std::numeric_limits<int64_t>::min();
-    for(std::size_t i = 4190; i < ref.size(); ++i)
+    for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const int64_t o = *std::next(std::begin(out), i);
         const int64_t r = *std::next(std::begin(ref), i);

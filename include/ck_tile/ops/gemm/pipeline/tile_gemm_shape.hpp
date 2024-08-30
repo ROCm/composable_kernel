@@ -7,15 +7,8 @@
 
 namespace ck_tile {
 
-template <index_t kMPerTile, index_t kNPerTile, index_t kKPerTile>
-struct TileGemmShape {
-    static constexpr index_t kM = kMPerTile;
-    static constexpr index_t kN = kNPerTile;
-    static constexpr index_t kK = kKPerTile;
-};
-
 template <typename BlockTile_, typename BlockWarps_, typename WarpTile_>
-struct TileGemmShapeNewGemm
+struct TileGemmShape
 {
     using BlockTile  = remove_cvref_t<BlockTile_>;
     using BlockWarps = remove_cvref_t<BlockWarps_>;

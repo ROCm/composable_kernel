@@ -1,6 +1,6 @@
 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,19 +16,11 @@ struct GemmBasicTypeConfig;
 template <>
 struct GemmBasicTypeConfig<ck_tile::half_t>
 {
-    using XDataType   = ck_tile::half_t;
-    using YDataType   = ck_tile::half_t;
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::half_t;
     using AccDataType = float;
-    using ODataType   = ck_tile::half_t; // type convert
+    using CDataType   = ck_tile::half_t; // type convert
     // ToDo: Add more bias config to support different categories of GEMM.
-};
-
-template <ck_tile::MatrixALayout A, ck_tile::MatrixBLayout B, ck_tile::MatrixCLayout C>
-struct LayoutConfig
-{
-    static constexpr ck_tile::MatrixALayout LayoutA = A;
-    static constexpr ck_tile::MatrixBLayout LayoutB = B;
-    static constexpr ck_tile::MatrixCLayout LayoutC = C;
 };
 
 template <typename T>
@@ -37,13 +29,13 @@ struct DataTypeTraits;
 template <>
 struct DataTypeTraits<float>
 {
-    static constexpr const char* name = "float";
+    static constexpr const char* name = "fp32";
 };
 
 template <>
 struct DataTypeTraits<double>
 {
-    static constexpr const char* name = "double";
+    static constexpr const char* name = "fp64";
 };
 
 template <>
@@ -55,10 +47,10 @@ struct DataTypeTraits<ck_tile::half_t>
 using Types = GemmBasicTypeConfig<ck_tile::half_t>;
 
 // Specific type aliases for easy access
-using XDataType   = Types::XDataType;
-using YDataType   = Types::YDataType;
+using ADataType   = Types::ADataType;
+using BDataType   = Types::BDataType;
 using AccDataType = Types::AccDataType;
-using ODataType   = Types::ODataType;
+using CDataType   = Types::CDataType;
 
 struct gemm_basic_args
 {
@@ -66,14 +58,13 @@ struct gemm_basic_args
     const void* p_b;
     void* p_c;
     float epsilon;
-    ck_tile::index_t batch_size;
+    ck_tile::index_t kbatch;
     ck_tile::index_t M;
     ck_tile::index_t N;
     ck_tile::index_t K;
     ck_tile::index_t stride_A;
     ck_tile::index_t stride_B;
     ck_tile::index_t stride_C;
-    static constexpr ck_tile::index_t kBlockPerCu = 1;
 };
 
 // host API

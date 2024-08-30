@@ -16,6 +16,7 @@ This will result in an executable `build/bin/tile_example_gemm_basic`
 args:
           -m    m dimension (default:3328)
           -n    m dimension (default:4096)
+          -k    k dimension (default:64)
           -e    epsilon (default:1e-5)
           -v    cpu validation or not (default:1)
        -prec    precision (default:fp16)

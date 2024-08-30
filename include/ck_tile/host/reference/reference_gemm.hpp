@@ -5,7 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_matrix_type.hpp"
 #include <thread>
 
 namespace ck_tile {
@@ -14,21 +13,23 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
+          typename LayoutA,
+          typename LayoutB,
+          typename LayoutC,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
 CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
                                  const HostTensor<BDataType>& b_n_k,
                                  HostTensor<CDataType>& c_m_n,
-                                 MatrixALayout layoutA = MatrixALayout::MK,
                                  const AElementOp& a_element_op     = {},
                                  const BElementOp& b_element_op     = {},
                                  const ACCElementOp& acc_element_op = {})
 {
     const int N = b_n_k.mDesc.get_lengths()[0];
-    const int K = (layoutA == MatrixALayout::MK) ? 
+    const int K = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>) ? 
                     a_m_k.mDesc.get_lengths()[1] : a_m_k.mDesc.get_lengths()[0];
-    const int M = (layoutA == MatrixALayout::MK) ?
+    const int M = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>) ?
                     a_m_k.mDesc.get_lengths()[0] : a_m_k.mDesc.get_lengths()[1];
 
     auto f = [&](auto m) {
@@ -38,7 +39,7 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
 
             for(int k = 0; k < K; ++k)
             {
-                ADataType v_a = (layoutA == MatrixALayout::MK) ? 
+                ADataType v_a = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>) ? 
                                 a_element_op(a_m_k(m, k)) : a_element_op(a_m_k(k, m));
                 BDataType v_b = b_element_op(b_n_k(n, k));
 
