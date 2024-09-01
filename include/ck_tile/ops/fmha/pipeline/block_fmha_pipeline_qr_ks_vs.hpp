@@ -112,9 +112,7 @@ struct BlockFmhaPipelineQRKSVS
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-
         return 64 * 1024;
-        // return Policy::template GetSmemSize<Problem>();
     }
 
     template <typename QDramBlockWindowTmp,
@@ -178,9 +176,9 @@ struct BlockFmhaPipelineQRKSVS
             make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
 
         // V tile in LDS
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<VDataType*>(smem_ptr),
-            Policy::template MakeVLdsBlockDescriptor<Problem>());
+        auto v_lds_ptr = reinterpret_cast<VDataType*>(smem_ptr);
+        auto v_lds     = make_tensor_view<address_space_enum::lds>(
+            v_lds_ptr, Policy::template MakeVLdsBlockDescriptor<Problem>());
         auto v_lds_window = make_tile_window(
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
@@ -296,12 +294,11 @@ struct BlockFmhaPipelineQRKSVS
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(1 <= k0_loops);
+        static_assert(1 == k0_loops);
         static_assert(1 <= k1_loops);
         do
         {
             // STAGE 1, QK gemm
-
             clear_tile(s_acc); // initialize C
             if(get_warp_id() < 4)
             {
@@ -311,7 +308,6 @@ struct BlockFmhaPipelineQRKSVS
                 {
                     buffer_load_fence(0);
                     __builtin_amdgcn_s_barrier();
-                    // store_tile(k_lds_window, tile_elementwise_in(_element_func, k_tile));
                     store_tile(k_lds_window, k_tile);
                     block_sync_lds();
                 }
@@ -425,6 +421,7 @@ struct BlockFmhaPipelineQRKSVS
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
                         //
+                __builtin_amdgcn_s_barrier();
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
@@ -440,8 +437,7 @@ struct BlockFmhaPipelineQRKSVS
                         v_lds_window,
                         tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
                 }
-                ds_fence(0);
-                __builtin_amdgcn_s_barrier();
+                block_sync_lds();
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
                 move_tile_window(v_dram_window, {0, kK1});
@@ -609,8 +605,9 @@ struct BlockFmhaPipelineQRKSVS
             // block_sync_lds();
             if(get_warp_id() < 4)
             {
-                // communicate Vtile transfer to LDS
                 __builtin_amdgcn_s_barrier();
+                // communicate Vtile transfer to LDS
+                block_sync_lds();
             }
 
             // STAGE 3, KV gemm
