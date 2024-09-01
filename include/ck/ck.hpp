@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -153,8 +153,8 @@ CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
 // LDS direct loads using inline assembly
 #define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 0
 
-// set stochastic rounding as default for f8 conversions
-#define CK_USE_SR_F8_CONVERSION 1
+// set rounding to nearest even as default for f8 conversions
+#define CK_USE_SR_F8_CONVERSION 0
 
 // block synchronization only s_wait lgkmcnt(0), not vmcnt(0)
 #define CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM 1

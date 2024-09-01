@@ -1,7 +1,6 @@
 #!/bin/sh
-# TODO: run this script from CK root
-BUILD=build
-EXE=$BUILD/bin/tile_example_fmha_bwd
+# TODO: run this script from CK root or build directory
+EXE="$(find . -name tile_example_fmha_bwd -type f | head -n 1)"
 KNAME=1
 
 export CK_WARMUP=0

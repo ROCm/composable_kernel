@@ -215,6 +215,12 @@ struct tile_window_with_static_distribution
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
 
+    CK_TILE_DEVICE constexpr void
+    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
+    {
+        bottom_tensor_view_.buf_.p_data_ = data;
+    }
+
     // move thread's window adaptor coordinate and bottom tensor coordinate
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
     CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
@@ -394,7 +400,8 @@ struct tile_window_with_static_distribution
                     bottom_tensor_thread_coord,
                     bool_constant<oob_conditional_check>{},
                     pre_nop_);
-#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
+#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE || \
+    CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE
                 asm volatile(
                     ""); // this is starting from rocm-6.2, but same sympton, reuse this flag
 #endif
@@ -912,6 +919,17 @@ struct tile_window_with_static_lengths
 
     CK_TILE_DEVICE constexpr auto get_window_origin() const { return window_origin_; }
 
+    CK_TILE_DEVICE void set_window_origin(const BottomTensorIndex& new_window_origin)
+    {
+        window_origin_ = new_window_origin;
+    }
+
+    CK_TILE_DEVICE constexpr void
+    set_bottom_tensor_view_data_ptr(typename BottomTensorView::DataType* data)
+    {
+        bottom_tensor_view_.buf_.p_data_ = data;
+    }
+
     // move window-origin
     CK_TILE_DEVICE void move(const BottomTensorIndex& step) { window_origin_ += step; }
 
@@ -938,6 +956,39 @@ make_tile_window(const TensorView_& tensor_view,
     return tile_window_with_static_lengths<remove_cvref_t<TensorView_>,
                                            remove_cvref_t<WindowLengths_>>{
         tensor_view, window_lengths, origin};
+}
+
+// duplicate tile window and replace its origin
+template <typename TensorView, typename WindowLengths>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const multi_index<TensorView::get_num_of_dimension()>& origin)
+{
+    return tile_window_with_static_lengths<TensorView, WindowLengths>{
+        tile_window.get_bottom_tensor_view(), tile_window.get_window_lengths(), origin};
+}
+
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const multi_index<TensorView::get_num_of_dimension()>& origin,
+                 const StaticTileDistribution& tile_distribution)
+{
+    return make_tile_window(tile_window.get_bottom_tensor_view(),
+                            tile_window.get_window_lengths(),
+                            origin,
+                            tile_distribution);
+}
+
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const StaticTileDistribution& tile_distribution)
+{
+    return make_tile_window(tile_window.get_bottom_tensor_view(),
+                            tile_window.get_window_lengths(),
+                            tile_window.get_window_origin(),
+                            tile_distribution);
 }
 
 template <typename TensorView_, typename WindowLengths_>
