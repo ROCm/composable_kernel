@@ -33,17 +33,7 @@ struct FusedMoePipelineProblem
 
     static constexpr index_t kBlockSize = FusedMoeTileShape::NumWarps * get_warp_size();
 
-    // attributes from traits
-    // static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
-    // static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
-    // static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
-    // static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
-    // static constexpr auto BiasEnum          = Traits::BiasEnum;
-    // static constexpr bool kStoreLSE         = Traits::kStoreLSE;
-    // static constexpr bool kHasDropout       = Traits::kHasDropout;
-    // static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
-
     static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
-    using GateActivation                 = remove_cvref_t<typename Traits::GateActivation_>;
+    // using GateActivation                 = remove_cvref_t<typename Traits::GateActivation_>;
 };
 } // namespace ck_tile

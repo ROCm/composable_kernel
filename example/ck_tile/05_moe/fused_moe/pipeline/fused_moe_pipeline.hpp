@@ -14,7 +14,7 @@ namespace ck_tile {
 
 // a variation of qr/ks/vs, where we use async copy to load k (potentially v in the future)
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSAsyncDefaultPolicy>
-struct BlockFmhaPipelineQRKSVSAsync
+struct FusedMoePipeline
 {
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;
@@ -27,43 +27,49 @@ struct BlockFmhaPipelineQRKSVSAsync
     using AccDataType   = remove_cvref_t<typename Problem::AccDataType>;
     using ScaleDataType = remove_cvref_t<typename Problem::ScaleDataType>;
 
-    using FusedMoeTileShape          = remove_cvref_t<typename Problem::FusedMoeTileShape>;
-    using VLayout                    = remove_cvref_t<typename FusedMoeTileShape::VLayout>;
-    static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
-    static_assert(kQLoadOnce == Policy::QLoadOnce);
+    using FusedMoeTileShape = remove_cvref_t<typename Problem::FusedMoeTileShape>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
-    //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
-    static_assert(Problem::kPadSeqLenQ == true && Problem::kPadHeadDimQ == true &&
-                  Problem::kPadHeadDimV == true);
-    static constexpr bool kPadSeqLenQ  = true;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = true; // support multiple of vector(like 8x)
-    static constexpr bool kPadHeadDimV = true; // support multiple of vector(like 8x)
-    static constexpr auto BiasEnum     = Problem::BiasEnum;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
-    static constexpr bool kHasDropout  = Problem::kHasDropout;
+    static constexpr index_t kBlockM_0      = FusedMoeTileShape::kBlockM_0;
+    static constexpr index_t kBlockN_0      = FusedMoeTileShape::kBlockN_0;
+    static constexpr index_t kBlockK_0      = FusedMoeTileShape::kBlockK_0;
+    static constexpr index_t kWarpM_0       = FusedMoeTileShape::kWarpM_0;
+    static constexpr index_t kWarpN_0       = FusedMoeTileShape::kWarpN_0;
+    static constexpr index_t kWarpK_0       = FusedMoeTileShape::kWarpK_0;
+    static constexpr index_t kBlockWarpsM_0 = FusedMoeTileShape::kBlockWarpsM_0;
+    static constexpr index_t kBlockWarpsN_0 = FusedMoeTileShape::kBlockWarpsN_0;
+    static constexpr index_t kBlockWarpsK_0 = FusedMoeTileShape::kBlockWarpsK_0;
+    static constexpr index_t kSubBlockM_0   = FusedMoeTileShape::kSubBlockM_0;
+    static constexpr index_t kSubBlockN_0   = FusedMoeTileShape::kSubBlockN_0;
+    static constexpr index_t kSubBlockK_0   = FusedMoeTileShape::kSubBlockK_0;
+    static constexpr index_t kWarpRepeatM_0 = FusedMoeTileShape::kWarpRepeatM_0;
+    static constexpr index_t kWarpRepeatN_0 = FusedMoeTileShape::kWarpRepeatN_0;
+    static constexpr index_t kWarpRepeatK_0 = FusedMoeTileShape::kWarpRepeatK_0;
 
-    // last dimension vector length used to create tensor view(and decide buffer_load vector length)
-    // ... together with tensor distribution. tensor dist should able to overwrite this
-    static constexpr index_t kAlignmentQ = Policy::template GetAlignmentQ<Problem>();
-    static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
-    static constexpr index_t kAlignmentV = []() {
-        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return Policy::template GetAlignmentV<Problem>();
-        else
-            return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();
-    }();
-    static constexpr index_t kAlignmentO = Policy::template GetAlignmentO<Problem>();
-    static constexpr index_t kAlignmentBias =
-        kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kBlockM_1      = FusedMoeTileShape::kBlockM_1;
+    static constexpr index_t kBlockN_1      = FusedMoeTileShape::kBlockN_1;
+    static constexpr index_t kBlockK_1      = FusedMoeTileShape::kBlockK_1;
+    static constexpr index_t kWarpM_1       = FusedMoeTileShape::kWarpM_1;
+    static constexpr index_t kWarpN_1       = FusedMoeTileShape::kWarpN_1;
+    static constexpr index_t kWarpK_1       = FusedMoeTileShape::kWarpK_1;
+    static constexpr index_t kBlockWarpsM_1 = FusedMoeTileShape::kBlockWarpsM_1;
+    static constexpr index_t kBlockWarpsN_1 = FusedMoeTileShape::kBlockWarpsN_1;
+    static constexpr index_t kBlockWarpsK_1 = FusedMoeTileShape::kBlockWarpsK_1;
+    static constexpr index_t kSubBlockM_1   = FusedMoeTileShape::kSubBlockM_1;
+    static constexpr index_t kSubBlockN_1   = FusedMoeTileShape::kSubBlockN_1;
+    static constexpr index_t kSubBlockK_1   = FusedMoeTileShape::kSubBlockK_1;
+    static constexpr index_t kWarpRepeatM_1 = FusedMoeTileShape::kWarpRepeatM_1;
+    static constexpr index_t kWarpRepeatN_1 = FusedMoeTileShape::kWarpRepeatN_1;
+    static constexpr index_t kWarpRepeatK_1 = FusedMoeTileShape::kWarpRepeatK_1;
 
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-    static constexpr auto R_LOG2E = 1.0 / log2e_v<SaccDataType>;
-#endif
+    using MBlockType                    = decltype(GetMatrixCoreSwizzledBlockTIle_0<Problem>());
+    static constexpr index_t kBlockNr_0 = MBlockType {}
+    ::at(number<0>{});
+    static constexpr index_t kBlockKr_0 = MBlockType {}
+    ::at(number<1>{});
+    static constexpr index_t kBlockWaveFlatten = MBlockType {}
+    ::at(number<2>{});
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -71,37 +77,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         else
         {
             // minimize occupancy
-            if constexpr(BiasEnum != BlockAttentionBiasEnum::NO_BIAS && kHasDropout)
-            {
-                return 1;
-            }
-
-            if constexpr(kK0BlockLength <= 32)
-            {
-                if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS &&
-                             FmhaMask::IsMasking)
-                    return 1;
-                else
-                    return 2;
-            }
-            else if constexpr(kK0BlockLength <= 64)
-            {
-                if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-                    return 2;
-                else
-                    return 3;
-            }
-            else if constexpr(kK0BlockLength <= 128)
-            {
-                if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-                    return 1;
-                else
-                    return 2;
-            }
-            else if constexpr(kK0BlockLength <= 256)
-            {
-                return 1;
-            }
+            return 2;
         }
     }();
 
@@ -179,23 +155,261 @@ struct BlockFmhaPipelineQRKSVSAsync
                              o_gtile_window_tmp.get_window_lengths(),
                              o_gtile_window_tmp.get_window_origin(),
                              Policy::template MakeOGlobalTileDistribution<Problem>());
+        using g_thread_type = decltype(load_tile(g_gtile_window));
+        using u_thread_type = decltype(load_tile(u_gtile_window));
+        using d_thread_type = decltype(load_tile(d_gtile_window));
 
-        constexpr auto k_per_block_0 = Problem::FusedMoeTileShape::kK_a;
-        const index_t loops_0        = (dim_size + k_per_block_0 - 1) / k_per_block_0;
+        const index_t loops_0 = (dim_size + kBlockK_0 - 1) / kBlockK_0;
+        const index_t loops_1 = (dim_size + kBlockN_1 - 1) / kBlockN_1;
 
-        constexpr auto n_per_block_1 = Problem::FusedMoeTileShape::kN_d;
-        const index_t loops_1        = (dim_size + n_per_block_1 - 1) / n_per_block_1;
+        // auto a_smem_ptr = reinterpret_cast<ADataType*>(smem_ptr) + a_smem_offset;
 
-        auto a_smem_ptr = reinterpret_cast<ADataType*>(smem_ptr) + a_smem_offset;
+        // issues_warps_lanes
+        auto a_sst_0 =
+            make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                 smem_0, Policy::template MakeLdsStoreDesc_A<Problem>()),
+                             Policy::template MakeLdsStoreDesc_A<Problem>().get_lengths(),
+                             {0, 0, 0});
 
-        auto smem_0_window = make_tile_window(
-            make_tensor_view<address_space_enum::lds>(
-                smem_0, Policy::template MakeLdsStoreBlockDescriptor_A<Problem>()),
-            Policy::template MakeLdsStoreBlockDescriptor_A<Problem>().get_lengths(),
-            {0, 0});
+        // issues_warps_lanes
+        auto a_sst_1 =
+            make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                 smem_1, Policy::template MakeLdsStoreDesc_A<Problem>()),
+                             Policy::template MakeLdsStoreDesc_A<Problem>().get_lengths(),
+                             {0, 0, 0});
 
-        async_load_tile(k_lds_store(LdsSeq.at(number<0>{})));
-        for(index_t i_0 = 0; i_0 < loops_0; i_0++) {}
+        // m*k
+        auto a_sld_0 = make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                            smem_0, Policy::template MakeLdsLoadDesc_A<Problem>()),
+                                        Policy::template MakeLdsLoadDesc_A<Problem>().get_lengths(),
+                                        {0, 0});
+
+        // m*k
+        auto a_sld_1 = make_tile_window(make_tensor_view<address_space_enum::lds>(
+                                            smem_1, Policy::template MakeLdsLoadDesc_A<Problem>()),
+                                        Policy::template MakeLdsLoadDesc_A<Problem>().get_lengths(),
+                                        {0, 0});
+
+        g_thread_type g_tile[2];
+        using WarpGemm0  = Policy::GetWarpGemm0<Problem>();
+        using WarpGemm1  = Policy::GetWarpGemm1<Problem>();
+        auto warp_gemm_0 = WarpGemm0{};
+        auto warp_gemm_1 = WarpGemm1{};
+
+        // TODO: N fist, M next
+        const index_t i_mwarp_0 = get_warp_id() / kBlockWarpsN_0;
+
+        // create and pre-cache a warp-window
+        auto make_a_warp_windows = [&](auto a_sld_) {
+            // construct A-warp-window
+            auto warp_window = make_tile_window(
+                a_sld_.get_bottom_tensor_view(),
+                make_tuple(number<WarpGemm0::kM>{}, number<WarpGemm0::kK>{}),
+                a_sld_.get_window_origin() + multi_index<2>{i_mwarp_0 * WarpGemm0::kM, 0},
+                make_static_tile_distribution(typename WarpGemm0::AWarpDstrEncoding{}));
+            statically_indexed_array<
+                statically_indexed_array<decltype(warp_window), kWarpRepeatK_0>,
+                kWarpRepeatM_0>
+                ws;
+            // pre-cache the warp windows
+            static_for<0, kWarpRepeatM_0, 1>{}([&](auto i_m_iter) {
+                static_for<0, kWarpRepeatK_0, 1>{}([&](auto i_k_iter) {
+                    ws(i_m_iter)(i_k_iter) = warp_window;
+                    move_tile_window(ws(i_m_iter)(i_k_iter),
+                                     {i_m_iter * NPerBlockPerIter, i_k_iter * KPerBlockPerIter});
+                });
+            });
+            return ws;
+        };
+
+        auto a_warp_windows_0 = make_a_warp_windows(a_sld_0);
+        auto a_warp_windows_1 = make_a_warp_windows(a_sld_1);
+
+        constexpr auto true_v  = bool_constant<true>{};
+        constexpr auto false_v = bool_constant<false>{};
+        auto do_load_a0        = [&](auto& a_store_, auto move_) {
+            async_load_tile(a_store_, a_gtile_window);
+            if constexpr(move_)
+                move_tile_window(a_gtile_window, {number<0>{}, number<kBlockK_0>{}});
+        };
+
+        auto do_load_b0 = [&](auto& g_tile_, auto& u_tile_, auto move_) {
+            g_tile_ = load_tile(g_gtile_window);
+            u_tile_ = load_tile(u_gtile_window);
+            if constexpr(move_)
+            {
+                move_tile_window(g_gtile_window, {number<0>{}, number<kBlockKr_0>{}, number<0>{}});
+                move_tile_window(u_gtile_window, {number<0>{}, number<kBlockKr_0>{}, number<0>{}});
+            }
+        };
+
+        auto do_load_b1 = [&](auto& d_tile_, auto move_) {
+            d_tile_ = load_tile(d_gtile_window);
+            if constexpr(move_)
+            {
+                move_tile_window(d_gtile_window, {number<0>{}, number<kBlockKr_0>{}, number<0>{}});
+            }
+        };
+
+        // using AWarpTensor = typename decltype(warp_gemm_0)::AWarpTensor{};
+        // using CWarpTensor =
+
+        auto acc_g = MakeCBlockTile_Gemm0<Problem>();
+        auto acc_u = MakeCBlockTile_Gemm0<Problem>();
+
+        // async_load_tile(a_sst_0, a_gtile_window); move_tile_window(a_gtile_window, {number<0>{},
+        // number<kBlockK_0>{}}); g_tile[0] = load_tile(g_gtile_window);
+        // move_tile_window(g_gtile_window, {number<0>{}, number<kBlockK_0>{}}); u_tile[0] =
+        // load_tile(u_gtile_window); move_tile_window(u_gtile_window, {number<0>{},
+        // number<kBlockK_0>{}}); async_load_tile(a_sst_1, a_gtile_window);
+        // move_tile_window(a_gtile_window, {number<0>{}, number<kBlockK_0>{}}); g_tile[1] =
+        // load_tile(g_gtile_window); move_tile_window(g_gtile_window, {number<0>{},
+        // number<kBlockK_0>{}}); u_tile[1] = load_tile(u_gtile_window);
+        // move_tile_window(u_gtile_window, {number<0>{}, number<kBlockK_0>{}});
+
+        auto do_gemm_0 =
+            [&](auto& acc_g_, auto& acc_u_, auto& a_windows_, auto& g_tile_, auto& u_tile_) {
+                // as_br (asmem, breg)
+                static_for<0, kWarpRepeatK_0, 1>{}([&](auto i_k) {
+                    static_for<0, kWarpRepeatM_0, 1>{}([&](auto i_m) {
+                        const auto w_a = load_tile(a_windows_(i_m)(i_k));
+
+                        static_for<0, kWarpRepeatN_0, 1>{}([&](auto i_n) {
+                            constexpr auto beg_acc =
+                                sequence<i_m * kSubBlockM_0, i_n * kSubBlockN_0>{};
+                            constexpr auto end_acc =
+                                sequence<(i_m + 1) * kSubBlockM_0, (i_n + 1) * kSubBlockN_0>{};
+
+                            // 3d indexing for permuted g/u/d
+                            constexpr auto beg_b =
+                                sequence<i_m * kBlockWarpsM_0, i_n * kSubBlockN_0, 0>{};
+                            constexpr auto end_b =
+                                sequence<(i_m + 1) * kBlockWarpsM_0, (i_n + 1) * kSubBlockN_0, 0>{};
+
+                            auto w_acc_g = get_slice_tile(acc_g_, beg_acc, end_acc);
+                            auto w_acc_u = get_slice_tile(acc_u_, beg_acc, end_acc);
+                            auto w_g     = get_slice_tile(g_tile_, beg_b, end_b);
+                            auto w_u     = get_slice_tile(u_tile_, beg_b, end_b);
+
+                            warp_gemm_0(w_acc_g, w_a, w_g);
+                            warp_gemm_0(w_acc_u, w_a, w_u);
+
+                            set_slice_tile(acc_g_, w_acc_g, beg_acc, end_acc);
+                            set_slice_tile(acc_u_, w_acc_u, beg_acc, end_acc);
+                        });
+                    });
+                });
+            };
+
+        auto do_gemm_1 = [&](auto& acc_d_, auto& a_tile_, auto& d_tile_) {
+            // ar_br (areg, breg)
+            static_for<0, kWarpRepeatK_1, 1>{}([&](auto i_k) {
+                static_for<0, kWarpRepeatM_1, 1>{}([&](auto i_m) {
+                    constexpr auto beg_a = sequence<i_m * kSubBlockM_1, i_k * kSubBlockK_1>{};
+                    constexpr auto end_a =
+                        sequence<(i_m + 1) * kSubBlockM_1, (i_k + 1) * kSubBlockK_1>{};
+                    const auto w_a = get_slice_tile(a_tile_, beg_a, end_a);
+
+                    static_for<0, kWarpRepeatN_1, 1>{}([&](auto i_n) {
+                        constexpr auto beg_acc = sequence<i_m * kSubBlockM_0, i_n * kSubBlockN_0>{};
+                        constexpr auto end_acc =
+                            sequence<(i_m + 1) * kSubBlockM_0, (i_n + 1) * kSubBlockN_0>{};
+
+                        // 3d indexing for permuted g/u/d
+                        constexpr auto beg_b =
+                            sequence<i_m * kBlockWarpsM_0, i_n * kSubBlockN_0, 0>{};
+                        constexpr auto end_b =
+                            sequence<(i_m + 1) * kBlockWarpsM_0, (i_n + 1) * kSubBlockN_0, 0>{};
+
+                        auto w_acc_d = get_slice_tile(acc_d_, beg_acc, end_acc);
+                        auto w_d     = get_slice_tile(d_tile_, beg_b, end_b);
+
+                        warp_gemm_1(w_acc_d, w_a, w_d);
+
+                        set_slice_tile(acc_d_, w_acc_d, beg_acc, end_acc);
+                    });
+                });
+            });
+        };
+
+        // start of pipeline
+        do_load_a0(a_sst_0, true_v);
+        do_load_b0(g_tile[0], u_tile[0], true_v);
+        do_load_a0(a_sst_1, true_v);
+        do_load_b0(g_tile[1], u_tile[1], true_v);
+
+        clear_tile(acc_g);
+        clear_tile(acc_u);
+
+        index_t i_0 = 0;
+        while(i_0 < (loops_0 - 2))
+        {
+            // first buffer
+            do_gemm_0(acc_g, acc_u, a_warp_windows_0, g_tile[0], u_tile[0]);
+            do_load_a0(a_sst_0, true_v);
+            do_load_b0(g_tile[0], u_tile[0], true_v);
+            i_0++;
+
+            // second buffer
+            do_gemm_0(acc_g, acc_u, a_warp_windows_1, g_tile[1], u_tile[1]);
+            do_load_a0(a_sst_1, true_v);
+            do_load_b0(g_tile[1], u_tile[1], true_v);
+            i_0++;
+        }
+
+        // first buffer
+        do_gemm_0(acc_g, acc_u, a_warp_windows_0, g_tile[0], u_tile[0]);
+
+        // prefetch
+        d_thread_type d_tile[2];
+        do_load_b1(d_tile[0], true_v);
+        do_load_b1(d_tile[1], true_v);
+
+        // second buffer
+        do_gemm_0(acc_g, acc_u, a_warp_windows_1, g_tile[1], u_tile[1]);
+
+        // redice acc_g/u
+        constexpr auto acc_spans_0 = decltype(acc_g)::get_distributed_spans();
+        sweep_tile_span(acc_spans_0[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(acc_spans_0[number<1>{}], [&](auto idx1) {
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                element_wise::Silu{}(acc_g(i_j_idx), acc_g(i_j_idx));
+                acc_g(i_j_idx) *= acc_u(i_j_idx);
+            });
+        });
+
+        const auto y = [&]() {
+            if constexpr(std::is_same_v<YDataType, fp16_t>)
+                return impl::cast_tile_pk_fp16_fp32<YDataType>(acc_g);
+            else
+                return cast_tile<YDataType>(acc_g);
+        }();
+
+        auto acc_d = MakeCBlockTile_Gemm1<Problem>();
+        clear_tile(acc_d);
+
+        // TODO: reshuffle? 32x32x8 mfma can avlid LDS reshuffle
+        index_t i_1 == 0;
+        while(i_1 < (loops_1 - 2))
+        {
+            // first buffer
+            do_gemm_1(acc_d, y, d_tile[0]);
+            do_load_b1(d_tile[0], true_v);
+            i_1++;
+
+            // second buffer
+            do_gemm_1(acc_d, y, d_tile[1]);
+            do_load_b1(d_tile[1], true_v);
+            i_1++;
+        }
+
+        // first buffer
+        do_gemm_0(a_warp_windows_0, g_tile[0], g_tile[1]);
+        i_0++;
+
+        // second buffer
+        do_gemm_0(a_warp_windows_1, g_tile[1], g_tile[1]);
+        i_0++;
     }
 
     template <typename QDramBlockWindowTmp,

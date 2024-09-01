@@ -45,4 +45,31 @@ struct FusedMoeTilePartitioner_PersistentSplitD
     }
 };
 
+template <typename FusedMoeTileShape_>
+struct FusedMoeTilePartitioner_Linear
+{
+    using Shape = ck_tile::remove_cvref_t<FusedMoeTileShape_>;
+
+    static constexpr const char* name = "2d"; // expert x hidden
+
+    CK_TILE_DEVICE auto operator()(ck_tile::index_t /*num_sorted_tiles*/,
+                                   ck_tile::index_t /*hidden_size*/))
+    {
+        index_t i_n = blockIdx.x;
+        index_t i_m = blockIdx.y;
+
+        return ck_tile::make_tuple(i_m, i_n);
+    }
+
+    // persistent
+    CK_TILE_HOST static constexpr auto GridSize(index_t max_tokens, index_t hidden_size)
+    {
+        // TODO: this may need tuning
+        index_t grids = num_cu * blocks_per_cu;
+        index_t ms    = ck_tile::integer_divide_ceil(max_tokens, Shape::kBlockM_0);
+        index_t ns    = ck_tile::integer_divide_ceil(hidden_size, Shape::kBlockN_0);
+        return dim3(ns, ms, 1);
+    }
+};
+
 } // namespace ck_tile

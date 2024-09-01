@@ -12,7 +12,7 @@
 
 namespace ck_tile {
 
-struct FusedMoePipelinePolicy
+struct FusedMoePipelineNSplit2Policy
 {
     CK_TILE_HOST_DEVICE static constexpr index_t GetAsyncCopyDwords()
     {
@@ -57,6 +57,26 @@ struct FusedMoePipelinePolicy
         return copy_bytes / data_bytes;
     }
 
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignment_O()
+    {
+        if constexpr(Problem::Traits::OAtomic == 0)
+        {
+            // pack fp16/bf16 atomic
+            static_assert(sizeof(typename Problem::ODataType) == 2);
+            return 2;
+        }
+        else if constexpr(Problem::Traits::OAtomic == 1)
+        {
+            // fp32 atomic
+            return 1;
+        }
+        else
+        {
+            return 16 / sizeof(typename Problem::ODataType);
+        }
+    }
+
     template <typename DataType_>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPack()
     {
@@ -68,6 +88,40 @@ struct FusedMoePipelinePolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPack_A()
     {
         return GetSmemKPack<typename Problem::ADataType>();
+    }
+
+#if 0
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetWaveFlattenShape()
+    {
+        using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
+
+        constexpr index_t Kv = GetAlignment_G<{Problem}>();
+        constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+        constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+        return sequence<Kw, Nw, Kv>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockTileNrKr()
+    {
+        using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
+
+        constexpr index_t Kv = GetAlignment_G<{Problem}>();
+        constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+        constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+        return sequence<Problem::FusedMoeTileShape::kBlockK_0 / Nw,
+                        Problem::FusedMoeTileShape::kBlockK_0 / (Kw * Kv)>{};
+    }
+#endif
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeSingleBuffer()
+    {
+        constexpr a_sld_desc = MakeLdsLoadDesc_A<Problem>();
+        constexpr a_sst_desc = MakeLdsStoreDesc_A<Problem>();
+        static_assert(a_sld_desc.get_element_space_size() == a_sst_desc.get_element_space_size());
+        return a_sld_desc.get_element_space_size();
     }
 
     template <index_t MPerBlock, index_t KPerBlock, index_t NumWarps, index_t Alignment>
@@ -168,27 +222,6 @@ struct FusedMoePipelinePolicy
             using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
             constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_0;
             constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_0;
-
-            constexpr index_t Kv = GetAlignment_G<{Problem}>();
-            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-
-            static_assert(KPerBlock % (K1 * K2) == 0);
-            constexpr index_t Nr = NPerBlock / Nw;
-            constexpr index_t Kr = KPerBlock / (Kv * Kw);
-
-            return sequence<Nr, Kr, Kw * Nw * Kv>{}; // 3D
-        }
-    }
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_1()
-    {
-        if constexpr(Problem::Traits::PermuteStyle ==
-                     FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv)
-        {
-            using WarpGemm = GetWarpGemm1<Problem>{}; // assume warpgemm0/1 are the same
-            constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_1;
-            constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_1;
 
             constexpr index_t Kv = GetAlignment_G<{Problem}>();
             constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
@@ -536,8 +569,8 @@ struct FusedMoePipelinePolicy
                                       true /*TransposeC*/>{};
     }
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE constexpr auto MakeCBlockTile_Gemm0() const
+    template <typename Problem, index_t NSplits = 2>
+    CK_TILE_HOST_DEVICE constexpr auto MakeCBlockTile_Gemm0(number<NSplits> = {}) const
     {
         using TileShape = remove_cvref_t<typename Problem::FusedMoeTileShape>;
 
@@ -546,10 +579,11 @@ struct FusedMoePipelinePolicy
         constexpr index_t WarpRepeatM = TileShape::kWarpRepeatM_0;
         constexpr index_t WarpRepeatN = TileShape::kWarpRepeatN_0;
         using WarpGemm                = remove_cvref_t<decltype(GetWarpGemm0<Problem>())>;
+        static_assert(WarpRepeatN % NSplits == 0);
 
         constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
             sequence<>,
-            tuple<sequence<WarpRepeatM, BlockWarpsM>, sequence<WarpRepeatN, BlockWarpsN>>,
+            tuple<sequence<WarpRepeatM, BlockWarpsM>, sequence<WarpRepeatN / NSplits, BlockWarpsN>>,
             tuple<sequence<1, 2>>,
             tuple<sequence<1, 1>>,
             sequence<1, 2>,
@@ -586,6 +620,49 @@ struct FusedMoePipelinePolicy
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
         auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_0()
+    {
+        if constexpr(Problem::Traits::PermuteStyle ==
+                     FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv)
+        {
+            using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
+            constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_0;
+            constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_0;
+
+            constexpr index_t Kv = GetAlignment_G<{Problem}>();
+            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+
+            static_assert(KPerBlock % (K1 * K2) == 0);
+            constexpr index_t Nr = NPerBlock / Nw;
+            constexpr index_t Kr = KPerBlock / (Kv * Kw);
+
+            return sequence<Nr, Kr, Kw * Nw * Kv>{}; // 3D
+        }
+    }
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_1()
+    {
+        if constexpr(Problem::Traits::PermuteStyle ==
+                     FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv)
+        {
+            using WarpGemm = GetWarpGemm1<Problem>{}; // assume warpgemm0/1 are the same
+            constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_1;
+            constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_1;
+
+            constexpr index_t Kv = GetAlignment_G<{Problem}>();
+            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+
+            static_assert(KPerBlock % (K1 * K2) == 0);
+            constexpr index_t Nr = NPerBlock / Nw;
+            constexpr index_t Kr = KPerBlock / (Kv * Kw);
+
+            return sequence<Nr, Kr, Kw * Nw * Kv>{}; // 3D
+        }
     }
 };
 } // namespace ck_tile

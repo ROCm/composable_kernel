@@ -187,4 +187,30 @@ set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_ten
     });
 }
 
+namespace detail {
+
+// check if 2 static_distributed_tensor has same data type and size of element
+// but only difference in distribution
+template <typename X, typename Y>
+struct is_similiar_distributed_tensor
+{
+    static constexpr bool value = false;
+};
+
+template <typename TypeX, typename DistX, typename TypeY, typename DistY>
+struct is_similiar_distributed_tensor<static_distributed_tensor<TypeX, DistX>,
+                                      static_distributed_tensor<TypeY, DistY>>
+{
+    using Tx                    = static_distributed_tensor<TypeX, DistX>;
+    using Ty                    = static_distributed_tensor<TypeY, DistY>;
+    static constexpr bool value = std::is_same_v<typename Tx::DataType, typename Ty::DataType> &&
+                                  Tx::get_thread_buffer_size() == Ty::get_thread_buffer_size();
+};
+
+template <typename X, typename Y>
+inline constexpr bool is_similiar_distributed_tensor_v =
+    is_similiar_distributed_tensor<X, Y>::value;
+
+} // namespace detail
+
 } // namespace ck_tile

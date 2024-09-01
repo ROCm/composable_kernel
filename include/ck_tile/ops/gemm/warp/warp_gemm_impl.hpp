@@ -31,8 +31,12 @@ struct WarpGemmImpl
     using BWarpTensor = static_distributed_tensor<BDataType, BWarpDstr>;
     using CWarpTensor = static_distributed_tensor<CDataType, CWarpDstr>;
 
-    CK_TILE_DEVICE void operator()(CWarpTensor& c, const AWarpTensor& a, const BWarpTensor& b) const
+    template <typename CTensor, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE void operator()(CTensor& c, const ATensor& a, const BTensor& b) const
     {
+        static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
         using AVec = ext_vector_t<ADataType, AWarpTensor::get_thread_buffer_size()>;
         using BVec = ext_vector_t<BDataType, BWarpTensor::get_thread_buffer_size()>;
         using CVec = ext_vector_t<CDataType, CWarpTensor::get_thread_buffer_size()>;
@@ -49,8 +53,11 @@ struct WarpGemmImpl
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
     }
 
-    CK_TILE_DEVICE auto operator()(const AWarpTensor& a, const BWarpTensor& b) const
+    template <typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto operator()(const ATensor& a, const BTensor& b) const
     {
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
         CWarpTensor c;
 
         using AVec = ext_vector_t<ADataType, AWarpTensor::get_thread_buffer_size()>;

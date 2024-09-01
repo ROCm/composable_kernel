@@ -49,6 +49,26 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
     tile_window.load_raw(tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
+// for this API we force user to use CK_TILE_LDS_ADDR attribute specified smem
+// while creating the smem window, which can enable compiler properly detect the
+// dependency if using multiple smem window (multiple buffer)
+template <typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE auto
+async_load_tile(LdsTileWindow_&& lds_tile,
+                const tile_window_with_static_distribution<BottomTensorView_,
+                                                           WindowLengths_,
+                                                           TileDistribution_,
+                                                           NumCoord>& tile_window,
+                bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.async_load(lds_tile, bool_constant<oob_conditional_check>{});
+}
+
 template <typename LdsTileWindow_,
           typename BottomTensorView_,
           typename WindowLengths_,
@@ -67,11 +87,6 @@ async_load_tile_raw(LdsTileWindow_&& lds_tile,
 {
     return tile_window.async_load_raw(
         lds_tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
-}
-
-CK_TILE_DEVICE auto async_load_fence(index_t cnt = 0)
-{
-    asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
 template <typename WindowLengths>

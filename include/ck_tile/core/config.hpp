@@ -43,6 +43,20 @@
 #define CK_TILE_HOST_DEVICE_EXTERN
 #endif
 
+// implementing the "memory address space" attribute
+// https://llvm.org/docs/AMDGPUUsage.html#amdgpu-address-spaces-table
+#ifdef __HIPCC_
+#define CK_TILE_GENERIC_ADDR __attribute__((address_space(0)))
+#define CK_TILE_GLOBAL_ADDR __attribute__((address_space(1)))
+#define CK_TILE_LDS_ADDR __attribute__((address_space(3)))
+#define CK_TILE_BUF_RES_ADDR __attribute__((address_space(8)))
+#else
+#define CK_TILE_GENERIC_ADDR
+#define CK_TILE_GLOBAL_ADDR
+#define CK_TILE_LDS_ADDR
+#define CK_TILE_BUF_RES_ADDR
+#endif
+
 #ifndef CK_TILE_USE_CUSTOM_DATA_TYPE
 #define CK_TILE_USE_CUSTOM_DATA_TYPE 0 // custom data type will generate extra move/bfi code
 #endif
