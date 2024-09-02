@@ -798,22 +798,13 @@ struct ThreadwiseTensorSliceTransfer_v3r1_b_scale
 
     private:
     static constexpr auto src_thread_scratch_desc_ = decltype(GetSrcThreadScratchDescriptor()){};
-    static constexpr auto src_oob_thread_scratch_desc_ =
-        decltype(GetSrcThreadScratchDescriptor()){};
     static constexpr auto dst_thread_scratch_desc_ = decltype(GetDstThreadScratchDescriptor()){};
 
     using SrcThreadScratch =
         StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                        DstData, // apply data_convert with SrcThreadScratch
+                                        SrcData, // apply data_convert with SrcThreadScratch
                                         SrcScalarPerVector,
                                         decltype(src_thread_scratch_desc_),
-                                        true>;
-
-    using SrcOOBThreadScratch =
-        StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                        bool, // apply data_convert with SrcThreadScratch
-                                        1,
-                                        decltype(src_oob_thread_scratch_desc_),
                                         true>;
 
     // Registers, contain fast converted data
@@ -834,7 +825,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1_b_scale
         FastNumericArrayConverter<SrcData, DstData, SrcScalarPerVector>;
 
     StaticallyIndexedArray<SrcThreadScratch, NumThreadScratch> src_thread_scratch_tuple_;
-    StaticallyIndexedArray<SrcOOBThreadScratch, NumThreadScratch> src_oob_thread_scratch_tuple_;
     SrcThreadConvertedScratch src_converted_thread_scratch_;
 
     DstThreadScratch dst_thread_scratch_;
