@@ -925,7 +925,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     return false;
                 }
             }
-            if constexpr(!is_NSpatialGK_GKSpatial_NSpatialGC<ALayout, BLayout, ELayout>())
+            if constexpr(!is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>())
             {
                 return false;
             }
@@ -941,7 +941,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 return false;
             }
-            if constexpr(!is_NSpatialGK_GKSpatial_NSpatialGC<ALayout, BLayout, ELayout>())
+            if constexpr(!is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>())
             {
                 return false;
             }
@@ -960,7 +960,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 // If not possible, check access per G
                 if(!(ABlockTransferSrcVectorDim == 1 && C == 1 &&
-                     is_NSpatialGK_GKSpatial_NSpatialGC<ALayout, BLayout, ELayout>() &&
+                     is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() &&
                      G % ABlockTransferSrcScalarPerVector == 0))
                 {
                     return false;
