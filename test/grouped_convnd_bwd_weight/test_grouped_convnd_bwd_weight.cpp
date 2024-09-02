@@ -66,6 +66,12 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             {
                 return true;
             }
+            // Skip due to the lack of kernels for NGCDHW
+            if constexpr(std::is_same_v<InLayout, NGCW> || std::is_same_v<InLayout, NGCHW> ||
+                         std::is_same_v<InLayout, NGCDHW>)
+            {
+                return true;
+            }
         }
         else
         {

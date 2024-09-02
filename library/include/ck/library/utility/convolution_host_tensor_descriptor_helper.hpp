@@ -47,19 +47,16 @@ std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
         return {0, 1, 2, 3};
     }
     else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGCW> ||
-                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCX> ||
                       ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGKW>)
     {
         return {1, 0, 2, 3};
     }
     else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGCHW> ||
-                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCYX> ||
                       ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGKHW>)
     {
         return {1, 0, 2, 3, 4};
     }
     else if constexpr(ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGCDHW> ||
-                      ck::is_same_v<OldLayout, ck::tensor_layout::convolution::GKCZYX> ||
                       ck::is_same_v<OldLayout, ck::tensor_layout::convolution::NGKDHW>)
     {
         return {1, 0, 2, 3, 4, 5};
