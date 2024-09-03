@@ -112,7 +112,7 @@ struct BlockFmhaPipelineQRKSVS
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return 64 * 1024;
+        return kK0BlockLength>= 128 ? 64 * 1024 : 32 * 1024;
     }
 
     template <typename QDramBlockWindowTmp,
@@ -183,6 +183,10 @@ struct BlockFmhaPipelineQRKSVS
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         // Block GEMM
+	// GEMM(s) with LDS prefetch pipelines
+	// FIXME: remove v3&v4 versions of GEMM pipelines , build
+	// generic block gemm that does more than just gemm (fusion of dot operator,
+	// LDS pipeline, DSWRITES, Global Loads ,....)
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm_f32f32f16<Problem>();
 
@@ -193,6 +197,7 @@ struct BlockFmhaPipelineQRKSVS
             Policy::template MakeQDramTileDistribution<Problem, decltype(gemm_0)>());
 
         // use inline assembly to load Qtile
+	//
         auto q = decltype(load_tile(q_dram_window)){};
         set_tile(q, number<0>{}); // use per-dword clear to avoid scratch
         // auto q = load_tile(q_dram_window);
@@ -287,6 +292,9 @@ struct BlockFmhaPipelineQRKSVS
         //        return bool_constant<false>{};
         //}();
 
+	//wait for q elements in Register
+        buffer_load_fence(0);
+	//do we need q_element  func here??
         auto q_tile = tile_elementwise_in(q_element_func, q);
 
         // prefetch K tile
@@ -306,9 +314,12 @@ struct BlockFmhaPipelineQRKSVS
                     0); // prevent from messing up the order of global loads
                 auto k_tile = load_tile(k_dram_window);
                 {
+		    //wait for  K elements in register
                     buffer_load_fence(0);
+		    //barrier to PV GEMM completion to write LDS 
                     __builtin_amdgcn_s_barrier();
                     store_tile(k_lds_window, k_tile);
+		    //barrier for LDS write
                     block_sync_lds();
                 }
                 __builtin_amdgcn_sched_barrier(
@@ -380,12 +391,15 @@ struct BlockFmhaPipelineQRKSVS
                 move_tile_window(bias_dram_window, {0, kN0});
             }
             else
-            {
+            { //wave1 code
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
                 // Wave1
                 // do synchronization for Ktile buffer
                 // wait_for_compute() sync
+		// this should be part of PV gemm(once all V elements are read-out of LDS)
+		// we do not want to wait for GEMM completion we could put this in 
+		// GEMM last unroll iteration
                 __builtin_amdgcn_s_barrier();
                 // sync() for Ktile store to LDS
                 block_sync_lds();
@@ -407,32 +421,48 @@ struct BlockFmhaPipelineQRKSVS
                 const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
 
                 // wait for loads to complete
+		// before doing QKGemm lets have all Velements fetched to register 
+		// data movment (Vtile) overlap with Wave0 QKGemm
                 buffer_load_fence(0);
 
                 __builtin_amdgcn_sched_barrier(
                     0); // prevent from messing up the order of global loads
-                raise_prio();
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 1) * kK0>{},
-                                      sequence<kM0, k0_loops * kK0>{}),
-                       k_lds_window);
-                lower_prio();
-                __builtin_amdgcn_sched_barrier(
-                    0); // prevent from messing up the order of global loads
-                        //
-                __builtin_amdgcn_s_barrier();
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                         Policy::template MakeShuffledVRegBlockDescriptorV1<Problem>());
                     shuffle_tile(v_shuffle_tmp, v_prefetch);
+                    raise_prio();
+                    gemm_0(s_acc,
+                           get_slice_tile(q_tile,
+                                      sequence<0, (k0_loops - 1) * kK0>{},
+                                      sequence<kM0, k0_loops * kK0>{}),
+                           k_lds_window);
+                    lower_prio();
+                    __builtin_amdgcn_sched_barrier(
+                        0); // prevent from messing up the order of global loads
+                    // do we see case of some threads still doing QKgemm math while other threads writing Vtile??
+		    // resulting in data corruption
+		    // s_barrier() would hurt performance, we should implement LDS sync-buffer 
+		    // with LDS prefetching this would be rare case. but for some odd timing cases
+		    // lets implemente LDS sync-buffer(s) for producer-consumer pipeline
+		    // Also we would like to move the reg[V]>LDS (reg[K]->LDS) inside GEMM pipeline to avoid
+		    // write cycles penalty 
+		    // There are enough math instructions available to overlap DS_WRITES
+                    __builtin_amdgcn_s_barrier();
                     store_tile(
                         v_lds_window,
                         tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
                 }
                 else
                 {
+                    raise_prio();
+                    gemm_0(s_acc,
+                           get_slice_tile(q_tile,
+                                      sequence<0, (k0_loops - 1) * kK0>{},
+                                      sequence<kM0, k0_loops * kK0>{}),
+                           k_lds_window);
+                    lower_prio();
                     store_tile(
                         v_lds_window,
                         tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch

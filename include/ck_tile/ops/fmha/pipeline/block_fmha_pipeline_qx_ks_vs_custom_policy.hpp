@@ -778,8 +778,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         else
         {
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1 / 2;
-            constexpr index_t kBlockSize = Problem::kBlockSize / 2;
+            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+            constexpr index_t kBlockSize = Problem::kBlockSize;
             constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
             constexpr index_t warpSize   = ck_tile::get_warp_size();
 
@@ -869,6 +869,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
 
+	//256 out of 512 threads used to fetch Vtile for producer-consumer
+	//ping pong fa3 pipeline
         constexpr index_t kBlockSize = min(Problem::kBlockSize, 256);
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
@@ -1036,9 +1038,9 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         // This descriptor only used when V layout is seqlen * hdim
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
         static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-        constexpr index_t kBlockSize = Problem::kBlockSize / 2;
+        constexpr index_t kBlockSize = min(Problem::kBlockSize, 256);
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1 / 2;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
 
         constexpr index_t N1           = 8; // GetAlignmentV<Problem>();
         constexpr index_t N0           = kNPerBlock / N1;

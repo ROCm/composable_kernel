@@ -394,10 +394,10 @@ class FmhaFwdKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-            '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+            '32'  : FmhaFwdTileSize(512, 128, 32, 128, 128, 32,     8, 1, 1, 32, 32, 16, -1),
+            '64'  : FmhaFwdTileSize(512, 128, 64, 128, 128, 64,     8, 1, 1, 32, 32, 16, -1),
+            '128' : FmhaFwdTileSize(256, 128, 128, 128, 128, 128,  8, 1, 1, 32, 32, 16, -1),
+            '256' : FmhaFwdTileSize(256, 64, 256, 64, 64, 256,    8, 1, 1, 32, 32, 16, -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
@@ -420,13 +420,12 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             for mask, bias, lse, dropout in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"]):
-                if hdim == 256 or hdim in [32, 64, 128]:
-                # if True:
+                if hdim in [32, 64, 128, 256]:
                     # pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))
                     # pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, lse, dropout, squant, mask))
 
                     # pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
-                    pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
+                    pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', bias, lse, dropout, squant, mask))
                 else:
                     if bias == "bias":
                         # TODO: rocm 6.2 compiler problem if using qr_async for bias case
@@ -445,7 +444,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[Fm
         elif dtype in ['fp8', 'bf8']:
             # no need lse/dropout kernels
             for mask, bias in itertools.product(get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                # pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', bias, 'f', 'f', squant, mask))
+                #pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', bias, 'f', 'f', squant, mask))
                 pass
         else:
             assert False
