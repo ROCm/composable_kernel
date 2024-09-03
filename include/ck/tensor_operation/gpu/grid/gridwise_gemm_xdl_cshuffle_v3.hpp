@@ -752,11 +752,18 @@ struct GridwiseGemm_xdl_cshuffle_v3
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
         // B matrix in LDS memory, dst of blockwise copy
-        if constexpr(BBlockLdsExtraN)
+        // if constexpr(BBlockLdsExtraN)
+        // {
+        //     return make_naive_tensor_descriptor(
+        //         make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
+        //         make_tuple(BK1Number, Number<KPerBlock + BBlockLdsExtraN>{}, I1));
+        // }
+        // else
+        if constexpr(BBlockLdsExtraN && is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
         {
             return make_naive_tensor_descriptor(
                 make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
-                make_tuple(BK1Number, Number<KPerBlock + BBlockLdsExtraN>{}, I1));
+                make_tuple(BK1Number * Number<NPerBlock>{}, I1, Number<NPerBlock>{}));
         }
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
@@ -1318,9 +1325,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 decltype(b_grid_desc_bk0_n_bk1),
                                                 decltype(b_block_desc_bk0_n_bk1),
                                                 BBlockTransferSrcAccessOrder,
-                                                Sequence<0, 1, 2>,
+                                                BBlockTransferSrcAccessOrder,
                                                 BBlockTransferSrcVectorDim,
-                                                2,
+                                                BBlockTransferSrcVectorDim,
                                                 BBlockTransferSrcScalarPerVector,
                                                 BBlockTransferDstScalarPerVector_BK1,
                                                 1,
