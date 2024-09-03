@@ -16,6 +16,7 @@ enum struct ConvLayout
     GNCHW_GKCYX_GNKHW, // 0
     GNHWC_GKYXC_GNHWK, // 1
     NHWGC_GKYXC_NHWGK, // 2
+    NGCHW_GKYXC_NGKHW, // 3
 };
 
 enum struct ConvDataType
@@ -178,6 +179,13 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
     }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
+    {
+        if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I2, NGCHW{}, GKYXC{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+    }
     if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
     {
         if(data_type == ConvDataType::F32_F32_F32)
@@ -222,6 +230,13 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, int8_t{}, int8_t{}, int8_t{}, int8_t{}, int8_t{});
+        }
+    }
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
+    {
+        if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return profile(I3, NGCDHW{}, GKZYXC{}, NGKDHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
     }
 
