@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -25,9 +25,9 @@ struct BlockGemmARegBSmemCRegV4
 
     // C += A * B
     template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
-    __device__ void operator()(CBlockTensor& c_block_tensor,
-                               const ABlockTensorTmp& a_block_tensor_tmp,
-                               const BBlockWindowTmp& b_block_window_tmp) const
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                   const ABlockTensorTmp& a_block_tensor_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp) const
     {
         static_assert(std::is_same_v<BDataType, remove_cv_t<typename BBlockWindowTmp::DataType>> &&
                           std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
@@ -97,8 +97,8 @@ struct BlockGemmARegBSmemCRegV4
             b_block_window_tmp.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
-#if 0 // FIXME: using Array will cause register spill
-        Array<Array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
+#if 0 // FIXME: using array will cause register spill
+        array<array<decltype(b_warp_window_tmp), KIterPerWarp>, NIterPerWarp> b_warp_windows{
             {b_warp_window_tmp}};
 
         for(index_t nIter = 0; nIter < NIterPerWarp; nIter++)
@@ -288,7 +288,7 @@ struct BlockGemmARegBSmemCRegV4
         });
     }
 
-    __device__ constexpr auto MakeCBlockTile() const
+    CK_TILE_DEVICE constexpr auto MakeCBlockTile() const
     {
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t NPerBlock = BlockGemmShape::kN;
@@ -321,12 +321,13 @@ struct BlockGemmARegBSmemCRegV4
 
     // C = A * B
     template <typename ABlockTensorTmp, typename BBlockWindowTmp>
-    __device__ auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
-                               const BBlockWindowTmp& b_block_window_tmp) const
+    CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp) const
     {
         auto c_block_tensor = MakeCBlockTile();
         operator()(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp);
         return c_block_tensor;
     }
 };
+
 } // namespace ck_tile
