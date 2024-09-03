@@ -7,6 +7,7 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/numeric/half.hpp"
 #include <type_traits>
 #include <stdint.h>
 #include <cmath>
@@ -165,10 +166,26 @@ CK_TILE_HOST constexpr T max(T x, T y)
     return x > y ? x : y;
 }
 
+template <>
+CK_TILE_HOST constexpr fp16_t max(fp16_t x, fp16_t y)
+{
+    float x_ = static_cast<float>(x);
+    float y_ = static_cast<float>(y);
+    return x_ > y_ ? x : y;
+}
+
 template <typename T>
 CK_TILE_DEVICE constexpr T max(T x, T y)
 {
     return x > y ? x : y;
+}
+
+template <>
+CK_TILE_DEVICE fp16_t max(fp16_t x, fp16_t y)
+{
+    fp16_t rtn;
+    asm volatile("v_max_f16 %0, %1, %2" : "=v"(rtn) : "v"(x), "v"(y));
+    return rtn;
 }
 
 template <>
