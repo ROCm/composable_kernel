@@ -369,6 +369,21 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                 }
 #endif
             }
+            if constexpr(is_same_v<InLayout, NGCHW> && is_same_v<WeiLayout, GKYXC> &&
+                         is_same_v<OutLayout, NGKHW>)
+            {
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
+                {
+                    add_device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkyxc_ngkhw_f16_pipev2_instances(
+                        op_ptrs);
+                    add_device_grouped_conv2d_bwd_weight_two_stage_xdl_ngchw_gkyxc_ngkhw_f16_pipev5_instances(
+                        op_ptrs);
+                }
+#endif
+            }
         }
         if constexpr(NumDimSpatial == 3)
         {
@@ -445,6 +460,21 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<ComputeTypeB, f8_t>)
                 {
                     add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(
+                        op_ptrs);
+                }
+#endif
+            }
+            if constexpr(is_same_v<InLayout, NGCDHW> && is_same_v<WeiLayout, GKZYXC> &&
+                         is_same_v<OutLayout, NGKDHW>)
+            {
+#ifdef CK_ENABLE_FP16
+                if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
+                             is_same_v<OutDataType, half_t> && is_same_v<ComputeTypeA, half_t> &&
+                             is_same_v<ComputeTypeB, half_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_two_stage_xdl_ngcdhw_gkzyxc_ngkdhw_f16_pipev2_instances(
+                        op_ptrs);
+                    add_device_grouped_conv3d_bwd_weight_two_stage_xdl_ngcdhw_gkzyxc_ngkdhw_f16_pipev5_instances(
                         op_ptrs);
                 }
 #endif
