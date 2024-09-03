@@ -11,7 +11,7 @@
 #include "ck_tile/host.hpp"
 
 #ifndef TEST_TOPK_VERBOSE
-#define TEST_TOPK_VERBOSE 1
+#define TEST_TOPK_VERBOSE 0
 #endif
 
 int test_reference_topk()
