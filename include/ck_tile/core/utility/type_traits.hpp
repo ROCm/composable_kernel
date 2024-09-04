@@ -22,6 +22,23 @@ using remove_cvref_t = remove_cv_t<std::remove_reference_t<T>>;
 template <typename T>
 using remove_pointer_t = typename std::remove_pointer<T>::type;
 
+template <typename From, typename To>
+struct copy_const
+{
+    static_assert(!std::is_const_v<From>);
+
+    using type = To;
+};
+
+template <typename From, typename To>
+struct copy_const<const From, To>
+{
+    using type = std::add_const_t<typename copy_const<From, To>::type>;
+};
+
+template <typename From, typename To>
+using copy_const_t = typename copy_const<From, To>::type;
+
 namespace detail {
 template <class Default, class AlwaysVoid, template <class...> class Op, class... Args>
 struct detector

@@ -2,21 +2,26 @@ set(FMHA_CPP_FOLDER ${CMAKE_CURRENT_BINARY_DIR})
 set(FMHA_SRC_FOLDER ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/)
 set(CK_TILE_SRC_FOLDER ${CMAKE_SOURCE_DIR}/include/ck_tile/)
 # python stuff
-find_package(PythonInterp 3 REQUIRED)
+if(NOT CK_USE_ALTERNATIVE_PYTHON)
+  find_package(PythonInterp 3 REQUIRED)
+else()
+  message("Using alternative python version")
+  set(EXTRA_PYTHON_PATH)
+  string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
+  message("alternative python path is: ${EXTRA_PYTHON_PATH}")
+  find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+  add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
+  set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
+  set(PYTHON_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
+  set(ENV{LD_LIBRARY_PATH} "${EXTRA_PYTHON_PATH}/lib:$ENV{LD_LIBRARY_PATH}")
+endif()
 
 rocm_install(DIRECTORY ${CK_TILE_SRC_FOLDER} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile)
 
-rocm_install(FILES
-    "${FMHA_SRC_FOLDER}/fmha_fwd.hpp"
-    "${FMHA_SRC_FOLDER}/bias.hpp"
-    "${FMHA_SRC_FOLDER}/mask.hpp"
-    DESTINATION include/ck_tile/ops
-)
-
-# header for building lib
-file(COPY ${FMHA_SRC_FOLDER}/fmha_fwd.hpp DESTINATION ${FMHA_CPP_FOLDER})
-file(COPY ${FMHA_SRC_FOLDER}/bias.hpp DESTINATION ${FMHA_CPP_FOLDER})
-file(COPY ${FMHA_SRC_FOLDER}/mask.hpp DESTINATION ${FMHA_CPP_FOLDER})
+file(GLOB MHA_HEADERS "${FMHA_SRC_FOLDER}/*.hpp")
+rocm_install(FILES ${MHA_HEADERS} DESTINATION include/ck_tile/ops)
+# headers for building lib
+file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(

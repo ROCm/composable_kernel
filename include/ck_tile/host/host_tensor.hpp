@@ -155,7 +155,12 @@ struct HostTensorDescriptor
         return space;
     }
 
+    std::size_t get_length(std::size_t dim) const { return mLens[dim]; }
+
     const std::vector<std::size_t>& get_lengths() const { return mLens; }
+
+    std::size_t get_stride(std::size_t dim) const { return mStrides[dim]; }
+
     const std::vector<std::size_t>& get_strides() const { return mStrides; }
 
     template <typename... Is>
@@ -325,7 +330,11 @@ struct HostTensor
     {
     }
 
+    std::size_t get_length(std::size_t dim) const { return mDesc.get_length(dim); }
+
     decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
+
+    std::size_t get_stride(std::size_t dim) const { return mDesc.get_stride(dim); }
 
     decltype(auto) get_strides() const { return mDesc.get_strides(); }
 
