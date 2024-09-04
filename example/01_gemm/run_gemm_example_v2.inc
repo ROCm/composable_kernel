@@ -272,7 +272,51 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     if(config.time_kernel)
     {
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        hipGraph_t graph;
+
+        hipStream_t stream;
+
+        hip_check_error(hipStreamCreate(&stream));
+
+        StreamConfig stream_config{stream, false};
+
+        const int n_repeats = 50;
+
+        hip_check_error(hipStreamBeginCapture(stream_config.stream_id_, hipStreamCaptureModeGlobal));
+        for(int i = 0; i < n_repeats; ++i)
+        {
+            invoker.Run(argument, stream_config);
+        }
+        hip_check_error(hipStreamEndCapture(stream_config.stream_id_, &graph));
+
+        hipGraphExec_t instance;
+        hip_check_error(hipGraphInstantiate(&instance, graph, nullptr, nullptr, 0));
+
+        hipEvent_t start, stop;
+
+        hip_check_error(hipEventCreate(&start));
+        hip_check_error(hipEventCreate(&stop));
+
+        //warm-up
+        invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 0});
+        hip_check_error(hipDeviceSynchronize());
+
+        hip_check_error(hipEventRecord(start, stream_config.stream_id_));
+
+        hip_check_error(hipGraphLaunch(instance, stream_config.stream_id_));
+
+        hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
+        hip_check_error(hipEventSynchronize(stop));
+
+        hip_check_error(hipGetLastError());
+
+        hip_check_error(hipGraphDestroy(graph));
+
+        float total_time = 0;
+
+        hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+
+        ave_time = total_time / n_repeats;
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
