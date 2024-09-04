@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -113,6 +113,23 @@ struct NHWGC : public BaseTensorLayout
 struct NDHWGC : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWGC";
+};
+
+// input tensor
+// packed NGCW/NGCHW/NGCDHW
+struct NGCW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCW";
+};
+
+struct NGCHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCHW";
+};
+
+struct NGCDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGCDHW";
 };
 
 // input tensor
@@ -323,6 +340,21 @@ struct NHWGK : public BaseTensorLayout
 struct NDHWGK : public BaseTensorLayout
 {
     static constexpr const char* name = "NDHWGK";
+};
+
+struct NGKW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKW";
+};
+
+struct NGKHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKHW";
+};
+
+struct NGKDHW : public BaseTensorLayout
+{
+    static constexpr const char* name = "NGKDHW";
 };
 
 // output tensor
