@@ -7,16 +7,13 @@ find_package(PythonInterp 3 REQUIRED)
 rocm_install(DIRECTORY ${CK_TILE_SRC_FOLDER} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ck_tile)
 
 rocm_install(FILES
-    "${FMHA_SRC_FOLDER}/fmha_fwd.hpp"
-    "${FMHA_SRC_FOLDER}/bias.hpp"
-    "${FMHA_SRC_FOLDER}/mask.hpp"
+    "${FMHA_SRC_FOLDER}/*.hpp"
     DESTINATION include/ck_tile/ops
 )
 
-# header for building lib
-file(COPY ${FMHA_SRC_FOLDER}/fmha_fwd.hpp DESTINATION ${FMHA_CPP_FOLDER})
-file(COPY ${FMHA_SRC_FOLDER}/bias.hpp DESTINATION ${FMHA_CPP_FOLDER})
-file(COPY ${FMHA_SRC_FOLDER}/mask.hpp DESTINATION ${FMHA_CPP_FOLDER})
+# headers for building lib
+file(GLOB MHA_HEADERS "${FMHA_SRC_FOLDER}/*.hpp")
+file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
