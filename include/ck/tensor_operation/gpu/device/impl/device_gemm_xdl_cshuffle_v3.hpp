@@ -197,13 +197,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                 }
             };
 
-            constexpr index_t minimum_occupancy = [](){
-                if constexpr (BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave){
+            constexpr index_t minimum_occupancy = []() {
+                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                {
                     return 2;
                 }
-                else if constexpr (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    return MPerBlock * NPerBlock / BlockSize <= 128? 2: 1;
+                    return MPerBlock * NPerBlock / BlockSize <= 128 ? 2 : 1;
                 }
                 else
                 {

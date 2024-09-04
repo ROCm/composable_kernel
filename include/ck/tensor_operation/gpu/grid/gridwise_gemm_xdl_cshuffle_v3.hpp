@@ -1199,12 +1199,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // MFMA:ds_write=1:2
         constexpr auto num_ds_write_issue  = num_ds_write_inst / 2;
         constexpr auto num_mfma_block_sync = (num_mfma_inst - num_ds_write_issue) / 2;
-        constexpr auto mfma_ds_write_rate = MXdlPerWave==16 ? 2 : 4;
+        constexpr auto mfma_ds_write_rate  = MXdlPerWave == 16 ? 2 : 4;
 
         // Hide ds_write issue latency
         static_for<0, num_ds_write_issue, 1>{}([&](auto i) {
             ignore = i;
-            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                  // MFMA
             __builtin_amdgcn_sched_group_barrier(0x200, mfma_ds_write_rate, 0); // DS write
         });
         // Hide block_sync + ds_read latency

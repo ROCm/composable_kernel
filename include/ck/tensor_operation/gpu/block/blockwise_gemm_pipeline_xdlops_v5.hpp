@@ -387,19 +387,19 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         block_sync_lds();
         static_for<0, MRepeat, 1>{}([&](auto m0) {
             a_thread_copy_loop.Run(a_block_desc_m0_m1_m2_k,
-                               make_tuple(m0, I0, I0, I0),
-                               a_block_buf,
-                               a_thread_desc_loop,
-                               make_tuple(m0, I0, I0, I0),
-                               a_thread_buf);
+                                   make_tuple(m0, I0, I0, I0),
+                                   a_block_buf,
+                                   a_thread_desc_loop,
+                                   make_tuple(m0, I0, I0, I0),
+                                   a_thread_buf);
         });
         static_for<0, NRepeat, 1>{}([&](auto n0) {
             b_thread_copy_loop.Run(b_block_desc_n0_n1_n2_k,
-                               make_tuple(n0, I0, I0, I0),
-                               b_block_buf,
-                               b_thread_desc_loop,
-                               make_tuple(n0, I0, I0, I0),
-                               b_thread_buf);
+                                   make_tuple(n0, I0, I0, I0),
+                                   b_block_buf,
+                                   b_thread_desc_loop,
+                                   make_tuple(n0, I0, I0, I0),
+                                   b_thread_buf);
         });
 
         // main body
@@ -546,23 +546,21 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         auto ReadCompFunc = [&]() {
             static_for<0, KRepeat, 1>{}([&](auto k0) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
-                    a_thread_copy_.Run(
-                        a_block_desc_m0_m1_m2_k,
-                        make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
-                        a_block_buf,
-                        a_thread_desc_,
-                        make_tuple(m0, I0, k0, I0),
-                        a_thread_buf_tail);
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k0 * AMmaKStride>{}),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k0, I0),
+                                       a_thread_buf_tail);
                 });
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
-                    b_thread_copy_.Run(
-                        b_block_desc_n0_n1_n2_k,
-                        make_tuple(n0, I0, I0, Number<k0* BMmaKStride>{}),
-                        b_block_buf,
-                        b_thread_desc_,
-                        make_tuple(n0, I0, k0, I0),
-                        b_thread_buf_tail);
+                    b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                       make_tuple(n0, I0, I0, Number<k0 * BMmaKStride>{}),
+                                       b_block_buf,
+                                       b_thread_desc_,
+                                       make_tuple(n0, I0, k0, I0),
+                                       b_thread_buf_tail);
                 });
             });
 
