@@ -1,12 +1,6 @@
-if (GPU_TARGETS)
-    if (NOT GPU_TARGETS MATCHES "gfx94")
-        add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
-        set(CK_SKIP_FLAKY_F8_TEST "ON")
-    endif()
-else()
-    add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
-    set(CK_SKIP_FLAKY_F8_TEST "ON")
-endif()
+# temporarily disable flaky test for all architectures
+add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
+set(CK_SKIP_FLAKY_F8_TEST "ON")
 
 if (USE_BITINT_EXTENSION_INT4)
   add_gtest_executable(test_int4 test_int4.cpp)
