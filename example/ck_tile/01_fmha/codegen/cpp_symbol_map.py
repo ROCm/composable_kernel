@@ -82,6 +82,18 @@ DROPOUT_CHECK_MAP = {
     "dropout_wg16_storerandval" : "t.has_dropout == true && t.is_store_randval == true",
 }
 
+ROPE_MAP = {
+    "no" : "ck_tile::RotaryEmbeddingEnum::NONE",
+    "inter"  : "ck_tile::RotaryEmbeddingEnum::INTERLEAVED",
+    "half" : "ck_tile::RotaryEmbeddingEnum::HALF_ROTATED"
+}
+
+ROPE_CHECK_MAP = {
+    "no"    : "rope_enum::none",
+    "inter" : "rope_enum::interleaved",
+    "half"  : "rope_enum::half_rotated"
+}
+
 MODE_MAP = {
     "batch" : "false",
     "group" : "true"
