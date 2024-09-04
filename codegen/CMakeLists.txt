@@ -39,6 +39,7 @@ set_target_properties(ck_host PROPERTIES
 
 target_include_directories(ck_host PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
 add_executable(ck-template-driver driver/main.cpp)
@@ -48,6 +49,10 @@ rocm_install(
     TARGETS ck_host ck_headers
     EXPORT ck_hostTargets
 )
+rocm_install(EXPORT ck_hostTargets 
+	FILE composable_kernelck_hostTargets.cmake 
+	NAMESPACE composable_kernel:: 
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel)
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 add_subdirectory(test)
