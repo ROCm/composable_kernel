@@ -40,6 +40,18 @@ class TestGemmUniversal_MK_NK
 {
 };
 
+template <typename Tuple>
+class TestGemmUniversal_KM_KN
+    : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
+{
+};
+
+template <typename Tuple>
+class TestGemmUniversal_KM_NK
+    : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
+{
+};
+
 // clang-format off
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
@@ -61,9 +73,22 @@ using KernelTypes_MK_NK = ::testing::Types<
 #endif
     std::tuple<     BF16,      BF16,            BF16,    BF16>
     >;
+
+using KernelTypes_KM_NK = ::testing::Types<
+    //         ADataType, BDataType, ComputeDataType, CDataType
+    std::tuple<     BF16,      BF16,            BF16,    BF16>
+    >;
+
+using KernelTypes_KM_KN = ::testing::Types<
+    //         ADataType, BDataType, ComputeDataType, CDataType
+    std::tuple<     BF16,      BF16,            BF16,    BF16>
+    >;
+
 // clang-format on
 
 TYPED_TEST_SUITE(TestGemmUniversal_MK_KN, KernelTypes_MK_KN);
 TYPED_TEST_SUITE(TestGemmUniversal_MK_NK, KernelTypes_MK_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_KM_KN, KernelTypes_KM_KN);
+TYPED_TEST_SUITE(TestGemmUniversal_KM_NK, KernelTypes_KM_NK);
 
 #include "test_gemm_universal_ut_cases.inc"
