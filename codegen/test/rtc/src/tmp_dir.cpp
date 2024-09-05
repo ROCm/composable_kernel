@@ -1,5 +1,6 @@
 #include <rtc/tmp_dir.hpp>
 #include <algorithm>
+#include <cstdlib>
 #include <random>
 #include <thread>
 #include <unistd.h>
@@ -31,18 +32,36 @@ std::string unique_string(const std::string& prefix)
 }
 
 tmp_dir::tmp_dir(const std::string& prefix)
-    : path(std::filesystem::temp_directory_path() /
-           unique_string(prefix.empty() ? "ck-rtc" : "ck-rtc-" + prefix))
+    : path(get_tmp_dir_path() / unique_string(prefix.empty() ? "ck-rtc" : "ck-rtc-" + prefix))
 {
     std::filesystem::create_directories(this->path);
 }
 
+std::string tmp_dir::get_tmp_dir_path()
+{
+    // use getenv to get the path of the tmp dir
+    const char tmp_dir_path = std::getenv("TMPDIR");
+
+    if(tmp_dir_path == NULL)
+    {
+        return "/tmp";
+    }
+    return tmp_dir_path;
+}
+
+// TODO: finish this method
+void new_dir(std::string path) { return; }
 void tmp_dir::execute(const std::string& cmd) const
 {
     std::string s = "cd " + path.string() + "; " + cmd;
     std::system(s.c_str());
 }
 
-tmp_dir::~tmp_dir() { std::filesystem::remove_all(this->path); }
+// TODO: redo this method
+tmp_dir::~tmp_dir()
+{
+    std::filesystem::remove_all(this->path);
+    //::remove(tmpFilename.c_str());
+}
 
 } // namespace rtc

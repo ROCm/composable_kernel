@@ -8,9 +8,11 @@ namespace rtc {
 
 struct tmp_dir
 {
-    std::filesystem::path path;
+    std::string path;
     tmp_dir(const std::string& prefix = "");
 
+    std::string get_tmp_dir_path();
+    void new_dir(std::string path);
     void execute(const std::string& cmd) const;
 
     tmp_dir(tmp_dir const&) = delete;

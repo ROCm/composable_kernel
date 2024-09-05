@@ -70,8 +70,8 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
 
     for(const auto& src : srcs)
     {
-        std::filesystem::path full_path   = td.path / src.path;
-        std::filesystem::path parent_path = full_path.parent_path();
+        std::string full_path   = td.path / src.path;
+        std::string parent_path = full_path.parent_path();
         std::filesystem::create_directories(parent_path);
         write_string(full_path.string(), src.content);
         if(src.path.extension().string() == ".cpp")
