@@ -475,6 +475,328 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Intrawave,
         }
     }
 
+    template <bool HasMainLoop,
+              TailNumber TailNum,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename CThreadBuffer>
+    __device__ void Run(const AGridDesc& a_grid_desc,
+                        const ABlockDesc& a_block_desc,
+                        ABlockTransfer& a_blockwise_copy,
+                        const AGridBuffer& a_grid_buf,
+                        ABlockBuffer& a_block_buf,
+                        const ABlockTransferStep& a_block_copy_step,
+                        const BGridDesc& b_grid_desc,
+                        const BBlockDesc& b_block_desc,
+                        BBlockTransfer& b_blockwise_copy,
+                        const BGridBuffer& b_grid_buf,
+                        BBlockBuffer& b_block_buf,
+                        const BBlockTransferStep& b_block_copy_step,
+                        CThreadBuffer& c_thread_buf,
+                        index_t num_loop) const
+    {
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+            a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+            b_thread_desc_.GetElementSpaceSize());
+
+        // Global prefetch 1
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I0);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        // Local prefill 1
+        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
+        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, I0);
+
+        // Global prefetch [2, PrefetchStages]
+        static_for<1, PrefetchStages, 1>{}([&](auto iprefetch) {
+            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, iprefetch);
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, iprefetch);
+
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        });
+
+        // main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 0;
+            do
+            {
+                static_for<0, PrefetchStages, 1>{}([&](auto iprefetch) {
+                    // -------------------------------------------------------------------------------------------
+                    block_sync_lds();
+                    static_for<0, KRepeat, 1>{}([&](auto k) {
+                        static_for<0, MRepeat, 1>{}([&](auto m0) {
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                               make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                               a_block_buf,
+                                               a_thread_desc_,
+                                               make_tuple(m0, I0, k, I0),
+                                               a_thread_buf);
+                            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                                b_thread_copy_.Run(
+                                    b_block_desc_n0_n1_n2_k,
+                                    make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                    b_block_buf,
+                                    b_thread_desc_,
+                                    make_tuple(n0, I0, k, I0),
+                                    b_thread_buf);
+                            });
+                        });
+                    });
+
+                    static_for<0, KRepeat, 1>{}([&](auto k0) {
+                        static_for<0, MRepeat, 1>{}([&](auto m0) {
+                            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                                vector_type<ComputeDataType, KPack> a_thread_vec;
+                                vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                                static_for<0, KPack, 1>{}([&](auto ik) {
+                                    a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                            make_tuple(m0, I0, k0, ik))>{}];
+                                    b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                        b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                            make_tuple(n0, I0, k0, ik))>{}];
+                                });
+
+                                using mfma_input_type =
+                                    typename vector_type<ComputeDataType,
+                                                         xdlops_gemm.K1PerXdlops>::type;
+
+                                constexpr index_t c_offset =
+                                    c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                                xdlops_gemm.Run(
+                                    a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                            });
+                        });
+                    });
+
+                    block_sync_lds();
+                    a_blockwise_copy.RunWrite(
+                        a_block_desc, a_block_buf, Number<(iprefetch + 1) % PrefetchStages>{});
+                    b_blockwise_copy.RunWrite(
+                        b_block_desc, b_block_buf, Number<(iprefetch + 1) % PrefetchStages>{});
+
+                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, iprefetch);
+                    b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, iprefetch);
+
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                });
+
+                i += PrefetchStages;
+            } while(i < (num_loop - PrefetchStages));
+        }
+
+        // tail
+
+        auto LoopTailFunc = [&](auto tail_num) {
+            static_for<1, tail_num, 1>{}([&](auto iprefetch) {
+                block_sync_lds();
+                static_for<0, KRepeat, 1>{}([&](auto k) {
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                           make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                           a_block_buf,
+                                           a_thread_desc_,
+                                           make_tuple(m0, I0, k, I0),
+                                           a_thread_buf);
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                               make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                               b_block_buf,
+                                               b_thread_desc_,
+                                               make_tuple(n0, I0, k, I0),
+                                               b_thread_buf);
+                        });
+                    });
+                });
+
+                static_for<0, KRepeat, 1>{}([&](auto k0) {
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            vector_type<ComputeDataType, KPack> a_thread_vec;
+                            vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple(m0, I0, k0, ik))>{}];
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(n0, I0, k0, ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                        });
+                    });
+                });
+
+                block_sync_lds();
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, iprefetch);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, iprefetch);
+            });
+
+            block_sync_lds();
+            static_for<0, KRepeat, 1>{}([&](auto k) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k, I0),
+                                       a_thread_buf);
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                           b_block_buf,
+                                           b_thread_desc_,
+                                           make_tuple(n0, I0, k, I0),
+                                           b_thread_buf);
+                    });
+                });
+            });
+
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        vector_type<ComputeDataType, KPack> a_thread_vec;
+                        vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(m0, I0, k0, ik))>{}];
+                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                    make_tuple(n0, I0, k0, ik))>{}];
+                        });
+
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    });
+                });
+            });
+        };
+
+        if constexpr(TailNum == TailNumber::One)
+        {
+            block_sync_lds();
+            static_for<0, KRepeat, 1>{}([&](auto k) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k * AMmaKStride>{}),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k, I0),
+                                       a_thread_buf);
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(n0, I0, I0, Number<k * BMmaKStride>{}),
+                                           b_block_buf,
+                                           b_thread_desc_,
+                                           make_tuple(n0, I0, k, I0),
+                                           b_thread_buf);
+                    });
+                });
+            });
+
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        vector_type<ComputeDataType, KPack> a_thread_vec;
+                        vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                        static_for<0, KPack, 1>{}([&](auto ik) {
+                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                    make_tuple(m0, I0, k0, ik))>{}];
+                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                    make_tuple(n0, I0, k0, ik))>{}];
+                        });
+
+                        using mfma_input_type =
+                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                        constexpr index_t c_offset =
+                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    });
+                });
+            });
+        }
+        else if constexpr(TailNum == TailNumber::Two)
+        {
+            LoopTailFunc(Number<2>{});
+        }
+        else if constexpr(TailNum == TailNumber::Three)
+        {
+            LoopTailFunc(Number<3>{});
+        }
+        else if constexpr(TailNum == TailNumber::Four)
+        {
+            LoopTailFunc(Number<4>{});
+        }
+        else if constexpr(TailNum == TailNumber::Five)
+        {
+            LoopTailFunc(Number<5>{});
+        }
+        else if constexpr(TailNum == TailNumber::Six)
+        {
+            LoopTailFunc(Number<6>{});
+        }
+        else if constexpr(TailNum == TailNumber::Seven)
+        {
+            LoopTailFunc(Number<7>{});
+        }
+        else if constexpr(TailNum == TailNumber::Full)
+        {
+            LoopTailFunc(Number<PrefetchStages>{});
+        }
+    }
+
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;
     using Base::b_thread_copy_;
@@ -942,6 +1264,433 @@ struct BlockwiseGemmXdlops_pipeline_v2<BlockGemmPipelineScheduler::Interwave,
 
             a_thread_buf_tail = a_thread_buf;
             b_thread_buf_tail = b_thread_buf;
+        }
+        else if constexpr(TailNum == TailNumber::Two)
+        {
+            LoopTailFunc(Number<2>{});
+        }
+        else if constexpr(TailNum == TailNumber::Three)
+        {
+            LoopTailFunc(Number<3>{});
+        }
+        else if constexpr(TailNum == TailNumber::Four)
+        {
+            LoopTailFunc(Number<4>{});
+        }
+        else if constexpr(TailNum == TailNumber::Five)
+        {
+            LoopTailFunc(Number<5>{});
+        }
+        else if constexpr(TailNum == TailNumber::Six)
+        {
+            LoopTailFunc(Number<6>{});
+        }
+        else if constexpr(TailNum == TailNumber::Seven)
+        {
+            LoopTailFunc(Number<7>{});
+        }
+        else if constexpr(TailNum == TailNumber::Full)
+        {
+            LoopTailFunc(Number<PrefetchStages>{});
+        }
+    }
+
+    template <bool HasMainLoop,
+              TailNumber TailNum,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename CThreadBuffer>
+    __device__ void Run(const AGridDesc& a_grid_desc,
+                        const ABlockDesc& a_block_desc,
+                        ABlockTransfer& a_blockwise_copy,
+                        const AGridBuffer& a_grid_buf,
+                        ABlockBuffer& a_block_buf,
+                        const ABlockTransferStep& a_block_copy_step,
+                        const BGridDesc& b_grid_desc,
+                        const BBlockDesc& b_block_desc,
+                        BBlockTransfer& b_blockwise_copy,
+                        const BGridBuffer& b_grid_buf,
+                        BBlockBuffer& b_block_buf,
+                        const BBlockTransferStep& b_block_copy_step,
+                        CThreadBuffer& c_thread_buf,
+                        index_t num_loop) const
+    {
+        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+            a_thread_desc_.GetElementSpaceSize());
+        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataType>(
+            b_thread_desc_.GetElementSpaceSize());
+
+        // Global prefetch 1
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I0);
+
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        // Local prefill 1
+        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
+        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, I0);
+
+        // Global prefetch [2, PrefetchStages]
+        static_for<1, PrefetchStages, 1>{}([&](auto iprefetch) {
+            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, iprefetch);
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, iprefetch);
+
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+        });
+
+        // main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 0;
+            do
+            {
+                static_for<0, PrefetchStages, 1>{}([&](auto iprefetch) {
+                    // -------------------------------------------------------------------------------------------
+                    block_sync_lds();
+                    static_for<0, KRepeat, 1>{}([&](auto k0) {
+                        static_for<0, MRepeat, 1>{}([&](auto m0) {
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                               make_tuple(m0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                               a_block_buf,
+                                               a_thread_desc_,
+                                               make_tuple(m0, I0, k0, I0),
+                                               a_thread_buf);
+                            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                                b_thread_copy_.Run(
+                                    b_block_desc_n0_n1_n2_k,
+                                    make_tuple(n0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                    b_block_buf,
+                                    b_thread_desc_,
+                                    make_tuple(n0, I0, k0, I0),
+                                    b_thread_buf);
+                            });
+                        });
+                        __builtin_amdgcn_sched_barrier(0);
+                        // NOTE: Synchronize threads in a workgroup at the start of each MAC
+                        // cluster, but except the first, as we can shorten non-MAC cluster a bit
+                        // and there's no observable negative impact. The desired effect is waves in
+                        // a workgroup executing MAC in sync. This avoids some out-of-sync waves
+                        // hijacking MAC resource from other workgroups and reducing the chance of
+                        // latency hiding by waiting for the rest of the workgroup at the eventual
+                        // sync point.
+                        if constexpr(k0.value != 0 || KRepeat == 1)
+                        {
+                            __builtin_amdgcn_s_barrier();
+                            __builtin_amdgcn_sched_barrier(0);
+                        }
+                        static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                                    vector_type<ComputeDataType, KPack> a_thread_vec;
+                                    vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                                    static_for<0, KPack, 1>{}([&](auto ik) {
+                                        a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                                make_tuple(m0, I0, k0, k_ + ik))>{}];
+                                        b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                            b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                                make_tuple(n0, I0, k0, k_ + ik))>{}];
+                                    });
+
+                                    using mfma_input_type =
+                                        typename vector_type<ComputeDataType,
+                                                             xdlops_gemm.K1PerXdlops>::type;
+
+                                    constexpr index_t c_offset =
+                                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                                    // The block_sync_lds() here performs double duty:
+                                    // A) safeguard against data hazard because barrier from
+                                    // blockwise_gemm is moved here B) reduce VMEM FIFO congestion
+                                    // by applying small delays to different wavefronts It is
+                                    // performed near the end of MAC cluster to minimize lgkmcnt
+                                    // penalty
+                                    if constexpr(k0.value == KRepeat - 1 &&
+                                                 k_.value == KPerInnerLoop - KPack &&
+                                                 m0.value == MRepeat - 1 && n0.value == NRepeat - 1)
+                                    {
+                                        __builtin_amdgcn_sched_barrier(0);
+                                        block_sync_lds();
+                                        __builtin_amdgcn_sched_barrier(0);
+                                    }
+                                    xdlops_gemm.Run(
+                                        a_thread_vec.template AsType<mfma_input_type>(),
+                                        b_thread_vec.template AsType<mfma_input_type>(),
+                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                                    if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
+                                    {
+                                        __builtin_amdgcn_sched_barrier(0);
+                                        __builtin_amdgcn_s_setprio(1);
+                                        __builtin_amdgcn_sched_barrier(0);
+                                    }
+                                });
+                            });
+                        });
+                        __builtin_amdgcn_sched_barrier(0);
+                        __builtin_amdgcn_s_setprio(0);
+                        __builtin_amdgcn_sched_barrier(0);
+                    });
+
+                    // block_sync_lds();
+                    a_blockwise_copy.RunWrite(
+                        a_block_desc, a_block_buf, Number<(iprefetch + 1) % PrefetchStages>{});
+                    b_blockwise_copy.RunWrite(
+                        b_block_desc, b_block_buf, Number<(iprefetch + 1) % PrefetchStages>{});
+
+                    a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, iprefetch);
+                    b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, iprefetch);
+
+                    a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                    b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                });
+                i += PrefetchStages;
+            } while(i < (num_loop - PrefetchStages));
+        }
+
+        // tail
+
+        auto LoopTailFunc = [&](auto tail_num) {
+            static_for<1, tail_num, 1>{}([&](auto iprefetch) {
+                block_sync_lds();
+                static_for<0, KRepeat, 1>{}([&](auto k0) {
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                           make_tuple(m0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                           a_block_buf,
+                                           a_thread_desc_,
+                                           make_tuple(m0, I0, k0, I0),
+                                           a_thread_buf);
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                               make_tuple(n0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                               b_block_buf,
+                                               b_thread_desc_,
+                                               make_tuple(n0, I0, k0, I0),
+                                               b_thread_buf);
+                        });
+                    });
+
+                    __builtin_amdgcn_sched_barrier(0);
+                    if constexpr(k0.value != 0 || KRepeat == 1)
+                    {
+                        __builtin_amdgcn_s_barrier();
+                        __builtin_amdgcn_sched_barrier(0);
+                    }
+                    static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                        static_for<0, MRepeat, 1>{}([&](auto m0) {
+                            static_for<0, NRepeat, 1>{}([&](auto n0) {
+                                vector_type<ComputeDataType, KPack> a_thread_vec;
+                                vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                                static_for<0, KPack, 1>{}([&](auto ik) {
+                                    a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                            make_tuple(m0, I0, k0, k_ + ik))>{}];
+                                    b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                        b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                            make_tuple(n0, I0, k0, k_ + ik))>{}];
+                                });
+
+                                using mfma_input_type =
+                                    typename vector_type<ComputeDataType,
+                                                         xdlops_gemm.K1PerXdlops>::type;
+
+                                constexpr index_t c_offset =
+                                    c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                                if constexpr(k0.value == KRepeat - 1 &&
+                                             k_.value == KPerInnerLoop - KPack &&
+                                             m0.value == MRepeat - 1 && n0.value == NRepeat - 1)
+                                {
+                                    __builtin_amdgcn_sched_barrier(0);
+                                    block_sync_lds();
+                                    __builtin_amdgcn_sched_barrier(0);
+                                }
+                                xdlops_gemm.Run(
+                                    a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                                if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
+                                {
+                                    __builtin_amdgcn_sched_barrier(0);
+                                    __builtin_amdgcn_s_setprio(1);
+                                    __builtin_amdgcn_sched_barrier(0);
+                                }
+                            });
+                        });
+                    });
+                    __builtin_amdgcn_sched_barrier(0);
+                    __builtin_amdgcn_s_setprio(0);
+                    __builtin_amdgcn_sched_barrier(0);
+                });
+
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, iprefetch);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, iprefetch);
+            });
+            block_sync_lds();
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k0, I0),
+                                       a_thread_buf);
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(n0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                           b_block_buf,
+                                           b_thread_desc_,
+                                           make_tuple(n0, I0, k0, I0),
+                                           b_thread_buf);
+                    });
+                });
+
+                __builtin_amdgcn_sched_barrier(0);
+                if constexpr(k0.value != 0 || KRepeat == 1)
+                {
+                    __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                }
+                static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            vector_type<ComputeDataType, KPack> a_thread_vec;
+                            vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple(m0, I0, k0, k_ + ik))>{}];
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(n0, I0, k0, k_ + ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            if constexpr(k0.value == KRepeat - 1 &&
+                                         k_.value == KPerInnerLoop - KPack &&
+                                         m0.value == MRepeat - 1 && n0.value == NRepeat - 1)
+                            {
+                                __builtin_amdgcn_sched_barrier(0);
+                                block_sync_lds();
+                                __builtin_amdgcn_sched_barrier(0);
+                            }
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                            if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
+                            {
+                                __builtin_amdgcn_sched_barrier(0);
+                                __builtin_amdgcn_s_setprio(1);
+                                __builtin_amdgcn_sched_barrier(0);
+                            }
+                        });
+                    });
+                });
+                __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_s_setprio(0);
+                __builtin_amdgcn_sched_barrier(0);
+            });
+        };
+
+        if constexpr(TailNum == TailNumber::One)
+        {
+            block_sync_lds();
+            static_for<0, KRepeat, 1>{}([&](auto k0) {
+                static_for<0, MRepeat, 1>{}([&](auto m0) {
+                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+                                       make_tuple(m0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                       a_block_buf,
+                                       a_thread_desc_,
+                                       make_tuple(m0, I0, k0, I0),
+                                       a_thread_buf);
+                    static_for<0, NRepeat, 1>{}([&](auto n0) {
+                        b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+                                           make_tuple(n0, I0, I0, Number<k0 * KPerInnerLoop>{}),
+                                           b_block_buf,
+                                           b_thread_desc_,
+                                           make_tuple(n0, I0, k0, I0),
+                                           b_thread_buf);
+                    });
+                });
+
+                __builtin_amdgcn_sched_barrier(0);
+                if constexpr(k0.value != 0 || KRepeat == 1)
+                {
+                    __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                }
+                static_for<0, KPerInnerLoop, KPack>{}([&](auto k_) {
+                    static_for<0, MRepeat, 1>{}([&](auto m0) {
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            vector_type<ComputeDataType, KPack> a_thread_vec;
+                            vector_type<ComputeDataType, KPack> b_thread_vec;
+
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple(m0, I0, k0, k_ + ik))>{}];
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                                        make_tuple(n0, I0, k0, k_ + ik))>{}];
+                            });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            if constexpr(k0.value == KRepeat - 1 &&
+                                         k_.value == KPerInnerLoop - KPack &&
+                                         m0.value == MRepeat - 1 && n0.value == NRepeat - 1)
+                            {
+                                __builtin_amdgcn_sched_barrier(0);
+                                block_sync_lds();
+                                __builtin_amdgcn_sched_barrier(0);
+                            }
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                            if constexpr(k_.value == 0 && m0.value == 0 && n0.value == 0)
+                            {
+                                __builtin_amdgcn_sched_barrier(0);
+                                __builtin_amdgcn_s_setprio(1);
+                                __builtin_amdgcn_sched_barrier(0);
+                            }
+                        });
+                    });
+                });
+                __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_s_setprio(0);
+                __builtin_amdgcn_sched_barrier(0);
+            });
         }
         else if constexpr(TailNum == TailNumber::Two)
         {
