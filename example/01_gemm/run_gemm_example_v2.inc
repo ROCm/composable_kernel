@@ -161,18 +161,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
         b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
     }
-#if 0
-    printf("B matrix:\n");
-    for (int in = 0; in < N; in++)
-    {
-        for (int ik = 0; ik < K; ik++)
-        {
-            printf("%02x ", *(reinterpret_cast<uint8_t*>(&b_k_n(ik,in))));
-            if(ik%8==7) printf("|");
-        }
-        printf("\n");
-    }
-#endif
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
@@ -272,7 +260,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     if(config.time_kernel)
     {
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        ave_time =
+            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 5, 10, true, 4});
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
