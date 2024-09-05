@@ -586,23 +586,23 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         }
         if constexpr(NDimSpatial == 1)
         {
-            if constexpr(!is_GNWK_GKXC_GNWC<InLayout, WeiLayout, OutLayout>())
+            if constexpr(!is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 2)
         {
-            if constexpr(!(is_NHWGK_GKYXC_NHWGC<InLayout, WeiLayout, OutLayout>() ||
-                           is_GNHWK_GKYXC_GNHWC<InLayout, WeiLayout, OutLayout>()))
+            if constexpr(!(is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
         }
         else if constexpr(NDimSpatial == 3)
         {
-            if constexpr(!(is_NDHWGK_GKZYXC_NDHWGC<InLayout, WeiLayout, OutLayout>() ||
-                           is_GNDHWK_GKZYXC_GNDHWC<InLayout, WeiLayout, OutLayout>()))
+            if constexpr(!(is_NDHWGC_GKZYXC_NDHWGK<InLayout, WeiLayout, OutLayout>() ||
+                           is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>()))
             {
                 return false;
             }
