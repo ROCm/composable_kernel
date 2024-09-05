@@ -3,6 +3,7 @@
 
 #pragma once
 
+extern unsigned char bwd_arg[];
 extern unsigned char bwd_bf16_a32[];
 extern unsigned char bwd_bf16_causal_a32[];
 extern unsigned char bwd_bf16_nocoex_a32[];
@@ -12,4 +13,3 @@ extern unsigned char bwd_fp16_a32[];
 extern unsigned char bwd_fp16_causal_a32[];
 extern unsigned char bwd_fp16_nocoex_a32[];
 extern unsigned char bwd_fp16_nocoex_causal_a32[];
-extern unsigned char bwd_arg[];
