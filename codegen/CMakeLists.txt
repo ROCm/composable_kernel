@@ -55,4 +55,6 @@ rocm_install(EXPORT ck_hostTargets
 	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel)
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_subdirectory(test)
+if(BUILD_TESTING)
+	add_subdirectory(test)
+endif()
