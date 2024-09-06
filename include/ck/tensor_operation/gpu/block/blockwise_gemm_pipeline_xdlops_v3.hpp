@@ -612,7 +612,9 @@ struct BlockwiseGemmXdlops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
             });
-            __builtin_amdgcn_sched_barrier(0);
+            // Let's leak last MFMA block to epilogue region, cover the potential lds-shuffle
+            // latency
+            // __builtin_amdgcn_sched_barrier(0);
         }
     }
 
