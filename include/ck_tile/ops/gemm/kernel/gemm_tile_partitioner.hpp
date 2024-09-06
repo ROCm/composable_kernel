@@ -15,6 +15,9 @@ struct GemmTilePartitioner
     static constexpr ck_tile::index_t kN = BlockGemmShape::kN;
     static constexpr ck_tile::index_t kK = BlockGemmShape::kK;
 
+    const index_t iM = __builtin_amdgcn_readfirstlane(i_tile_m * kM);
+    const index_t iN = __builtin_amdgcn_readfirstlane(i_tile_n * kN);
+
     CK_TILE_HOST static constexpr auto
     GridSize(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t batch_size)
     {

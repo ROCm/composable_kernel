@@ -19,13 +19,13 @@ template <typename TilePartitioner_,
           typename LayoutC_>
 struct GemmKernel
 {
-    using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
-    using LayoutA                       = remove_cvref_t<LayoutA_>;
-    using LayoutB                       = remove_cvref_t<LayoutB_>;
-    using LayoutC                       = remove_cvref_t<LayoutC_>;
-    static constexpr index_t kBlockSize = GemmPipeline::kBlockSize;
+    using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
+    using LayoutA                            = remove_cvref_t<LayoutA_>;
+    using LayoutB                            = remove_cvref_t<LayoutB_>;
+    using LayoutC                            = remove_cvref_t<LayoutC_>;
+    static constexpr index_t KernelBlockSize = GemmPipeline::KernelBlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType    = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -37,7 +37,7 @@ struct GemmKernel
         return TilePartitioner::GridSize(M_size, N_size, Batch_size);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
 
     struct GemmCommonKargs
     {
@@ -76,9 +76,8 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmCommonKargs kargs) const
     {
-        const auto [i_tile_m, i_tile_n, i_batch] = TilePartitioner{}();
-        const index_t i_m = __builtin_amdgcn_readfirstlane(i_tile_m * TilePartitioner::kM);
-        const index_t i_n = __builtin_amdgcn_readfirstlane(i_tile_n * TilePartitioner::kN);
+        const index_t i_m = TilePartitioner::iM;
+        const index_t i_n = TilePartitioner::iN;
         // options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
