@@ -1406,7 +1406,8 @@ CK_TILE_DEVICE T rcp(T x)
 #if !CK_TILE_WORKAROUND_SWDEV_383542
     return __frcp_rn(x);
 #else
-    return __ocml_native_recip_f32(x);
+    // return __ocml_native_recip_f32(x);
+    return __builtin_amdgcn_rcpf(x);
 #endif
 };
 

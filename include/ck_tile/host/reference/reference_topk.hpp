@@ -100,4 +100,25 @@ CK_TILE_HOST void reference_topk(const HostTensor<DataType>& x,
 
     make_ParallelTensorFunctor(f, n_parallel)(std::thread::hardware_concurrency());
 }
+
+// TODO: if using this method, the return tensor would be dense(no stride)
+template <typename DataType, typename IndexType = index_t>
+CK_TILE_HOST auto reference_topk(const HostTensor<DataType>& x,
+                                 index_t k,
+                                 index_t dim  = -1,
+                                 bool largest = true,
+                                 bool sorted  = true)
+{
+    auto lens          = x.get_lengths();
+    index_t target_dim = (dim == -1) ? (lens.size() - 1) : dim;
+    assert(target_dim < lens.size());
+    assert(k <= lens[target_dim]);
+    lens[target_dim] = k;
+    HostTensor<DataType> y_values(lens);
+    HostTensor<IndexType> y_indices(lens);
+
+    reference_topk<DataType, IndexType>(x, y_values, y_indices, k, dim, largest, sorted);
+
+    return ck_tile::make_tuple(y_values, y_indices);
+}
 } // namespace ck_tile

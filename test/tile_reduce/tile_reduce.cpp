@@ -50,11 +50,11 @@ __global__ void reduce_row(DataType* p_src, DataType* p_dst)
         constexpr auto src_dist = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<1>,
-                tuple<sequence<row_repeat, num_warps, row_lanes>, sequence<col_lanes, vec>>,
+                tuple<sequence<row_repeat, num_warps, row_lanes>, sequence<1, col_lanes, vec>>,
                 tuple<sequence<1>, sequence<1, 2>>,
-                tuple<sequence<1>, sequence<2, 0>>,
-                sequence<1, 2>,
-                sequence<0, 1>>{});
+                tuple<sequence<1>, sequence<2, 1>>,
+                sequence<1, 2, 2>,
+                sequence<0, 0, 2>>{});
 
         auto src_view =
             make_naive_tensor_view<address_space_enum::global>(p_src,
@@ -98,7 +98,7 @@ __global__ void reduce_row(DataType* p_src, DataType* p_dst)
         block_tile_reduce<DataType>(data, sequence<1>{}, f_max, -numeric<DataType>::infinity());
 
     // further reduce cross thread, Note Now the HLength of r is 1D
-    block_tile_reduce_sync(r, f_max, bool_constant<false>{});
+    block_tile_reduce_xor_sync(r, f_max);
 
     if(threadIdx.x % col_lanes == 0)
     {
@@ -205,7 +205,7 @@ __global__ void reduce_row_argmax(DataType* p_src, DataType* p_dst, int* p_idx)
     auto r            = block_tile_reduce<kv>(kv_data, sequence<1>{}, f_arg_max, arg_max_init);
 
     // further reduce cross thread, Note Now the HLength of r is 1D
-    block_tile_reduce_sync(r, f_arg_max, bool_constant<false>{});
+    block_tile_reduce_xor_sync(r, f_arg_max);
 
     auto o = make_static_distributed_tensor<DataType>(dst_dist);
     auto i = make_static_distributed_tensor<int>(dst_dist);
@@ -368,7 +368,7 @@ int main()
 {
     bool r = true;
     r &= test_tile_reduce<32, 64, float>();
-    r &= test_tile_reduce<32, 16, float, 4>();
+    r &= test_tile_reduce<32, 8, float, 4>();
     r &= test_tile_reduce<32, 16, ck_tile::fp16_t, 4>();
 
     r &= test_tile_reduce_argmax<32, 16, float, 4>();

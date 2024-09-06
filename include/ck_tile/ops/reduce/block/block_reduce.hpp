@@ -7,6 +7,10 @@
 
 namespace ck_tile {
 
+/*
+ * TODO: block_tile_reduce_sync() currently has a limitation
+ * Y dim must have at least one dim not been reduced
+ */
 // synchronize reduce result (cross lane reduction and broadcast on replicated dimension)
 template <typename AccDistributedTensor_, typename ReduceFunc, bool WithBroadcast = true>
 CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
@@ -55,7 +59,17 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
 
                     // pull data from remote lane
                     const auto v_remote = warp_shuffle_down(v_local, lid_delta);
-
+#if 0
+                    if constexpr(Verbose_)
+                    {
+                        printf("warp_shuffle_down : %d - %d, %d (%.3f, %.3f)\n",
+                               static_cast<int>(threadIdx.x),
+                               static_cast<int>(lid_over_rid_derivative),
+                               static_cast<int>(lid_delta),
+                               v_local,
+                               v_remote);
+                    }
+#endif
                     // reduce
                     v_local = reduce_func(v_local, v_remote);
                 });
@@ -99,6 +113,76 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
                 }
             });
         }
+
+        acc_tensor.get_thread_buffer()(i) = v_local;
+    });
+}
+
+/*
+ * this version is faster, using xor to do reduce, no need broadcast anymore
+ * TODO: the limitation is to-be-reduced P dim can only mapping to one R dim?
+ */
+template <typename AccDistributedTensor_, typename ReduceFunc>
+CK_TILE_DEVICE void block_tile_reduce_xor_sync(AccDistributedTensor_& acc_tensor,
+                                               const ReduceFunc& reduce_func)
+{
+    using Dstr             = typename AccDistributedTensor_::StaticTileDistribution;
+    using DstrEncode       = typename Dstr::DstrEncode;
+    using DstrEncodeDetail = typename DstrEncode::detail;
+
+    constexpr index_t NDimP = Dstr::get_num_of_dimension_p();
+    constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
+
+    constexpr index_t idim_p_lane = NDimP - 1;
+
+    constexpr index_t thread_buf_size = AccDistributedTensor_::get_thread_buffer_size();
+
+    // loop over thread data
+    static_for<0, thread_buf_size, 1>{}([&](auto i) {
+        auto v_local = acc_tensor.get_thread_buffer()[i];
+
+        // cross-lane reduce for replication
+        // only reduce on R dimension correspond to lane
+        // (lane id maps to this R dimension)
+        static_for<0, NDimR, 1>{}([&](auto idim_r) {
+            // FIXME: nasty to use does_p_own_r_
+            if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_lane][idim_r])
+            {
+                constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
+
+                constexpr index_t lid_over_rid_derivative =
+                    DstrEncodeDetail::ps_over_rs_derivative_[idim_p_lane][idim_r];
+
+                static_assert(is_power_of_two_integer(r_length),
+                              "wrong! only support power of 2 reduction");
+
+                constexpr index_t nstage = integer_log2_floor(r_length);
+
+                // reduction sweep forward
+                static_for<0, nstage, 1>{}([&](auto istage) {
+                    // TODO: lid_over_rid_derivative not ok in xor? maybe need limit the usage of
+                    // xor
+                    index_t src_lane = (__lane_id() * lid_over_rid_derivative) ^
+                                       (number<1 << istage.value>{}.value);
+
+                    // pull data from remote lane
+                    const auto v_remote = warp_shuffle(v_local, src_lane);
+#if 0
+                    if constexpr(Verbose_)
+                    {
+                        printf("block_tile_reduce_xor_sync : %d - %d, %d (%.3f, %.3f)\n",
+                               static_cast<int>(threadIdx.x),
+                               static_cast<int>(istage),
+                               static_cast<int>(src_lane),
+                               v_local,
+                               v_remote);
+                    }
+#endif
+                    // reduce
+                    v_local = reduce_func(v_local, v_remote);
+                });
+            }
+        });
 
         acc_tensor.get_thread_buffer()(i) = v_local;
     });
@@ -175,6 +259,10 @@ CK_TILE_DEVICE void block_tile_reduce(AccDistributedTensor_& acc_tensor,
 #endif
 }
 
+/*
+ * TODO: block_tile_reduce() currently has a limitation
+ * Y dim must have at least one dim not been reduced
+ */
 template <typename AccDataType_,
           typename InDistributedTensor_,
           index_t... InReduceDims,

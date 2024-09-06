@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include <type_traits>
 
 namespace ck_tile {
 namespace element_wise {
@@ -258,10 +259,10 @@ struct ConvertBF16RTN
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(ck_tile::is_same<Y, ck_tile::bf16_t>::value, "Data type is not supported by this operation!");
+        static_assert(std::is_same_v<Y, ck_tile::bf16_t>, "Data type is not supported by this operation!");
 
         // check X datatype
-        static_assert(ck_tile::is_same<X, float>::value || ck_tile::is_same<X, ck_tile::fp16_t>::value,
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
                       "Data type is not supported by this operation!");
 
         y = bf16_convert_rtn<Y>(x);
@@ -275,11 +276,11 @@ struct ConvertF8SR
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(ck_tile::is_same<Y, ck_tile::fp8_t>::value || ck_tile::is_same<Y, ck_tile::bf8_t>::value,
+        static_assert(std::is_same_v<Y, ck_tile::fp8_t> || std::is_same_v<Y, ck_tile::bf8_t>,
                       "Data type is not supported by this operation!");
 
         // check X datatype
-        static_assert(ck_tile::is_same<X, float>::value || ck_tile::is_same<X, ck_tile::fp16_t>::value,
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
                       "Data type is not supported by this operation!");
 
         y = f8_convert_sr<Y>(x);
@@ -293,11 +294,11 @@ struct ConvertF8RNE
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
         // check Y datatype
-        static_assert(ck_tile::is_same<Y, ck_tile::fp8_t>::value || ck_tile::is_same<Y, ck_tile::bf8_t>::value,
+        static_assert(std::is_same_v<Y, ck_tile::fp8_t> || std::is_same_v<Y, ck_tile::bf8_t>,
                       "Data type is not supported by this operation!");
 
         // check X datatype
-        static_assert(ck_tile::is_same<X, float>::value || ck_tile::is_same<X, ck_tile::fp16_t>::value,
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
                       "Data type is not supported by this operation!");
 
         y = f8_convert_rne<Y>(x);
@@ -362,7 +363,7 @@ struct ScaleAndResetNaNToMinusInfinity
     template <>
     CK_TILE_HOST_DEVICE void operator()<float, float>(float& y, const float& x) const
     {
-        y = ck_tile::isnan(x) ? -ck_tile::NumericLimits<float>::Infinity() : scale_ * x;
+        y = ck_tile::isnan(x) ? -numeric<float>::infinity() : scale_ * x;
     };
 
     float scale_;
@@ -375,8 +376,8 @@ struct UnaryDivide
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = x / type_convert<T>(divider_);
@@ -390,10 +391,11 @@ struct UnarySquare
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(is_same_v<T, float> || is_same_v<T, ck_tile::fp16_t> ||
-                          is_same_v<T, double> || is_same_v<T, int32_t> || is_same_v<T, int8_t>
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, ck_tile::fp16_t> ||
+                          std::is_same_v<T, double> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>
 #ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                          || is_same_v<T, int4_t>
+                          || std::is_same_v<T, int4_t>
 #endif
                       ,
                       "Data type is not supported by this operation!");
@@ -406,9 +408,9 @@ struct UnaryAbs
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::abs(x);
@@ -420,7 +422,7 @@ struct UnarySqrt
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::sqrt(x);
@@ -432,9 +434,9 @@ struct Relu
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         y = x > 0 ? x : 0;
     }
@@ -597,9 +599,9 @@ struct Sigmoid
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
         y               = one / (one + ck_tile::exp(-x));
@@ -611,9 +613,9 @@ struct Silu
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(is_same_v<T, float> || is_same_v<T, double> ||
-                          is_same_v<T, ck_tile::fp16_t> || is_same_v<T, int8_t> ||
-                          is_same_v<T, int32_t>,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
         constexpr T one = type_convert<T>(1);
         y               = x * (one / (one + ck_tile::exp(-x)));
@@ -625,9 +627,9 @@ struct TanH
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::tanh(x);
@@ -639,9 +641,9 @@ struct ACos
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::acos(x);
@@ -653,9 +655,9 @@ struct Neg
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::neg(x);
@@ -667,9 +669,9 @@ struct ATan
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::atan(x);
@@ -681,9 +683,9 @@ struct Sin
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::sin(x);
@@ -695,9 +697,9 @@ struct ASinH
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::asinh(x);
@@ -709,9 +711,9 @@ struct Cos
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::cos(x);
@@ -723,9 +725,9 @@ struct ACosH
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::acosh(x);
@@ -737,9 +739,9 @@ struct Tan
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::tan(x);
@@ -751,9 +753,9 @@ struct ATanH
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::atanh(x);
@@ -765,9 +767,9 @@ struct SinH
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::sinh(x);
@@ -779,9 +781,9 @@ struct Ceil
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::ceil(x);
@@ -793,9 +795,9 @@ struct Exp
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::exp(x);
@@ -807,9 +809,9 @@ struct CosH
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::cosh(x);
@@ -821,9 +823,9 @@ struct Floor
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::floor(x);
@@ -835,9 +837,9 @@ struct Log
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::log(x);
@@ -849,9 +851,9 @@ struct ASin
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::asin(x);
@@ -863,9 +865,9 @@ struct Rcp
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int8_t>::value || ck_tile::is_same<T, int32_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int8_t> ||
+                          std::is_same_v<T, int32_t>,
                       "Data type is not supported by this operation!");
 
         y = ck_tile::rcp(x);
@@ -879,12 +881,12 @@ struct Swish
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(ck_tile::is_same<X, float>::value || ck_tile::is_same<X, double>::value ||
-                          ck_tile::is_same<X, ck_tile::fp16_t>::value,
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, double> ||
+                          std::is_same_v<X, ck_tile::fp16_t>,
                       "Data type is not supported by this operation!");
 
-        static_assert(ck_tile::is_same<Y, float>::value || ck_tile::is_same<Y, double>::value ||
-                          ck_tile::is_same<Y, ck_tile::fp16_t>::value,
+        static_assert(std::is_same_v<Y, float> || std::is_same_v<Y, double> ||
+                          std::is_same_v<Y, ck_tile::fp16_t>,
                       "Data type is not supported by this operation!");
 
         float bx = -beta_ * type_convert<float>(x);
@@ -901,9 +903,9 @@ struct SoftRelu
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         T casted_alpha  = type_convert<T>(alpha_);
         constexpr T one = type_convert<T>(1);
@@ -920,9 +922,9 @@ struct Power
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         T casted_alpha     = type_convert<T>(alpha_);
         T casted_beta      = type_convert<T>(beta_);
@@ -942,9 +944,9 @@ struct ClippedRelu
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         T casted_alpha = type_convert<T>(alpha_);
         T casted_beta  = type_convert<T>(beta_);
@@ -961,9 +963,9 @@ struct LeakyRelu
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         T casted_alpha = type_convert<T>(alpha_);
         y              = x >= 0 ? x : x * casted_alpha;
@@ -978,9 +980,9 @@ struct Elu
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         T casted_alpha = type_convert<T>(alpha_);
         y              = x > 0 ? x : casted_alpha * ck_tile::expm1(x);
@@ -995,9 +997,9 @@ struct Logistic
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
-        static_assert(ck_tile::is_same<T, float>::value || ck_tile::is_same<T, double>::value ||
-                          ck_tile::is_same<T, ck_tile::fp16_t>::value ||
-                          ck_tile::is_same<T, int32_t>::value || ck_tile::is_same<T, int8_t>::value,
+        static_assert(std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                          std::is_same_v<T, ck_tile::fp16_t> || std::is_same_v<T, int32_t> ||
+                          std::is_same_v<T, int8_t>,
                       "Data type is not supported by this operation!");
         T casted_alpha  = type_convert<T>(alpha_);
         constexpr T one = type_convert<T>(1);
@@ -1078,7 +1080,7 @@ struct ConvScaleRelu
 };
 
 // support fastconvert of int8 to fp16
-
+#if 0
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
 struct FastNumericArrayConverter
 {
@@ -1146,6 +1148,6 @@ struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, N>
 
     CK_TILE_DEVICE OutputArray operator()(InputArray const& Input) { return convert(Input); }
 };
-
+#endif
 } // namespace element_wise
 } // namespace ck_tile
