@@ -10,6 +10,8 @@
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
+#include "rocm_smi/rocm_smi.h"
+
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
                              F kernel,
@@ -19,6 +21,14 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
                              Args... args)
 {
 #if CK_TIME_KERNEL
+
+    rsmi_status_t ret;
+    uint32_t num_devices;
+    uint16_t dev_id;
+
+    ret = rsmi_init(0);
+    ret = rsmi_num_monitor_devices(&num_devices);
+
     if(stream_config.time_kernel_)
     {
 
@@ -46,6 +56,9 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
             hip_check_error(hipEventElapsedTime(&total_time, start, stop));
             total_time/=10;
             stream_config.cold_niters_ = (1000.0 / total_time);//we need longer runtime to ramp up the clk on MI300s
+
+            // Need to find some heuristic which Dynamically Define cold iterations based on GPU clock cycle 
+            // #Emin #lookAt1 
             stream_config.nrepeat_     = stream_config.cold_niters_;
         }
 #if DEBUG_LOG
