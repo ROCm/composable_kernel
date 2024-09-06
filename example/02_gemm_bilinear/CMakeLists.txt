@@ -1,5 +1,3 @@
 add_example_executable(example_gemm_bilinear_wmma_fp16 gemm_bilinear_wmma_fp16.cpp)
 add_example_executable(example_gemm_bilinear_wmma_int8 gemm_bilinear_wmma_int8.cpp)
 add_example_executable(example_gemm_bilinear_xdl_fp16 gemm_bilinear_xdl_fp16.cpp)
-add_example_executable(example_gemm_bilinear_xdl_fp16_v3 gemm_bilinear_xdl_fp16_v3.cpp)
-target_compile_options(example_gemm_bilinear_xdl_fp16_v3 PRIVATE -mllvm -greedy-reverse-local-assignment=1 -save-temps=$PWD -Wno-gnu-line-marker)
