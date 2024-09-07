@@ -14,11 +14,9 @@
 #include "ck_tile/ops/reduce.hpp"
 #include "topk_softmax_api.hpp"
 
-// #ifndef TEST_TOPK_SOFTMAX_VERBOSE
-// #define TEST_TOPK_SOFTMAX_VERBOSE 0
-// #endif
-
-// #define BLOCK_SIZE 256
+#ifndef TEST_TOPK_SOFTMAX_VERBOSE
+#define TEST_TOPK_SOFTMAX_VERBOSE 1
+#endif
 
 template <typename T>
 void dump_host_tensor_2d(const ck_tile::HostTensor<T>& x)
@@ -28,7 +26,7 @@ void dump_host_tensor_2d(const ck_tile::HostTensor<T>& x)
     std::cout << "[";
     for(size_t i = 0; i < len[0]; i++)
     {
-        std::cout << "[";
+        std::cout << i << ": [";
         for(size_t j = 0; j < len[1]; j++)
         {
             if constexpr(std::is_same_v<T, ck_tile::fp16_t>)
@@ -121,6 +119,7 @@ auto create_args(int argc, char* argv[])
         .insert("t", "32", "number of input tokens")
         .insert("e", "8", "number of experts")
         .insert("k", "2", "topk")
+        .insert("seed", "-1", "seed to be used, -1 means random every time")
         .insert("kname", "0", "t to 1 will print kernel name");
 
     bool result = arg_parser.parse(argc, argv);
@@ -136,17 +135,41 @@ bool test_topk_softmax(ck_tile::ArgParser args)
     int tokens              = args.get_int("t");
     int experts             = args.get_int("e");
     int topk                = args.get_int("k");
+    int seed                = args.get_int("seed");
+    if(seed < 0)
+    {
+        seed = std::time(nullptr);
+    }
     // int kname = args.get_int("kname");
     // int warmup = args.get_int("warmup");
     // int repeat = args.get_int("repeat");
-    std::srand(std::time(nullptr));
+
+    if(topk > experts)
+    {
+#if TEST_TOPK_SOFTMAX_VERBOSE
+        printf("topk:%d should smaller than (or equal to) experts:%d\n", topk, experts);
+#endif
+        return false;
+    }
 
     // tokens already considered batch size
     ck_tile::HostTensor<InputType> x_host({tokens, experts});
     ck_tile::HostTensor<WeightType> value_host({tokens, topk});
     ck_tile::HostTensor<IndexType> index_host({tokens, topk});
 
-    ck_tile::FillUniformDistribution<InputType>{-5.f, 5.f}(x_host);
+    {
+        // random require per-row unique
+        auto rand_gen = ck_tile::FillUniformDistribution_Unique<InputType>{
+            -5.f, 5.f, static_cast<uint32_t>(seed)};
+
+        for(int i_t = 0; i_t < tokens; i_t++)
+        {
+            ck_tile::HostTensor<InputType> x_row({experts});
+            rand_gen(x_row);
+            std::copy(x_row.begin(), x_row.end(), x_host.begin() + i_t * experts);
+            rand_gen.clear();
+        }
+    }
 
     ck_tile::DeviceMem x_dev(x_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem value_dev(value_host.get_element_space_size_in_bytes());
@@ -173,9 +196,21 @@ bool test_topk_softmax(ck_tile::ArgParser args)
         return a_;
     }();
 
+#if TEST_TOPK_SOFTMAX_VERBOSE
+    ck_tile::stream_config sc{nullptr, true};
+    auto ms = topk_softmax(trait, karg, sc);
+    printf("[%s|%s]tokens:%d, experts:%d, topk:%d, ms:%f, ",
+           input_prec.c_str(),
+           weight_prec.c_str(),
+           tokens,
+           experts,
+           topk,
+           ms);
+    fflush(stdout);
+#else
     ck_tile::stream_config sc{nullptr};
-
     topk_softmax(trait, karg, sc);
+#endif
 
     value_dev.FromDevice(value_host.data());
     index_dev.FromDevice(index_host.data());
@@ -195,7 +230,10 @@ bool test_topk_softmax(ck_tile::ArgParser args)
         rtn &= ck_tile::check_err(
             index_host, index_ref, std::string("Index Error: Incorrect results!"), rtol, atol);
     }
-
+#if TEST_TOPK_SOFTMAX_VERBOSE
+    printf("valid:%s\n", rtn ? "y" : "n");
+    fflush(stdout);
+#endif
     return rtn;
 }
 

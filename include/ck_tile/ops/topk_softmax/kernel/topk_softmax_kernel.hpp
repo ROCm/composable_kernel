@@ -71,7 +71,7 @@ struct TopkSoftmaxKernel
         index_t block_row_id    = static_cast<index_t>(blockIdx.x * Problem::RowsPerBlock);
         const auto input_window = [&]() {
             const InputType* p_input = reinterpret_cast<const InputType*>(kargs.p_input) +
-                                       blockIdx.x * Problem::RowsPerBlock * kargs.num_experts;
+                                       block_row_id * kargs.num_experts;
 
             auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                 p_input,
@@ -85,33 +85,33 @@ struct TopkSoftmaxKernel
             return make_tile_window(
                 view,
                 make_tuple(number<Problem::RowsPerBlock>{}, number<Problem::Experts>{}),
-                {block_row_id, 0});
+                {0, 0});
         }();
 
         auto output_window = [&]() {
-            WeightType* p_output = reinterpret_cast<WeightType*>(kargs.p_output) +
-                                   blockIdx.x * Problem::RowsPerBlock * kargs.topk;
+            WeightType* p_output =
+                reinterpret_cast<WeightType*>(kargs.p_output) + block_row_id * kargs.topk;
             auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                 p_output, make_tuple(kargs.num_rows, kargs.topk), number<Problem::VectorSize>{});
             auto view = pad_tensor_view(
                 tmp, make_tuple(number<Problem::RowsPerBlock>{}, number<1>{}), sequence<1, 0>{});
 
             return make_tile_window(
-                view, make_tuple(number<Problem::RowsPerBlock>{}, number<1>{}), {block_row_id, 0});
+                view, make_tuple(number<Problem::RowsPerBlock>{}, number<1>{}), {0, 0});
         }();
 
         auto indices_window = [&]() {
-            IndexType* p_indices = reinterpret_cast<IndexType*>(kargs.p_indices) +
-                                   blockIdx.x * Problem::RowsPerBlock * kargs.topk;
+            IndexType* p_indices =
+                reinterpret_cast<IndexType*>(kargs.p_indices) + block_row_id * kargs.topk;
             auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                 p_indices, make_tuple(kargs.num_rows, kargs.topk), number<Problem::VectorSize>{});
             auto view = pad_tensor_view(
                 tmp, make_tuple(number<Problem::RowsPerBlock>{}, number<1>{}), sequence<1, 0>{});
             return make_tile_window(
-                view, make_tuple(number<Problem::RowsPerBlock>{}, number<1>{}), {block_row_id, 0});
+                view, make_tuple(number<Problem::RowsPerBlock>{}, number<1>{}), {0, 0});
         }();
 
-        Pipeline{}(input_window, output_window, indices_window, kargs.topk);
+        Pipeline{}(input_window, output_window, indices_window, kargs.topk, kargs.num_experts);
     }
 };
 } // namespace ck_tile

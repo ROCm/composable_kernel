@@ -14,14 +14,16 @@ template <typename Problem_, typename Policy_ = TopkSoftmaxWarpPerRowPolicy>
 struct TopkSoftmaxWarpPerRowPipeline
 {
     // TODO: this kernel only support warp per row
-    using Problem = remove_cvref_t<Problem_>;
-    using Policy  = remove_cvref_t<Policy_>;
+    using Problem    = remove_cvref_t<Problem_>;
+    using Policy     = remove_cvref_t<Policy_>;
+    using WeightType = typename Problem::WeightType;
 
     template <typename InputWindow, typename OutputWindow, typename IndexWindow>
     CK_TILE_DEVICE auto operator()(const InputWindow& input_window,
                                    OutputWindow& out_window,
                                    IndexWindow& idx_window,
-                                   index_t k)
+                                   index_t k,
+                                   index_t experts)
     {
         auto input_win = make_tile_window(input_window.get_bottom_tensor_view(),
                                           input_window.get_window_lengths(),
@@ -29,7 +31,25 @@ struct TopkSoftmaxWarpPerRowPipeline
                                           Policy::template MakeInputDistribution<Problem>());
 
         auto x = load_tile(input_win);
-        auto w = cast_tile<typename Problem::WeightType>(x);
+
+        // cast and pad input data
+        auto w = [&]() {
+            auto w_ = cast_tile<WeightType>(x);
+
+            constexpr auto span_2d = decltype(w_)::get_distributed_spans();
+            sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    const auto x_indices =
+                        get_x_indices_from_distributed_indices(w_.get_tile_distribution(), i_j_idx);
+                    const auto current_expert = x_indices.at(number<1>{});
+                    // set to -INF if OOB so that later softmax can work properly
+                    w_(i_j_idx) =
+                        current_expert >= experts ? -numeric<WeightType>::infinity() : w_(i_j_idx);
+                });
+            });
+            return w_;
+        }();
 
         auto softmax = Policy::template GetSoftmax<Problem>();
 
