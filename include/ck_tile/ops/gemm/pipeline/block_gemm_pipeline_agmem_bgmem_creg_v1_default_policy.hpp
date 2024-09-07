@@ -91,6 +91,33 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
 
         return b_lds_block_desc;
     }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeA()
+    {
+        constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
+                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size();
+        return smem_size_a;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeB()
+    {
+        constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
+                                        MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+        return smem_size_b;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
+        constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
+        index_t smem_size             = 0;
+        smem_size += smem_size_a + smem_size_b;
+
+        return smem_size;
+    }
 #elif 1
     // fake XOR
     template <typename Problem>
@@ -168,7 +195,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t KernelBlockSize = Problem::KernelBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
@@ -177,7 +204,9 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t M2 = get_warp_size() / K0;
 #if 1 // coalesce reading for each blocks
-        constexpr index_t M1 = kBlockSize / get_warp_size();
+        constexpr index_t M1 = KernelBlockSize / get_warp_size();
+        static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
+        static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         return make_static_tile_distribution(
@@ -188,7 +217,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
 #else // coalesce reading for each warps
-        constexpr index_t M0 = kBlockSize / get_warp_size();
+        constexpr index_t M0 = KernelBlockSize / get_warp_size();
         constexpr index_t M1 = kMPerBlock / (M2 * M0);
 
         return make_static_tile_distribution(
@@ -206,7 +235,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
     {
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
 
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t KernelBlockSize = Problem::KernelBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
@@ -215,7 +244,9 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
         constexpr index_t K0 = kKPerBlock / K1;
         constexpr index_t N2 = get_warp_size() / K0;
 #if 1 // coalesce reading for each blocks
-        constexpr index_t N1 = kBlockSize / get_warp_size();
+        constexpr index_t N1 = KernelBlockSize / get_warp_size();
+        static_assert(N2 != 0, "M2 is zero, which will lead to a division by zero error.");
+        static_assert(N1 != 0, "M1 is zero, which will lead to a division by zero error.");
         constexpr index_t N0 = kNPerBlock / (N2 * N1);
 
         return make_static_tile_distribution(
@@ -226,7 +257,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
 #else // coalesce reading for each warps
-        constexpr index_t N0 = kBlockSize / get_warp_size();
+        constexpr index_t N0 = KernelBlockSize / get_warp_size();
         constexpr index_t N1 = kNPerBlock / (N2 * N0);
 
         return make_static_tile_distribution(
