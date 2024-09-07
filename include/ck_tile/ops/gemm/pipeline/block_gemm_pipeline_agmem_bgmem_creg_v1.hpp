@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -18,11 +19,15 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t KernelBlockSize = Problem::KernelBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
+
+    static constexpr index_t AlignmentA = Problem::AlignmentA;
+    static constexpr index_t AlignmentB = Problem::AlignmentB;
+    static constexpr index_t AlignmentC = Problem::AlignmentC;
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
@@ -33,6 +38,11 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
                    16 +
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return Policy::template GetSmemSize<Problem>();
     }
 
     template <typename ADramBlockWindowTmp,
@@ -140,8 +150,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
         }
 
         index_t iCounter = num_loop - 1;
-
-        do
+        while(iCounter > 0)
         {
             // global read i + 1
             a_block_tile = load_tile(a_copy_dram_window);
@@ -167,8 +176,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
             store_tile(b_copy_lds_window, b_block_tile_tmp);
 
             iCounter--;
-
-        } while(iCounter > 0);
+        }
 
         // tail
         {
