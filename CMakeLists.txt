@@ -26,7 +26,19 @@ set(version 1.1.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
-find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+if(NOT CK_USE_ALTERNATIVE_PYTHON)
+   find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+else()
+   message("Using alternative python version")
+   set(EXTRA_PYTHON_PATH)
+   string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
+   message("alternative python path is: ${EXTRA_PYTHON_PATH}")
+   find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
+   add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
+   set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
+   set(PYTHON_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
+   set(ENV{LD_LIBRARY_PATH} "${EXTRA_PYTHON_PATH}/lib:$ENV{LD_LIBRARY_PATH}")
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
@@ -553,12 +565,7 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   if(GPU_TARGETS MATCHES "gfx9" AND NOT INSTANCES_ONLY)
-      add_subdirectory(codegen)
-   endif()
-   if(BUILD_TESTING)
-      add_subdirectory(test)
-   endif()
+   add_subdirectory(test)
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
@@ -573,6 +580,10 @@ if(NOT DEFINED INSTANCES_ONLY)
     )
     add_subdirectory(profiler)
   endif()
+endif()
+
+if(NOT DEFINED PROFILER_ONLY AND (GPU_TARGETS MATCHES "gfx9" OR DEFINED INSTANCES_ONLY))
+  add_subdirectory(codegen)
 endif()
 
 #Create an interface target for the include only files and call it "composablekernels"

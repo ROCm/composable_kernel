@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
 
 namespace ck_tile {
 
@@ -18,7 +19,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV2
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t KernelBlockSize = Problem::KernelBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
