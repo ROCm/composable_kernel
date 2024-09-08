@@ -5,7 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bgmem_creg_v1_default_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_problem.hpp"
 
 namespace ck_tile {
@@ -29,9 +28,9 @@ struct BlockGemmARegBGmemCRegV1
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     // use BlockGemmARegBSmemCRegV1 as the underlying block-GEMM implementation
-    using BlockGemmARegBSmemCRegImpl = BlockGemmARegBSmemCRegV1<
+    using BlockGemmARegBGmemCRegImpl = BlockGemmARegBGmemCRegV1<
         BlockGemmProblem<ADataType, BDataType, CDataType, kBlockSize, BlockGemmShape>,
-        BlockGemmARegBSmemCRegV1DefaultPolicy>;
+        BlockGemmARegBGmemCRegV1DefaultPolicy>;
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
@@ -84,7 +83,7 @@ struct BlockGemmARegBGmemCRegV1
         block_sync_lds();
 
         // block GEMM
-        BlockGemmARegBSmemCRegImpl{}(c_block_tensor, a_block_tensor, b_block_smem_window);
+        BlockGemmARegBGmemCRegImpl{}(c_block_tensor, a_block_tensor, b_block_smem_window);
     }
 
     // C = A * B
@@ -130,7 +129,7 @@ struct BlockGemmARegBGmemCRegV1
         block_sync_lds();
 
         // block GEMM
-        return BlockGemmARegBSmemCRegImpl{}(a_block_tensor, b_block_smem_window);
+        return BlockGemmARegBGmemCRegImpl{}(a_block_tensor, b_block_smem_window);
     }
 };
 
