@@ -398,6 +398,7 @@ struct tile_window_with_static_distribution
                 get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
                     dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
                     bottom_tensor_thread_coord,
+                    /**/,
                     bool_constant<oob_conditional_check>{},
                     pre_nop_);
 #if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE || \

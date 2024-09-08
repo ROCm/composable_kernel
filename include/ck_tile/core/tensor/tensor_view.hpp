@@ -94,12 +94,14 @@ struct tensor_view
                   bool>::type = false>
     CK_TILE_HOST_DEVICE void get_vectorized_elements_raw(remove_cvref_t<X>& dst,
                                                          const TensorCoord& coord,
+                                                         index_t linear_offset,
                                                          bool_constant<oob_conditional_check> = {},
                                                          bool_constant<pre_nop> = {}) const
     {
         return buf_.template get_raw<X, oob_conditional_check, pre_nop>(
             dst,
             coord.get_offset(),
+            linear_offset,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<pre_nop>{});
     }

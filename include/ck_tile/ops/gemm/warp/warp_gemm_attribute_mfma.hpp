@@ -51,10 +51,13 @@ struct WarpGemmAtrributeMfma
         sequence<0, 2>>;
 
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
-        Impl{}(c_vec, a_vec, b_vec);
+        Impl{}(c_vec, a_vec, b_vec, bool_constant<post_nop_>{});
     }
 
     // c_vec = a_vec * b_vec
@@ -111,8 +114,11 @@ struct WarpGemmAtrributeMfmaIterateK
         sequence<0, 2>>;
 
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
         using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
@@ -122,8 +128,31 @@ struct WarpGemmAtrributeMfmaIterateK
                    reinterpret_cast<const buf_a&>(a_vec)
                        .template get_as<typename Impl::AVecType>()[iKIter],
                    reinterpret_cast<const buf_b&>(b_vec)
-                       .template get_as<typename Impl::BVecType>()[iKIter]);
+                       .template get_as<typename Impl::BVecType>()[iKIter],
+                   bool_constant<post_nop_>{});
         });
+    }
+
+    template <index_t iKIter, bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   number<iKIter>,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
+        using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
+
+        static_assert(iKIter < kKIter);
+
+        // static_for<0, kKIter, 1>{}([&](auto iKIter) {
+        Impl{}(c_vec,
+               reinterpret_cast<const buf_a&>(a_vec)
+                   .template get_as<typename Impl::AVecType>()[iKIter],
+               reinterpret_cast<const buf_b&>(b_vec)
+                   .template get_as<typename Impl::BVecType>()[iKIter],
+               bool_constant<post_nop_>{});
+        //});
     }
 
     // c_vec = a_vec * b_vec
@@ -194,11 +223,14 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
         sequence<0, 2>>;
 
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         // swap A and B
-        Impl{}(c_vec, b_vec, a_vec);
+        Impl{}(c_vec, b_vec, a_vec, bool_constant<post_nop_>{});
     }
 
     // c_vec = a_vec * b_vec
@@ -255,12 +287,15 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
         sequence<2, 2>,
         sequence<0, 2>>;
 
+    template <bool post_nop_ = false>
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         // swap A and B
-        Impl{}(c_vec, b_vec, a_vec);
+        Impl{}(c_vec, b_vec, a_vec, bool_constant<post_nop_>{});
     }
 
     // c_vec = a_vec * b_vec
@@ -316,9 +351,12 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
         sequence<2, 2>,
         sequence<0, 2>>;
 
+    template <bool post_nop_ = false>
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
         using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
@@ -328,8 +366,32 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
                    reinterpret_cast<const buf_b&>(b_vec)
                        .template get_as<typename Impl::BVecType>()[iKIter],
                    reinterpret_cast<const buf_a&>(a_vec)
-                       .template get_as<typename Impl::AVecType>()[iKIter]);
+                       .template get_as<typename Impl::AVecType>()[iKIter],
+                   bool_constant<post_nop_>{});
         });
+    }
+
+    template <index_t iKIter, bool post_nop_ = false>
+    // c_vec += a_vec * b_vec
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   number<iKIter>,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
+        using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
+
+        static_assert(iKIter < kKIter);
+        // swap A and B, value and type
+        // static_for<0, kKIter, 1>{}([&](auto iKIter) {
+        Impl{}(c_vec,
+               reinterpret_cast<const buf_b&>(b_vec)
+                   .template get_as<typename Impl::BVecType>()[iKIter],
+               reinterpret_cast<const buf_a&>(a_vec)
+                   .template get_as<typename Impl::AVecType>()[iKIter],
+               bool_constant<post_nop_>{});
+        //});
     }
 
     // c_vec = a_vec * b_vec
@@ -429,8 +491,11 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
         sequence<0, 2>>;
 #endif
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
         using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
@@ -440,8 +505,31 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
                    reinterpret_cast<const buf_b&>(b_vec)
                        .template get_as<typename Impl::BVecType>()[iKIter],
                    reinterpret_cast<const buf_a&>(a_vec)
-                       .template get_as<typename Impl::AVecType>()[iKIter]);
+                       .template get_as<typename Impl::AVecType>()[iKIter],
+                   bool_constant<post_nop_>{});
         });
+    }
+
+    template <index_t kKIter, bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   number<kKIter>,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
+        using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
+
+        static_assert(iKIter < kKIter);
+        // swap A and B, value and type
+        // static_for<0, kKIter, 1>{}([&](auto iKIter) {
+        Impl{}(c_vec,
+               reinterpret_cast<const buf_b&>(b_vec)
+                   .template get_as<typename Impl::BVecType>()[iKIter],
+               reinterpret_cast<const buf_a&>(a_vec)
+                   .template get_as<typename Impl::AVecType>()[iKIter],
+               bool_constant<post_nop_>{});
+        //});
     }
 
     // c_vec = a_vec * b_vec
@@ -518,8 +606,11 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
         sequence<0, 2>>;
 
     // c_vec += a_vec * b_vec
-    CK_TILE_DEVICE void
-    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    template <bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
         using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
@@ -529,8 +620,31 @@ struct WarpGemmAtrributeMfmaIterateK_SwizzleA
                    reinterpret_cast<const buf_a&>(a_vec)
                        .template get_as<typename Impl::AVecType>()[iKIter],
                    reinterpret_cast<const buf_b&>(b_vec)
-                       .template get_as<typename Impl::BVecType>()[iKIter]);
+                       .template get_as<typename Impl::BVecType>()[iKIter],
+                   bool_constant<post_nop_>{});
         });
+    }
+
+    template <index_t iKIter, bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const BVecType& b_vec,
+                                   number<iKIter>,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
+        using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
+
+        static_assert(iKIter < kKIter);
+
+        // static_for<0, kKIter, 1>{}([&](auto iKIter) {
+        Impl{}(c_vec,
+               reinterpret_cast<const buf_a&>(a_vec)
+                   .template get_as<typename Impl::AVecType>()[iKIter],
+               reinterpret_cast<const buf_b&>(b_vec)
+                   .template get_as<typename Impl::BVecType>()[iKIter],
+               bool_constant<post_nop_>{});
+        //});
     }
 
     // c_vec = a_vec * b_vec

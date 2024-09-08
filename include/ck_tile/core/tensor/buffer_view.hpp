@@ -352,7 +352,8 @@ struct buffer_view<address_space_enum::global,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
     CK_TILE_DEVICE constexpr auto get_raw(remove_cvref_t<X>& dst,
-                                          index_t i,
+                                          index_t v_offset,
+                                          index_t i_offset,
                                           bool is_valid_element,
                                           bool_constant<pre_nop> = {}) const
     {
@@ -366,7 +367,7 @@ struct buffer_view<address_space_enum::global,
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
         amd_buffer_load_raw<remove_cvref_t<T>, t_per_x, Coherence, oob_conditional_check, pre_nop>(
-            dst, cached_buf_res_, i, is_valid_element, bool_constant<pre_nop>{});
+            dst, cached_buf_res_, v_offset, i_offset, is_valid_element, bool_constant<pre_nop>{});
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -731,6 +732,33 @@ struct buffer_view<address_space_enum::lds,
                 return X{invalid_element_value_};
             }
         }
+    }
+
+    // i is offset of T, not X. i should be aligned to X
+    template <typename X,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr auto get_raw(remove_cvref_t<X>& dst,
+                                          index_t v_offset,
+                                          index_t i_offset,
+                                          bool is_valid_element,
+                                          bool_constant<pre_nop> = {}) const
+    {
+#if 0
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+#endif
+        smem_load<sizeof(X)>{}(dst, v_offset * sizeof(T), i_offset * sizeof(T));
     }
 
     // i is offset of T, not X. i should be aligned to X

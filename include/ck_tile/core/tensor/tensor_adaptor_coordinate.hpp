@@ -234,6 +234,7 @@ adaptor_coordinate_is_valid_assuming_top_index_is_valid(const Adaptor& adaptor,
     return valid;
 }
 
+// TODO: not actually used in ck_tile, maybe can deprecate this
 template <typename Adaptor, typename AdpatorCoord>
 CK_TILE_HOST_DEVICE constexpr bool adaptor_coordinate_is_valid(const Adaptor& adaptor,
                                                                const AdpatorCoord& coord)
