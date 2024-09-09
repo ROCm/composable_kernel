@@ -362,6 +362,24 @@ struct UnaryDivide
     };
 
     template <>
+    __host__ __device__ void operator()<half_t>(half_t& y, const half_t& x) const
+    {
+        float x_         = type_convert<float>(x);
+        float divider_f_ = type_convert<float>(divider_);
+
+        y = type_convert<half_t>(x_ / divider_f_);
+    };
+
+    template <>
+    __host__ __device__ void operator()<bhalf_t>(bhalf_t& y, const bhalf_t& x) const
+    {
+        float x_         = type_convert<float>(x);
+        float divider_f_ = type_convert<float>(divider_);
+
+        y = type_convert<bhalf_t>(x_ / divider_f_);
+    };
+
+    template <>
     __host__ __device__ void operator()<f8_t>(f8_t& y, const f8_t& x) const
     {
         float x_         = type_convert<float>(x);

@@ -24,6 +24,7 @@ struct MaxPoolFwdInputParams
     bool do_log;
     bool time_kernel;
     bool return_index;
+    int reduce_op;
 };
 
 struct MaxPoolFwdKernelParams

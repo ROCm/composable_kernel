@@ -22,7 +22,7 @@ static constexpr auto WindowRank = 3;
 
 static constexpr auto MaxOp = ck::ReduceTensorOp::MAX;
 static constexpr auto AvgOp = ck::ReduceTensorOp::AVG;
-#ifdef CK_ENABLE_FP16
+
 // FP16
 void add_device_pool3d_fwd_ndhwc_f16_instances(
     std::vector<std::unique_ptr<
@@ -36,8 +36,7 @@ void add_device_pool3d_fwd_ndhwc_f16_instances(
 void add_device_pool3d_fwd_ndhwc_index_f16_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
-#ifdef CK_ENABLE_FP8
+
 using F8 = ck::f8_t;
 // F8
 void add_device_pool3d_fwd_ndhwc_f8_instances(
@@ -52,8 +51,7 @@ void add_device_pool3d_fwd_ndhwc_f8_instances(
 void add_device_pool3d_fwd_ndhwc_index_f8_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
-#ifdef CK_ENABLE_BF16
+
 // BF16
 void add_device_pool3d_fwd_ndhwc_bf16_instances(
     std::vector<std::unique_ptr<
@@ -67,8 +65,7 @@ void add_device_pool3d_fwd_ndhwc_bf16_instances(
 void add_device_pool3d_fwd_ndhwc_index_bf16_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, BF16, BF16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
-#ifdef CK_ENABLE_FP32
+
 // FP32
 void add_device_pool3d_fwd_ndhwc_f32_instances(
     std::vector<std::unique_ptr<
@@ -82,8 +79,7 @@ void add_device_pool3d_fwd_ndhwc_f32_instances(
 void add_device_pool3d_fwd_ndhwc_index_f32_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
-using I8 = int8_t;
+
 // I8
 void add_device_pool3d_fwd_ndhwc_i8_instances(
     std::vector<std::unique_ptr<

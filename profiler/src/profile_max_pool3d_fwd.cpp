@@ -57,6 +57,7 @@ void print_help_max_pool3d_fwd()
               << "arg4: print tensor value (0: no; 1: yes)\n"
               << "arg5: time kernel (0=no, 1=yes)\n"
               << "arg6: return index (0=no, 1=yes)\n"
+              << "arg7: reduce op (0: max; 1: avg)\n"
               << "--length: input tensor length for NCDHW(e.g, --length 2 32 30 30 30) \n"
               << "--wsize: window size for ZYX (e.g, --wsize 2 2 2) \n"
               << "--wstride: window stride for DHW (e.g, --wstride 2 2 2) \n"
@@ -71,16 +72,16 @@ void print_help_max_pool3d_fwd()
 int profile_max_pool3d_fwd(int argc, char* argv[])
 {
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
-    ck::profiler::MaxPoolFwdInputParams in_params{true, 0, false, true, false};
+    ck::profiler::MaxPoolFwdInputParams in_params{true, 0, false, true, false, 0};
     ck::profiler::MaxPoolFwdKernelParams kernel_params{
         {2, 32, 30, 30, 30}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
 
-    if(argc != 2 && argc != 34)
+    if(argc != 2 && argc != 35)
     {
         print_help_max_pool3d_fwd();
         return 0;
     }
-    else if(argc == 34)
+    else if(argc == 35)
     {
         data_type                 = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
         in_params.do_verification = std::stoi(argv[3]);
@@ -88,6 +89,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         in_params.do_log          = std::stoi(argv[5]);
         in_params.time_kernel     = std::stoi(argv[6]);
         in_params.return_index    = std::stoi(argv[7]);
+        in_params.reduce_op       = std::stoi(argv[8]);
 
         // parse the long options
         maxPoolFwdArgParser arg_parser;
@@ -108,80 +110,223 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     using F8    = ck::f8_t;
     using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
-#if 1
-    constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
-#else
-    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
-#endif
+    //#if 0
+    //    constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
+    //#else
+    //    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
+    //#endif
 
     if(false)
         ;
     else if(data_type == ck::DataTypeEnum::Half)
     {
-        if(in_params.return_index)
-            ck::profiler::
-                profile_pool3d_fwd_impl<F16, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
-                    in_params, kernel_params);
+        if(in_params.reduce_op == 1)
+        {
+            ck::profiler::profile_pool3d_fwd_impl<F16,
+                                                  F16,
+                                                  F16,
+                                                  I32,
+                                                  NDHWC,
+                                                  NDHWC,
+                                                  ck::ReduceTensorOp::AVG,
+                                                  false,
+                                                  false>(in_params, kernel_params);
+        }
         else
-            ck::profiler::
-                profile_pool3d_fwd_impl<F16, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
-                    in_params, kernel_params);
+        { // reduce_op == 0
+            if(in_params.return_index)
+            {
+                ck::profiler::profile_pool3d_fwd_impl<F16,
+                                                      F16,
+                                                      F16,
+                                                      I32,
+                                                      NDHWC,
+                                                      NDHWC,
+                                                      ck::ReduceTensorOp::MAX,
+                                                      false,
+                                                      true>(in_params, kernel_params);
+            }
+            else
+            {
+                ck::profiler::profile_pool3d_fwd_impl<F16,
+                                                      F16,
+                                                      F16,
+                                                      I32,
+                                                      NDHWC,
+                                                      NDHWC,
+                                                      ck::ReduceTensorOp::MAX,
+                                                      false,
+                                                      false>(in_params, kernel_params);
+            }
+        }
     }
     else if(data_type == ck::DataTypeEnum::BFloat16)
     {
-        if(in_params.return_index)
+        if(in_params.reduce_op == 1)
+        {
             ck::profiler::profile_pool3d_fwd_impl<BF16,
                                                   BF16,
                                                   BF16,
                                                   I32,
                                                   NDHWC,
                                                   NDHWC,
-                                                  ReduceOpId,
-                                                  false,
-                                                  true>(in_params, kernel_params);
-        else
-            ck::profiler::profile_pool3d_fwd_impl<BF16,
-                                                  BF16,
-                                                  BF16,
-                                                  I32,
-                                                  NDHWC,
-                                                  NDHWC,
-                                                  ReduceOpId,
+                                                  ck::ReduceTensorOp::AVG,
                                                   false,
                                                   false>(in_params, kernel_params);
+        }
+        else
+        { // reduce_op == 0
+            if(in_params.return_index)
+            {
+                ck::profiler::profile_pool3d_fwd_impl<BF16,
+                                                      BF16,
+                                                      BF16,
+                                                      I32,
+                                                      NDHWC,
+                                                      NDHWC,
+                                                      ck::ReduceTensorOp::MAX,
+                                                      false,
+                                                      true>(in_params, kernel_params);
+            }
+            else
+            {
+                ck::profiler::profile_pool3d_fwd_impl<BF16,
+                                                      BF16,
+                                                      BF16,
+                                                      I32,
+                                                      NDHWC,
+                                                      NDHWC,
+                                                      ck::ReduceTensorOp::MAX,
+                                                      false,
+                                                      false>(in_params, kernel_params);
+            }
+        }
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        if(in_params.return_index)
-            ck::profiler::
-                profile_pool3d_fwd_impl<F32, F32, F32, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
-                    in_params, kernel_params);
+        if(in_params.reduce_op == 1)
+        {
+            ck::profiler::profile_pool3d_fwd_impl<F32,
+                                                  F32,
+                                                  F32,
+                                                  I32,
+                                                  NDHWC,
+                                                  NDHWC,
+                                                  ck::ReduceTensorOp::AVG,
+                                                  false,
+                                                  false>(in_params, kernel_params);
+        }
         else
-            ck::profiler::
-                profile_pool3d_fwd_impl<F32, F32, F32, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
-                    in_params, kernel_params);
+        { // reduce_op == 0
+            if(in_params.return_index)
+            {
+                ck::profiler::profile_pool3d_fwd_impl<F32,
+                                                      F32,
+                                                      F32,
+                                                      I32,
+                                                      NDHWC,
+                                                      NDHWC,
+                                                      ck::ReduceTensorOp::MAX,
+                                                      false,
+                                                      true>(in_params, kernel_params);
+            }
+            else
+            {
+                ck::profiler::profile_pool3d_fwd_impl<F32,
+                                                      F32,
+                                                      F32,
+                                                      I32,
+                                                      NDHWC,
+                                                      NDHWC,
+                                                      ck::ReduceTensorOp::MAX,
+                                                      false,
+                                                      false>(in_params, kernel_params);
+            }
+        }
     }
     else if(data_type == ck::DataTypeEnum::Float8)
     {
-        if(in_params.return_index)
-            return ck::profiler::
-                profile_pool3d_fwd_impl<F8, F8, F8, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
-                    in_params, kernel_params);
+        if(in_params.reduce_op == 1)
+        {
+            return ck::profiler::profile_pool3d_fwd_impl<F8,
+                                                         F8,
+                                                         F8,
+                                                         I32,
+                                                         NDHWC,
+                                                         NDHWC,
+                                                         ck::ReduceTensorOp::AVG,
+                                                         false,
+                                                         false>(in_params, kernel_params);
+        }
         else
-            return ck::profiler::
-                profile_pool3d_fwd_impl<F8, F8, F8, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
-                    in_params, kernel_params);
+        { // reduce_op == 0
+            if(in_params.return_index)
+            {
+                return ck::profiler::profile_pool3d_fwd_impl<F8,
+                                                             F8,
+                                                             F8,
+                                                             I32,
+                                                             NDHWC,
+                                                             NDHWC,
+                                                             ck::ReduceTensorOp::MAX,
+                                                             false,
+                                                             true>(in_params, kernel_params);
+            }
+            else
+            {
+                return ck::profiler::profile_pool3d_fwd_impl<F8,
+                                                             F8,
+                                                             F8,
+                                                             I32,
+                                                             NDHWC,
+                                                             NDHWC,
+                                                             ck::ReduceTensorOp::MAX,
+                                                             false,
+                                                             false>(in_params, kernel_params);
+            }
+        }
     }
     else if(data_type == ck::DataTypeEnum::Int8)
     {
-        if(in_params.return_index)
-            return ck::profiler::
-                profile_pool3d_fwd_impl<I8, I8, I8, I32, NDHWC, NDHWC, ReduceOpId, false, true>(
-                    in_params, kernel_params);
+        if(in_params.reduce_op == 1)
+        {
+            return ck::profiler::profile_pool3d_fwd_impl<I8,
+                                                         I8,
+                                                         I8,
+                                                         I32,
+                                                         NDHWC,
+                                                         NDHWC,
+                                                         ck::ReduceTensorOp::AVG,
+                                                         false,
+                                                         false>(in_params, kernel_params);
+        }
         else
-            return ck::profiler::
-                profile_pool3d_fwd_impl<I8, I8, I8, I32, NDHWC, NDHWC, ReduceOpId, false, false>(
-                    in_params, kernel_params);
+        { // reduce_op == 0
+            if(in_params.return_index)
+            {
+                return ck::profiler::profile_pool3d_fwd_impl<I8,
+                                                             I8,
+                                                             I8,
+                                                             I32,
+                                                             NDHWC,
+                                                             NDHWC,
+                                                             ck::ReduceTensorOp::MAX,
+                                                             false,
+                                                             true>(in_params, kernel_params);
+            }
+            else
+            {
+                return ck::profiler::profile_pool3d_fwd_impl<I8,
+                                                             I8,
+                                                             I8,
+                                                             I32,
+                                                             NDHWC,
+                                                             NDHWC,
+                                                             ck::ReduceTensorOp::MAX,
+                                                             false,
+                                                             false>(in_params, kernel_params);
+            }
+        }
     }
     else
     {
