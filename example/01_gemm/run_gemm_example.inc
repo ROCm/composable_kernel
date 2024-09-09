@@ -305,6 +305,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         }
 #endif
     }
+    else
+    {
+        // When the Problem Type and Problem Size does not fit.
+
+        std::cerr << gemm.GetTypeString() << ": the instance does not support the problem config."
+                  << std::endl;
+        return true;
+    }
 
     std::size_t flop = 2_uz * M * N * K;
     std::size_t num_btype =
