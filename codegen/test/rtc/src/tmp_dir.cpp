@@ -50,7 +50,27 @@ std::string tmp_dir::get_tmp_dir_path()
 }
 
 // TODO: finish this method
-void new_dir(std::string path) { return; }
+void new_dir(std::string path)
+{
+    int created = mkdir(path, 0755);
+    if(created != 0)
+    {
+        throw std::runtime_error("Directory was not created");
+    }
+}
+
+bool tmp_dir::exists(std::string path)
+{
+    struct stat sb;
+    if(stat(path, &sb) == 0 && !(sb.st_mode & S_IFDIR))
+    {
+        std::cout << "The path is valid!";
+    }
+    else
+    {
+        std::cout << "The Path is invalid!";
+    }
+}
 void tmp_dir::execute(const std::string& cmd) const
 {
     std::string s = "cd " + path.string() + "; " + cmd;
@@ -60,8 +80,8 @@ void tmp_dir::execute(const std::string& cmd) const
 // TODO: redo this method
 tmp_dir::~tmp_dir()
 {
-    std::filesystem::remove_all(this->path);
-    //::remove(tmpFilename.c_str());
+    // std::filesystem::remove_all(this->path);
+    ::remove(path.c_str());
 }
 
 } // namespace rtc
