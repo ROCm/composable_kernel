@@ -9,7 +9,7 @@
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_b_scale_selector.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/utility/common_header.hpp"
-// #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1_b_scale.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v6r1.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
@@ -34,7 +34,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
@@ -1274,34 +1274,35 @@ struct GridwiseGemmMultiD_BScale_xdl_cshuffle_v3
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
         // A matrix blockwise copy
-        auto a_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_b_scale<
-            ThisThreadBlock,
-            AElementwiseOperation,
-            ck::tensor_operation::element_wise::PassThrough,
-            InMemoryDataOperationEnum::Set,
-            Sequence<AK0Number, MPerBlock, AK1Number>,
-            ABlockTransferThreadClusterLengths_AK0_M_AK1,
-            ABlockTransferThreadClusterArrangeOrder,
-            ADataType,
-            LDSTypeA,
-            decltype(a_grid_desc_ak0_m_ak1),
-            decltype(a_block_desc_ak0_m_ak1),
-            ABlockTransferSrcAccessOrder,
-            Sequence<0, 1, 2>,
-            ABlockTransferSrcVectorDim,
-            2,
-            ABlockTransferSrcScalarPerVector,
-            ABlockTransferDstScalarPerVector_AK1,
-            1,
-            1,
-            AThreadTransferSrcResetCoordinateAfterRun,
-            true,
-            BlockwiseGemmPipe::GlobalBufferNum>(a_grid_desc_ak0_m_ak1,
-                                                make_multi_index(0, m_block_data_idx_on_grid, 0),
-                                                a_element_op,
-                                                a_block_desc_ak0_m_ak1,
-                                                make_multi_index(0, 0, 0),
-                                                ck::tensor_operation::element_wise::PassThrough{});
+        auto a_blockwise_copy =
+            ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
+                                                AElementwiseOperation,
+                                                ck::tensor_operation::element_wise::PassThrough,
+                                                InMemoryDataOperationEnum::Set,
+                                                Sequence<AK0Number, MPerBlock, AK1Number>,
+                                                ABlockTransferThreadClusterLengths_AK0_M_AK1,
+                                                ABlockTransferThreadClusterArrangeOrder,
+                                                ADataType,
+                                                ADataType,
+                                                decltype(a_grid_desc_ak0_m_ak1),
+                                                decltype(a_block_desc_ak0_m_ak1),
+                                                ABlockTransferSrcAccessOrder,
+                                                Sequence<0, 1, 2>,
+                                                ABlockTransferSrcVectorDim,
+                                                2,
+                                                ABlockTransferSrcScalarPerVector,
+                                                ABlockTransferDstScalarPerVector_AK1,
+                                                1,
+                                                1,
+                                                AThreadTransferSrcResetCoordinateAfterRun,
+                                                true,
+                                                BlockwiseGemmPipe::GlobalBufferNum>(
+                a_grid_desc_ak0_m_ak1,
+                make_multi_index(0, m_block_data_idx_on_grid, 0),
+                a_element_op,
+                a_block_desc_ak0_m_ak1,
+                make_multi_index(0, 0, 0),
+                ck::tensor_operation::element_wise::PassThrough{});
 
         // B matrix blockwise copy
         auto b_blockwise_copy = ThreadGroupTensorSliceTransfer_v4r1_b_scale<
@@ -1562,16 +1563,18 @@ struct GridwiseGemmMultiD_BScale_xdl_cshuffle_v3
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_buf_refs = concat_tuple_of_reference(
                 tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
+                generate_tie(
+                    [&](auto i) -> const auto& // return type should be reference
+                    { return ds_grid_buf[i]; },
+                    Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(

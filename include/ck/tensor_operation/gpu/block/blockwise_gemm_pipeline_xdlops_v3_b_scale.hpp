@@ -59,25 +59,25 @@ template <index_t BlockSize,
           // ,bool TransposeC //disable transposec right now...
           >
 struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intrawave,
-                                                BlockSize,
-                                                ADataType,
-                                                BDataType,
-                                                ComputeDataType,
-                                                AccDataType,
-                                                ATileDesc,
-                                                BTileDesc,
-                                                AMmaTileDesc,
-                                                BMmaTileDesc,
-                                                ABlockTransferSrcScalarPerVector,
-                                                BBlockTransferSrcScalarPerVector,
-                                                MPerBlock,
-                                                NPerBlock,
-                                                KPerBlock,
-                                                MPerXDL,
-                                                NPerXDL,
-                                                MRepeat,
-                                                NRepeat,
-                                                KPack>
+                                               BlockSize,
+                                               ADataType,
+                                               BDataType,
+                                               ComputeDataType,
+                                               AccDataType,
+                                               ATileDesc,
+                                               BTileDesc,
+                                               AMmaTileDesc,
+                                               BMmaTileDesc,
+                                               ABlockTransferSrcScalarPerVector,
+                                               BBlockTransferSrcScalarPerVector,
+                                               MPerBlock,
+                                               NPerBlock,
+                                               KPerBlock,
+                                               MPerXDL,
+                                               NPerXDL,
+                                               MRepeat,
+                                               NRepeat,
+                                               KPack>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
                                         BDataType,
@@ -276,11 +276,11 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
               typename BBlockBuffer,
               typename BBlockTransferStep,
               typename CThreadBuffer,
-            //   typename AScaleGridBuffer,
-            //   typename AScaleGridDesc,
-            //   typename AScaleThreadDesc,
-            //   typename AScaleThreadTransfer,
-            //   typename AScaleThreadTransferStep,
+              //   typename AScaleGridBuffer,
+              //   typename AScaleGridDesc,
+              //   typename AScaleThreadDesc,
+              //   typename AScaleThreadTransfer,
+              //   typename AScaleThreadTransferStep,
               typename BScaleGridBuffer,
               typename BScaleGridDesc,
               typename BScaleThreadDesc,
@@ -332,7 +332,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
         //     b_scale_thread_desc.GetElementSpaceSize());
         auto b_scale_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ck::half_t>(
             b_scale_thread_desc.GetElementSpaceSize());
-            
 
         // Global prefetch 1
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
@@ -477,7 +476,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_b_scale<BlockGemmPipelineScheduler::Intra
                                         make_tuple(I0, I0),
                                         b_scale_thread_buf);
 
-                // a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc, a_scale_thread_copy_step);
+                // a_scale_thread_copy.MoveSrcSliceWindow(a_scale_grid_desc,
+                // a_scale_thread_copy_step);
                 b_scale_thread_copy.MoveSrcSliceWindow(b_scale_grid_desc, b_scale_thread_copy_step);
                 HotLoopScheduler();
                 __builtin_amdgcn_sched_barrier(0);

@@ -37,6 +37,7 @@ using A0DataType = FP16;
 // using A1DataType       = F32;
 // using B0DataType       = FP8;
 // using B1DataType       = F32;
+using QuantDataType    = int8_t;
 using B0DataType       = uint8_t;
 using B1DataType       = FP16;
 using AccDataType      = F32;
@@ -69,20 +70,53 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_BScale_X
           A0DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
           256, Scale_Block_N, Scale_Block_K,
-          128, 
-          128, 128,
+          128, 128, 128,
         //   16, 16,
           8, 8,
           16,   16,
           4,    4,
         //   S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
         //   S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
+          S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 8, 8, 0,
           1,    2,  S<1, 32, 1, 8>,  S<8, 8, 1>,
         //   ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
           ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3>;
 // clang-format on
+
+template <typename IntType>
+struct UnsignedWeightPreprocessor
+{
+};
+
+template <>
+struct UnsignedWeightPreprocessor<int8_t>
+{
+    using UnsignedWeight = Tensor<uint8_t>;
+    using SignedWeight   = Tensor<int8_t>;
+    static UnsignedWeight convert(SignedWeight const& Input)
+    {
+
+        UnsignedWeight Output = Input.template CopyAsType<uint8_t>();
+
+        auto f_kn = [&](auto k, auto n) {
+            const uint8_t adder = 128;
+            int8_t v_signed_weight;
+            uint8_t v_unsigned_weight;
+
+            ck::tensor_operation::element_wise::PassThrough{}(v_signed_weight, Input(k, n));
+            v_unsigned_weight = ck::type_convert<uint8_t>(v_signed_weight) + adder;
+            Output(k, n)      = v_unsigned_weight;
+        };
+
+        make_ParallelTensorFunctor(f_kn, Input.mDesc.GetLengths()[0], Input.mDesc.GetLengths()[1])(
+            std::thread::hardware_concurrency());
+
+        return Output;
+    }
+
+    UnsignedWeight operator()(SignedWeight const& Input) { return convert(Input); }
+};
 
 int main(int argc, char* argv[])
 {
@@ -154,7 +188,8 @@ int main(int argc, char* argv[])
     //                                                    (K + Scale_Block_K - 1) / Scale_Block_K,
     //                                                    Scale_Stride_AM,
     //                                                    A0Layout{}));
-    Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
+    Tensor<QuantDataType> quant_b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
+    // Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
     Tensor<B1DataType> b1_k_n(f_host_tensor_descriptor((K + Scale_Block_K - 1) / Scale_Block_K,
                                                        (N + Scale_Block_N - 1) / Scale_Block_N,
                                                        Scale_Stride_BN,
@@ -164,7 +199,7 @@ int main(int argc, char* argv[])
 
     std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
     // std::cout << "a1_m_k: " << a1_m_k.mDesc << std::endl;
-    std::cout << "b0_k_n: " << b0_k_n.mDesc << std::endl;
+    std::cout << "b0_k_n: " << quant_b0_k_n.mDesc << std::endl;
     std::cout << "b1_k_n: " << b1_k_n.mDesc << std::endl;
     std::cout << "e_m_n: " << e_m_n_host_result.mDesc << std::endl;
 
@@ -174,35 +209,38 @@ int main(int argc, char* argv[])
     case 0: break;
     case 1:
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        quant_b0_k_n.GenerateTensorValue(GeneratorTensor_2<QuantDataType>{-2, 2});
         // a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         break;
     case 2:
         a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        quant_b0_k_n.GenerateTensorValue(GeneratorTensor_1<QuantDataType>{});
         // a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 3:
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
+        quant_b0_k_n.GenerateTensorValue(GeneratorTensor_2<QuantDataType>{-2, 2});
         // a1_m_k.GenerateTensorValue(GeneratorTensor_1<A1DataType>{});
         b1_k_n.GenerateTensorValue(GeneratorTensor_1<B1DataType>{});
         break;
     case 4:
         a0_m_k.GenerateTensorValue(GeneratorTensor_1<A0DataType>{});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_1<B0DataType>{});
+        quant_b0_k_n.GenerateTensorValue(GeneratorTensor_1<QuantDataType>{});
         // a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
-        b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
+        quant_b0_k_n.GenerateTensorValue(GeneratorTensor_3<QuantDataType>{-0.5, 0.5});
         // a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
     }
 #endif
+
+    UnsignedWeightPreprocessor<QuantDataType> preprocessor;
+    Tensor<B0DataType> b0_k_n = preprocessor(quant_b0_k_n);
 
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     // DeviceMem a1_device_buf(sizeof(A1DataType) * a1_m_k.mDesc.GetElementSpaceSize());
@@ -282,8 +320,8 @@ int main(int argc, char* argv[])
         {
             for(int k = 0; k < K; k++)
             {
-                b_k_n(k, n) = ck::type_convert<float>(b0_k_n(k, n)) *
-                              b1_k_n(k / Scale_Block_K, n / Scale_Block_N);
+                b_k_n(k, n) = ck::type_convert<float>(quant_b0_k_n(k, n)) *
+                              ck::type_convert<float>(b1_k_n(k / Scale_Block_K, n / Scale_Block_N));
             }
         }
 

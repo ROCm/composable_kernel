@@ -7,15 +7,15 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                       layernorm2d_fwd_args a,
                       const ck_tile::stream_config& s)
 {
-    if(t.data_type.compare("fp16") == 0)
+    if(t.data_type.compare("fp32") == 0)
     {
-        using XDataType     = ck_tile::half_t;
-        using YDataType     = ck_tile::half_t;
-        using GammaDataType = ck_tile::half_t;
-        using BetaDataType  = ck_tile::half_t;
+        using XDataType     = float;
+        using YDataType     = float;
+        using GammaDataType = float;
+        using BetaDataType  = float;
 #ifdef SAVE_MEAN_INV_STD
-        using MeanDataType   = ck_tile::half_t;
-        using InvStdDataType = ck_tile::half_t;
+        using MeanDataType   = float;
+        using InvStdDataType = float;
 #else
         using MeanDataType   = ck_tile::null_type;
         using InvStdDataType = ck_tile::null_type;
@@ -82,13 +82,13 @@ int main(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     int do_validation     = arg_parser.get_int("v");
 
-    using XDataType     = ck_tile::half_t;
-    using YDataType     = ck_tile::half_t;
-    using GammaDataType = ck_tile::half_t;
-    using BetaDataType  = ck_tile::half_t;
+    using XDataType     = float;
+    using YDataType     = float;
+    using GammaDataType = float;
+    using BetaDataType  = float;
 #ifdef SAVE_MEAN_INV_STD
-    using MeanDataType   = ck_tile::half_t;
-    using InvStdDataType = ck_tile::half_t;
+    using MeanDataType   = float;
+    using InvStdDataType = float;
 #else
     using MeanDataType = ck_tile::null_type;
     using InvStdDataType = ck_tile::null_type;

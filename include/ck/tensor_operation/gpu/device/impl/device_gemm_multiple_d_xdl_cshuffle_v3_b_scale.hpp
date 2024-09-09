@@ -188,10 +188,7 @@ struct DeviceGemmMultiD_BScale_Xdl_CShuffle_V3
             };
 
             constexpr index_t minimum_occupancy =
-                (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave &&
-                 MPerBlock * NPerBlock / BlockSize > 64)
-                    ? 1
-                    : 2;
+                (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave) ? 1 : 2;
 
             if(has_main_k_block_loop)
             {
