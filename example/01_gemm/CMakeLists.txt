@@ -19,6 +19,9 @@ add_custom_target(example_gemm_xdl)
 add_example_executable(example_gemm_xdl_fp16 gemm_xdl_fp16.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16)
 
+add_example_executable(example_gemm_xdl_fp16_custom gemm_xdl_fp16_custom.cpp)
+add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_custom)
+
 add_example_executable(example_gemm_xdl_fp16_v2 gemm_xdl_fp16_v2.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v2)
 

@@ -13,6 +13,14 @@ using int4_t  = _BitInt(4);
 using f8_t    = _BitInt(8);
 using bf8_t   = unsigned _BitInt(8);
 
+struct custom_half_t
+{
+    using type = short;
+    type data;
+    custom_half_t() : data{type{}} {}
+    custom_half_t(type init) : data{init} {}
+};
+
 inline constexpr auto next_pow2(uint32_t x)
 {
     // Precondition: x > 1.
@@ -125,6 +133,13 @@ template <>
 struct scalar_type<half_t>
 {
     using type                           = half_t;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<custom_half_t>
+{
+    using type                           = custom_half_t;
     static constexpr index_t vector_size = 1;
 };
 
