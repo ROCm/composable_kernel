@@ -110,12 +110,6 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     using F8    = ck::f8_t;
     using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
-    //#if 0
-    //    constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
-    //#else
-    //    constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
-    //#endif
-
     if(false)
         ;
     else if(data_type == ck::DataTypeEnum::Half)

@@ -230,11 +230,18 @@ bool profile_pool3d_fwd_impl(MaxPoolFwdInputParams& in_params,
         {
             out_device_buf.FromDevice(out_n_c_do_ho_wo_device.mData.data());
 
+            using BF16     = ck::bhalf_t;
+            auto tolerance = 1e-3;
+            if(std::is_same<InDataType, BF16>::value && std::is_same<OutDataType, BF16>::value)
+            {
+                tolerance = 1e-2;
+            }
+
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,
                                              out_n_c_do_ho_wo_host.mData,
                                              "Error: Incorrect results",
-                                             1e-3,
-                                             1e-3);
+                                             tolerance,
+                                             tolerance);
 
             if constexpr(OutputIndex)
             {
