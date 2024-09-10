@@ -52,8 +52,7 @@ struct Add
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value || is_same<T, half_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value,
                       "The data type is not supported by the Add accumulator!");
 
         a = a + b;
@@ -137,8 +136,7 @@ struct Mul
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value || is_same<T, half_t>::value ||
-                          is_same<T, f8_t>::value || is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Mul accumulator!");
 
         a = a * b;
@@ -206,8 +204,7 @@ struct Max
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Max accumulator!");
 
         if(a < b)
@@ -245,8 +242,7 @@ struct Max
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Max accumulator!");
 
         if(a < b)
@@ -331,8 +327,7 @@ struct Min
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Min accumulator!");
 
         if(a > b)
@@ -529,7 +524,7 @@ struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Add, 
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
         is_same<DataType, half_t>::value || is_same<DataType, int8_t>::value ||
-        is_same<DataType, int32_t>::value;
+        is_same<DataType, int32_t>::value || is_same<DataType, f8_t>::value;
 };
 
 } // namespace reduce

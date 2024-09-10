@@ -23,10 +23,6 @@ void add_device_maxpool_bwd_bf16_instances(
 void add_device_maxpool_bwd_f32_instances(
     std::vector<std::unique_ptr<DeviceMaxPoolBwd<F32, I32, F32>>>&);
 #endif
-#ifdef CK_ENABLE_FP8
-void add_device_maxpool_bwd_f8_instances(
-    std::vector<std::unique_ptr<DeviceMaxPoolBwd<F8, I32, F8>>>&);
-#endif
 #ifdef CK_ENABLE_INT8
 void add_device_maxpool_bwd_int8_instances(
     std::vector<std::unique_ptr<DeviceMaxPoolBwd<I8, I32, I8>>>&);
@@ -47,25 +43,16 @@ struct DeviceOperationInstanceFactory<
                      is_same_v<IndexDataType, I32>)
             add_device_maxpool_bwd_f16_instances(op_ptrs);
 #endif
-
 #ifdef CK_ENABLE_BF16
         else if constexpr(is_same_v<DOutDataType, BF16> && is_same_v<DInDataType, BF16> &&
                           is_same_v<IndexDataType, I32>)
             add_device_maxpool_bwd_bf16_instances(op_ptrs);
 #endif
-
 #ifdef CK_ENABLE_FP32
         else if constexpr(is_same_v<DOutDataType, F32> && is_same_v<DInDataType, F32> &&
                           is_same_v<IndexDataType, I32>)
             add_device_maxpool_bwd_f32_instances(op_ptrs);
 #endif
-
-#ifdef CK_ENABLE_FP8
-        else if constexpr(is_same_v<DOutDataType, F8> && is_same_v<DInDataType, F8> &&
-                          is_same_v<IndexDataType, I32>)
-            add_device_maxpool_bwd_f8_instances(op_ptrs);
-#endif
-
 #ifdef CK_ENABLE_INT8
         else if constexpr(is_same_v<DOutDataType, I8> && is_same_v<DInDataType, I8> &&
                           is_same_v<IndexDataType, I32>)

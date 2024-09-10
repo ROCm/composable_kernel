@@ -52,7 +52,7 @@ struct maxPoolbwdArgParser
 
 void print_help_max_pool2d_bwd()
 {
-    std::cout << "arg1: data type (0: fp16; 1: fp32; 3: int8; 5: bf16, 7: Float8)\n"
+    std::cout << "arg1: data type (0: fp16; 1: fp32; 3: int8; 5: bf16)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
@@ -109,7 +109,6 @@ int profile_max_pool2d_bwd(int argc, char* argv[])
 
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-    using F8   = ck::f8_t;
     using F32  = float;
     using I8   = int8_t;
     using I32  = int32_t;
@@ -153,19 +152,6 @@ int profile_max_pool2d_bwd(int argc, char* argv[])
                                                                                   wdilation,
                                                                                   pad1,
                                                                                   pad2);
-    }
-    else if(data_type == ck::DataTypeEnum::Float8)
-    {
-        ck::profiler::profile_max_pool2d_bwd_impl<F8, F8, I32, F8, F8, false>(do_verification,
-                                                                              init_method,
-                                                                              do_log,
-                                                                              time_kernel,
-                                                                              in_length,
-                                                                              wsize,
-                                                                              wstride,
-                                                                              wdilation,
-                                                                              pad1,
-                                                                              pad2);
     }
     else if(data_type == ck::DataTypeEnum::Int8)
     {
