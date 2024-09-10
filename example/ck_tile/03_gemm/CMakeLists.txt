@@ -1,0 +1,2 @@
+set(CMAKE_BUILD_TYPE Debug)
+add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
