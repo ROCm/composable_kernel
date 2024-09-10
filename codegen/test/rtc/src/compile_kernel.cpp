@@ -74,23 +74,28 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
         int parent              = full_path.find_last_of('/');
         std::string parent_path = full_path.substr(0, parent);
         td.new_dir(parent_path);
-        write_string(full_path.string(), src.content);
-        if(src.path.extension().string() == ".cpp")
+        write_string(full_path, src.content);
+        int ext_pos     = src.path.find_last_of('.');
+        std::string ext = src.path.substr(ext_pos);
+        if(ext == ".cpp")
         {
-            options.flags += " -c " + src.path.filename().string();
+            int pos               = src.path.find_last_of('/');
+            std::string file_name = src.path.substr(pos + 1);
+            options.flags += " -c " + file_name;
+            std::string name = src.path.substr(pos, ext_pos - pos);
             if(out.empty())
-                out = src.path.stem().string() + ".o";
+                out = name + ".o";
         }
     }
 
     options.flags += " -o " + out;
     td.execute(compiler() + options.flags);
 
-    auto out_path = td.path / out;
+    auto out_path = td.path + "/" + out;
     if(not td.exists(out_path))
         throw std::runtime_error("Output file missing: " + out);
 
-    auto obj = read_buffer(out_path.string());
+    auto obj = read_buffer(out_path);
 
     std::ofstream ofh("obj.o", std::ios::binary);
     for(auto i : obj)

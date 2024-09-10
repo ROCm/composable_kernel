@@ -2,7 +2,6 @@
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_COMPILE_KERNEL
 
 #include <rtc/kernel.hpp>
-#include <filesystem>
 #include <string>
 
 namespace rtc {
