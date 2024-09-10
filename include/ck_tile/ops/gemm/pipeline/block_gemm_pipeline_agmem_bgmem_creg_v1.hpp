@@ -19,7 +19,7 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t KernelBlockSize = Problem::KernelBlockSize;
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kMPerBlock = BlockGemmShape::kM;
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
