@@ -53,26 +53,66 @@ using Avg_Pool_2D_f8_bitint_types  = ::testing::Types<std::tuple<F8, F8>>;
 template <typename TType>
 class AvgPool2D_f32 : public AvgPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP32)
+        {
+            GTEST_SKIP() << "Skipping AvgPool2D_f32 tests because CK_ENABLE_FP32 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class AvgPool2D_int8 : public AvgPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_INT8)
+        {
+            GTEST_SKIP() << "Skipping AvgPool2D_int8 tests because CK_ENABLE_INT8 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class AvgPool2D_f16 : public AvgPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP16)
+        {
+            GTEST_SKIP() << "Skipping AvgPool2D_f16 because CK_ENABLE_FP16 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class AvgPool2D_bf16 : public AvgPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_BF16)
+        {
+            GTEST_SKIP() << "Skipping AvgPool2D_bf16 tests because CK_ENABLE_BF16 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class AvgPool2D_f8 : public AvgPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP8)
+        {
+            GTEST_SKIP() << "Skipping AvgPool2D_f8 tests because CK_ENABLE_FP8 is not enabled";
+        }
+    }
 };
 
 TYPED_TEST_SUITE(AvgPool2D_f32, Avg_Pool_2D_f32_types);
@@ -81,32 +121,12 @@ TYPED_TEST_SUITE(AvgPool2D_f16, Avg_Pool_2D_f16_types);
 TYPED_TEST_SUITE(AvgPool2D_bf16, Avg_Pool_2D_bf16_float_types);
 TYPED_TEST_SUITE(AvgPool2D_f8, Avg_Pool_2D_f8_bitint_types);
 
-TYPED_TEST(AvgPool2D_f32, AvgPool2DTest_f32)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(AvgPool2D_f32, AvgPool2DTest_f32) { this->Run(); }
 
-TYPED_TEST(AvgPool2D_int8, AvgPool2DTest_int8)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(AvgPool2D_int8, AvgPool2DTest_int8) { this->Run(); }
 
-TYPED_TEST(AvgPool2D_f16, AvgPool2DTest_f16)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(AvgPool2D_f16, AvgPool2DTest_f16) { this->Run(); }
 
-TYPED_TEST(AvgPool2D_bf16, AvgPool2DTest_bf16)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(AvgPool2D_bf16, AvgPool2DTest_bf16) { this->Run(); }
 
-TYPED_TEST(AvgPool2D_f8, AvgPool2DTest_f8)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(AvgPool2D_f8, AvgPool2DTest_f8) { this->Run(); }

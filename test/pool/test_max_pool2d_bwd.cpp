@@ -58,21 +58,53 @@ using Max_Pool_2D_bf16_types = ::testing::Types<std::tuple<BF16, BF16, I32>>;
 template <typename TType>
 class MaxPool2D_f32 : public MaxPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP32)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_f32 tests because CK_ENABLE_FP32 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class MaxPool2D_int8 : public MaxPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_INT8)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_int8 tests because CK_ENABLE_INT8 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class MaxPool2D_f16 : public MaxPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP16)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_f16 because CK_ENABLE_FP16 is not enabled";
+        }
+    }
 };
 
 template <typename TType>
 class MaxPool2D_bf16 : public MaxPool2dBWDTest<TType>
 {
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_BF16)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_bf16 tests because CK_ENABLE_BF16 is not enabled";
+        }
+    }
 };
 
 TYPED_TEST_SUITE(MaxPool2D_f32, Max_Pool_2D_f32_types);
