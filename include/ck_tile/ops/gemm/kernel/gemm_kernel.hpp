@@ -19,13 +19,13 @@ template <typename TilePartitioner_,
           typename LayoutC_>
 struct GemmKernel
 {
-    using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using LayoutA                            = remove_cvref_t<LayoutA_>;
-    using LayoutB                            = remove_cvref_t<LayoutB_>;
-    using LayoutC                            = remove_cvref_t<LayoutC_>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::KernelBlockSize;
+    using TilePartitioner               = remove_cvref_t<TilePartitioner_>;
+    using GemmPipeline                  = remove_cvref_t<GemmPipeline_>;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using LayoutA                       = remove_cvref_t<LayoutA_>;
+    using LayoutB                       = remove_cvref_t<LayoutB_>;
+    using LayoutC                       = remove_cvref_t<LayoutC_>;
+    static constexpr index_t kBlockSize = GemmPipeline::kBlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType    = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -37,7 +37,7 @@ struct GemmKernel
         return TilePartitioner::GridSize(M_size, N_size, Batch_size);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     struct GemmCommonKargs
     {

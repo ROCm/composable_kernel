@@ -23,10 +23,10 @@ struct BlockGemmPipelineProblem
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    static constexpr index_t KernelBlockSize = BlockGemmShape::NumWarps * get_warp_size();
-    static constexpr bool kPadA              = kPadA_;
-    static constexpr bool kPadB              = kPadB_;
-    static constexpr bool kPadC              = kPadC_;
+    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+    static constexpr bool kPadA         = kPadA_;
+    static constexpr bool kPadB         = kPadB_;
+    static constexpr bool kPadC         = kPadC_;
 
     static constexpr index_t AlignmentA = kPadA ? VectorLoadSize / sizeof(ADataType) : 1;
     static constexpr index_t AlignmentB = kPadB ? VectorLoadSize / sizeof(BDataType) : 1;
