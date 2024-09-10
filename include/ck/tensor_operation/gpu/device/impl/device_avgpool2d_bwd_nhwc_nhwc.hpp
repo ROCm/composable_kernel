@@ -431,7 +431,10 @@ struct DeviceAvgPool2dBwd_NHWC_NHWC : public DeviceAvgPoolBwd<2,
             if(arg.din_n_c_wos_strides_[i] == 1)
                 dinFastestDim = i;
         }
-
+        if(InSrcOutDstVectorSize != 1 && (dinFastestDim != 1 || doutFastestDim != 1))
+        {
+            return false;
+        }
         if(doutFastestDim == -1 || dinFastestDim == -1)
         {
             if constexpr(InSrcOutDstVectorSize != 1)
@@ -444,7 +447,6 @@ struct DeviceAvgPool2dBwd_NHWC_NHWC : public DeviceAvgPoolBwd<2,
             if(arg.din_n_c_wos_length_[dinFastestDim] % InSrcOutDstVectorSize != 0)
                 return false;
         }
-
         return true;
     }
 
@@ -471,14 +473,17 @@ struct DeviceAvgPool2dBwd_NHWC_NHWC : public DeviceAvgPoolBwd<2,
         if(dout_n_c_wos_strides.size() != Rank || din_n_c_wos_strides.size() != Rank ||
            dout_n_c_wos_lengths.size() != Rank || din_n_c_wos_length.size() != Rank)
         {
-            throw std::runtime_error("dimension is incorrect - a1");
+            throw std::runtime_error("dimension of [dout|din]_n_c_wos_strides or "
+                                     "[dout|din]_n_c_wos_lengths is not equal to Rank");
         }
 
         if(window_lengths.size() != NDimSpatial || window_strides.size() != NDimSpatial ||
            window_dilations.size() != NDimSpatial || input_left_pads.size() != NDimSpatial ||
            input_right_pads.size() != NDimSpatial)
         {
-            throw std::runtime_error("dimension is incorrect - s1");
+            throw std::runtime_error(
+                "dimension of [window_lengths, window_strides, window_dilations, input_left_pads, "
+                "input_right_pads] is not equal to Rank");
         }
         return std::make_unique<Argument>(static_cast<const DOutDataType*>(p_dout),
                                           static_cast<DInDataType*>(p_din),

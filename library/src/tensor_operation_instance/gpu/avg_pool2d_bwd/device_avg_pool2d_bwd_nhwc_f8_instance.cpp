@@ -11,7 +11,7 @@ namespace instance {
 void add_device_avgpool_2D_bwd_nhwc_f8_instances(
     std::vector<std::unique_ptr<DeviceAvgPoolBwd<2, F8, F8, NHWC, NHWC>>>& instances)
 {
-    add_device_operation_instances(instances, device_avgpool_2D_bwd_nhwc_instances<F8, F8, F8>{});
+    add_device_operation_instances(instances, device_avgpool_2D_bwd_nhwc_instances<F8, F8, F32>{});
 }
 
 } // namespace instance

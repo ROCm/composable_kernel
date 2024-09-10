@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -178,6 +178,9 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
 
     int num_kernel = 0;
 
+    bool pass           = true;
+    bool instance_found = false;
+
     for(auto& inst_ptr : instance_ptrs)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
@@ -193,6 +196,7 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            instance_found = true;
         }
         else
         {
@@ -234,11 +238,11 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
         {
             din_device_buf.FromDevice(din_n_c_hi_wi_device.mData.data());
 
-            bool pass = ck::utils::check_err(din_n_c_hi_wi_device.mData,
-                                             din_n_c_hi_wi_host.mData,
-                                             "Error: Incorrect results",
-                                             1e-3,
-                                             1e-3);
+            bool local_pass = ck::utils::check_err(din_n_c_hi_wi_device.mData,
+                                                   din_n_c_hi_wi_host.mData,
+                                                   "Error: Incorrect results",
+                                                   1e-3,
+                                                   1e-3);
 
             if(do_log)
             {
@@ -255,11 +259,11 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
                     << std::endl;
             }
 
-            if(!pass)
+            if(!local_pass)
             {
                 std::cout << inst_ptr->GetTypeString() << " failed verification: ";
                 LogRange(std::cout << "doutput lengths = [", out_length, ", ") << "]." << std::endl;
-                return false;
+                pass &= local_pass;
             }
             else
             {
@@ -284,7 +288,7 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
         return false;
     }
 
-    return true;
+    return pass && instance_found;
 }
 
 } // namespace profiler

@@ -6,7 +6,6 @@
 #include <iomanip>
 
 #include "ck/ck.hpp"
-#include "ck/library/tensor_operation_instance/gpu/pool3d_fwd.hpp"
 #include "ck/library/tensor_operation_instance/gpu/avg_pool2d_bwd.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -20,21 +19,17 @@ namespace profiler {
 
 template <typename TensorLayout>
 std::vector<ck::index_t> f_tensor_strides_nchw(
-    ck::index_t N_, ck::index_t C_, ck::index_t H, ck::index_t W, TensorLayout layout)
+    ck::index_t N, ck::index_t C, ck::index_t H, ck::index_t W, TensorLayout layout)
 {
     using namespace ck::literals;
-    (void)N_;
+    (void)N;
     if constexpr(ck::is_same<decltype(layout), ck::tensor_layout::convolution::NHWC>::value)
-        return {C_ * H * W, 1_uz, W * C_, C_};
+        return {C * H * W, 1_uz, W * C, C};
     else
         throw std::runtime_error("not supported yet");
 };
 
-template <typename DOutDataType,
-          typename DInDataType,
-          typename ComputeDataType,
-          typename DOutLayout,
-          typename DInLayout>
+template <typename DOutDataType, typename DInDataType, typename DOutLayout, typename DInLayout>
 bool profile_avg_pool2d_bwd_impl(int do_verification,
                                  int init_method,
                                  bool do_log,
@@ -147,8 +142,9 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         ref_invoker.Run(ref_pooling_bwd_argument);
     }
 
-    int num_kernel = 0;
-
+    int num_kernel      = 0;
+    bool pass           = true;
+    bool instance_found = false;
     for(auto& inst_ptr : instance_ptrs)
     {
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
@@ -167,6 +163,7 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            instance_found = true;
         }
         else
         {
@@ -205,11 +202,11 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         if(do_verification)
         {
             din_device_buf.FromDevice(in_n_c_hi_wi_device.mData.data());
-            bool pass = ck::utils::check_err(in_n_c_hi_wi_device.mData,
-                                             in_n_c_hi_wi_host.mData,
-                                             "Error: Incorrect results",
-                                             1e-3,
-                                             1e-3);
+            bool local_pass = ck::utils::check_err(in_n_c_hi_wi_device.mData,
+                                                   in_n_c_hi_wi_host.mData,
+                                                   "Error: Incorrect results",
+                                                   1e-3,
+                                                   1e-3);
 
             if(do_log)
             {
@@ -222,11 +219,11 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
                     << std::endl;
             }
 
-            if(!pass)
+            if(!local_pass)
             {
                 std::cout << inst_ptr->GetTypeString() << " failed verification: ";
                 LogRange(std::cout << "doutput lengths = [", out_length, ", ") << "]." << std::endl;
-                return false;
+                pass &= local_pass;
             }
             else
             {
@@ -251,7 +248,7 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         return false;
     }
 
-    return true;
+    return pass && instance_found;
 }
 
 } // namespace profiler

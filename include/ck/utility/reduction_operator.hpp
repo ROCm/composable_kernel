@@ -59,12 +59,28 @@ struct Add
         a = a + b;
     }
 
+    __host__ __device__ inline constexpr void operator()(int8_t& a, int8_t b) const
+    {
+        int32_t a_ = type_convert<int32_t>(a);
+        int32_t b_ = type_convert<int32_t>(b);
+
+        a = type_convert<int8_t>(a_ + b_);
+    }
+
     __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
     {
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
 
         a = type_convert<f8_t>(a_ + b_);
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        a = type_convert<half_t>(a_ + b_);
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
@@ -136,6 +152,14 @@ struct Mul
         a = type_convert<f8_t>(a_ * b_);
     }
 
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        a = type_convert<half_t>(a_ * b_);
+    }
+
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
     {
         float a_ = type_convert<float>(a);
@@ -159,6 +183,11 @@ struct Max
         {
             float val = NumericLimits<float>::Lowest();
             return type_convert<f8_t>(val);
+        }
+        if constexpr(is_same_v<T, half_t>)
+        {
+            float val = NumericLimits<float>::Lowest();
+            return type_convert<half_t>(val);
         }
         else
         {
@@ -186,6 +215,15 @@ struct Max
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+            a = b;
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
     {
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
@@ -230,6 +268,18 @@ struct Max
         }
     }
 
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
     __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b, bool& changed) const
     {
         float a_ = type_convert<float>(a);
@@ -252,6 +302,11 @@ struct Min
         {
             float val = NumericLimits<float>::Max();
             return type_convert<bhalf_t>(val);
+        }
+        else if constexpr(is_same_v<T, half_t>)
+        {
+            float val = NumericLimits<float>::Max();
+            return type_convert<half_t>(val);
         }
         else if constexpr(is_same_v<T, f8_t>)
         {
@@ -293,6 +348,15 @@ struct Min
             a = b;
     }
 
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+            a = b;
+    }
+
     __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
     {
         float a_ = type_convert<float>(a);
@@ -318,6 +382,18 @@ struct Min
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b, bool& changed) const
     {
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);

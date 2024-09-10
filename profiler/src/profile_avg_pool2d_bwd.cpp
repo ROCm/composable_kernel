@@ -51,7 +51,7 @@ struct maxPoolbwdArgParser
 
 void print_help_avg_pool2d_bwd()
 {
-    std::cout << "arg1: data type (0: fp16; 1: fp32; 5: bf16)\n"
+    std::cout << "arg1: data type (0: fp16; 1: fp32; 3: int8; 5: bf16, 7: Float8)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
@@ -114,68 +114,68 @@ int profile_avg_pool2d_bwd(int argc, char* argv[])
 
     if(data_type == ck::DataTypeEnum::Half)
     {
-        ck::profiler::profile_avg_pool2d_bwd_impl<F16, F16, F16, NHWC, NHWC>(do_verification,
-                                                                             init_method,
-                                                                             do_log,
-                                                                             time_kernel,
-                                                                             in_length,
-                                                                             wsize,
-                                                                             wstride,
-                                                                             wdilation,
-                                                                             pad1,
-                                                                             pad2);
+        ck::profiler::profile_avg_pool2d_bwd_impl<F16, F16, NHWC, NHWC>(do_verification,
+                                                                        init_method,
+                                                                        do_log,
+                                                                        time_kernel,
+                                                                        in_length,
+                                                                        wsize,
+                                                                        wstride,
+                                                                        wdilation,
+                                                                        pad1,
+                                                                        pad2);
     }
     else if(data_type == ck::DataTypeEnum::BFloat16)
     {
-        ck::profiler::profile_avg_pool2d_bwd_impl<BF16, BF16, BF16, NHWC, NHWC>(do_verification,
-                                                                                init_method,
-                                                                                do_log,
-                                                                                time_kernel,
-                                                                                in_length,
-                                                                                wsize,
-                                                                                wstride,
-                                                                                wdilation,
-                                                                                pad1,
-                                                                                pad2);
+        ck::profiler::profile_avg_pool2d_bwd_impl<BF16, BF16, NHWC, NHWC>(do_verification,
+                                                                          init_method,
+                                                                          do_log,
+                                                                          time_kernel,
+                                                                          in_length,
+                                                                          wsize,
+                                                                          wstride,
+                                                                          wdilation,
+                                                                          pad1,
+                                                                          pad2);
     }
     else if(data_type == ck::DataTypeEnum::Float)
     {
-        ck::profiler::profile_avg_pool2d_bwd_impl<F32, F32, F32, NHWC, NHWC>(do_verification,
-                                                                             init_method,
-                                                                             do_log,
-                                                                             time_kernel,
-                                                                             in_length,
-                                                                             wsize,
-                                                                             wstride,
-                                                                             wdilation,
-                                                                             pad1,
-                                                                             pad2);
+        ck::profiler::profile_avg_pool2d_bwd_impl<F32, F32, NHWC, NHWC>(do_verification,
+                                                                        init_method,
+                                                                        do_log,
+                                                                        time_kernel,
+                                                                        in_length,
+                                                                        wsize,
+                                                                        wstride,
+                                                                        wdilation,
+                                                                        pad1,
+                                                                        pad2);
     }
     else if(data_type == ck::DataTypeEnum::Float8)
     {
-        ck::profiler::profile_avg_pool2d_bwd_impl<F8, F8, F8, NHWC, NHWC>(do_verification,
-                                                                          init_method,
-                                                                          do_log,
-                                                                          time_kernel,
-                                                                          in_length,
-                                                                          wsize,
-                                                                          wstride,
-                                                                          wdilation,
-                                                                          pad1,
-                                                                          pad2);
+        ck::profiler::profile_avg_pool2d_bwd_impl<F8, F8, NHWC, NHWC>(do_verification,
+                                                                      init_method,
+                                                                      do_log,
+                                                                      time_kernel,
+                                                                      in_length,
+                                                                      wsize,
+                                                                      wstride,
+                                                                      wdilation,
+                                                                      pad1,
+                                                                      pad2);
     }
     else if(data_type == ck::DataTypeEnum::Int8)
     {
-        ck::profiler::profile_avg_pool2d_bwd_impl<I8, I8, I8, NHWC, NHWC>(do_verification,
-                                                                          init_method,
-                                                                          do_log,
-                                                                          time_kernel,
-                                                                          in_length,
-                                                                          wsize,
-                                                                          wstride,
-                                                                          wdilation,
-                                                                          pad1,
-                                                                          pad2);
+        ck::profiler::profile_avg_pool2d_bwd_impl<I8, I8, NHWC, NHWC>(do_verification,
+                                                                      init_method,
+                                                                      do_log,
+                                                                      time_kernel,
+                                                                      in_length,
+                                                                      wsize,
+                                                                      wstride,
+                                                                      wdilation,
+                                                                      pad1,
+                                                                      pad2);
     }
     else
     {
