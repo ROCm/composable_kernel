@@ -231,10 +231,15 @@ bool profile_pool3d_fwd_impl(MaxPoolFwdInputParams& in_params,
             out_device_buf.FromDevice(out_n_c_do_ho_wo_device.mData.data());
 
             using BF16     = ck::bhalf_t;
+            using F8       = ck::f8_t;
             auto tolerance = 1e-3;
             if(std::is_same<InDataType, BF16>::value && std::is_same<OutDataType, BF16>::value)
             {
                 tolerance = 1e-2;
+            }
+            else if(std::is_same<InDataType, F8>::value && std::is_same<OutDataType, F8>::value)
+            {
+                tolerance = 1e-1;
             }
 
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,
