@@ -48,6 +48,7 @@ std::vector<PoolingParam> MaxPool2dBWDTest<T>::params = {
     {{1, 1, 1, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
     {{2, 16, 64, 64}, {64, 64}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
     {{2, 16, 64, 64}, {4, 4}, {4, 4}, {2, 2}, {0, 0}, {0, 0}},
+    {{2, 32, 30, 30}, {2, 2}, {2, 2}, {1, 1}, {1, 1}, {1, 1}},
     {{2, 2, 30, 30}, {2, 2}, {2, 2}, {1, 1}, {1, 1}, {1, 1}}};
 
 using Max_Pool_2D_f32_types  = ::testing::Types<std::tuple<F32, F32, I32>>;
@@ -112,26 +113,10 @@ TYPED_TEST_SUITE(MaxPool2D_int8, Max_Pool_2D_int8_types);
 TYPED_TEST_SUITE(MaxPool2D_f16, Max_Pool_2D_f16_types);
 TYPED_TEST_SUITE(MaxPool2D_bf16, Max_Pool_2D_bf16_types);
 
-TYPED_TEST(MaxPool2D_f32, MaxPool2DTest_f32)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(MaxPool2D_f32, MaxPool2DTest_f32) { this->Run(); }
 
-TYPED_TEST(MaxPool2D_int8, MaxPool2DTest_int8)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(MaxPool2D_int8, MaxPool2DTest_int8) { this->Run(); }
 
-TYPED_TEST(MaxPool2D_f16, MaxPool2DTest_f16)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(MaxPool2D_f16, MaxPool2DTest_f16) { this->Run(); }
 
-TYPED_TEST(MaxPool2D_bf16, MaxPool2DTest_bf16)
-{
-    // trigger Run()
-    this->Run();
-}
+TYPED_TEST(MaxPool2D_bf16, MaxPool2DTest_bf16) { this->Run(); }

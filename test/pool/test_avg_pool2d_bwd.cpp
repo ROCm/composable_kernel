@@ -21,7 +21,7 @@ class AvgPool2dBWDTest : public ::testing::Test
             bool success =
                 ck::profiler::profile_avg_pool2d_bwd_impl<InDataType, OutDataType, NHWC, NHWC>(
                     true,
-                    1,
+                    2,
                     false,
                     false,
                     param.length_,
@@ -42,13 +42,14 @@ std::vector<PoolingParam> AvgPool2dBWDTest<T>::params = {
     {{1, 5, 7, 7}, {2, 2}, {2, 2}, {1, 1}, {2, 2}, {0, 0}},
     {{1, 1, 8, 8}, {2, 2}, {2, 2}, {1, 1}, {2, 2}, {0, 0}},
     {{1, 1, 8, 8}, {2, 2}, {1, 1}, {1, 1}, {1, 1}, {0, 0}},
+    {{2, 32, 30, 30}, {2, 2}, {2, 2}, {1, 1}, {1, 1}, {1, 1}},
     {{1, 2, 30, 30}, {2, 2}, {2, 2}, {1, 1}, {0, 0}, {0, 0}}};
 
-using Avg_Pool_2D_f32_types        = ::testing::Types<std::tuple<F32, F32>>;
-using Avg_Pool_2D_int8_types       = ::testing::Types<std::tuple<I8, I8>>;
-using Avg_Pool_2D_f16_types        = ::testing::Types<std::tuple<F16, F16>>;
-using Avg_Pool_2D_bf16_float_types = ::testing::Types<std::tuple<BF16, BF16>>;
-using Avg_Pool_2D_f8_bitint_types  = ::testing::Types<std::tuple<F8, F8>>;
+using Avg_Pool_2D_f32_types  = ::testing::Types<std::tuple<F32, F32>>;
+using Avg_Pool_2D_int8_types = ::testing::Types<std::tuple<I8, I8>>;
+using Avg_Pool_2D_f16_types  = ::testing::Types<std::tuple<F16, F16>>;
+using Avg_Pool_2D_bf16_types = ::testing::Types<std::tuple<BF16, BF16>>;
+using Avg_Pool_2D_f8_types   = ::testing::Types<std::tuple<F8, F8>>;
 
 template <typename TType>
 class AvgPool2D_f32 : public AvgPool2dBWDTest<TType>
@@ -118,8 +119,8 @@ class AvgPool2D_f8 : public AvgPool2dBWDTest<TType>
 TYPED_TEST_SUITE(AvgPool2D_f32, Avg_Pool_2D_f32_types);
 TYPED_TEST_SUITE(AvgPool2D_int8, Avg_Pool_2D_int8_types);
 TYPED_TEST_SUITE(AvgPool2D_f16, Avg_Pool_2D_f16_types);
-TYPED_TEST_SUITE(AvgPool2D_bf16, Avg_Pool_2D_bf16_float_types);
-TYPED_TEST_SUITE(AvgPool2D_f8, Avg_Pool_2D_f8_bitint_types);
+TYPED_TEST_SUITE(AvgPool2D_bf16, Avg_Pool_2D_bf16_types);
+TYPED_TEST_SUITE(AvgPool2D_f8, Avg_Pool_2D_f8_types);
 
 TYPED_TEST(AvgPool2D_f32, AvgPool2DTest_f32) { this->Run(); }
 
