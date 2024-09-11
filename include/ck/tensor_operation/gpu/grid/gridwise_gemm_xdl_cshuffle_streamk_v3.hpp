@@ -1303,7 +1303,7 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
 
                     // start to compute
                     auto reduction_idx =
-                        blockIdx.x - block_2_ctile_map_streamk.reduction_start_block_idx;
+                        block_idx - block_2_ctile_map_streamk.reduction_start_block_idx;
                     auto spatial_idx = block_2_ctile_map_streamk.tile_to_spatial(
                         reduction_idx, problem.M, problem.N);
 
