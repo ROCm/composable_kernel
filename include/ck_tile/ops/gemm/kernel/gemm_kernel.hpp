@@ -25,7 +25,7 @@ struct GemmKernel
     using LayoutA                            = remove_cvref_t<LayoutA_>;
     using LayoutB                            = remove_cvref_t<LayoutB_>;
     using LayoutC                            = remove_cvref_t<LayoutC_>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::KernelBlockSize;
+    static constexpr index_t KernelBlockSize = GemmPipeline::kBlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType    = remove_cvref_t<typename GemmPipeline::BDataType>;
