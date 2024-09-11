@@ -15,7 +15,7 @@ void add_device_pool3d_fwd_ndhwc_f8_instances(
         instances)
 {
     add_device_operation_instances(
-        instances, device_pool3d_fwd_ndhwc_instances<F8, F8, I32, F8, ReduceOpId, false>{});
+        instances, device_pool3d_fwd_ndhwc_instances<F8, F8, I32, F32, ReduceOpId, false>{});
 }
 
 } // namespace instance

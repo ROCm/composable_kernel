@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 
+using I8   = int8_t;
+using F8   = ck::f8_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;

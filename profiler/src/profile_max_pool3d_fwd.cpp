@@ -110,9 +110,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     using F8    = ck::f8_t;
     using NDHWC = ck::tensor_layout::convolution::NDHWC;
 
-    if(false)
-        ;
-    else if(data_type == ck::DataTypeEnum::Half)
+    if(data_type == ck::DataTypeEnum::Half)
     {
         if(in_params.reduce_op == 1)
         {

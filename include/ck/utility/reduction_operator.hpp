@@ -52,19 +52,10 @@ struct Add
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value || is_same<T, half_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Add accumulator!");
 
         a = a + b;
-    }
-
-    __host__ __device__ inline constexpr void operator()(int8_t& a, int8_t b) const
-    {
-        int32_t a_ = type_convert<int32_t>(a);
-        int32_t b_ = type_convert<int32_t>(b);
-
-        a = type_convert<int8_t>(a_ + b_);
     }
 
     __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
