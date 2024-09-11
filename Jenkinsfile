@@ -898,7 +898,7 @@ pipeline {
         {
             parallel
             {
-                stage("Run CK_TILE Tests on gfx90a")
+                stage("Run CK_TILE_FMHA Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
@@ -917,7 +917,7 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Run CK_TILE Tests on gfx942")
+                stage("Run CK_TILE_FMHA Tests on gfx942")
                 {
                     when {
                         beforeAgent true
@@ -930,6 +930,45 @@ pipeline {
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Run CK_TILE_GEMM Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 tile_example_gemm_basic && \
+                                           cd ../ &&
+                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+
+                }
+                stage("Run CK_TILE_GEMM Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
+                                           make -j64 tile_example_gemm_basic && \
+                                           cd ../ &&
+                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
