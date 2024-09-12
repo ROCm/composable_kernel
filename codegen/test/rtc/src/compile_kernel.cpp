@@ -66,7 +66,6 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
     options.flags += " -I. -O3";
     options.flags += " -std=c++17";
     options.flags += " --offload-arch=" + get_device_name();
-    options.flags += " -lstdc++fs";
     std::string out;
 
     for(const auto& src : srcs)
