@@ -1,14 +1,13 @@
 cmake_minimum_required(VERSION 3.14)
 if(POLICY CMP0140)
-#policies CMP0140 not known to CMake until 3.25
+  # policies CMP0140 not known to CMake until 3.25
   cmake_policy(SET CMP0140 NEW)
 endif()
 
 get_property(_GENERATOR_IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 
-#This has to be initialized before the project() command appears
-#Set the default of CMAKE_BUILD_TYPE to be release, \
-    unless user specifies with - D.MSVC_IDE does not use CMAKE_BUILD_TYPE
+# This has to be initialized before the project() command appears
+# Set the default of CMAKE_BUILD_TYPE to be release, unless user specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
 if(_GENERATOR_IS_MULTI_CONFIG)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel" CACHE STRING
             "Available build types (configurations) on multi-config generators")
@@ -17,13 +16,13 @@ else()
             "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
-#Default installation path
+# Default installation path
 if(NOT WIN32)
     set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 endif()
 
 set(version 1.1.0)
-#Check support for CUDA / HIP in Cmake
+# Check support for CUDA/HIP in Cmake
 project(composable_kernel VERSION ${version} LANGUAGES CXX HIP)
 include(CTest)
 
@@ -38,8 +37,7 @@ else()
    add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
    set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
    set(PYTHON_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
-   set(ENV{
-    LD_LIBRARY_PATH} "${EXTRA_PYTHON_PATH}/lib:$ENV{LD_LIBRARY_PATH}")
+   set(ENV{LD_LIBRARY_PATH} "${EXTRA_PYTHON_PATH}/lib:$ENV{LD_LIBRARY_PATH}")
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -86,7 +84,7 @@ else()
     set(CK_ENABLE_BF8 "ON")
 endif()
 
-#for f8 / bf8_t type
+#for f8/bf8_t type
 add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
@@ -103,7 +101,7 @@ endif()
 
 include(getopt)
 
-#CK version file to record release version as well as git commit hash
+# CK version file to record release version as well as git commit hash
 find_package(Git REQUIRED)
 execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD OUTPUT_VARIABLE COMMIT_ID OUTPUT_STRIP_TRAILING_WHITESPACE)
 configure_file(include/ck/version.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/version.h)
@@ -127,8 +125,8 @@ list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/ll
 message("GPU_TARGETS= ${GPU_TARGETS}")
 
 find_package(hip)
-#No assumption that HIP kernels are launched with uniform block size for backward compatibility
-#SWDEV - 413293 and https: // reviews.llvm.org/D155213
+# No assumption that HIP kernels are launched with uniform block size for backward compatibility
+# SWDEV-413293 and https://reviews.llvm.org/D155213
 math(EXPR hip_VERSION_FLAT "(${hip_VERSION_MAJOR} * 1000 + ${hip_VERSION_MINOR}) * 100000 + ${hip_VERSION_PATCH}")
 message("hip_version_flat=${hip_VERSION_FLAT}")
 
@@ -138,9 +136,9 @@ message("checking which targets are supported")
 #Setting GPU_TARGETS on command line will override this list
 if(NOT PROFILER_ONLY)
     if(NOT ENABLE_ASAN_PACKAGING)
-#build CK for all supported targets
+        #build CK for all supported targets
         if(NOT WIN32 AND ${hip_VERSION_FLAT} LESS 600300000)
-#WORKAROUND : compiler does not yet fully support gfx12 targets, need to fix version above
+            # WORKAROUND: compiler does not yet fully support gfx12 targets, need to fix version above
             rocm_check_target_ids(DEFAULT_GPU_TARGETS
                 TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
         else()
@@ -148,7 +146,7 @@ if(NOT PROFILER_ONLY)
                 TARGETS "gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
         endif()
     else()
-#build CK only for xnack - supported targets
+        #build CK only for xnack-supported targets
         rocm_check_target_ids(DEFAULT_GPU_TARGETS
             TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+")
         set(GPU_TARGETS "${DEFAULT_GPU_TARGETS}" CACHE STRING " " FORCE)
@@ -198,7 +196,7 @@ else()
     set(CK_USE_WMMA "ON")
 endif()
 
-#CK config file to record supported datatypes, etc.
+# CK config file to record supported datatypes, etc.
 configure_file(include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
 
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 500723302)
@@ -227,9 +225,9 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
    add_compile_options("SHELL: -mllvm -amdgpu-function-calls=false")
 endif()
 #
-#Seperate linking jobs from compiling
-#Too many concurrent linking jobs can break the build
-#Copied from LLVM
+# Seperate linking jobs from compiling
+# Too many concurrent linking jobs can break the build
+# Copied from LLVM
 set(CK_PARALLEL_LINK_JOBS "" CACHE STRING
   "Define the maximum number of concurrent link jobs (Ninja only).")
 if(CMAKE_GENERATOR MATCHES "Ninja")
@@ -240,7 +238,7 @@ if(CMAKE_GENERATOR MATCHES "Ninja")
 elseif(CK_PARALLEL_LINK_JOBS)
   message(WARNING "Job pooling is only available with Ninja generators.")
 endif()
-#Similar for compiling
+# Similar for compiling
 set(CK_PARALLEL_COMPILE_JOBS "" CACHE STRING
   "Define the maximum number of concurrent compile jobs (Ninja only).")
 if(CMAKE_GENERATOR MATCHES "Ninja")
@@ -279,11 +277,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 message("CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
 
-#https: // gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
-#_GLIBCXX_ASSERTIONS
-#Undefined by default.When defined, enables extra error checking in the form of
-#precondition assertions, such as bounds checking in strings and null pointer
-#checks when dereferencing smart pointers
+# https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_macros.html
+# _GLIBCXX_ASSERTIONS
+# Undefined by default. When defined, enables extra error checking in the form of
+# precondition assertions, such as bounds checking in strings and null pointer
+# checks when dereferencing smart pointers
 option(USE_GLIBCXX_ASSERTIONS "Turn on additional c++ library checks." OFF)
 if(USE_GLIBCXX_ASSERTIONS)
   add_compile_options(-Wp,-D_GLIBCXX_ASSERTIONS)
@@ -297,7 +295,7 @@ message("CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
 
 ## OpenMP
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-#workaround issue hipcc in rocm3 .5 cannot find openmp
+	# workaround issue hipcc in rocm3.5 cannot find openmp
 	set(OpenMP_CXX "${CMAKE_CXX_COMPILER}")
 	set(OpenMP_CXX_FLAGS "-fopenmp=libomp -Wno-unused-command-line-argument")
 	set(OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
@@ -318,9 +316,9 @@ link_libraries(${OpenMP_pthread_LIBRARY})
 
 ## HIP
 find_package(HIP REQUIRED)
-#Override HIP version in config.h, if necessary.
-#The variables set by find_package() can't be overwritten,
-#therefore let's use intermediate variables.
+# Override HIP version in config.h, if necessary.
+# The variables set by find_package() can't be overwritten,
+# therefore let's use intermediate variables.
 set(CK_HIP_VERSION_MAJOR "${HIP_VERSION_MAJOR}")
 set(CK_HIP_VERSION_MINOR "${HIP_VERSION_MINOR}")
 set(CK_HIP_VERSION_PATCH "${HIP_VERSION_PATCH}")
@@ -349,7 +347,7 @@ include(EnableCompilerWarnings)
 set(CK_TIDY_ERRORS ERRORS * -readability-inconsistent-declaration-parameter-name)
 if(CMAKE_CXX_COMPILER MATCHES ".*hcc" OR CMAKE_CXX_COMPILER MATCHES ".*clang\\+\\+")
     set(CK_TIDY_CHECKS -modernize-use-override -readability-non-const-parameter)
-#Enable tidy on hip
+# Enable tidy on hip
 elseif(CK_BACKEND STREQUAL "HIP" OR CK_BACKEND STREQUAL "HIPNOGPU")
     set(CK_TIDY_ERRORS ALL)
 endif()
@@ -361,7 +359,7 @@ enable_clang_tidy(
         *
         -abseil-*
         -android-cloexec-fopen
-#Yea we shouldn't be using rand()
+        # Yea we shouldn't be using rand()
         -cert-msc30-c
         -bugprone-exception-escape
         -bugprone-macro-parentheses
@@ -401,8 +399,8 @@ enable_clang_tidy(
         -hicpp-explicit-conversions
         -hicpp-named-parameter
         -hicpp-no-array-decay
-#We really shouldn't use bitwise operators with signed integers, but
-#opencl leaves us no choice
+        # We really shouldn't use bitwise operators with signed integers, but
+        # opencl leaves us no choice
         -hicpp-avoid-c-arrays
         -hicpp-signed-bitwise
         -hicpp-special-member-functions
@@ -412,7 +410,7 @@ enable_clang_tidy(
         -hicpp-use-override
         -llvm-header-guard
         -llvm-include-order
-#- llvmlibc - *
+        #-llvmlibc-*
         -llvmlibc-restrict-system-libc-headers
         -llvmlibc-callee-namespace
         -llvmlibc-implementation-in-namespace
@@ -432,7 +430,7 @@ enable_clang_tidy(
         -performance-unnecessary-value-param
         -readability-braces-around-statements
         -readability-else-after-return
-#we are not ready to use it, but very useful
+        # we are not ready to use it, but very useful
         -readability-function-cognitive-complexity
         -readability-isolate-declaration
         -readability-magic-numbers
@@ -441,7 +439,7 @@ enable_clang_tidy(
         -readability-convert-member-functions-to-static
         -readability-qualified-auto
         -readability-redundant-string-init
-#too many narrowing conversions in our code
+        # too many narrowing conversions in our code
         -bugprone-narrowing-conversions
         -cppcoreguidelines-narrowing-conversions
         -altera-struct-pack-align
@@ -489,7 +487,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
 
-#set CK project include directories
+# set CK project include directories
 include_directories(BEFORE
     ${PROJECT_BINARY_DIR}/include
     ${PROJECT_SOURCE_DIR}/include
@@ -511,8 +509,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
-add_custom_target(check COMMAND ${
-    CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
 
 file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
@@ -568,9 +565,7 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   if(BUILD_TESTING)
-	   add_subdirectory(test)
-   endif()
+   add_subdirectory(test)
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
