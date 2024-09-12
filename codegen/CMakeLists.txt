@@ -9,7 +9,7 @@ add_compile_options(-std=c++17)
 find_package(hip)
 add_custom_target(codegen)
 
-# add include directories
+#add include directories
 include_directories(BEFORE
             ${PROJECT_BINARY_DIR}/include
             ${PROJECT_SOURCE_DIR}/include
@@ -50,4 +50,6 @@ rocm_install(
 )
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_subdirectory(test)
+if(BUILD_TESTING)
+	add_subdirectory(test)
+endif()
