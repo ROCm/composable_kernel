@@ -31,8 +31,13 @@ file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 execute_process(
   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
   --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
+  RESULT_VARIABLE ret
 )
-file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_FWD_GEN_BLOBS)
+if(ret AND NOT ret EQUAL 0)
+  message( FATAL_ERROR "CK Tile MHA FAILED to genrate a list of kernels via Python.")
+else()
+  file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_FWD_GEN_BLOBS)
+endif()
 
 # actually generate the cpp files
 add_custom_command(
