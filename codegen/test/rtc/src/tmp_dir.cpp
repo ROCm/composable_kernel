@@ -53,7 +53,7 @@ std::string tmp_dir::get_tmp_dir_path()
 }
 
 // TODO: finish this method
-void new_dir(std::string dir_path)
+void tmp_dir::new_dir(std::string dir_path)
 {
     int created = mkdir(dir_path.c_str(), 0755);
     if(created != 0)
