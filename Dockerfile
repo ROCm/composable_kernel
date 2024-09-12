@@ -130,6 +130,8 @@ ENV compiler_commit=$compiler_commit
 RUN sh -c "echo compiler version = '$compiler_version'"
 RUN sh -c "echo compiler commit = '$compiler_commit'"
 
+ARG DISABLE_CACHE=0
+
 RUN if ( [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd-mainline-open" ] ) && [ "$compiler_commit" = "" ]; then \
         git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
         cd llvm-project && mkdir build && cd build && \
