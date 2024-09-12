@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -23,6 +23,11 @@ void add_device_maxpool_bwd_bf16_instances(
 void add_device_maxpool_bwd_f32_instances(
     std::vector<std::unique_ptr<DeviceMaxPoolBwd<F32, I32, F32>>>&);
 #endif
+#ifdef CK_ENABLE_INT8
+void add_device_maxpool_bwd_int8_instances(
+    std::vector<std::unique_ptr<DeviceMaxPoolBwd<I8, I32, I8>>>&);
+#endif
+
 template <typename DOutDataType, typename IndexDataType, typename DInDataType>
 struct DeviceOperationInstanceFactory<
     ck::tensor_operation::device::DeviceMaxPoolBwd<DOutDataType, IndexDataType, DInDataType>>
@@ -32,6 +37,7 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<DOutDataType, F16> && is_same_v<DInDataType, F16> &&
                      is_same_v<IndexDataType, I32>)
@@ -46,6 +52,11 @@ struct DeviceOperationInstanceFactory<
         else if constexpr(is_same_v<DOutDataType, F32> && is_same_v<DInDataType, F32> &&
                           is_same_v<IndexDataType, I32>)
             add_device_maxpool_bwd_f32_instances(op_ptrs);
+#endif
+#ifdef CK_ENABLE_INT8
+        else if constexpr(is_same_v<DOutDataType, I8> && is_same_v<DInDataType, I8> &&
+                          is_same_v<IndexDataType, I32>)
+            add_device_maxpool_bwd_int8_instances(op_ptrs);
 #endif
 
         return op_ptrs;
