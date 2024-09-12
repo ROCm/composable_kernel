@@ -39,39 +39,10 @@
 #endif
 // clang-format on
 
-#if CK_WORKAROUND_USE_BOOST_FILESYSTEM
-#undef CK_HAS_FILESYSTEM
-#undef CK_HAS_FILESYSTEM_TS
-#define CK_HAS_FILESYSTEM 0
-#define CK_HAS_FILESYSTEM_TS 0
-#endif
-
 #if CK_HAS_FILESYSTEM
 #include <filesystem>
 #elif CK_HAS_FILESYSTEM_TS
 #include <experimental/filesystem>
-#elif CK_WORKAROUND_USE_BOOST_FILESYSTEM
-/// Explicit inclusion of <boost/container_hash/hash.hpp> is a workaround for the Boost 1.83 issue.
-///
-/// Boost doc is saying:
-///   When writing template classes, you might not want to include the main hash.hpp header as it's
-///   quite an expensive include that brings in a lot of other headers, so instead you can include
-///   the <boost/container_hash/hash_fwd.hpp> header which forward declares boost::hash,
-///   boost::hash_combine, boost::hash_range, and boost::hash_unordered_range. You'll need to
-///   include the main header before instantiating boost::hash.
-///
-/// \ref https://www.boost.org/doc/libs/1_83_0/libs/container_hash/doc/html/hash.html#combine
-///
-/// It seems like boost::filesystem uses boost::hash_range but misses to include hash.hpp, so we
-/// have to include it explicitly. Otherwise an error like this happens at runtime (!):
-///
-/// \code
-/// ...symbol lookup error: .../libCK.so.1: undefined symbol:
-/// _ZN5boost10hash_rangeIN9__gnu_cxx17__normal_iteratorIPKcNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEEEEmT_SC_
-/// \endcode
-#include <boost/container_hash/hash.hpp>
-#define BOOST_FILESYSTEM_NO_DEPRECATED 1
-#include <boost/filesystem.hpp>
 #else
 #error "No filesystem include available"
 #endif
@@ -82,36 +53,21 @@ namespace CK {
 namespace fs = ::std::filesystem;
 #elif CK_HAS_FILESYSTEM_TS
 namespace fs = ::std::experimental::filesystem;
-#elif CK_WORKAROUND_USE_BOOST_FILESYSTEM
-namespace fs = ::boost::filesystem;
 #endif
 
 } // namespace CK
 
 inline std::string operator+(const std::string_view s, const CK::fs::path& path)
 {
-#if CK_WORKAROUND_USE_BOOST_FILESYSTEM
-    return std::string(path.native()).insert(0, s);
-#else
-    return path.string().insert(0, s);
-#endif
+  return path.string().insert(0, s);
 }
 
 inline std::string operator+(const CK::fs::path& path, const std::string_view s)
 {
-#if CK_WORKAROUND_USE_BOOST_FILESYSTEM
-    return std::string(path.native()).append(s);
-#else
-    return path.string().append(s);
-#endif
+  return path.string().append(s);
 }
 
-// Hack to minimize changes for boost fs.
-#if CK_WORKAROUND_USE_BOOST_FILESYSTEM
-#define FS_ENUM_PERMS_ALL fs::perms::all_all
-#else
 #define FS_ENUM_PERMS_ALL fs::perms::all
-#endif
 
 #if CK_HAS_FILESYSTEM_TS
 #ifdef __linux__

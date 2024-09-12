@@ -44,9 +44,6 @@ else()
    find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 endif()
 
-option(CK_WORKAROUND_USE_BOOST_FILESYSTEM "Workaround: Use boost::filesystem instead of std::filesystem" OFF)
-message(STATUS "CK_WORKAROUND_USE_BOOST_FILESYSTEM ${CK_WORKAROUND_USE_BOOST_FILESYSTEM}")
-
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 if (DTYPES)
