@@ -99,6 +99,12 @@ if(INSTANCES_ONLY)
     set(CK_ENABLE_INSTANCES_ONLY "ON")
 endif()
 
+# enable prevent in source build
+include(PreventInSourceBuilds)
+
+# enable cache system
+include(Cache)
+
 include(getopt)
 
 # CK version file to record release version as well as git commit hash
