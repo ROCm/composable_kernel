@@ -29,7 +29,7 @@ file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
-  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
   --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
   RESULT_VARIABLE ret
 )
@@ -42,7 +42,7 @@ endif()
 # actually generate the cpp files
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
-  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
   --output_dir ${FMHA_CPP_FOLDER}
   COMMENT "Generating mha kernel (cpp) files now ..."
   VERBATIM
