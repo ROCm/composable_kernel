@@ -49,6 +49,16 @@ struct maxPoolFwdArgParser
     }
 };
 
+enum struct PoolDataType
+{
+    F32,    // 0
+    BF16,   // 1
+    F16,    // 2
+    INT8,   // 3
+    F8,     // 4
+};
+
+
 void print_help_max_pool2d_fwd()
 {
     std::cout << "arg1: data type (0: fp16; 1: fp32; 2: bf16; 3: int8; 4: fp8)\n"
@@ -70,7 +80,7 @@ void print_help_max_pool2d_fwd()
 
 int profile_max_pool2d_fwd(int argc, char* argv[])
 {
-    ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
+    PoolDataType data_type = PoolDataType::F32;
     bool do_verification       = true;
     int init_method            = 0;
     bool do_log                = false;
@@ -91,7 +101,7 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
     }
     else if(argc == 28)
     {
-        data_type       = static_cast<ck::DataTypeEnum>(std::stoi(argv[2]));
+        data_type       = static_cast<PoolDataType>(std::stoi(argv[2]));
         do_verification = std::stoi(argv[3]);
         init_method     = std::stoi(argv[4]);
         do_log          = std::stoi(argv[5]);
@@ -113,11 +123,13 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
     using BF16 = ck::bhalf_t;
     using F32  = float;
     using I32  = int32_t;
+    using F8   = ck::f8_t;
+    using I8   = int8_t;
     using NHWC = ck::tensor_layout::convolution::NHWC;
 
     constexpr auto ReduceOpId = ck::ReduceTensorOp::MAX;
 
-    if(data_type == ck::DataTypeEnum::Half)
+    if(data_type == PoolDataType::F16)
     {
         if(return_index)
         {
@@ -150,7 +162,7 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     pad2);
         }
     }
-    else if(data_type == ck::DataTypeEnum::BFloat16)
+    else if(data_type == PoolDataType::BF16)
     {
         if(return_index)
         {
@@ -189,7 +201,7 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                                                          pad2);
         }
     }
-    else if(data_type == ck::DataTypeEnum::Float)
+    else if(data_type == PoolDataType::F32)
     {
         if(return_index)
         {
@@ -210,6 +222,72 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
         {
             ck::profiler::
                 profile_pool2d_fwd_impl<F32, F32, F32, I32, NHWC, NHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+        }
+    }
+else if(data_type == PoolDataType::INT8)
+    {
+        if(return_index)
+        {
+            ck::profiler::
+                profile_pool2d_fwd_impl<I8, I8, F32, I32, NHWC, NHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+        }
+        else
+        {
+            ck::profiler::
+                profile_pool2d_fwd_impl<I8, I8, F32, I32, NHWC, NHWC, ReduceOpId, false, false>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+        }
+    }
+else if(data_type == PoolDataType::F8)
+    {
+        if(return_index)
+        {
+            ck::profiler::
+                profile_pool2d_fwd_impl<F8, F8, F32, I32, NHWC, NHWC, ReduceOpId, false, true>(
+                    do_verification,
+                    init_method,
+                    do_log,
+                    time_kernel,
+                    in_length,
+                    wsize,
+                    wstride,
+                    wdilation,
+                    pad1,
+                    pad2);
+        }
+        else
+        {
+            ck::profiler::
+                profile_pool2d_fwd_impl<F8, F8, F32, I32, NHWC, NHWC, ReduceOpId, false, false>(
                     do_verification,
                     init_method,
                     do_log,
