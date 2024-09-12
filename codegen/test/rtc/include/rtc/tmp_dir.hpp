@@ -8,7 +8,7 @@ namespace rtc {
 
 struct tmp_dir
 {
-    fs::path path;
+    CK::fs::path path;
     tmp_dir(const std::string& prefix = "");
 
     void execute(const std::string& cmd) const;

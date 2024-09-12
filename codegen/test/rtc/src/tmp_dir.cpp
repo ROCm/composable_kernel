@@ -31,10 +31,10 @@ std::string unique_string(const std::string& prefix)
 }
 
 tmp_dir::tmp_dir(const std::string& prefix)
-    : path(fs::temp_directory_path() /
+    : path(CK::fs::temp_directory_path() /
            unique_string(prefix.empty() ? "ck-rtc" : "ck-rtc-" + prefix))
 {
-    fs::create_directories(this->path);
+    CK::fs::create_directories(this->path);
 }
 
 void tmp_dir::execute(const std::string& cmd) const
@@ -43,6 +43,6 @@ void tmp_dir::execute(const std::string& cmd) const
     std::system(s.c_str());
 }
 
-tmp_dir::~tmp_dir() { fs::remove_all(this->path); }
+tmp_dir::~tmp_dir() { CK::fs::remove_all(this->path); }
 
 } // namespace rtc

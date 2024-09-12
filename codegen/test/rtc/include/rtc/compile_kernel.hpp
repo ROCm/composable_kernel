@@ -9,7 +9,7 @@ namespace rtc {
 
 struct src_file
 {
-    fs::path path;
+    CK::fs::path path;
     std::string_view content;
 };
 

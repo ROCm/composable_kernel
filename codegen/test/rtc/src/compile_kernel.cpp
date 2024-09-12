@@ -70,9 +70,9 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
 
     for(const auto& src : srcs)
     {
-        fs::path full_path   = td.path / src.path;
-        fs::path parent_path = full_path.parent_path();
-        fs::create_directories(parent_path);
+        CK::fs::path full_path   = td.path / src.path;
+        CK::fs::path parent_path = full_path.parent_path();
+        CK::fs::create_directories(parent_path);
         write_string(full_path.string(), src.content);
         if(src.path.extension().string() == ".cpp")
         {
@@ -86,7 +86,7 @@ kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options
     td.execute(compiler() + options.flags);
 
     auto out_path = td.path / out;
-    if(not fs::exists(out_path))
+    if(not CK::fs::exists(out_path))
         throw std::runtime_error("Output file missing: " + out);
 
     auto obj = read_buffer(out_path.string());
