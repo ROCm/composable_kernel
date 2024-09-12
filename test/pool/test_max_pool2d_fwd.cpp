@@ -49,15 +49,20 @@ class TestMaxPool2dFwd : public ::testing::Test
 using true_t  = std::integral_constant<bool, true>;
 using false_t = std::integral_constant<bool, false>;
 
-using KernelTypes = std::conditional_t<CK_ENABLE_FP16 && CK_ENABLE_BF16,
-                                       ::testing::Types<std::tuple<F16, F16, F32, I32, true_t>,
-                                                        std::tuple<F16, F16, F32, I32, false_t>,
-                                                        std::tuple<BF16, BF16, F32, I32, true_t>,
-                                                        std::tuple<BF16, BF16, F32, I32, false_t>,
-                                                        std::tuple<F32, F32, F32, I32, true_t>,
-                                                        std::tuple<F32, F32, F32, I32, false_t>>,
-                                       ::testing::Types<std::tuple<F32, F32, F32, I32, true_t>,
-                                                        std::tuple<F32, F32, F32, I32, false_t>>>;
+using KernelTypes =
+    std::conditional_t<CK_ENABLE_FP16 && CK_ENABLE_BF16 && CK_ENABLE_INT8 && CK_ENABLE_FP8,
+                       ::testing::Types<std::tuple<I8, I8, F32, I32, true_t>,
+                                        std::tuple<I8, I8, F32, I32, false_t>,
+                                        std::tuple<F8, F8, F32, I32, true_t>,
+                                        std::tuple<F8, F8, F32, I32, false_t>,
+                                        std::tuple<F16, F16, F32, I32, true_t>,
+                                        std::tuple<F16, F16, F32, I32, false_t>,
+                                        std::tuple<BF16, BF16, F32, I32, true_t>,
+                                        std::tuple<BF16, BF16, F32, I32, false_t>,
+                                        std::tuple<F32, F32, F32, I32, true_t>,
+                                        std::tuple<F32, F32, F32, I32, false_t>>,
+                       ::testing::Types<std::tuple<F32, F32, F32, I32, true_t>,
+                                        std::tuple<F32, F32, F32, I32, false_t>>>;
 
 TYPED_TEST_SUITE(TestMaxPool2dFwd, KernelTypes);
 TYPED_TEST(TestMaxPool2dFwd, Test_Pool)

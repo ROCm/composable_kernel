@@ -46,8 +46,12 @@ class TestAvgPool2dFwd : public ::testing::Test
 };
 
 using KernelTypes = std::conditional_t<
-    CK_ENABLE_FP16 && CK_ENABLE_BF16,
-    ::testing::Types<std::tuple<F16, F16, F32, I32>,
+    CK_ENABLE_FP16 && CK_ENABLE_BF16 && CK_ENABLE_INT8 && CK_ENABLE_FP8,
+    ::testing::Types<std::tuple<F8, F8, F32, I32>,
+                     std::tuple<F8, F8, F32, I32>,
+                     std::tuple<I8, I8, F32, I32>,
+                     std::tuple<I8, I8, F32, I32>,
+                     std::tuple<F16, F16, F32, I32>,
                      std::tuple<F16, F16, F32, I32>,
                      std::tuple<BF16, BF16, F32, I32>,
                      std::tuple<BF16, BF16, F32, I32>,

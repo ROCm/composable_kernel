@@ -51,7 +51,7 @@ struct maxPoolFwdArgParser
 
 void print_help_max_pool2d_fwd()
 {
-    std::cout << "arg1: data type (0: fp16; 1: fp32; 5: bf16)\n"
+    std::cout << "arg1: data type (0: fp16; 1: fp32; 2: bf16; 3: int8; 4: fp8)\n"
               << "arg2: verification (0: no; 1: yes)\n"
               << "arg3: initialization (0: no init; 1: integer value; 2: decimal value)\n"
               << "arg4: print tensor value (0: no; 1: yes)\n"
