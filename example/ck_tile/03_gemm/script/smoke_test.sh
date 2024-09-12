@@ -13,7 +13,7 @@ run_fp16_tests() {
     for n in 128 2048 ; do
     for k in 32 64 ; do
 
-    $EXE -b=$batch -m=$m -n=$n -k=$k -stride_a=0 -stride_b=0 -stride_c=0 -v_cpu=0 -v_gpu=1 -e=1e-5 -prec=fp16 $COMMON_ARGS
+    $EXE -b=$batch -m=$m -n=$n -k=$k -stride_a=0 -stride_b=0 -stride_c=0 -v=2 -e=1e-5 -prec=fp16 $COMMON_ARGS
     done ; done ;  done ; done;
 }
 

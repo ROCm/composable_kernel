@@ -21,8 +21,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
-        .insert("v_cpu", "0", "cpu validation or not")
-        .insert("v_gpu", "1", "gpu validation on the ci/cd")
+        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("e", "1e-5", "Absolute error tolerance")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "10", "number of iterations before benchmark the kernel")
@@ -278,7 +277,7 @@ int main(int argc, char* argv[])
 
     bool pass_cpu = true;
 
-    if(arg_parser.get_bool("v_cpu"))
+    if(arg_parser.get_int("v") == 1)
     {
         // ToDo: Will Add the Element Op (bias) verification in the future.
         ck_tile::reference_gemm<ADataType,
@@ -297,7 +296,7 @@ int main(int argc, char* argv[])
 
     bool pass_gpu = true;
 
-    if(arg_parser.get_bool("v_gpu"))
+    if(arg_parser.get_int("v") == 2)
     {
         // GPU Verification will call the basic version of the GEMM computation and run it with the
         // standard layout and standard pipeline. The pipeline and layout here will not be affected
