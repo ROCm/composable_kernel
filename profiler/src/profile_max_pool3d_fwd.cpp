@@ -72,8 +72,8 @@ void print_help_max_pool3d_fwd()
 int profile_max_pool3d_fwd(int argc, char* argv[])
 {
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
-    ck::profiler::MaxPoolFwdInputParams in_params{true, 0, false, true, false, 0};
-    ck::profiler::MaxPoolFwdKernelParams kernel_params{
+    ck::profiler::PoolFwdInputParams in_params{true, 0, false, true, false, 0};
+    ck::profiler::PoolFwdKernelParams kernel_params{
         {2, 32, 30, 30, 30}, {2, 2, 2}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}};
 
     if(argc != 2 && argc != 35)

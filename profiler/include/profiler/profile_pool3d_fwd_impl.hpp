@@ -17,7 +17,7 @@
 namespace ck {
 namespace profiler {
 
-struct MaxPoolFwdInputParams
+struct PoolFwdInputParams
 {
     int do_verification;
     int init_method;
@@ -27,7 +27,7 @@ struct MaxPoolFwdInputParams
     int reduce_op;
 };
 
-struct MaxPoolFwdKernelParams
+struct PoolFwdKernelParams
 {
     std::vector<index_t> in_length; // NCDHW
     std::vector<index_t> window_spatial_lengths;
@@ -46,8 +46,7 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
-bool profile_pool3d_fwd_impl(MaxPoolFwdInputParams& in_params,
-                             MaxPoolFwdKernelParams& kernel_params)
+bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams& kernel_params)
 {
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
@@ -233,13 +232,18 @@ bool profile_pool3d_fwd_impl(MaxPoolFwdInputParams& in_params,
             using BF16     = ck::bhalf_t;
             using F8       = ck::f8_t;
             auto tolerance = 1e-3;
-            if(std::is_same<InDataType, BF16>::value && std::is_same<OutDataType, BF16>::value)
+            if constexpr(ReduceOpId != ck::ReduceTensorOp::MAX)
             {
-                tolerance = 1e-2;
-            }
-            else if(std::is_same<InDataType, F8>::value && std::is_same<OutDataType, F8>::value)
-            {
-                tolerance = 1e-1;
+                if constexpr(std::is_same<InDataType, BF16>::value &&
+                             std::is_same<OutDataType, BF16>::value)
+                {
+                    tolerance = 1e-2;
+                }
+                else if constexpr(std::is_same<InDataType, F8>::value &&
+                                  std::is_same<OutDataType, F8>::value)
+                {
+                    tolerance = 1e-1;
+                }
             }
 
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,

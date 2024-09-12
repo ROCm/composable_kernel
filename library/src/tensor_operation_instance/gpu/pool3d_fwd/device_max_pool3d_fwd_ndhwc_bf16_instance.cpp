@@ -16,7 +16,7 @@ void add_device_pool3d_fwd_ndhwc_bf16_instances(
         instances)
 {
     add_device_operation_instances(
-        instances, device_pool3d_fwd_ndhwc_instances<BF16, BF16, I32, F32, ReduceOpId, false>{});
+        instances, device_pool3d_fwd_ndhwc_instances<BF16, BF16, I32, BF16, ReduceOpId, false>{});
 }
 
 void add_device_pool3d_fwd_ndhwc_index_bf16_instances(
@@ -25,7 +25,7 @@ void add_device_pool3d_fwd_ndhwc_index_bf16_instances(
         instances)
 {
     add_device_operation_instances(
-        instances, device_pool3d_fwd_ndhwc_instances<BF16, BF16, I32, F32, ReduceOpId, true>{});
+        instances, device_pool3d_fwd_ndhwc_instances<BF16, BF16, I32, BF16, ReduceOpId, true>{});
 }
 
 } // namespace instance

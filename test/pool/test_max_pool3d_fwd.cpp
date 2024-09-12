@@ -16,19 +16,19 @@ class TestMaxPool3dFwd : public ::testing::Test
 
     std::vector<PoolingParam> params;
 
-    ck::profiler::MaxPoolFwdInputParams in_params_max_pool{true, 2, false, false, false, 0};
-    ck::profiler::MaxPoolFwdInputParams in_params_max_pool_indexed{true, 2, false, false, true, 0};
+    ck::profiler::PoolFwdInputParams in_params_max_pool{true, 2, false, false, false, 0};
+    ck::profiler::PoolFwdInputParams in_params_max_pool_indexed{true, 2, false, false, true, 0};
 
     void Run()
     {
         for(auto param : params)
         {
-            ck::profiler::MaxPoolFwdKernelParams kernel_params{param.length_,
-                                                               param.window_spatial_lengths_,
-                                                               param.window_strides_,
-                                                               param.window_dilations_,
-                                                               param.input_left_pads_,
-                                                               param.input_right_pads_};
+            ck::profiler::PoolFwdKernelParams kernel_params{param.length_,
+                                                            param.window_spatial_lengths_,
+                                                            param.window_strides_,
+                                                            param.window_dilations_,
+                                                            param.input_left_pads_,
+                                                            param.input_right_pads_};
 
             // max pool
             bool success =

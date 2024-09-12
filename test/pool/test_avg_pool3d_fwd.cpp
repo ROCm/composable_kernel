@@ -16,18 +16,18 @@ class TestAvgPool3dFwd : public ::testing::Test
 
     std::vector<PoolingParam> params;
 
-    ck::profiler::MaxPoolFwdInputParams in_params_avg_pool{true, 2, false, false, false, 1};
+    ck::profiler::PoolFwdInputParams in_params_avg_pool{true, 2, false, false, false, 1};
 
     void Run()
     {
         for(auto param : params)
         {
-            ck::profiler::MaxPoolFwdKernelParams kernel_params{param.length_,
-                                                               param.window_spatial_lengths_,
-                                                               param.window_strides_,
-                                                               param.window_dilations_,
-                                                               param.input_left_pads_,
-                                                               param.input_right_pads_};
+            ck::profiler::PoolFwdKernelParams kernel_params{param.length_,
+                                                            param.window_spatial_lengths_,
+                                                            param.window_strides_,
+                                                            param.window_dilations_,
+                                                            param.input_left_pads_,
+                                                            param.input_right_pads_};
 
             bool success =
                 ck::profiler::profile_pool3d_fwd_impl<InDataType,
