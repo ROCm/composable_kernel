@@ -5,13 +5,17 @@
 
 #include "ck_tile/core.hpp"
 
+#define VectorLoadSize 16
+
 namespace ck_tile {
 
 template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
-          index_t kBlockSize_,
-          typename BlockGemmShape_>
+          typename BlockGemmShape_,
+          bool kPadA_ = false,
+          bool kPadB_ = false,
+          bool kPadC_ = false>
 struct BlockGemmPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
@@ -19,7 +23,14 @@ struct BlockGemmPipelineProblem
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+    static constexpr bool kPadA         = kPadA_;
+    static constexpr bool kPadB         = kPadB_;
+    static constexpr bool kPadC         = kPadC_;
+
+    static constexpr index_t AlignmentA = kPadA ? VectorLoadSize / sizeof(ADataType) : 1;
+    static constexpr index_t AlignmentB = kPadB ? VectorLoadSize / sizeof(BDataType) : 1;
+    static constexpr index_t AlignmentC = kPadC ? VectorLoadSize / sizeof(CDataType) : 1;
 };
 
 } // namespace ck_tile
