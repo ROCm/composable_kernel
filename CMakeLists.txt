@@ -37,11 +37,11 @@ else()
    # this is overly restrictive, we may need to be more flexible on the following
    string(REPLACE "/bin/python3.8" "" EXTRA_PYTHON_PATH "${CK_USE_ALTERNATIVE_PYTHON}")
    message("alternative python path is: ${EXTRA_PYTHON_PATH}")
+   find_package(Python3 3.6 COMPONENTS Interpreter REQUIRED)
    add_definitions(-DPython3_EXECUTABLE="${CK_USE_ALTERNATIVE_PYTHON}")
    set(Python3_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
    set(PYTHON_EXECUTABLE "${CK_USE_ALTERNATIVE_PYTHON}")
    set(ENV{LD_LIBRARY_PATH} "${EXTRA_PYTHON_PATH}/lib:$ENV{LD_LIBRARY_PATH}")
-   find_package(Python3 3.8 COMPONENTS Interpreter REQUIRED)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
