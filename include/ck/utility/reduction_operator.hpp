@@ -52,10 +52,26 @@ struct Add
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value || is_same<T, half_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Add accumulator!");
 
         a = a + b;
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        a = type_convert<f8_t>(a_ + b_);
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        a = type_convert<half_t>(a_ + b_);
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
@@ -112,10 +128,26 @@ struct Mul
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, int32_t>::value || is_same<T, half_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Mul accumulator!");
 
         a = a * b;
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        a = type_convert<f8_t>(a_ * b_);
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        a = type_convert<half_t>(a_ * b_);
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
@@ -137,6 +169,16 @@ struct Max
             float val = NumericLimits<float>::Lowest();
             return type_convert<bhalf_t>(val);
         }
+        if constexpr(is_same_v<T, f8_t>)
+        {
+            float val = NumericLimits<float>::Lowest();
+            return type_convert<f8_t>(val);
+        }
+        if constexpr(is_same_v<T, half_t>)
+        {
+            float val = NumericLimits<float>::Lowest();
+            return type_convert<half_t>(val);
+        }
         else
         {
             return NumericLimits<T>::Lowest();
@@ -154,8 +196,7 @@ struct Max
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Max accumulator!");
 
         if(a < b)
@@ -171,12 +212,29 @@ struct Max
             a = b;
     }
 
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+            a = b;
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+            a = b;
+    }
+
     template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Max accumulator!");
 
         if(a < b)
@@ -187,6 +245,30 @@ struct Max
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b, bool& changed) const
     {
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
@@ -209,6 +291,16 @@ struct Min
             float val = NumericLimits<float>::Max();
             return type_convert<bhalf_t>(val);
         }
+        else if constexpr(is_same_v<T, half_t>)
+        {
+            float val = NumericLimits<float>::Max();
+            return type_convert<half_t>(val);
+        }
+        else if constexpr(is_same_v<T, f8_t>)
+        {
+            float val = NumericLimits<float>::Max();
+            return type_convert<f8_t>(val);
+        }
         else
         {
             return NumericLimits<T>::Max();
@@ -227,8 +319,7 @@ struct Min
     __host__ __device__ inline constexpr void operator()(T& a, T b) const
     {
         static_assert(is_same<T, float>::value || is_same<T, double>::value ||
-                          is_same<T, half_t>::value || is_same<T, int32_t>::value ||
-                          is_same<T, int8_t>::value,
+                          is_same<T, int32_t>::value || is_same<T, int8_t>::value,
                       "The data type is not supported by the Min accumulator!");
 
         if(a > b)
@@ -236,6 +327,24 @@ struct Min
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+            a = b;
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+            a = b;
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
     {
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
@@ -260,6 +369,30 @@ struct Min
     }
 
     __host__ __device__ inline constexpr void operator()(bhalf_t& a, bhalf_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(half_t& a, half_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ > b_)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b, bool& changed) const
     {
         float a_ = type_convert<float>(a);
         float b_ = type_convert<float>(b);
@@ -299,6 +432,15 @@ struct AMax
             a = b;
     }
 
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
+            a = b;
+    }
+
     template <typename T>
     __host__ __device__ inline constexpr void operator()(T& a, T b, bool& changed) const
     {
@@ -308,6 +450,18 @@ struct AMax
                       "The data type is not supported by the AMax accumulator!");
 
         if(a < b)
+        {
+            a       = b;
+            changed = true;
+        }
+    }
+
+    __host__ __device__ inline constexpr void operator()(f8_t& a, f8_t b, bool& changed) const
+    {
+        float a_ = type_convert<float>(a);
+        float b_ = type_convert<float>(b);
+
+        if(a_ < b_)
         {
             a       = b;
             changed = true;
@@ -352,7 +506,8 @@ struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Set, 
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
         is_same<DataType, half_t>::value || is_same<DataType, bhalf_t>::value ||
-        is_same<DataType, int8_t>::value || is_same<DataType, int32_t>::value;
+        is_same<DataType, int8_t>::value || is_same<DataType, int32_t>::value ||
+        is_same<DataType, f8_t>::value;
 };
 
 template <typename DataType>
@@ -361,7 +516,7 @@ struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Add, 
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
         is_same<DataType, half_t>::value || is_same<DataType, int8_t>::value ||
-        is_same<DataType, int32_t>::value;
+        is_same<DataType, int32_t>::value || is_same<DataType, f8_t>::value;
 };
 
 } // namespace reduce
