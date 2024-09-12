@@ -59,12 +59,12 @@ namespace fs = ::std::experimental::filesystem;
 
 inline std::string operator+(const std::string_view s, const CK::fs::path& path)
 {
-  return path.string().insert(0, s);
+    return path.string().insert(0, s);
 }
 
 inline std::string operator+(const CK::fs::path& path, const std::string_view s)
 {
-  return path.string().append(s);
+    return path.string().append(s);
 }
 
 #define FS_ENUM_PERMS_ALL fs::perms::all
