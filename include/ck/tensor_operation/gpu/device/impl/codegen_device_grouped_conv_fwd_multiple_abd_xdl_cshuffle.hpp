@@ -3,11 +3,13 @@
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <functional>
 #include <iostream>
 #include <iterator>
 #include <numeric>
 #include <sstream>
+#endif
 
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
