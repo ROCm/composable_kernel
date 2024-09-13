@@ -15,7 +15,7 @@ class TestMaxPool2dFwd : public ::testing::Test
     using IndexDataType               = std::tuple_element_t<3, Tuple>;
     static constexpr bool ReturnIndex = std::tuple_element_t<4, Tuple>::value;
 
-    std::vector<PoolingParam> params;
+    static std::vector<PoolingParam> params;
 
     void Run()
     {
@@ -46,32 +46,105 @@ class TestMaxPool2dFwd : public ::testing::Test
     }
 };
 
+template <typename T>
+std::vector<PoolingParam> TestMaxPool2dFwd<T>::params = {
+    {{{1, 1, 1, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
+     {{2, 16, 64, 64}, {64, 64}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
+     {{2, 16, 64, 64}, {4, 4}, {4, 4}, {2, 2}, {0, 0}, {0, 0}},
+     {{2, 32, 30, 30}, {2, 2}, {2, 2}, {1, 1}, {1, 1}, {1, 1}}}};
+
 using true_t  = std::integral_constant<bool, true>;
 using false_t = std::integral_constant<bool, false>;
 
-using KernelTypes =
-    std::conditional_t<CK_ENABLE_FP16 && CK_ENABLE_BF16 && CK_ENABLE_INT8 && CK_ENABLE_FP8,
-                       ::testing::Types<std::tuple<I8, I8, F32, I32, true_t>,
-                                        std::tuple<I8, I8, F32, I32, false_t>,
-                                        std::tuple<F8, F8, F32, I32, true_t>,
-                                        std::tuple<F8, F8, F32, I32, false_t>,
-                                        std::tuple<F16, F16, F32, I32, true_t>,
-                                        std::tuple<F16, F16, F32, I32, false_t>,
-                                        std::tuple<BF16, BF16, F32, I32, true_t>,
-                                        std::tuple<BF16, BF16, F32, I32, false_t>,
-                                        std::tuple<F32, F32, F32, I32, true_t>,
-                                        std::tuple<F32, F32, F32, I32, false_t>>,
-                       ::testing::Types<std::tuple<F32, F32, F32, I32, true_t>,
-                                        std::tuple<F32, F32, F32, I32, false_t>>>;
+using MaxPool2D_F32_Types  = ::testing::Types<std::tuple<F32, F32, F32, I32, true_t>,
+                                             std::tuple<F32, F32, F32, I32, false_t>>;
+using MaxPool2D_F16_Types  = ::testing::Types<std::tuple<F16, F16, F32, I32, true_t>,
+                                             std::tuple<F16, F16, F32, I32, false_t>>;
+using MaxPool2D_BF16_Types = ::testing::Types<std::tuple<I8, I8, F32, I32, true_t>,
+                                              std::tuple<BF16, BF16, F32, I32, false_t>>;
+using MaxPool2D_I8_Types =
+    ::testing::Types<std::tuple<I8, I8, F32, I32, true_t>, std::tuple<I8, I8, F32, I32, false_t>>;
+using MaxPool2D_F8_Types =
+    ::testing::Types<std::tuple<F8, F8, F32, I32, true_t>, std::tuple<F8, F8, F32, I32, false_t>>;
 
-TYPED_TEST_SUITE(TestMaxPool2dFwd, KernelTypes);
-TYPED_TEST(TestMaxPool2dFwd, Test_Pool)
+template <typename TType>
+class MaxPool2D_F32 : public TestMaxPool2dFwd<TType>
 {
-    // length, window_length, window_stride, window_dilation, left_pad, right_pad
-    this->params = {{{1, 1, 1, 1}, {1, 1}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                    {{2, 16, 64, 64}, {64, 64}, {1, 1}, {1, 1}, {0, 0}, {0, 0}},
-                    {{2, 16, 64, 64}, {4, 4}, {4, 4}, {2, 2}, {0, 0}, {0, 0}},
-                    {{2, 32, 30, 30}, {2, 2}, {2, 2}, {1, 1}, {1, 1}, {1, 1}}};
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP32)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_F32 tests because CK_ENABLE_FP32 is "
+                            "not enabled";
+        }
+    }
+};
 
-    this->Run();
-}
+template <typename TType>
+class MaxPool2D_F16 : public TestMaxPool2dFwd<TType>
+{
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP16)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_F16 tests because CK_ENABLE_FP16 is "
+                            "not enabled";
+        }
+    }
+};
+
+template <typename TType>
+class MaxPool2D_BF16 : public TestMaxPool2dFwd<TType>
+{
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_BF16)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_BF16 tests because CK_ENABLE_BF16 is "
+                            "not enabled";
+        }
+    }
+};
+
+template <typename TType>
+class MaxPool2D_I8 : public TestMaxPool2dFwd<TType>
+{
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_INT8)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_I8 tests because CK_ENABLE_INT8 is "
+                            "not enabled";
+        }
+    }
+};
+
+template <typename TType>
+class MaxPool2D_F8 : public TestMaxPool2dFwd<TType>
+{
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP8)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_F8 tests because CK_ENABLE_FP8 is "
+                            "not enabled";
+        }
+    }
+};
+
+TYPED_TEST_SUITE(MaxPool2D_F32, MaxPool2D_F32_Types);
+TYPED_TEST_SUITE(MaxPool2D_F16, MaxPool2D_F16_Types);
+TYPED_TEST_SUITE(MaxPool2D_BF16, MaxPool2D_BF16_Types);
+TYPED_TEST_SUITE(MaxPool2D_I8, MaxPool2D_I8_Types);
+TYPED_TEST_SUITE(MaxPool2D_F8, MaxPool2D_F8_Types);
+
+TYPED_TEST(MaxPool2D_F32, MaxPool2D_I8_Test) { this->Run(); }
+TYPED_TEST(MaxPool2D_F16, MaxPool2D_F16_Test) { this->Run(); }
+TYPED_TEST(MaxPool2D_BF16, MaxPool2D_BF16_Test) { this->Run(); }
+TYPED_TEST(MaxPool2D_I8, MaxPool2D_I8_Test) { this->Run(); }
+TYPED_TEST(MaxPool2D_F8, MaxPool2D_F8_Test) { this->Run(); }
