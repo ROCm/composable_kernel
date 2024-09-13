@@ -51,11 +51,11 @@ struct maxPoolFwdArgParser
 
 enum struct PoolDataType
 {
-    F32,  // 0
-    BF16, // 1
-    F16,  // 2
-    INT8, // 3
-    F8,   // 4
+    F32 = 0,
+    BF16,
+    F16,
+    INT8,
+    F8,
 };
 
 void print_help_max_pool2d_fwd()
