@@ -9,7 +9,7 @@
 #include <type_traits>
 
 #ifndef TOPK_SOFTMAX_USE_RAW_TILE_WINDOW
-#define TOPK_SOFTMAX_USE_RAW_TILE_WINDOW 0
+#define TOPK_SOFTMAX_USE_RAW_TILE_WINDOW 1
 #endif
 
 namespace ck_tile {

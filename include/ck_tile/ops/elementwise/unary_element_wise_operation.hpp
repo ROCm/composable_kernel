@@ -1079,6 +1079,15 @@ struct ConvScaleRelu
     float scale_out_;
 };
 
+template<typename DstType, typename SrcType>
+struct Cast {
+    template <typename T>
+    CK_TILE_HOST_DEVICE void operator()(DstType& y, const SrcType& x) const
+    {
+        y = ck_tile::type_convert<DstType>(x);
+    };
+};
+
 // support fastconvert of int8 to fp16
 #if 0
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
