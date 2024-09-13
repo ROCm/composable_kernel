@@ -51,13 +51,12 @@ struct maxPoolFwdArgParser
 
 enum struct PoolDataType
 {
-    F32,    // 0
-    BF16,   // 1
-    F16,    // 2
-    INT8,   // 3
-    F8,     // 4
+    F32,  // 0
+    BF16, // 1
+    F16,  // 2
+    INT8, // 3
+    F8,   // 4
 };
-
 
 void print_help_max_pool2d_fwd()
 {
@@ -81,11 +80,11 @@ void print_help_max_pool2d_fwd()
 int profile_max_pool2d_fwd(int argc, char* argv[])
 {
     PoolDataType data_type = PoolDataType::F32;
-    bool do_verification       = true;
-    int init_method            = 0;
-    bool do_log                = false;
-    bool time_kernel           = true;
-    bool return_index          = false;
+    bool do_verification   = true;
+    int init_method        = 0;
+    bool do_log            = false;
+    bool time_kernel       = true;
+    bool return_index      = false;
 
     std::vector<index_t> in_length = {2, 32, 30, 30};
     std::vector<index_t> wsize     = {2, 2};
@@ -234,7 +233,7 @@ int profile_max_pool2d_fwd(int argc, char* argv[])
                     pad2);
         }
     }
-else if(data_type == PoolDataType::INT8)
+    else if(data_type == PoolDataType::INT8)
     {
         if(return_index)
         {
@@ -267,7 +266,7 @@ else if(data_type == PoolDataType::INT8)
                     pad2);
         }
     }
-else if(data_type == PoolDataType::F8)
+    else if(data_type == PoolDataType::F8)
     {
         if(return_index)
         {

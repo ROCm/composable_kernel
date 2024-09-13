@@ -19,7 +19,7 @@ using F32  = float;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
-using F8 = ck::f8_t;
+using F8   = ck::f8_t;
 using NHWC = ck::tensor_layout::convolution::NHWC;
 
 template <typename InDataType,
