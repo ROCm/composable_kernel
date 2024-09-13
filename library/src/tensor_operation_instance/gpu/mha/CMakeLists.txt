@@ -39,7 +39,12 @@ else()
   file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_FWD_GEN_BLOBS)
 endif()
 
-# actually generate the cpp files
+
+# actually generate the cpp files but before that delete the blob file, if it exists to avoid append of old content.
+if(EXISTS ${FMHA_CPP_FOLDER}/blob_list.txt)
+    file(REMOVE ${FMHA_CPP_FOLDER}/blob_list.txt)
+endif()
+
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
