@@ -703,7 +703,7 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2; RUN_CK_TILE_TESTS=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2;RUN_CK_TILE_FMHA_TESTS=;RUN_CK_TILE_GEMM_TESTS=true
                                               0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
@@ -775,9 +775,13 @@ pipeline {
             defaultValue: false,
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
-            name: "RUN_CK_TILE_TESTS",
+            name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
-            description: "Run the ck_tile tests (default: OFF)")
+            description: "Run the ck_tile FMHA tests (default: OFF)")
+        booleanParam(
+            name: "RUN_CK_TILE_GEMM_TESTS",
+            defaultValue: false,
+            description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -894,7 +898,7 @@ pipeline {
                 }
             }
         }
-        stage("Run CK_TILE Tests")
+        stage("Run CK_TILE_FMHA Tests")
         {
             parallel
             {
@@ -902,7 +906,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -921,7 +925,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
@@ -936,11 +940,18 @@ pipeline {
                         cleanWs()
                     }
                 }
+            }
+        }
+        stage("Run CK_TILE_GEMM Tests")
+        {
+            parallel
+            {
+
                 stage("Run CK_TILE_GEMM Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -960,7 +971,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
