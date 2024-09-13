@@ -156,8 +156,8 @@ struct buffer_load<2, pre_nop>
                                    index_t /*flag*/       = 0,
                                    bool_constant<pre_nop> = {})
     {
-        static_assert(sizeof(T) == 4); // subdword is buggy, use dword buf and convert manually
-        using mbuf_t = typename impl::buffer_load_trait<2, T>::payload_t;
+        // static_assert(sizeof(T) == 4); // subdword is buggy, use dword buf and convert manually
+        using mbuf_t = ushort; // typename impl::buffer_load_trait<2, T>::payload_t;
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "buffer_load_ushort %0, %1, %2, 0 offen offset:%3"
@@ -315,9 +315,9 @@ struct buffer_load_if<2, pre_nop>
                                    index_t flag           = 0,
                                    bool_constant<pre_nop> = {})
     {
-        static_assert(sizeof(T) == 4);
+        // static_assert(sizeof(T) == 4);
         auto saved_exec = __builtin_amdgcn_read_exec();
-        using mbuf_t    = typename impl::buffer_load_trait<2, T>::payload_t;
+        using mbuf_t    = ushort; // typename impl::buffer_load_trait<2, T>::payload_t;
         if constexpr(pre_nop)
             asm volatile("s_nop 4\n"
                          "v_cmpx_le_u32 exec, 1, %4\n"
@@ -676,23 +676,21 @@ template<typename T> struct smem_load_trait<1 , T> { using payload_t = float; };
 } // namespace impl
 
 // NOTE: smem load/store no need pre_nop to make sure dependency by sw, happy :)
-template<index_t>
-struct smem_load ;
+template <index_t>
+struct smem_load;
 
-template<>
+template <>
 struct smem_load<16>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(T& value,
-                                   index_t v_offset,
-                                   index_t i_offset)
+    CK_TILE_DEVICE void operator()(T& value, index_t v_offset, index_t i_offset)
     {
         static_assert(sizeof(T) == 16);
-        using mbuf_t = typename impl::smem_load_trait<16, T>::payload_t
+        using mbuf_t = typename impl::smem_load_trait<16, T>::payload_t;
         asm volatile("ds_read_b128 %0, %1 offset:%2"
-                        : "=v"(reinterpret_cast<mbuf_t&>(value))   // ! direct write
-                        : "v"(v_offset), "n"(i_offset)
-                        : "memory");
+                     : "=v"(reinterpret_cast<mbuf_t&>(value)) // ! direct write
+                     : "v"(v_offset), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -700,16 +698,14 @@ template <>
 struct smem_load<8>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(T& value,
-                                   index_t v_offset,
-                                   index_t i_offset)
+    CK_TILE_DEVICE void operator()(T& value, index_t v_offset, index_t i_offset)
     {
         static_assert(sizeof(T) == 8);
         using mbuf_t = typename impl::smem_load_trait<8, T>::payload_t;
         asm volatile("ds_read_b64 %0, %1 offset:%2"
-                        : "=v"(reinterpret_cast<mbuf_t&>(value))   // ! direct write
-                        : "v"(v_offset), "n"(i_offset)
-                        : "memory");
+                     : "=v"(reinterpret_cast<mbuf_t&>(value)) // ! direct write
+                     : "v"(v_offset), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -717,16 +713,14 @@ template <>
 struct smem_load<4>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(T& value,
-                                   index_t v_offset,
-                                   index_t i_offset)
+    CK_TILE_DEVICE void operator()(T& value, index_t v_offset, index_t i_offset)
     {
         static_assert(sizeof(T) == 4);
         using mbuf_t = typename impl::smem_load_trait<4, T>::payload_t;
         asm volatile("ds_read_b32 %0, %1 offset:%2"
-                        : "=v"(reinterpret_cast<mbuf_t&>(value))   // ! direct write
-                        : "v"(v_offset), "n"(i_offset)
-                        : "memory");
+                     : "=v"(reinterpret_cast<mbuf_t&>(value)) // ! direct write
+                     : "v"(v_offset), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -734,15 +728,14 @@ template <>
 struct smem_load<2>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(T& value,
-                                   index_t v_offset,
-                                   index_t i_offset)
+    CK_TILE_DEVICE void operator()(T& value, index_t v_offset, index_t i_offset)
     {
         static_assert(sizeof(T) == 4); // subdword is buggy, use dword buf and convert manually
+        using mbuf_t = typename impl::smem_load_trait<1, T>::payload_t;
         asm volatile("ds_read_u16 %0, %1 offset:%2"
-                        : "=v"(reinterpret_cast<mbuf_t&>(value))   // ! direct write
-                        : "v"(v_offset), "n"(i_offset)
-                        : "memory");
+                     : "=v"(reinterpret_cast<mbuf_t&>(value)) // ! direct write
+                     : "v"(v_offset), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -750,16 +743,14 @@ template <>
 struct smem_load<1>
 {
     template <typename T>
-    CK_TILE_DEVICE void operator()(T& value,
-                                   index_t v_offset,
-                                   index_t i_offset)
+    CK_TILE_DEVICE void operator()(T& value, index_t v_offset, index_t i_offset)
     {
         static_assert(sizeof(T) == 4);
         using mbuf_t = typename impl::smem_load_trait<1, T>::payload_t;
         asm volatile("ds_read_u8 %0, %1 offset:%2"
-                        : "=v"(reinterpret_cast<mbuf_t&>(value))   // ! direct write
-                        : "v"(v_offset), "n"(i_offset)
-                        : "memory");
+                     : "=v"(reinterpret_cast<mbuf_t&>(value)) // ! direct write
+                     : "v"(v_offset), "n"(i_offset)
+                     : "memory");
     }
 };
 
@@ -1879,6 +1870,7 @@ CK_TILE_DEVICE void amd_buffer_store_raw_impl(const thread_buffer<T, N>& dst_thr
                                               int32x4_t dst_wave_buffer_resource,
                                               index_t dst_thread_addr_offset,
                                               index_t dst_wave_addr_offset,
+                                              index_t dst_linear_addr_offset,
                                               index_t is_valid_element = 1)
 {
     constexpr index_t bytes = sizeof(T) * N;
@@ -1892,7 +1884,7 @@ CK_TILE_DEVICE void amd_buffer_store_raw_impl(const thread_buffer<T, N>& dst_thr
                                         dst_wave_buffer_resource,
                                         dst_thread_addr_offset,
                                         dst_wave_addr_offset,
-                                        0,
+                                        dst_linear_addr_offset,
                                         is_valid_element);
     }
     else
@@ -1901,7 +1893,7 @@ CK_TILE_DEVICE void amd_buffer_store_raw_impl(const thread_buffer<T, N>& dst_thr
                                      dst_wave_buffer_resource,
                                      dst_thread_addr_offset,
                                      dst_wave_addr_offset,
-                                     0);
+                                     dst_linear_addr_offset);
     }
 }
 
@@ -2266,6 +2258,7 @@ template <typename T,
 CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
                                                        const T* p_src_wave,
                                                        index_t src_thread_element_offset,
+                                                       index_t src_linear_element_offset,
                                                        index_t src_element_space_size,
                                                        bool_constant<pre_nop> = {})
 {
@@ -2273,9 +2266,14 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
         make_wave_buffer_resource(p_src_wave, src_element_space_size * sizeof(T));
 
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+    index_t src_linear_addr_offset = src_linear_element_offset * sizeof(T);
 
-    amd_async_buffer_load_impl<T, N, coherence>(
-        smem, src_wave_buffer_resource, src_thread_addr_offset, 0, 0, bool_constant<pre_nop>{});
+    amd_async_buffer_load_impl<T, N, coherence>(smem,
+                                                src_wave_buffer_resource,
+                                                src_thread_addr_offset,
+                                                0,
+                                                src_linear_addr_offset,
+                                                bool_constant<pre_nop>{});
 }
 
 // This version support buffer resource as input arg
@@ -2286,12 +2284,18 @@ template <typename T,
 CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
                                                        const int32x4_t src_wave_buffer_resource,
                                                        index_t src_thread_element_offset,
+                                                       index_t src_linear_element_offset,
                                                        bool_constant<pre_nop> = {})
 {
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+    index_t src_linear_addr_offset = src_linear_element_offset * sizeof(T);
 
-    amd_async_buffer_load_impl<T, N, coherence>(
-        smem, src_wave_buffer_resource, src_thread_addr_offset, 0, 0, bool_constant<pre_nop>{});
+    amd_async_buffer_load_impl<T, N, coherence>(smem,
+                                                src_wave_buffer_resource,
+                                                src_thread_addr_offset,
+                                                0,
+                                                src_linear_addr_offset,
+                                                bool_constant<pre_nop>{});
 }
 
 // This version support buffer resource as input arg
@@ -2302,16 +2306,18 @@ template <typename T,
 CK_TILE_DEVICE void amd_async_buffer_load_with_oob(CK_TILE_LDS_ADDR T* smem,
                                                    const int32x4_t src_wave_buffer_resource,
                                                    index_t src_thread_element_offset,
+                                                   index_t src_linear_element_offset,
                                                    bool is_valid_element,
                                                    bool_constant<oob_conditional_check> = {})
 {
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
+    index_t src_linear_addr_offset = src_linear_element_offset * sizeof(T);
 
     amd_async_buffer_load<T, N, coherence>(smem,
                                            src_wave_buffer_resource,
                                            src_thread_addr_offset,
                                            0,
-                                           0,
+                                           src_linear_addr_offset,
                                            is_valid_element,
                                            bool_constant<oob_conditional_check>{});
 }
@@ -2368,6 +2374,7 @@ template <typename T,
 CK_TILE_DEVICE void amd_buffer_store_raw(const thread_buffer<T, N>& src_thread_data,
                                          T* p_dst_wave,
                                          const index_t dst_thread_element_offset,
+                                         const index_t dst_linear_element_offset,
                                          const bool dst_thread_element_valid,
                                          const index_t dst_element_space_size)
 {
@@ -2375,11 +2382,13 @@ CK_TILE_DEVICE void amd_buffer_store_raw(const thread_buffer<T, N>& src_thread_d
         make_wave_buffer_resource(p_dst_wave, dst_element_space_size * sizeof(T));
 
     index_t dst_thread_addr_offset = dst_thread_element_offset * sizeof(T);
+    index_t dst_linear_addr_offset = dst_linear_element_offset * sizeof(T);
 
     amd_buffer_store_raw_impl<T, N, coherence, oob_conditional_check>(src_thread_data,
                                                                       dst_wave_buffer_resource,
                                                                       dst_thread_addr_offset,
                                                                       0,
+                                                                      dst_linear_addr_offset,
                                                                       dst_thread_element_valid);
 }
 

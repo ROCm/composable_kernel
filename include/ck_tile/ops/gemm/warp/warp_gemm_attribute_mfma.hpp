@@ -510,11 +510,11 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
         });
     }
 
-    template <index_t kKIter, bool post_nop_ = false>
+    template <index_t iKIter, bool post_nop_ = false>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
                                    const BVecType& b_vec,
-                                   number<kKIter>,
+                                   number<iKIter>,
                                    bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;

@@ -11,7 +11,7 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/tensor/tile_window.hpp"
+#include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/tensor/null_tile_window.hpp"
 #include "ck_tile/core/tensor/null_tensor.hpp"
 
@@ -31,6 +31,20 @@ CK_TILE_DEVICE auto load_tile(const tile_window_with_static_distribution<BottomT
     return tile_window.load(bool_constant<oob_conditional_check>{});
 }
 
+template <typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE auto load_tile(const tile_window_linear<BottomTensorView_,
+                                                       WindowLengths_,
+                                                       TileDistribution_,
+                                                       LinearBottomDims_>& tile_window,
+                              bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load(bool_constant<oob_conditional_check>{});
+}
+
 template <typename T,
           typename BottomTensorView_,
           typename WindowLengths_,
@@ -43,6 +57,24 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
                                                                              WindowLengths_,
                                                                              TileDistribution_,
                                                                              NumCoord>& tile_window,
+                                  bool_constant<oob_conditional_check> = {},
+                                  bool_constant<pre_nop>               = {})
+{
+    tile_window.load_raw(tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+}
+
+template <typename T,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
+CK_TILE_DEVICE auto load_tile_raw(T& tile,
+                                  const tile_window_linear<BottomTensorView_,
+                                                           WindowLengths_,
+                                                           TileDistribution_,
+                                                           LinearBottomDims_>& tile_window,
                                   bool_constant<oob_conditional_check> = {},
                                   bool_constant<pre_nop>               = {})
 {
@@ -73,6 +105,22 @@ template <typename LdsTileWindow_,
           typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
+          typename LinearBottomDims_,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
+                                    const tile_window_linear<BottomTensorView_,
+                                                             WindowLengths_,
+                                                             TileDistribution_,
+                                                             LinearBottomDims_>& tile_window,
+                                    bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.async_load(lds_tile, bool_constant<oob_conditional_check>{});
+}
+
+template <typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
           index_t NumCoord,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
@@ -89,6 +137,25 @@ async_load_tile_raw(LdsTileWindow_&& lds_tile,
         lds_tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
+template <typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          typename LinearBottomDims_,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
+CK_TILE_DEVICE auto async_load_tile_raw(LdsTileWindow_&& lds_tile,
+                                        const tile_window_linear<BottomTensorView_,
+                                                                 WindowLengths_,
+                                                                 TileDistribution_,
+                                                                 LinearBottomDims_>& tile_window,
+                                        bool_constant<oob_conditional_check> = {},
+                                        bool_constant<pre_nop>               = {})
+{
+    return tile_window.async_load_raw(
+        lds_tile, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+}
+
 template <typename WindowLengths>
 CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&)
 {
@@ -98,6 +165,22 @@ CK_TILE_DEVICE auto load_tile(const null_tile_window<WindowLengths>&)
 template <typename T, typename WindowLengths>
 CK_TILE_DEVICE auto load_tile_raw(T& /*null_tile*/, const null_tile_window<WindowLengths>&)
 {
+}
+
+// TODO: this function requires some sub-fileds exist for the target tile window
+template <typename TileWindow, bool oob_conditional_check = true, bool pre_nop = false>
+CK_TILE_DEVICE auto load_tile_raw(const TileWindow& w,
+                                  bool_constant<oob_conditional_check> = {},
+                                  bool_constant<pre_nop>               = {})
+{
+    using TileDstr = typename TileWindow::TileDstr;
+    using DataType = typename TileWindow::DataType;
+
+    auto t = make_static_distributed_tensor<DataType>(TileDstr{});
+
+    load_tile_raw(t, w, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+
+    return t;
 }
 
 } // namespace ck_tile

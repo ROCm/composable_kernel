@@ -13,8 +13,9 @@ template <typename InputType_,
           typename WeightType_,
           typename IndexType_,
           index_t Experts_,
-          index_t IssuesPerCol_  = 1, // issue along col, to make sure block_reduce() OK
+          index_t IssuesPerCol_  = 2, // issue along col, to make sure block_reduce() OK
           index_t BytesPerIssue_ = sizeof(InputType_),
+          index_t LaunchType_    = 0, // 0-streaming, >0, persistent #occupancy
           index_t BlockSize_     = 256>
 struct TopkSoftmaxWarpPerRowProblem
 {
@@ -23,8 +24,10 @@ struct TopkSoftmaxWarpPerRowProblem
     using WeightType = remove_cvref_t<WeightType_>;
     using IndexType  = remove_cvref_t<IndexType_>;
 
+    static constexpr index_t LaunchType    = LaunchType_;
     static constexpr index_t Experts       = Experts_;
     static constexpr index_t BytesPerIssue = BytesPerIssue_;
+    static constexpr index_t IssuesPerCol  = IssuesPerCol_;
     static constexpr index_t BlockSize     = BlockSize_;
     static constexpr index_t WarpSize      = get_warp_size();
 
@@ -33,10 +36,9 @@ struct TopkSoftmaxWarpPerRowProblem
     static_assert(Experts % VectorSize == 0);
     static constexpr index_t LanesPerRow = min(Experts / VectorSize, WarpSize);
     static_assert(WarpSize % LanesPerRow == 0);
-    static constexpr index_t RowsPerWarp  = WarpSize / LanesPerRow;
-    static constexpr index_t IssuesPerRow = Experts / (LanesPerRow * VectorSize);
-
-    static constexpr index_t IssuesPerCol = IssuesPerCol_;
+    static constexpr index_t RowsPerWarpPerColIssue = WarpSize / LanesPerRow;
+    static constexpr index_t RowsPerWarp            = IssuesPerCol * RowsPerWarpPerColIssue;
+    static constexpr index_t IssuesPerRow           = Experts / (LanesPerRow * VectorSize);
 
     static constexpr index_t WarpsPerBlock = BlockSize / WarpSize;
     static constexpr index_t RowsPerBlock  = RowsPerWarp * WarpsPerBlock;

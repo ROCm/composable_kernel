@@ -160,10 +160,9 @@ CK_TILE_DEVICE void block_tile_reduce_xor_sync(AccDistributedTensor_& acc_tensor
 
                 // reduction sweep forward
                 static_for<0, nstage, 1>{}([&](auto istage) {
-                    // TODO: lid_over_rid_derivative not ok in xor? maybe need limit the usage of
                     // xor
-                    index_t src_lane = (__lane_id() * lid_over_rid_derivative) ^
-                                       (number<1 << istage.value>{}.value);
+                    index_t src_lane =
+                        __lane_id() ^ (number<lid_over_rid_derivative << istage.value>{}.value);
 
                     // pull data from remote lane
                     const auto v_remote = warp_shuffle(v_local, src_lane);

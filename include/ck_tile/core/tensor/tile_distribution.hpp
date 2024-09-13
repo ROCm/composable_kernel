@@ -454,6 +454,7 @@ struct tile_distribution_detail
 
 } // namespace detail
 
+#if 0
 // this returns a constexpr tile_distribution
 template <typename StaticTileDistributionEncoding_>
 CK_TILE_HOST_DEVICE constexpr auto make_tile_distribution(StaticTileDistributionEncoding_)
@@ -490,6 +491,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_tile_distribution(StaticTileDistribution
         detail::tile_distribution_detail<remove_cvref_t<decltype(rh_major_minor_to_hidden_ids)>>>{
         ps_ys_to_xs_adaptor, ys_to_d_descriptor};
 }
+#endif
 
 // this returns a static tile_distribution
 template <typename StaticTileDistributionEncoding_>

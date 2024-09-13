@@ -50,6 +50,7 @@
 #include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
 #include "ck_tile/core/tensor/tile_elementwise.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
+#include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/tensor/update_tile.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"

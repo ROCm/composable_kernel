@@ -635,6 +635,14 @@ CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const Y& y)
     return r;
 }
 
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator+(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] + y[i]; }, number<NSize>{});
+}
+
 template <typename... Xs,
           typename Y,
           std::enable_if_t<!std::is_integral<Y>::value && !std::is_floating_point<Y>::value, bool> =
@@ -647,6 +655,14 @@ CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const Y& y)
     tuple<Xs...> r;
     static_for<0, NSize, 1>{}([&](auto i) { r[i] = x[i] - y[i]; });
     return r;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator-(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] - y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs,
@@ -684,6 +700,14 @@ template <
 CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, Y a)
 {
     return a * x;
+}
+
+template <typename... Xs, typename... Ys>
+CK_TILE_HOST_DEVICE constexpr auto operator*(const tuple<Xs...>& x, const tuple<Ys...>& y)
+{
+    static_assert(sizeof...(Xs) == sizeof...(Ys), "wrong!");
+    constexpr index_t NSize = sizeof...(Xs);
+    return generate_tuple([&](auto i) { return x[i] * y[i]; }, number<NSize>{});
 }
 
 template <typename... Xs, typename... Ys>

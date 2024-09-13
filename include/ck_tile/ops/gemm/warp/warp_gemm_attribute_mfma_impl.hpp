@@ -139,7 +139,7 @@ struct WarpGemmAttributeMfmaImplF16F16F32M16N16K16
         }
         else if constexpr(Ctrl == WGAttrCtlEnum::Raw_vaa)
         {
-            DISPATCH_MFMA_("v_mfma_f32_16x16x16f16", "+v", "a", "b", "v")
+            DISPATCH_MFMA_("v_mfma_f32_16x16x16f16", "+v", "a", "a", "v")
         }
         else
         {

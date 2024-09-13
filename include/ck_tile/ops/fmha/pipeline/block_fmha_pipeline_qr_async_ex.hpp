@@ -229,7 +229,7 @@ struct BlockFmhaPipelineQRAsyncEx
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
         // infer Sacc, S, P, M, L, Oacc type
-        using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(s_acc));
+        using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(s_accs));
 
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, sequence<1>{}, f_max, SMPLComputeDataType{0}));
@@ -336,7 +336,7 @@ struct BlockFmhaPipelineQRAsyncEx
         do
         {
             // STAGE 1, QK gemm
-            clear_tile(s_acc); // initialize C
+            clear_tile(s_accs); // initialize C
             if constexpr(k0_loops > 1)
             {
                 static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
@@ -350,7 +350,7 @@ struct BlockFmhaPipelineQRAsyncEx
                     async_load_fence(k_dram_window.get_num_access());
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
-                    gemm_0(s_acc,
+                    gemm_0(s_accs,
                            get_slice_tile(
                                q, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{}),
 
@@ -373,7 +373,7 @@ struct BlockFmhaPipelineQRAsyncEx
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 gemm_0(
-                    s_acc,
+                    s_accs,
                     get_slice_tile(
                         q, sequence<0, (k0_loops - 1) * kK0>{}, sequence<kM0, k0_loops * kK0>{}),
                     get_slice_tile(k_lds_load,
@@ -385,8 +385,8 @@ struct BlockFmhaPipelineQRAsyncEx
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                s_accs = tile_elementwise_in(s_acc_element_func, s_accs);
+                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_accs);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
@@ -396,33 +396,33 @@ struct BlockFmhaPipelineQRAsyncEx
                              type_convert<SaccDataType>(bias_element_func(y));
 #endif
                     },
-                    s_acc,
+                    s_accs,
                     bias_tile);
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
                 const auto k_origin    = k_dram_block_window.get_window_origin();
-                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
-                s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
+                constexpr auto s_spans = decltype(s_accs)::get_distributed_spans();
+                s_accs                 = tile_elementwise_in(s_acc_element_func, s_accs);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
-                            s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+                            s_accs.get_tile_distribution(), make_tuple(idx0, idx1));
 
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        s_acc(i_j_idx) *= scale_s;
-                        position_encoding.update(s_acc(i_j_idx), row, col);
+                        s_accs(i_j_idx) *= scale_s;
+                        position_encoding.update(s_accs(i_j_idx), row, col);
                     });
                 });
             }
             else
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_accs = tile_elementwise_in(s_acc_element_func, s_accs);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
-                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
+                tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_accs);
 #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
@@ -437,7 +437,7 @@ struct BlockFmhaPipelineQRAsyncEx
                 if(need_perpixel_check)
                 {
                     set_tile_if(
-                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                        s_accs, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                             const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                             return mask.IsOutOfBound(row, col);
@@ -445,7 +445,7 @@ struct BlockFmhaPipelineQRAsyncEx
                 }
             }
 
-            const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
+            const auto s = cast_tile<SMPLComputeDataType>(s_accs); // S{j}
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
                 s,
                 sequence<1>{},

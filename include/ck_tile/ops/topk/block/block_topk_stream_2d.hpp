@@ -30,12 +30,13 @@ struct BlockTopkStream2D
 
     template <typename DistributedTensor, typename OutWindow, typename IdxWindow, index_t dim = 1>
     CK_TILE_DEVICE void operator()(const DistributedTensor& x,
-                                   OutWindow& out_window,
-                                   IdxWindow& idx_window,
+                                   const OutWindow& out_window,
+                                   const IdxWindow& idx_window,
                                    index_t k,
                                    number<dim> = {})
     {
-        // static_assert(OutWindow::get_window_lengths()[number<1>] == 1);
+        OutWindow out_window_tmp = out_window;
+        IdxWindow idx_window_tmp = idx_window;
         static_assert(
             std::is_same_v<typename DistributedTensor::DataType, typename OutWindow::DataType> &&
             std::is_same_v<typename DistributedTensor::DataType, DataType>);
@@ -100,11 +101,11 @@ struct BlockTopkStream2D
 
             if(threadIdx.x % Problem::ColLanes == 0)
             {
-                store_tile(out_window, o);
-                store_tile(idx_window, i);
+                store_tile(out_window_tmp, o);
+                store_tile(idx_window_tmp, i);
             }
-            move_tile_window(out_window, {number<0>{}, number<1>{}});
-            move_tile_window(idx_window, {number<0>{}, number<1>{}});
+            move_tile_window(out_window_tmp, {number<0>{}, number<1>{}});
+            move_tile_window(idx_window_tmp, {number<0>{}, number<1>{}});
         }
     }
 };

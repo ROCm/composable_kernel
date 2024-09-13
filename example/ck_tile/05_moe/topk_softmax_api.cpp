@@ -25,7 +25,7 @@ float topk_softmax(topk_softmax_trait t, topk_softmax_kargs a, ck_tile::stream_c
         using ts_input_type  = ck_tile::fp16_t;
         using ts_weight_type = float;
         using ts_index_type  = ck_tile::index_t;
-
+#if 1
         if(t.experts <= 8)
         {
             TOPK_SOFTMAX_DISPATCH(8)
@@ -42,9 +42,24 @@ float topk_softmax(topk_softmax_trait t, topk_softmax_kargs a, ck_tile::stream_c
         {
             TOPK_SOFTMAX_DISPATCH(64)
         }
+        else if(t.experts <= 128)
+        {
+            TOPK_SOFTMAX_DISPATCH(128)
+        }
+        else if(t.experts <= 192)
+        {
+            TOPK_SOFTMAX_DISPATCH(192)
+        }
+#else
+        if(t.experts <= 16)
+        {
+            TOPK_SOFTMAX_DISPATCH(16)
+        }
+#endif
     }
     else if(t.input_type == "bf16" && t.weight_type == "fp32")
     {
+#if 1
         using ts_input_type  = ck_tile::bf16_t;
         using ts_weight_type = float;
         using ts_index_type  = ck_tile::index_t;
@@ -64,6 +79,15 @@ float topk_softmax(topk_softmax_trait t, topk_softmax_kargs a, ck_tile::stream_c
         {
             TOPK_SOFTMAX_DISPATCH(64)
         }
+        else if(t.experts <= 128)
+        {
+            TOPK_SOFTMAX_DISPATCH(128)
+        }
+        else if(t.experts <= 192)
+        {
+            TOPK_SOFTMAX_DISPATCH(192)
+        }
+#endif
     }
     return -1;
 }

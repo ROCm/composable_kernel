@@ -223,10 +223,11 @@ struct tile_window_with_static_distribution
 
     // move thread's window adaptor coordinate and bottom tensor coordinate
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
+    template <typename ATopIndex>
     CK_TILE_DEVICE void move_window_adaptor_and_bottom_tensor_thread_coordinate(
         WindowAdaptorCoord& window_adaptor_thread_coord,
         BottomTensorCoord& bottom_tensor_thread_coord,
-        const AdaptorTopIndex& idx_diff_adaptor_top) const
+        const ATopIndex& idx_diff_adaptor_top) const
     {
         array<index_t, NDimBottomTensor> idx_diff_adaptor_bottom;
 
@@ -309,7 +310,7 @@ struct tile_window_with_static_distribution
                 // read from bottom tensor
                 const vector_t vec_value =
                     get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
-                        bottom_tensor_thread_coord, bool_constant<oob_conditional_check>{});
+                        bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
 #if 1
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
@@ -337,10 +338,11 @@ struct tile_window_with_static_distribution
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
                 {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step_static(iAccess);
 
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        idx_diff_ys);
 
                     move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
@@ -398,7 +400,7 @@ struct tile_window_with_static_distribution
                 get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
                     dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
                     bottom_tensor_thread_coord,
-                    /**/,
+                    0 /**/,
                     bool_constant<oob_conditional_check>{},
                     pre_nop_);
 #if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE || \
@@ -484,7 +486,7 @@ struct tile_window_with_static_distribution
 
                 // read from bottom tensor
                 get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
-                    smem, bottom_tensor_thread_coord, pre_nop_);
+                    smem, bottom_tensor_thread_coord, 0, pre_nop_);
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -552,7 +554,7 @@ struct tile_window_with_static_distribution
 
                 // read from bottom tensor
                 get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-                    smem, bottom_tensor_thread_coord, bool_constant<oob_conditional_check>{});
+                    smem, bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -618,7 +620,10 @@ struct tile_window_with_static_distribution
 
                 // write into bottom tensor
                 get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
-                    bottom_tensor_thread_coord, vec_value, bool_constant<oob_conditional_check>{});
+                    bottom_tensor_thread_coord,
+                    0,
+                    vec_value,
+                    bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -676,7 +681,7 @@ struct tile_window_with_static_distribution
                 // write into bottom tensor
                 get_bottom_tensor_view()
                     .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
-                        bottom_tensor_thread_coord, vec_value);
+                        bottom_tensor_thread_coord, 0, vec_value);
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -736,7 +741,10 @@ struct tile_window_with_static_distribution
 
                 // write into bottom tensor
                 get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
-                    bottom_tensor_thread_coord, vec_value, bool_constant<oob_conditional_check>{});
+                    bottom_tensor_thread_coord,
+                    0,
+                    vec_value,
+                    bool_constant<oob_conditional_check>{});
 
                 // move thread coordinate
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
@@ -868,6 +876,27 @@ make_tile_window(const TensorView_& tensor_view,
         tensor_view, window_lengths, origin, tile_distribution};
 }
 
+// this version must not be called under a constexpr context
+template <typename TensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          index_t NumCoord = 1>
+CK_TILE_DEVICE auto
+make_tile_window_raw(const TensorView_& tensor_view,
+                     const WindowLengths_& window_lengths,
+                     const multi_index<TensorView_::get_num_of_dimension()>& origin,
+                     const StaticTileDistribution_& tile_distribution,
+                     number<NumCoord> = {})
+{
+    auto w = tile_window_with_static_distribution<remove_cvref_t<TensorView_>,
+                                                  remove_cvref_t<WindowLengths_>,
+                                                  remove_cvref_t<StaticTileDistribution_>,
+                                                  NumCoord>{
+        tensor_view, window_lengths, origin, tile_distribution};
+    w.init_raw();
+    return w;
+}
+
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -990,6 +1019,19 @@ make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths
                             tile_window.get_window_lengths(),
                             tile_window.get_window_origin(),
                             tile_distribution);
+}
+
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto
+make_tile_window_raw(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                     const StaticTileDistribution& tile_distribution)
+{
+    auto w = make_tile_window(tile_window.get_bottom_tensor_view(),
+                              tile_window.get_window_lengths(),
+                              tile_window.get_window_origin(),
+                              tile_distribution);
+    w.init_raw();
+    return w;
 }
 
 template <typename TensorView_, typename WindowLengths_>
