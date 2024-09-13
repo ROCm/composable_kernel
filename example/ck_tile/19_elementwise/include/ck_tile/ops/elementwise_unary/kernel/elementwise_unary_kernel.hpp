@@ -57,15 +57,17 @@ struct ElementwiseUnaryKernel
 
     CK_TILE_HOST_DEVICE static constexpr auto BlockSize() { return Problem::BlockSize; }
 
-    CK_TILE_DEVICE void operator()(Kargs kargs) const
+    CK_TILE_DEVICE void operator()(const void* p_input_,
+        void* p_output_,
+        uint64_t num_pixels_) const
     {
         uint64_t block_base =
             static_cast<uint64_t>(blockIdx.x) * Problem::BlockSize * Problem::VectorSize;
-        uint64_t pixels_rem = kargs.num_pixels - block_base;
+        uint64_t pixels_rem = num_pixels_ - block_base;
 
         const auto input_window = [&]() {
             const InputType* p_input =
-                reinterpret_cast<const InputType*>(kargs.p_input) + block_base;
+                reinterpret_cast<const InputType*>(p_input_) + block_base;
 
             auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                 p_input,
@@ -78,7 +80,7 @@ struct ElementwiseUnaryKernel
 
         auto output_window = [&]() {
             OutputType* p_output =
-                reinterpret_cast<OutputType*>(kargs.p_output) + block_base;
+                reinterpret_cast<OutputType*>(p_output_) + block_base;
 
             auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                 p_output,

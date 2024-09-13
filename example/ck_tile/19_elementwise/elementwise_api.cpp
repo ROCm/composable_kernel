@@ -25,7 +25,7 @@ struct Cast
     constexpr dim3 blocks = kernel::BlockSize();                                                   \
                                                                                                    \
     float ave_time = ck_tile::launch_kernel(                                                       \
-        s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs));                  \
+        s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs.p_input, kargs.p_output, kargs.num_pixels));                  \
     return ave_time;
 
 float elementwise(elementwise_trait t, elementwise_kargs a, ck_tile::stream_config s)
@@ -35,11 +35,11 @@ float elementwise(elementwise_trait t, elementwise_kargs a, ck_tile::stream_conf
     {
         if(t.output_type == "fp32" && t.input_type == "fp16")
         {
-            DISPATCH_ELEMENTWISE_CAST(float, ck_tile::fp16_t, sizeof(ck_tile::fp16_t), 8)
+            DISPATCH_ELEMENTWISE_CAST(float, ck_tile::fp16_t, 8*sizeof(ck_tile::fp16_t), 8)
         }
         else if(t.output_type == "fp16" && t.input_type == "fp32")
         {
-            DISPATCH_ELEMENTWISE_CAST(ck_tile::fp16_t, float, sizeof(float), 8)
+            DISPATCH_ELEMENTWISE_CAST(ck_tile::fp16_t, float, 4*sizeof(float), 8)
         }
     }
     return rtn;
