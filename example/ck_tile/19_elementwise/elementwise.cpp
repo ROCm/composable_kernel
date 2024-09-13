@@ -153,13 +153,13 @@ bool test_cast(ck_tile::ArgParser args)
         t_.input_type  = input_prec;
         t_.output_type = output_prec;
         t_.op          = std::string("cast");
-        t_.num_cu = [&]() {
-                hipDeviceProp_t dev_prop;
-                hipDevice_t dev;
-                HIP_CHECK_ERROR(hipGetDevice(&dev));
-                HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
-                return dev_prop.multiProcessorCount;
-            }();
+        t_.num_cu      = [&]() {
+            hipDeviceProp_t dev_prop;
+            hipDevice_t dev;
+            HIP_CHECK_ERROR(hipGetDevice(&dev));
+            HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+            return dev_prop.multiProcessorCount;
+        }();
         return t_;
     }();
 
@@ -188,7 +188,8 @@ bool test_cast(ck_tile::ArgParser args)
         ck_tile::stream_config sc{stream_};
 
         HIP_CHECK_ERROR(hipStreamBeginCapture(sc.stream_id_, hipStreamCaptureModeGlobal));
-        for(int i_r = 0; i_r < repeat; i_r++) {
+        for(int i_r = 0; i_r < repeat; i_r++)
+        {
             elementwise(trait, karg, sc);
         }
         HIP_CHECK_ERROR(hipStreamEndCapture(sc.stream_id_, &graph_));
@@ -201,8 +202,9 @@ bool test_cast(ck_tile::ArgParser args)
         HIP_CHECK_ERROR(hipEventCreate(&start_));
         HIP_CHECK_ERROR(hipEventCreate(&stop_));
 
-        //warm-up
-        for(int i_r = 0; i_r < warpup; i_r++) {
+        // warm-up
+        for(int i_r = 0; i_r < warpup; i_r++)
+        {
             elementwise(trait, karg, sc);
         }
         HIP_CHECK_ERROR(hipDeviceSynchronize());
@@ -225,12 +227,17 @@ bool test_cast(ck_tile::ArgParser args)
         ms = total_time / repeat;
     }
 #endif
-    auto gbps = [&](){
+    auto gbps = [&]() {
         double total_bytes = num_pixels * sizeof(SrcType) + num_pixels * sizeof(DstType);
         return total_bytes / 1.E6 / ms;
     }();
-    printf(
-        "[cast] %s->%s, n:%lu,  ns:%f(ms:%f), %.2fGB/s, ", input_prec.c_str(), output_prec.c_str(), num_pixels, ms*1e6, ms, gbps);
+    printf("[cast] %s->%s, n:%lu,  ns:%f(ms:%f), %.2fGB/s, ",
+           input_prec.c_str(),
+           output_prec.c_str(),
+           num_pixels,
+           ms * 1e6,
+           ms,
+           gbps);
     if(ms < 0)
         printf("not supported\n");
     fflush(stdout);

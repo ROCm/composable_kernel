@@ -28,10 +28,10 @@ struct ElementwiseUnaryWarpPerRowProblem
     static constexpr index_t WarpSize      = get_warp_size();
 
     static_assert(BytesPerIssue % sizeof(InputType) == 0);
-    static constexpr index_t VectorSize   = BytesPerIssue / sizeof(InputType);
-    static constexpr index_t LanesPerRow  = WarpSize;
+    static constexpr index_t VectorSize    = BytesPerIssue / sizeof(InputType);
+    static constexpr index_t LanesPerRow   = WarpSize;
     static constexpr index_t WarpsPerBlock = BlockSize / LanesPerRow;
-    static constexpr index_t IssuesPerRow = 1;
+    static constexpr index_t IssuesPerRow  = 1;
 
 #if 0
     static_assert(Experts % VectorSize == 0);

@@ -13,7 +13,7 @@
 #endif
 
 namespace ck_tile {
-                                
+
 template <typename Problem_, typename Policy_ = ElementwiseUnaryPolicy>
 struct ElementwiseUnaryipeline
 {
@@ -37,7 +37,8 @@ struct ElementwiseUnaryipeline
 
         static_for<0, Problem::Chunks, 1>{}([&](auto) {
             auto x = load_tile(inp_win);
-            auto y = make_static_distributed_tensor<typename Problem::OutputType>(x.get_tile_distribution());
+            auto y = make_static_distributed_tensor<typename Problem::OutputType>(
+                x.get_tile_distribution());
 
             tile_elementwise_inout(UnaryFunctor{}, y, x);
             store_tile(out_win, y);
