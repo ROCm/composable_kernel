@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -712,6 +712,12 @@ struct MfmaSelector
 
     template <>
     static constexpr auto GetMfma<half_t, 32, 32>()
+    {
+        return MfmaInstr::mfma_f32_32x32x8f16;
+    }
+
+    template <>
+    static constexpr auto GetMfma<custom_half_t, 32, 32>()
     {
         return MfmaInstr::mfma_f32_32x32x8f16;
     }
