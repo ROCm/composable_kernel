@@ -13,6 +13,7 @@ struct elementwise_trait
     std::string acc_type;    // type to do intermediate computation
     std::string output_type; // type to store out
     std::string op;
+    int num_cu;
 };
 
 struct elementwise_kargs : public ck_tile::ElementwiseUnaryHostArgs

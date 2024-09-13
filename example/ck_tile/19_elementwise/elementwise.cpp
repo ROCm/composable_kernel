@@ -17,6 +17,10 @@
 #define TEST_ELEMENTWISE_VERBOSE 1
 #endif
 
+#ifndef TEST_ELEMENTWISE_HIPGRAPH
+#define TEST_ELEMENTWISE_HIPGRAPH 1
+#endif
+
 template <typename T>
 void dump_host_tensor_2d(const ck_tile::HostTensor<T>& x)
 {
@@ -149,6 +153,13 @@ bool test_cast(ck_tile::ArgParser args)
         t_.input_type  = input_prec;
         t_.output_type = output_prec;
         t_.op          = std::string("cast");
+        t_.num_cu = [&]() {
+                hipDeviceProp_t dev_prop;
+                hipDevice_t dev;
+                HIP_CHECK_ERROR(hipGetDevice(&dev));
+                HIP_CHECK_ERROR(hipGetDeviceProperties(&dev_prop, dev));
+                return dev_prop.multiProcessorCount;
+            }();
         return t_;
     }();
 
@@ -161,11 +172,65 @@ bool test_cast(ck_tile::ArgParser args)
     }();
 
 #if TEST_ELEMENTWISE_VERBOSE
-    ck_tile::stream_config sc{nullptr, true};
+#if !TEST_ELEMENTWISE_HIPGRAPH
+    ck_tile::stream_config sc{nullptr, true, 0, 20, 50, false};
     // ck_tile::stream_config sc{nullptr};
     auto ms = elementwise(trait, karg, sc);
+#else
+    float ms = 0;
+    {
+        int repeat = 50;
+        int warpup = 20;
+        hipGraph_t graph_;
+        hipStream_t stream_;
+
+        HIP_CHECK_ERROR(hipStreamCreate(&stream_));
+        ck_tile::stream_config sc{stream_};
+
+        HIP_CHECK_ERROR(hipStreamBeginCapture(sc.stream_id_, hipStreamCaptureModeGlobal));
+        for(int i_r = 0; i_r < repeat; i_r++) {
+            elementwise(trait, karg, sc);
+        }
+        HIP_CHECK_ERROR(hipStreamEndCapture(sc.stream_id_, &graph_));
+
+        hipGraphExec_t instance_;
+        HIP_CHECK_ERROR(hipGraphInstantiate(&instance_, graph_, nullptr, nullptr, 0));
+
+        hipEvent_t start_, stop_;
+
+        HIP_CHECK_ERROR(hipEventCreate(&start_));
+        HIP_CHECK_ERROR(hipEventCreate(&stop_));
+
+        //warm-up
+        for(int i_r = 0; i_r < warpup; i_r++) {
+            elementwise(trait, karg, sc);
+        }
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+        HIP_CHECK_ERROR(hipEventRecord(start_, sc.stream_id_));
+
+        HIP_CHECK_ERROR(hipGraphLaunch(instance_, sc.stream_id_));
+
+        HIP_CHECK_ERROR(hipEventRecord(stop_, sc.stream_id_));
+        HIP_CHECK_ERROR(hipEventSynchronize(stop_));
+
+        HIP_CHECK_ERROR(hipGetLastError());
+
+        HIP_CHECK_ERROR(hipGraphDestroy(graph_));
+
+        float total_time = 0;
+
+        HIP_CHECK_ERROR(hipEventElapsedTime(&total_time, start_, stop_));
+
+        ms = total_time / repeat;
+    }
+#endif
+    auto gbps = [&](){
+        double total_bytes = num_pixels * sizeof(SrcType) + num_pixels * sizeof(DstType);
+        return total_bytes / 1.E6 / ms;
+    }();
     printf(
-        "[cast] %s->%s, n:%lu,  ms:%f, ", input_prec.c_str(), output_prec.c_str(), num_pixels, ms);
+        "[cast] %s->%s, n:%lu,  ns:%f(ms:%f), %.2fGB/s, ", input_prec.c_str(), output_prec.c_str(), num_pixels, ms*1e6, ms, gbps);
     if(ms < 0)
         printf("not supported\n");
     fflush(stdout);
