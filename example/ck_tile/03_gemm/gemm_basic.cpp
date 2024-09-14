@@ -11,118 +11,6 @@
 #include <string>
 #include <tuple>
 
-__global__ void naive_gemm_kernel(ADataType* A,
-                                  BDataType* B,
-                                  CDataType* C,
-                                  ck_tile::index_t M,
-                                  ck_tile::index_t N,
-                                  ck_tile::index_t K,
-                                  ck_tile::index_t strideA,
-                                  ck_tile::index_t strideB,
-                                  ck_tile::index_t strideC)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = idx / N; // Compute row index
-    int col = idx % N; // Compute column index
-
-    if(row < M && col < N)
-    {
-        AccDataType acc = 0.0;
-
-        for(int k = 0; k < K; ++k)
-        {
-            acc += static_cast<AccDataType>(A[row * strideA + k]) *
-                   static_cast<AccDataType>(B[col * strideB + k]);
-        }
-
-        C[row * strideC + col] = acc; // Store as AccDataType
-    }
-}
-
-void run_naive_gemm(ck_tile::HostTensor<ADataType>& a_host,
-                    ck_tile::HostTensor<BDataType>& b_host,
-                    ck_tile::HostTensor<CDataType>& c_host,
-                    ck_tile::index_t M,
-                    ck_tile::index_t N,
-                    ck_tile::index_t K,
-                    ck_tile::index_t stride_a,
-                    ck_tile::index_t stride_b,
-                    ck_tile::index_t stride_c)
-{
-
-    ADataType* d_A;
-    BDataType* d_B;
-    CDataType* d_C;
-
-    hipError_t errA = hipMalloc(&d_A, M * K * sizeof(ADataType));
-    hipError_t errB = hipMalloc(&d_B, N * K * sizeof(BDataType));
-    hipError_t errC = hipMalloc(&d_C, M * N * sizeof(CDataType));
-    if(errA != hipSuccess)
-    {
-        std::cerr << "Error allocating device memory for A: " << hipGetErrorString(errA)
-                  << std::endl;
-        return; // Early exit on error
-    }
-
-    if(errB != hipSuccess)
-    {
-        std::cerr << "Error allocating device memory for B: " << hipGetErrorString(errB)
-                  << std::endl;
-        return; // Early exit on error
-    }
-
-    if(errC != hipSuccess)
-    {
-        std::cerr << "Error allocating device memory for C: " << hipGetErrorString(errC)
-                  << std::endl;
-        return; // Early exit on error
-    }
-
-    errA = hipMemcpy(d_A, a_host.data(), M * K * sizeof(ADataType), hipMemcpyHostToDevice);
-    if(errA != hipSuccess)
-    {
-        std::cerr << "Error copying A to device: " << hipGetErrorString(errA) << std::endl;
-    }
-
-    errB = hipMemcpy(d_B, b_host.data(), N * K * sizeof(BDataType), hipMemcpyHostToDevice);
-    if(errB != hipSuccess)
-    {
-        std::cerr << "Error copying B to device: " << hipGetErrorString(errB) << std::endl;
-    }
-
-    int totalElements      = M * N;
-    int numThreadsPerBlock = 256; // Common choice for threads per block
-    int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
-
-    naive_gemm_kernel<<<numBlocks, numThreadsPerBlock>>>(
-        d_A, d_B, d_C, M, N, K, stride_a, stride_b, stride_c);
-    errC = hipMemcpy(c_host.data(), d_C, M * N * sizeof(CDataType), hipMemcpyDeviceToHost);
-    if(errC != hipSuccess)
-    {
-        std::cerr << "Error copying C to device: " << hipGetErrorString(errC) << std::endl;
-    }
-
-    errA = hipFree(d_A);
-    if(errA != hipSuccess)
-    {
-        std::cerr << "Error free the A memory: " << hipGetErrorString(errA) << std::endl;
-    }
-
-    errB = hipFree(d_B);
-    if(errB != hipSuccess)
-    {
-        std::cerr << "Error free the B memory: " << hipGetErrorString(errB) << std::endl;
-    }
-
-    errC = hipFree(d_C);
-    if(errC != hipSuccess)
-    {
-        std::cerr << "Error free the C memory: " << hipGetErrorString(errC) << std::endl;
-    }
-
-    return;
-}
-
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -451,8 +339,12 @@ int main(int argc, char* argv[])
         }
 
         ck_tile::HostTensor<CDataType> c_host_gpu_ref(c_dimensions);
+        ck_tile::DeviceMem c_gpu_buf(c_host_gpu_ref.get_element_space_size_in_bytes());
 
-        run_naive_gemm(a_host, b_host, c_host_gpu_ref, M, N, K, stride_a, stride_b, stride_c);
+        ck_tile::reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType>(
+            a_buf, b_buf, c_gpu_buf, M, N, K, stride_a, stride_b, stride_c);
+
+        c_buf.FromDevice(c_host_gpu_ref.data());
 
         pass_gpu = ck_tile::check_err(c_host_dev, c_host_gpu_ref);
 

@@ -70,13 +70,3 @@ struct gemm_basic_args
 
 // host API
 float gemm_calc(gemm_basic_args args, const ck_tile::stream_config& s);
-
-void run_naive_gemm(ck_tile::HostTensor<ADataType>& a_host,
-                    ck_tile::HostTensor<BDataType>& b_host,
-                    ck_tile::HostTensor<CDataType>& c_host,
-                    ck_tile::index_t M,
-                    ck_tile::index_t N,
-                    ck_tile::index_t K,
-                    ck_tile::index_t stride_a,
-                    ck_tile::index_t stride_b,
-                    ck_tile::index_t stride_c);
