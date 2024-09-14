@@ -76,8 +76,7 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmCommonKargs kargs) const
     {
-        const index_t i_m = TilePartitioner::iM;
-        const index_t i_n = TilePartitioner::iN;
+        const auto [i_m, i_n] = TilePartitioner{}();
         // options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
@@ -104,7 +103,7 @@ struct GemmKernel
         }();
 
         auto b_tensor_view = [&]() {
-            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     b_start,
