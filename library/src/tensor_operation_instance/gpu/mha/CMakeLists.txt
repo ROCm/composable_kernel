@@ -27,6 +27,11 @@ rocm_install(FILES ${MHA_HEADERS} DESTINATION include/ck_tile/ops)
 # headers for building lib
 file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 
+# Delete the blob file if it exists to avoid append of old content.
+if(EXISTS ${FMHA_CPP_FOLDER}/blob_list.txt)
+    file(REMOVE ${FMHA_CPP_FOLDER}/blob_list.txt)
+endif()
+
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
@@ -39,7 +44,7 @@ else()
   file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_FWD_GEN_BLOBS)
 endif()
 
-# actually generate the cpp files
+# actually generate the kernel content now
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
