@@ -3,13 +3,125 @@
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_basic.hpp"
-#include "ck_tile/host.hpp"
+#include <hip/hip_runtime.h>
 
 #include <cstring>
 #include <iostream>
 #include <ostream>
 #include <string>
 #include <tuple>
+
+__global__ void naive_gemm_kernel(ADataType* A,
+                                  BDataType* B,
+                                  CDataType* C,
+                                  ck_tile::index_t M,
+                                  ck_tile::index_t N,
+                                  ck_tile::index_t K,
+                                  ck_tile::index_t strideA,
+                                  ck_tile::index_t strideB,
+                                  ck_tile::index_t strideC)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = idx / N; // Compute row index
+    int col = idx % N; // Compute column index
+
+    if(row < M && col < N)
+    {
+        AccDataType acc = 0.0;
+
+        for(int k = 0; k < K; ++k)
+        {
+            acc += static_cast<AccDataType>(A[row * strideA + k]) *
+                   static_cast<AccDataType>(B[col * strideB + k]);
+        }
+
+        C[row * strideC + col] = acc; // Store as AccDataType
+    }
+}
+
+void run_naive_gemm(ck_tile::HostTensor<ADataType>& a_host,
+                    ck_tile::HostTensor<BDataType>& b_host,
+                    ck_tile::HostTensor<CDataType>& c_host,
+                    ck_tile::index_t M,
+                    ck_tile::index_t N,
+                    ck_tile::index_t K,
+                    ck_tile::index_t stride_a,
+                    ck_tile::index_t stride_b,
+                    ck_tile::index_t stride_c)
+{
+
+    ADataType* d_A;
+    BDataType* d_B;
+    CDataType* d_C;
+
+    hipError_t errA = hipMalloc(&d_A, M * K * sizeof(ADataType));
+    hipError_t errB = hipMalloc(&d_B, N * K * sizeof(BDataType));
+    hipError_t errC = hipMalloc(&d_C, M * N * sizeof(CDataType));
+    if(errA != hipSuccess)
+    {
+        std::cerr << "Error allocating device memory for A: " << hipGetErrorString(errA)
+                  << std::endl;
+        return; // Early exit on error
+    }
+
+    if(errB != hipSuccess)
+    {
+        std::cerr << "Error allocating device memory for B: " << hipGetErrorString(errB)
+                  << std::endl;
+        return; // Early exit on error
+    }
+
+    if(errC != hipSuccess)
+    {
+        std::cerr << "Error allocating device memory for C: " << hipGetErrorString(errC)
+                  << std::endl;
+        return; // Early exit on error
+    }
+
+    errA = hipMemcpy(d_A, a_host.data(), M * K * sizeof(ADataType), hipMemcpyHostToDevice);
+    if(errA != hipSuccess)
+    {
+        std::cerr << "Error copying A to device: " << hipGetErrorString(errA) << std::endl;
+    }
+
+    errB = hipMemcpy(d_B, b_host.data(), N * K * sizeof(BDataType), hipMemcpyHostToDevice);
+    if(errB != hipSuccess)
+    {
+        std::cerr << "Error copying B to device: " << hipGetErrorString(errB) << std::endl;
+    }
+
+    int totalElements      = M * N;
+    int numThreadsPerBlock = 256; // Common choice for threads per block
+    int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
+
+    naive_gemm_kernel<<<numBlocks, numThreadsPerBlock>>>(
+        d_A, d_B, d_C, M, N, K, stride_a, stride_b, stride_c);
+    errC = hipMemcpy(c_host.data(), d_C, M * N * sizeof(CDataType), hipMemcpyDeviceToHost);
+    if(errC != hipSuccess)
+    {
+        std::cerr << "Error copying C to device: " << hipGetErrorString(errC) << std::endl;
+    }
+
+    errA = hipFree(d_A);
+    if(errA != hipSuccess)
+    {
+        std::cerr << "Error free the A memory: " << hipGetErrorString(errA) << std::endl;
+    }
+
+    errB = hipFree(d_B);
+    if(errB != hipSuccess)
+    {
+        std::cerr << "Error free the B memory: " << hipGetErrorString(errB) << std::endl;
+    }
+
+    errC = hipFree(d_C);
+    if(errC != hipSuccess)
+    {
+        std::cerr << "Error free the C memory: " << hipGetErrorString(errC) << std::endl;
+    }
+
+    return;
+}
 
 auto create_args(int argc, char* argv[])
 {
@@ -298,74 +410,49 @@ int main(int argc, char* argv[])
 
     if(arg_parser.get_int("v") == 2)
     {
-        // GPU Verification will call the basic version of the GEMM computation and run it with the
-        // standard layout and standard pipeline. The pipeline and layout here will not be affected
-        // by the Codegen.
-        constexpr ck_tile::index_t M_Tile_Test = 128;
-        constexpr ck_tile::index_t N_Tile_Test = 128;
-        constexpr ck_tile::index_t K_Tile_Test = 32;
+        ck_tile::index_t stride_a = arg_parser.get_int("stride_a");
+        ck_tile::index_t stride_b = arg_parser.get_int("stride_b");
+        ck_tile::index_t stride_c = arg_parser.get_int("stride_c");
 
-        constexpr ck_tile::index_t M_Warp_Test = 2;
-        constexpr ck_tile::index_t N_Warp_Test = 2;
-        constexpr ck_tile::index_t K_Warp_Test = 1;
-
-        constexpr ck_tile::index_t M_Warp_Tile_Test = 32;
-        constexpr ck_tile::index_t N_Warp_Tile_Test = 32;
-        constexpr ck_tile::index_t K_Warp_Tile_Test = 8;
-
-        using TestGemmShape = ck_tile::TileGemmShape<
-            ck_tile::sequence<M_Tile_Test, N_Tile_Test, K_Tile_Test>,
-            ck_tile::sequence<M_Warp_Test, N_Warp_Test, K_Warp_Test>,
-            ck_tile::sequence<M_Warp_Tile_Test, N_Warp_Tile_Test, K_Warp_Tile_Test>>;
-        using TestPipelineProblem = ck_tile::BlockGemmPipelineProblem<ADataType,
-                                                                      BDataType,
-                                                                      AccDataType,
-                                                                      TestGemmShape,
-                                                                      kPadA,
-                                                                      kPadB,
-                                                                      kPadC>;
-        using TestGemmPipeline    = ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<TestPipelineProblem>;
-        using test_matrix_a_layout         = ck_tile::tensor_layout::gemm::RowMajor;
-        using test_matrix_b_layout         = ck_tile::tensor_layout::gemm::ColumnMajor;
-        using test_matrix_c_layout         = ck_tile::tensor_layout::gemm::RowMajor;
-        std::vector<size_t> transpose_axes = {1, 0}; // Swap dimensions for (M, K) to (K, M).
-        if(!std::is_same_v<test_matrix_a_layout, matrix_a_layout>)
+        if(stride_a == 0)
         {
-            // transpose the input tensor to make it align with the Row Major pattern.
-            a_host = a_host.transpose(transpose_axes);
-        }
-        if(!std::is_same_v<test_matrix_b_layout, matrix_b_layout>)
-        {
-            b_host = b_host.transpose(transpose_axes);
+            if constexpr(std::is_same_v<matrix_a_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                stride_a = M;
+            }
+            else
+            {
+                stride_a = K;
+            }
         }
 
-        std::vector<int> c_test_dimensions = c_dimensions;
-        if(!std::is_same_v<test_matrix_c_layout, matrix_c_layout>)
+        if(stride_b == 0)
         {
-            std::swap(c_test_dimensions[0], c_test_dimensions[1]);
+            if constexpr(std::is_same_v<matrix_b_layout, ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                stride_b = N;
+            }
+            else
+            {
+                stride_b = K;
+            }
         }
 
-        ck_tile::HostTensor<CDataType> c_host_gpu_ref(c_test_dimensions);
-        ck_tile::DeviceMem a_buf_ref(a_host.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem b_buf_ref(b_host.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem c_buf_ref(c_host_gpu_ref.get_element_space_size_in_bytes());
-
-        a_buf_ref.ToDevice(a_host.data());
-        b_buf_ref.ToDevice(b_host.data());
-
-        invoke_gemm<ck_tile::half_t,
-                    test_matrix_a_layout,
-                    test_matrix_b_layout,
-                    test_matrix_c_layout,
-                    TestPipelineProblem,
-                    TestGemmPipeline,
-                    TestGemmShape>(a_buf_ref, b_buf_ref, c_buf_ref, arg_parser);
-
-        c_buf.FromDevice(c_host_gpu_ref.data());
-        if(!std::is_same_v<test_matrix_c_layout, matrix_c_layout>)
+        if(stride_c == 0)
         {
-            c_host_gpu_ref = c_host_gpu_ref.transpose(transpose_axes);
+            if constexpr(std::is_same_v<matrix_c_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                stride_c = M;
+            }
+            else
+            {
+                stride_c = N;
+            }
         }
+
+        ck_tile::HostTensor<CDataType> c_host_gpu_ref(c_dimensions);
+
+        run_naive_gemm(a_host, b_host, c_host_gpu_ref, M, N, K, stride_a, stride_b, stride_c);
 
         pass_gpu = ck_tile::check_err(c_host_dev, c_host_gpu_ref);
 
