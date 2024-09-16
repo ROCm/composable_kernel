@@ -163,12 +163,16 @@ struct GemmKernel
             }
         }();
 
-        auto CBlockWindow = make_tile_window(
+        auto c_pad_view = pad_tensor_view(
             c_tensor_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
+            sequence < 0,
+            GemmPipeline::kPadC ? 1 : 0 > {});
+        auto CBlockWindow_pad = make_tile_window(
+            c_pad_view,
+            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
-        // epilogue.
-        EpiloguePipeline{}(CBlockWindow, acc);
+        EpiloguePipeline{}(CBlockWindow_pad, acc);
     }
 };
 

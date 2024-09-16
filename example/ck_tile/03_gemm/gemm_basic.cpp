@@ -235,7 +235,7 @@ int main(int argc, char* argv[])
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadA = true;
     constexpr bool kPadB = true;
-    constexpr bool kPadC = false;
+    constexpr bool kPadC = true;
 
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 128;
