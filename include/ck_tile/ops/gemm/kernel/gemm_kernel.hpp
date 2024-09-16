@@ -123,13 +123,25 @@ struct GemmKernel
             }
         }();
 
-        auto ABlockWindow = make_tile_window(
+        auto a_pad_view = pad_tensor_view(
             a_tensor_view,
+            make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
+            sequence < 0,
+            GemmPipeline::kPadA ? 1 : 0 > {});
+
+        auto ABlockWindow = make_tile_window(
+            a_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
             {i_m, 0});
 
-        auto BBlockWindow = make_tile_window(
+        auto b_pad_view = pad_tensor_view(
             b_tensor_view,
+            make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
+            sequence < 0,
+            GemmPipeline::kPadB ? 1 : 0 > {});
+
+        auto BBlockWindow = make_tile_window(
+            b_pad_view,
             make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
             {i_n, 0});
 

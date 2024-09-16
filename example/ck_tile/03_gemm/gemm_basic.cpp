@@ -179,9 +179,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_buf,
 
     std::cout << "The overall perfomance of the GEMM with "
               << "[" << data_type << "]"
-              << "batch size: " << batch_size << ". m:" << M << ",n:" << N << ", k:" << K
-              << "is: \n";
-    std::cout << "Running time :" << ave_time << "ms, Throughput" << gb_per_sec << "GB/s \n"
+              << "batch size: " << batch_size << ". m:" << M << ", n:" << N << ", k:" << K
+              << " is: \n";
+    std::cout << "Running time: " << ave_time << "ms, Throughput " << gb_per_sec << "GB/s \n"
               << std::flush;
 
     return ave_time;
@@ -348,7 +348,7 @@ int main(int argc, char* argv[])
 
         pass_gpu = ck_tile::check_err(c_host_dev, c_host_gpu_ref);
 
-        std::cout << "The GPU veification result is:" << (pass_gpu ? "correct" : "fail")
+        std::cout << "The GPU veification result is: " << (pass_gpu ? "correct" : "fail")
                   << std::flush;
     }
 
