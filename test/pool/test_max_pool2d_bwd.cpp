@@ -55,6 +55,7 @@ using Max_Pool_2D_f32_types  = ::testing::Types<std::tuple<F32, F32, I32>>;
 using Max_Pool_2D_int8_types = ::testing::Types<std::tuple<I8, I8, I32>>;
 using Max_Pool_2D_f16_types  = ::testing::Types<std::tuple<F16, F16, I32>>;
 using Max_Pool_2D_bf16_types = ::testing::Types<std::tuple<BF16, BF16, I32>>;
+using Max_Pool_2D_f8_types   = ::testing::Types<std::tuple<F8, F8, I32>>;
 
 template <typename TType>
 class MaxPool2D_f32 : public MaxPool2dBWDTest<TType>
@@ -108,10 +109,24 @@ class MaxPool2D_bf16 : public MaxPool2dBWDTest<TType>
     }
 };
 
+template <typename TType>
+class MaxPool2D_f8 : public MaxPool2dBWDTest<TType>
+{
+    protected:
+    void SetUp() override
+    {
+        if(!CK_ENABLE_FP8)
+        {
+            GTEST_SKIP() << "Skipping MaxPool2D_f8 tests because CK_ENABLE_FP8 is not enabled";
+        }
+    }
+};
+
 TYPED_TEST_SUITE(MaxPool2D_f32, Max_Pool_2D_f32_types);
 TYPED_TEST_SUITE(MaxPool2D_int8, Max_Pool_2D_int8_types);
 TYPED_TEST_SUITE(MaxPool2D_f16, Max_Pool_2D_f16_types);
 TYPED_TEST_SUITE(MaxPool2D_bf16, Max_Pool_2D_bf16_types);
+TYPED_TEST_SUITE(MaxPool2D_f8, Max_Pool_2D_f8_types);
 
 TYPED_TEST(MaxPool2D_f32, MaxPool2DTest_f32) { this->Run(); }
 
@@ -120,3 +135,5 @@ TYPED_TEST(MaxPool2D_int8, MaxPool2DTest_int8) { this->Run(); }
 TYPED_TEST(MaxPool2D_f16, MaxPool2DTest_f16) { this->Run(); }
 
 TYPED_TEST(MaxPool2D_bf16, MaxPool2DTest_bf16) { this->Run(); }
+
+TYPED_TEST(MaxPool2D_f8, MaxPool2DTest_f8) { this->Run(); }
