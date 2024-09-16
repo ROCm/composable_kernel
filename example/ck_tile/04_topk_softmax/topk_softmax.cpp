@@ -224,7 +224,8 @@ bool test_topk_softmax(ck_tile::ArgParser args)
 
         // constexpr auto uf = ck_tile::static_uford<sss, pks, ord>{};
         // ck_tile::static_for<0, uf.get_num_of_access(), 1>{}([&](auto i_access){
-        //     uf([&](auto i_0, auto i_1, auto i_2, auto i_3, auto i_4, auto i_5, auto i_6, auto i_7) {
+        //     uf([&](auto i_0, auto i_1, auto i_2, auto i_3, auto i_4, auto i_5, auto i_6, auto
+        //     i_7) {
         //             decltype(i_0)::push_front(i_access).fo_0();
         //             decltype(i_1)::push_front(i_access).fo_1();
         //             decltype(i_2)::push_front(i_access).fo_2();
