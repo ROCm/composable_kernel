@@ -1030,8 +1030,6 @@ struct non_native_vector_base
 template <typename T>
 struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 1>;
-
     using d1_t = T;
     using type = d1_t;
 
@@ -1067,10 +1065,8 @@ struct vector_type<T, 1, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 2>;
-
     using d1_t = T;
-    using d2_t = Native_vec_;
+    using d2_t = non_native_vector_base<T, 2>;
 
     using type = d2_t;
 
@@ -1129,11 +1125,9 @@ struct vector_type<T, 2, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 4>;
-
     using d1_t = T;
     using d2_t = non_native_vector_base<T, 2>;
-    using d4_t = Native_vec_;
+    using d4_t = non_native_vector_base<T, 4>;
 
     using type = d4_t;
 
@@ -1201,12 +1195,10 @@ struct vector_type<T, 4, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 8>;
-
     using d1_t = T;
     using d2_t = non_native_vector_base<T, 2>;
     using d4_t = non_native_vector_base<T, 4>;
-    using d8_t = Native_vec_;
+    using d8_t = non_native_vector_base<T, 8>;
 
     using type = d8_t;
 
@@ -1285,13 +1277,11 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 16>;
-
     using d1_t  = T;
     using d2_t  = non_native_vector_base<T, 2>;
     using d4_t  = non_native_vector_base<T, 4>;
     using d8_t  = non_native_vector_base<T, 8>;
-    using d16_t = Native_vec_;
+    using d16_t = non_native_vector_base<T, 16>;
 
     using type = d16_t;
 
@@ -1381,14 +1371,12 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 32, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 32>;
-
     using d1_t  = T;
     using d2_t  = non_native_vector_base<T, 2>;
     using d4_t  = non_native_vector_base<T, 4>;
     using d8_t  = non_native_vector_base<T, 8>;
     using d16_t = non_native_vector_base<T, 16>;
-    using d32_t = Native_vec_;
+    using d32_t = non_native_vector_base<T, 32>;
 
     using type = d32_t;
 
@@ -1487,15 +1475,13 @@ struct vector_type<T, 32, typename std::enable_if_t<!is_native_type<T>()>>
 template <typename T>
 struct vector_type<T, 64, typename std::enable_if_t<!is_native_type<T>()>>
 {
-    using Native_vec_ = non_native_vector_base<T, 64>;
-
     using d1_t  = T;
     using d2_t  = non_native_vector_base<T, 2>;
     using d4_t  = non_native_vector_base<T, 4>;
     using d8_t  = non_native_vector_base<T, 8>;
     using d16_t = non_native_vector_base<T, 16>;
     using d32_t = non_native_vector_base<T, 32>;
-    using d64_t = Native_vec_;
+    using d64_t = non_native_vector_base<T, 64>;
 
     using type = d64_t;
 
