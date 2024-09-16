@@ -462,3 +462,67 @@ TEST(Custom_double, TestAsType)
         ASSERT_EQ(left_vec.template AsType<custom_double_t>()(Number<i>{}).data, test_vec.at(i));
     });
 }
+
+TEST(Complex_half, TestSize)
+{
+    struct complex_half_t
+    {
+        half_t real;
+        half_t img;
+    };
+    ASSERT_EQ(sizeof(half_t) + sizeof(half_t), 4);
+    ASSERT_EQ(sizeof(complex_half_t), 4);
+    ASSERT_EQ(sizeof(vector_type<half_t, 2>) + sizeof(vector_type<half_t, 2>), 8);
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 2>), 8);
+    ASSERT_EQ(sizeof(vector_type<half_t, 4>) + sizeof(vector_type<half_t, 4>), 16);
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 4>), 16);
+    ASSERT_EQ(sizeof(vector_type<half_t, 8>) + sizeof(vector_type<half_t, 8>), 32);
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 8>), 32);
+    ASSERT_EQ(sizeof(vector_type<half_t, 16>) + sizeof(vector_type<half_t, 16>), 64);
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 16>), 64);
+    ASSERT_EQ(sizeof(vector_type<half_t, 32>) + sizeof(vector_type<half_t, 32>), 128);
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 32>), 128);
+    ASSERT_EQ(sizeof(vector_type<half_t, 64>) + sizeof(vector_type<half_t, 64>), 256);
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 64>), 256);
+}
+
+TEST(Complex_half, TestAsType)
+{
+    struct complex_half_t
+    {
+        using type = half_t;
+        type real;
+        type img;
+        complex_half_t() : real{type{}}, img{type{}} {}
+        complex_half_t(type real_init, type img_init) : real{real_init}, img{img_init} {}
+    };
+
+    // test size
+    const int size = 4;
+    // custom type number of elements
+    const int num_elem           = sizeof(complex_half_t) / sizeof(complex_half_t::type);
+    std::vector<half_t> test_vec = {half_t{0.3f},
+                                    half_t{-0.6f},
+                                    half_t{0.8f},
+                                    half_t{-0.2f},
+                                    half_t{0.5f},
+                                    half_t{-0.7f},
+                                    half_t{0.9f},
+                                    half_t{-0.3f}};
+    // reference vector
+    vector_type<complex_half_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<complex_half_t>()(Number<i>{}) =
+            complex_half_t{test_vec.at(num_elem * i), test_vec.at(num_elem * i + 1)};
+    });
+    // copy the vector
+    vector_type<complex_half_t, size> left_vec{right_vec};
+    // check if values were copied correctly
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).real,
+                  test_vec.at(num_elem * i));
+        ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).img,
+                  test_vec.at(num_elem * i + 1));
+    });
+}
