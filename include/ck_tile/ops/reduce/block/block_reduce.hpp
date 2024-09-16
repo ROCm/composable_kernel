@@ -295,4 +295,106 @@ CK_TILE_DEVICE auto block_tile_reduce(const InDistributedTensor_& in_tensor,
     return acc_tensor;
 }
 
+// this version only support 2D->1D reduce (reduce-dim=seq<0, 1>)
+// this version only support in/acc/out datatypes are the same
+// this version will call thread/warp+sync in one function call
+//
+template <typename InDistributedTensor_>
+struct BlockReduce2D
+{
+    using InDistributedTensor = remove_cvref_t<InDistributedTensor_>;
+    using InDataType          = typename InDistributedTensor::DataType;
+
+    CK_TILE_HOST_DEVICE BlockReduce2D(const InDistributedTensor& t_, const InDataType& reduce_init_)
+        : t(t_), reduce_init(reduce_init_)
+    {
+    }
+
+    CK_TILE_HOST_DEVICE constexpr auto make_out_distributed_tensor() const
+    {
+        using ReduceDim = sequence<1>; // hard coded
+        constexpr auto acc_dstr =
+            make_static_tile_distribution(ck_tile::detail::make_reduce_tile_distribution_encoding(
+                InDistributedTensor::get_tile_distribution()
+                    .get_static_tile_distribution_encoding(),
+                ReduceDim{}));
+
+        return make_static_distributed_tensor<InDataType>(acc_dstr);
+    }
+
+    // return number of pixels each lane need to reduce
+    CK_TILE_HOST_DEVICE constexpr auto get_reduce_length_y() const
+    {
+        constexpr auto spans = InDistributedTensor::get_distributed_spans();
+    }
+
+    // Here ReducePacksPerXDim is not the same meaning as that in static_uford/sweep_tile_uspan
+    // this is number of packs along the X-dim. We need to compute the Unpacks along the Y dim
+    // internally
+    // For simplicity, we just support along the row dimension, ReducePacksPerXDim is always 2
+    // element , and the first element is always ignored For simplicity, will always try from
+    // right-to-left to find alone which Y dim to split
+    template <typename ReduceFunc,
+              typename ReduceSyncFunc,
+              typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>
+    CK_TILE_HOST_DEVICE auto operator()(const ReduceFunc& reduce_func,
+                                        const ReduceSyncFunc& reduce_sync_func,
+                                        ReducePacksPerXDim = {}) const
+    {
+        constexpr auto spans = InDistributedTensor::get_distributed_spans();
+
+        constexpr auto row_y_unpacks = [&]() {
+            constexpr auto row_y_lengths = typename decltype(spans[number<1>{}])::Impl{};
+            constexpr auto row_y_size =
+                reduce_on_sequence(row_y_lengths, multiplies{}, number<1>{});
+            constexpr auto row_y_packs = ReducePacksPerXDim{}.at(number<1>{});
+
+            static_assert(row_y_size % row_y_packs == 0);
+
+            constexpr auto row_y_slice_size = row_y_size / row_y_packs;
+
+            constexpr auto slice_info = slice_sequence(row_y_lengths, number<row_y_slice_size>{});
+            constexpr auto unpacks    = slice_info[number<1>{}];
+            return unpacks;
+        }();
+
+        auto acc_tensor = make_out_distributed_tensor();
+
+        // in-thread reduction
+        // FIXME: hard coded to be 2D to 1D reduction
+        sweep_tile_span(spans[number<0>{}], [&](auto dstr_idx_i0) {
+            constexpr auto acc_dstr_idx = make_tuple(dstr_idx_i0);
+
+            auto acc = acc_tensor[acc_dstr_idx];
+
+            sweep_tile_uspan(
+                spans[number<1>{}],
+                [&](auto... dstr_idx_i1) {
+                    acc = reduce_func(acc, t[make_tuple(dstr_idx_i0, dstr_idx_i1)]...);
+                },
+                row_y_unpacks);
+
+            acc_tensor(acc_dstr_idx) = acc;
+        });
+
+        // TODO: always use xor to do cross-lane reduce
+        block_tile_reduce_xor_sync(acc_tensor, reduce_sync_func);
+
+        return acc_tensor;
+    }
+
+    template <typename ReduceFunc>
+    CK_TILE_HOST_DEVICE auto operator()(const ReduceFunc& reduce_func) const
+    {
+        return operator()(reduce_func, reduce_func);
+    }
+
+    InDistributedTensor t;
+    InDataType reduce_init;
+};
+
+// deduction guide
+template <typename T>
+CK_TILE_HOST_DEVICE_EXTERN BlockReduce2D(const T&, const typename T::DataType&)->BlockReduce2D<T>;
+
 } // namespace ck_tile

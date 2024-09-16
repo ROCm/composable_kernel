@@ -1,6 +1,6 @@
 #!/bin/sh
 
-EXE=./build/bin/test_topk_softmax
+EXE=./build/bin/tile_example_topk_softmax
 
 for pr_i in "fp16" "bf16" ; do
 $EXE -pr_i=$pr_i -t=80 -e=17

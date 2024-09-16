@@ -209,6 +209,35 @@ bool test_topk_softmax(ck_tile::ArgParser args)
 
     x_dev.ToDevice(x_host.data());
 
+    {
+        // using sss = ck_tile::sequence<2, 3, 4>;
+        // using pks = ck_tile::sequence<2, 1, 4>;
+        // using ord = ck_tile::sequence<2, 0, 1>;
+        // ck_tile::static_uford<sss, pks, ord>{}(
+        //     [&](auto i_0, auto i_1, auto i_2, auto i_3) {
+        //         i_0.fo_0();
+        //         i_1.fo_1();
+        //         i_2.fo_2();
+        //         i_3.fo_3();
+        //     }
+        // );
+
+        // constexpr auto uf = ck_tile::static_uford<sss, pks, ord>{};
+        // ck_tile::static_for<0, uf.get_num_of_access(), 1>{}([&](auto i_access){
+        //     uf([&](auto i_0, auto i_1, auto i_2, auto i_3, auto i_4, auto i_5, auto i_6, auto i_7) {
+        //             decltype(i_0)::push_front(i_access).fo_0();
+        //             decltype(i_1)::push_front(i_access).fo_1();
+        //             decltype(i_2)::push_front(i_access).fo_2();
+        //             decltype(i_3)::push_front(i_access).fo_3();
+        //             decltype(i_4)::push_front(i_access).fo_4();
+        //             decltype(i_5)::push_front(i_access).fo_5();
+        //             decltype(i_6)::push_front(i_access).fo_6();
+        //             decltype(i_7)::push_front(i_access).fo_7();
+        //         },
+        //         i_access);
+        // });
+    }
+
     topk_softmax_trait trait = [&]() {
         topk_softmax_trait t_;
         t_.input_type  = input_prec;

@@ -219,6 +219,5 @@ endif()
 add_subdirectory(position_embedding)
 add_subdirectory(scatter_gather)
 add_subdirectory(topk)
-add_subdirectory(topk_softmax)
 add_subdirectory(tile_reduce)
 

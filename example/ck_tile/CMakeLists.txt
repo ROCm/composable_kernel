@@ -5,5 +5,6 @@ include_directories(AFTER
 add_subdirectory(01_fmha)
 add_subdirectory(02_layernorm2d)
 add_subdirectory(03_gemm)
+add_subdirectory(04_topk_softmax)
 add_subdirectory(06_permute)
 add_subdirectory(19_elementwise)

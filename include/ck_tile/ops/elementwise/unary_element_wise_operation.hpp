@@ -1079,8 +1079,9 @@ struct ConvScaleRelu
     float scale_out_;
 };
 
-template<typename DstType, typename SrcType>
-struct Cast {
+template <typename DstType, typename SrcType>
+struct Cast
+{
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(DstType& y, const SrcType& x) const
     {
