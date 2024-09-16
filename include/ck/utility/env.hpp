@@ -3,10 +3,12 @@
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <string_view>
+#endif
 
 namespace ck {
 namespace internal {
