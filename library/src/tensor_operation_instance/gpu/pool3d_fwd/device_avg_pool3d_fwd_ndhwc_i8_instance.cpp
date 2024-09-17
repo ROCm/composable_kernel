@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "pool_fwd_instance_common.hpp"
 
@@ -10,13 +10,12 @@ namespace instance {
 
 static constexpr auto ReduceOpId = ck::ReduceTensorOp::AVG;
 
-void add_device_pool3d_fwd_ndhwc_f16_instances(
-    std::vector<
-        std::unique_ptr<DevicePoolFwd<5, 3, F16, F16, I32, NDHWC, NDHWC, ReduceOpId, false>>>&
+void add_device_pool3d_fwd_ndhwc_i8_instances(
+    std::vector<std::unique_ptr<DevicePoolFwd<5, 3, I8, I8, I32, NDHWC, NDHWC, ReduceOpId, false>>>&
         instances)
 {
     add_device_operation_instances(
-        instances, device_pool3d_fwd_ndhwc_instances<F16, F16, I32, F32, ReduceOpId, false>{});
+        instances, device_pool3d_fwd_ndhwc_instances<I8, I8, I32, I32, ReduceOpId, false>{});
 }
 
 } // namespace instance

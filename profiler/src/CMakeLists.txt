@@ -10,7 +10,7 @@ set(PROFILER_SOURCES
     profile_groupnorm_bwd_gamma_beta.cpp
     profile_layernorm_fwd.cpp
     profile_max_pool2d_fwd.cpp
-    profile_max_pool3d_fwd.cpp
+    profile_pool3d_fwd.cpp
     profile_avg_pool3d_bwd.cpp
     profile_max_pool3d_bwd.cpp
     profile_avg_pool2d_bwd.cpp

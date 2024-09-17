@@ -4,6 +4,8 @@
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 
+using I8   = int8_t;
+using F8   = ck::f8_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using F32  = float;
