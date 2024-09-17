@@ -11,7 +11,7 @@
 
 using ck::index_t;
 
-struct maxPoolFwdArgParser
+struct poolFwdArgParser
 {
     std::unordered_map<std::string, std::vector<int>> long_opts = {{"length", {}},
                                                                    {"wsize", {}},
@@ -49,7 +49,7 @@ struct maxPoolFwdArgParser
     }
 };
 
-void print_help_max_pool3d_fwd()
+void print_help_pool3d_fwd()
 {
     std::cout << "arg1: data type (0: fp16; 1: fp32; 3: int8; 5: bf16; 7: fp8)\n"
               << "arg2: verification (0: no; 1: yes)\n"
@@ -64,12 +64,12 @@ void print_help_max_pool3d_fwd()
               << "--wdilation: window dilation for DHW (e.g, --wdilation 1 1 1) \n"
               << "--pad1: left side of padding in DHW (e.g, --pad1 1 1 1) \n"
               << "--pad2: right side of padding in DHW (e.g, --pad2 1 1 1) \n"
-              << "eg: ckProfiler max_pool3d_fwd 0 1 2 0 1 0 --length 2 32 30 30 30 --wsize 2 2 2 "
+              << "eg: ckProfiler pool3d_fwd 0 1 2 0 1 0 --length 2 32 30 30 30 --wsize 2 2 2 "
                  "--wstride 2 2 2 --wdilation 1 1 1 --pad1 1 1 1 --pad2 1 1 1"
               << std::endl;
 }
 
-int profile_max_pool3d_fwd(int argc, char* argv[])
+int profile_pool3d_fwd(int argc, char* argv[])
 {
     ck::DataTypeEnum data_type = ck::DataTypeEnum::Half;
     ck::profiler::PoolFwdInputParams in_params{true, 0, false, true, false, 0};
@@ -78,7 +78,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
 
     if(argc != 2 && argc != 35)
     {
-        print_help_max_pool3d_fwd();
+        print_help_pool3d_fwd();
         return 0;
     }
     else if(argc == 35)
@@ -92,7 +92,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         in_params.reduce_op       = std::stoi(argv[8]);
 
         // parse the long options
-        maxPoolFwdArgParser arg_parser;
+        poolFwdArgParser arg_parser;
         arg_parser(argc, argv);
         kernel_params.in_length              = arg_parser.long_opts["length"];
         kernel_params.window_spatial_lengths = arg_parser.long_opts["wsize"];
@@ -328,4 +328,4 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
     return 0;
 }
 
-REGISTER_PROFILER_OPERATION("max_pool3d_fwd", "max_pool3d fwd", profile_max_pool3d_fwd);
+REGISTER_PROFILER_OPERATION("pool3d_fwd", "pool3d fwd", profile_pool3d_fwd);
