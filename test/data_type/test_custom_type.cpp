@@ -62,6 +62,34 @@ TEST(Custom_bool, TestAsType)
     });
 }
 
+TEST(Custom_bool, TestAsTypeReshape)
+{
+    struct custom_bool_t
+    {
+        using type = bool;
+        type data;
+        custom_bool_t() : data{type{}} {}
+        custom_bool_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size             = 4;
+    std::vector<bool> test_vec = {false, true, false, true};
+    // reference vector
+    vector_type<custom_bool_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_bool_t>()(Number<i>{}) = custom_bool_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_bool_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_bool_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_bool_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
 TEST(Custom_int8, TestSize)
 {
     struct custom_int8_t
@@ -111,6 +139,34 @@ TEST(Custom_int8, TestAsType)
     });
 }
 
+TEST(Custom_int8, TestAsTypeReshape)
+{
+    struct custom_int8_t
+    {
+        using type = int8_t;
+        type data;
+        custom_int8_t() : data{type{}} {}
+        custom_int8_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size               = 4;
+    std::vector<int8_t> test_vec = {3, -6, 8, -2};
+    // reference vector
+    vector_type<custom_int8_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_int8_t>()(Number<i>{}) = custom_int8_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_int8_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_int8_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_int8_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
 TEST(Custom_uint8, TestSize)
 {
     struct custom_uint8_t
@@ -152,10 +208,38 @@ TEST(Custom_uint8, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_uint8_t>()(Number<i>{}) = custom_uint8_t{test_vec.at(i)};
     });
-    // copy the vector
+    // copy the first half of a vector
     vector_type<custom_uint8_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_uint8_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
+TEST(Custom_uint8, TestAsTypeReshape)
+{
+    struct custom_uint8_t
+    {
+        using type = uint8_t;
+        type data;
+        custom_uint8_t() : data{type{}} {}
+        custom_uint8_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size                = 4;
+    std::vector<uint8_t> test_vec = {3, 6, 8, 2};
+    // reference vector
+    vector_type<custom_uint8_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_uint8_t>()(Number<i>{}) = custom_uint8_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_uint8_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_uint8_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_uint8_t>()(Number<i>{}).data, test_vec.at(i));
     });
 }
@@ -212,6 +296,37 @@ TEST(Custom_f8, TestAsType)
     });
 }
 
+TEST(Custom_f8, TestAsTypeReshape)
+{
+    struct custom_f8_t
+    {
+        using type = _BitInt(8);
+        type data;
+        custom_f8_t() : data{type{}} {}
+        custom_f8_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size                   = 4;
+    std::vector<_BitInt(8)> test_vec = {type_convert<_BitInt(8)>(0.3f),
+                                        type_convert<_BitInt(8)>(-0.6f),
+                                        type_convert<_BitInt(8)>(0.8f),
+                                        type_convert<_BitInt(8)>(-0.2f)};
+    // reference vector
+    vector_type<custom_f8_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_f8_t>()(Number<i>{}) = custom_f8_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_f8_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_f8_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_f8_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
 TEST(Custom_bf8, TestSize)
 {
     struct custom_bf8_t
@@ -264,6 +379,37 @@ TEST(Custom_bf8, TestAsType)
     });
 }
 
+TEST(Custom_bf8, TestAsTypeReshape)
+{
+    struct custom_bf8_t
+    {
+        using type = unsigned _BitInt(8);
+        type data;
+        custom_bf8_t() : data{type{}} {}
+        custom_bf8_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size                            = 4;
+    std::vector<unsigned _BitInt(8)> test_vec = {type_convert<unsigned _BitInt(8)>(0.3f),
+                                                 type_convert<unsigned _BitInt(8)>(-0.6f),
+                                                 type_convert<unsigned _BitInt(8)>(0.8f),
+                                                 type_convert<unsigned _BitInt(8)>(-0.2f)};
+    // reference vector
+    vector_type<custom_bf8_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_bf8_t>()(Number<i>{}) = custom_bf8_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_bf8_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_bf8_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_bf8_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
 TEST(Custom_half, TestSize)
 {
     struct custom_half_t
@@ -309,6 +455,34 @@ TEST(Custom_half, TestAsType)
     vector_type<custom_half_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_half_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
+TEST(Custom_half, TestAsTypeReshape)
+{
+    struct custom_half_t
+    {
+        using type = half_t;
+        type data;
+        custom_half_t() : data{type{}} {}
+        custom_half_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size               = 4;
+    std::vector<half_t> test_vec = {half_t{0.3f}, half_t{-0.6f}, half_t{0.8f}, half_t{-0.2f}};
+    // reference vector
+    vector_type<custom_half_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_half_t>()(Number<i>{}) = custom_half_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_half_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_half_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_half_t>()(Number<i>{}).data, test_vec.at(i));
     });
 }
@@ -365,6 +539,37 @@ TEST(Custom_bhalf, TestAsType)
     });
 }
 
+TEST(Custom_bhalf, TestAsTypeReshape)
+{
+    struct custom_bhalf_t
+    {
+        using type = bhalf_t;
+        type data;
+        custom_bhalf_t() : data{type{}} {}
+        custom_bhalf_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size                = 4;
+    std::vector<bhalf_t> test_vec = {type_convert<bhalf_t>(0.3f),
+                                     type_convert<bhalf_t>(-0.6f),
+                                     type_convert<bhalf_t>(0.8f),
+                                     type_convert<bhalf_t>(-0.2f)};
+    // reference vector
+    vector_type<custom_bhalf_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_bhalf_t>()(Number<i>{}) = custom_bhalf_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_bhalf_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_bhalf_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_bhalf_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
 TEST(Custom_float, TestSize)
 {
     struct custom_float_t
@@ -414,6 +619,34 @@ TEST(Custom_float, TestAsType)
     });
 }
 
+TEST(Custom_float, TestAsTypeReshape)
+{
+    struct custom_float_t
+    {
+        using type = float;
+        type data;
+        custom_float_t() : data{type{}} {}
+        custom_float_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size              = 4;
+    std::vector<float> test_vec = {0.3f, -0.6f, 0.8f, -0.2f};
+    // reference vector
+    vector_type<custom_float_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_float_t>()(Number<i>{}) = custom_float_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_float_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_float_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_float_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
 TEST(Custom_double, TestSize)
 {
     struct custom_double_t
@@ -459,6 +692,34 @@ TEST(Custom_double, TestAsType)
     vector_type<custom_double_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<custom_double_t>()(Number<i>{}).data, test_vec.at(i));
+    });
+}
+
+TEST(Custom_double, TestAsTypeReshape)
+{
+    struct custom_double_t
+    {
+        using type = double;
+        type data;
+        custom_double_t() : data{type{}} {}
+        custom_double_t(type init) : data{init} {}
+    };
+
+    // test size
+    const int size               = 4;
+    std::vector<double> test_vec = {0.3, 0.6, 0.8, 0.2};
+    // reference vector
+    vector_type<custom_double_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<custom_double_t>()(Number<i>{}) = custom_double_t{test_vec.at(i)};
+    });
+    // copy the first half of a vector
+    vector_type<custom_double_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<custom_double_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<custom_double_t>()(Number<i>{}).data, test_vec.at(i));
     });
 }
@@ -520,6 +781,48 @@ TEST(Complex_half, TestAsType)
     vector_type<complex_half_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
+        ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).real,
+                  test_vec.at(num_elem * i));
+        ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).img,
+                  test_vec.at(num_elem * i + 1));
+    });
+}
+
+TEST(Complex_half, TestAsTypeReshape)
+{
+    struct complex_half_t
+    {
+        using type = half_t;
+        type real;
+        type img;
+        complex_half_t() : real{type{}}, img{type{}} {}
+        complex_half_t(type real_init, type img_init) : real{real_init}, img{img_init} {}
+    };
+
+    // test size
+    const int size = 4;
+    // custom type number of elements
+    const int num_elem           = sizeof(complex_half_t) / sizeof(complex_half_t::type);
+    std::vector<half_t> test_vec = {half_t{0.3f},
+                                    half_t{-0.6f},
+                                    half_t{0.8f},
+                                    half_t{-0.2f},
+                                    half_t{0.5f},
+                                    half_t{-0.7f},
+                                    half_t{0.9f},
+                                    half_t{-0.3f}};
+    // reference vector
+    vector_type<complex_half_t, size> right_vec;
+    // assign test values to the vector
+    ck::static_for<0, size, 1>{}([&](auto i) {
+        right_vec.template AsType<complex_half_t>()(Number<i>{}) =
+            complex_half_t{test_vec.at(num_elem * i), test_vec.at(num_elem * i + 1)};
+    });
+    // copy the first half of a vector
+    vector_type<complex_half_t, size / 2> left_vec{
+        right_vec.template AsType<vector_type<complex_half_t, size / 2>::type>()(Number<0>{})};
+    // check if values were copied correctly
+    ck::static_for<0, size / 2, 1>{}([&](auto i) {
         ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).real,
                   test_vec.at(num_elem * i));
         ASSERT_EQ(left_vec.template AsType<complex_half_t>()(Number<i>{}).img,
