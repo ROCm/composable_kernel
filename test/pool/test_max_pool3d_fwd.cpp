@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "profiler/profile_pool3d_fwd_impl.hpp"
@@ -16,10 +16,20 @@ class TestMaxPool3dFwd : public ::testing::Test
 
     std::vector<PoolingParam> params;
 
+    ck::profiler::PoolFwdInputParams in_params_max_pool{true, 2, false, false, false, 0};
+    ck::profiler::PoolFwdInputParams in_params_max_pool_indexed{true, 2, false, false, true, 0};
+
     void Run()
     {
         for(auto param : params)
         {
+            ck::profiler::PoolFwdKernelParams kernel_params{param.length_,
+                                                            param.window_spatial_lengths_,
+                                                            param.window_strides_,
+                                                            param.window_dilations_,
+                                                            param.input_left_pads_,
+                                                            param.input_right_pads_};
+
             // max pool
             bool success =
                 ck::profiler::profile_pool3d_fwd_impl<InDataType,
@@ -30,16 +40,7 @@ class TestMaxPool3dFwd : public ::testing::Test
                                                       ck::tensor_layout::convolution::NDHWC,
                                                       ck::ReduceTensorOp::MAX,
                                                       false,
-                                                      false>(true,
-                                                             2,
-                                                             false,
-                                                             false,
-                                                             param.length_,
-                                                             param.window_spatial_lengths_,
-                                                             param.window_strides_,
-                                                             param.window_dilations_,
-                                                             param.input_left_pads_,
-                                                             param.input_right_pads_);
+                                                      false>(in_params_max_pool, kernel_params);
             EXPECT_TRUE(success);
 
             // max pool + index
@@ -51,27 +52,18 @@ class TestMaxPool3dFwd : public ::testing::Test
                                                             ck::tensor_layout::convolution::NDHWC,
                                                             ck::ReduceTensorOp::MAX,
                                                             false,
-                                                            true>(true,
-                                                                  2,
-                                                                  false,
-                                                                  false,
-                                                                  param.length_,
-                                                                  param.window_spatial_lengths_,
-                                                                  param.window_strides_,
-                                                                  param.window_dilations_,
-                                                                  param.input_left_pads_,
-                                                                  param.input_right_pads_);
+                                                            true>(in_params_max_pool_indexed,
+                                                                  kernel_params);
             EXPECT_TRUE(success);
         }
     }
 };
 
-#ifdef CK_ENABLE_FP16
-using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
-#else
-using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
-#endif
+using KernelTypes = ::testing::Types<std::tuple<I8, I8, I8, I32>,
+                                     std::tuple<F8, F8, F8, I32>,
+                                     std::tuple<F16, F16, F16, I32>,
+                                     std::tuple<BF16, BF16, BF16, I32>,
+                                     std::tuple<F32, F32, F32, I32>>;
 
 TYPED_TEST_SUITE(TestMaxPool3dFwd, KernelTypes);
 TYPED_TEST(TestMaxPool3dFwd, Test_Pool)
