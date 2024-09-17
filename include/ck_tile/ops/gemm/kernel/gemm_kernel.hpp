@@ -25,7 +25,7 @@ struct GemmKernel
     using LayoutA                            = remove_cvref_t<LayoutA_>;
     using LayoutB                            = remove_cvref_t<LayoutB_>;
     using LayoutC                            = remove_cvref_t<LayoutC_>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::KernelBlockSize;
+    static constexpr index_t KernelBlockSize = GemmPipeline::kBlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType    = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -76,8 +76,7 @@ struct GemmKernel
 
     CK_TILE_DEVICE void operator()(GemmCommonKargs kargs) const
     {
-        const index_t i_m = TilePartitioner::iM;
-        const index_t i_n = TilePartitioner::iN;
+        const auto [i_m, i_n] = TilePartitioner{}();
         // options
         const ADataType* a_start = static_cast<const ADataType*>(kargs.a_ptr);
         const BDataType* b_start = static_cast<const BDataType*>(kargs.b_ptr);
@@ -104,7 +103,7 @@ struct GemmKernel
         }();
 
         auto b_tensor_view = [&]() {
-            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     b_start,
