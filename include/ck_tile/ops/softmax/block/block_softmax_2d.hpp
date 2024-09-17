@@ -46,15 +46,9 @@ struct BlockSoftmax2D
 #else
         auto row_max = reduce_row_max(f_max);
 #endif
-        // compute elementwise softmax
-        constexpr auto span_2d = DistributedTensor::get_distributed_spans();
-
-        sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-            constexpr auto i_idx = make_tuple(idx0);
-            sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-                constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                y(i_j_idx)             = exp(x[i_j_idx] - row_max(i_idx));
-            });
+        sweep_tile<DistributedTensor>([&](auto idx) {
+            constexpr auto row_id = make_tuple(idx[number<0>{}]);
+            y(idx)                = exp(x[idx] - row_max[row_id]);
         });
 
         // compute row sum
@@ -66,19 +60,12 @@ struct BlockSoftmax2D
 #endif
         // reciprocal
         auto r = make_static_distributed_tensor<DataType>(row_sum.get_tile_distribution());
-        constexpr auto span_1d = decltype(r)::get_distributed_spans();
-        sweep_tile_span(span_1d[number<0>{}], [&](auto idx0) {
-            constexpr auto i_idx = make_tuple(idx0);
-            r(i_idx)             = DataType{1} / row_sum(i_idx);
-        });
+        sweep_tile(row_sum, [&](auto idx) { r(idx) = DataType{1} / row_sum(idx); });
 
         // scale
-        sweep_tile_span(span_2d[number<0>{}], [&](auto idx0) {
-            constexpr auto i_idx = make_tuple(idx0);
-            sweep_tile_span(span_2d[number<1>{}], [&](auto idx1) {
-                constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                y(i_j_idx)             = y(i_j_idx) * r(i_idx);
-            });
+        sweep_tile<DistributedTensor>([&](auto idx) {
+            constexpr auto row_id = make_tuple(idx[number<0>{}]);
+            y(idx)                = y(idx) * r(row_id);
         });
     }
 

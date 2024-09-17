@@ -105,6 +105,8 @@ struct static_uford_one_shot_impl<sequence<>, sequence<>, Orders>
 
 } // namespace detail
 
+// TODO: we may unify static_ford/static_uford in the future
+//
 // loop over nd space(sequence) with packs
 // you must make sure the function passed in has same number of argument
 //
