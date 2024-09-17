@@ -59,10 +59,10 @@ class TestMaxPool3dFwd : public ::testing::Test
     }
 };
 
-using KernelTypes = ::testing::Types<std::tuple<I8, I8, I32, I32>,
-                                     std::tuple<F8, F8, F32, I32>,
-                                     std::tuple<F16, F16, F32, I32>,
-                                     std::tuple<BF16, BF16, F32, I32>,
+using KernelTypes = ::testing::Types<std::tuple<I8, I8, I8, I32>,
+                                     std::tuple<F8, F8, F8, I32>,
+                                     std::tuple<F16, F16, F16, I32>,
+                                     std::tuple<BF16, BF16, BF16, I32>,
                                      std::tuple<F32, F32, F32, I32>>;
 
 TYPED_TEST_SUITE(TestMaxPool3dFwd, KernelTypes);

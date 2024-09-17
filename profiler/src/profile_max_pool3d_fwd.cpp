@@ -116,7 +116,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         {
             ck::profiler::profile_pool3d_fwd_impl<F16,
                                                   F16,
-                                                  F16,
+                                                  F32,
                                                   I32,
                                                   NDHWC,
                                                   NDHWC,
@@ -158,7 +158,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         {
             ck::profiler::profile_pool3d_fwd_impl<BF16,
                                                   BF16,
-                                                  BF16,
+                                                  F32,
                                                   I32,
                                                   NDHWC,
                                                   NDHWC,
@@ -242,7 +242,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         {
             return ck::profiler::profile_pool3d_fwd_impl<F8,
                                                          F8,
-                                                         F8,
+                                                         F32,
                                                          I32,
                                                          NDHWC,
                                                          NDHWC,
@@ -284,7 +284,7 @@ int profile_max_pool3d_fwd(int argc, char* argv[])
         {
             return ck::profiler::profile_pool3d_fwd_impl<I8,
                                                          I8,
-                                                         I8,
+                                                         I32,
                                                          I32,
                                                          NDHWC,
                                                          NDHWC,
