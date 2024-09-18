@@ -29,6 +29,10 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
     static constexpr index_t AlignmentB = Problem::AlignmentB;
     static constexpr index_t AlignmentC = Problem::AlignmentC;
 
+    static constexpr bool kPadA = Problem::kPadA;
+    static constexpr bool kPadB = Problem::kPadB;
+    static constexpr bool kPadC = Problem::kPadC;
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
         return ck_tile::integer_divide_ceil(
