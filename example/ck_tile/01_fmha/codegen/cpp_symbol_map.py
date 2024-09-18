@@ -106,11 +106,13 @@ LAYOUT_MAP = {
 
 PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaPipelineQRKSVS",
+    "qr_2wave" : "ck_tile::BlockFmhaPipelineQRKSVS2Wave",
     "qr_async" : "ck_tile::BlockFmhaPipelineQRKSVSAsync",
 }
 
 PIPELINE_ENUM_MAP = {
     "qr" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
+    "qr_2wave" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_2WAVE",
     "qr_async" : "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
 }
 
