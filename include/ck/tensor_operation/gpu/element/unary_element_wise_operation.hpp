@@ -1657,7 +1657,6 @@ struct DynamicUnaryOp
     enum class UnaryOpType
     { 
         Swish, Sigmoid, PassThrough, Logistic, TanH, Relu, SoftRelu, UnaryAbs, Power, ClippedRelu, LeakyRelu, Elu
-
     };
 
     public:
