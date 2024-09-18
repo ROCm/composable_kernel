@@ -1199,7 +1199,7 @@ struct vector_type<T, 8, typename std::enable_if_t<!is_native_type<T>()>>
 
     using type = d8_t;
 
-    union
+    union alignas(next_pow2(8 * sizeof(T)))
     {
         d8_t d8_;
         StaticallyIndexedArray<d1_t, 8> d1x8_;
@@ -1282,7 +1282,7 @@ struct vector_type<T, 16, typename std::enable_if_t<!is_native_type<T>()>>
 
     using type = d16_t;
 
-    union
+    union alignas(next_pow2(16 * sizeof(T)))
     {
         d16_t d16_;
         StaticallyIndexedArray<d1_t, 16> d1x16_;
@@ -1377,7 +1377,7 @@ struct vector_type<T, 32, typename std::enable_if_t<!is_native_type<T>()>>
 
     using type = d32_t;
 
-    union
+    union alignas(next_pow2(32 * sizeof(T)))
     {
         d32_t d32_;
         StaticallyIndexedArray<d1_t, 32> d1x32_;
@@ -1482,7 +1482,7 @@ struct vector_type<T, 64, typename std::enable_if_t<!is_native_type<T>()>>
 
     using type = d64_t;
 
-    union
+    union alignas(next_pow2(64 * sizeof(T)))
     {
         d64_t d64_;
         StaticallyIndexedArray<d1_t, 64> d1x64_;
