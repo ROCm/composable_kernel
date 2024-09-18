@@ -2,7 +2,6 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "fmha_bwd.hpp"
-#include "fmha_bwd_ext.hpp"
 #include "ck_tile/host.hpp"
 #include "mask.hpp"
 #include "utils.hpp"
@@ -135,7 +134,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         hdim_v = hdim_q;
 
     bool i_perm = arg_parser.get_bool("iperm"); // if true, will be batch * nhead * seqlen * hdim
-    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead* hdim
+    bool o_perm = arg_parser.get_bool("operm"); // if false, will be batch * seqlen * nhead * hdim
 
     float scale = arg_parser.get_float("scale");
     if(scale == .0f)
@@ -211,7 +210,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BiasGradDataType      = typename TypeConfig::BiasGradDataType;
 
     // accumulation numbers for performance evaluation
-    // std::size_t flop = 0, num_byte = 0;
+    std::size_t flop = 0, num_byte = 0;
     auto max_seqlen_q =
         std::numeric_limits<int32_t>::min(); // we will use max seqlen to decide grid size
     auto max_seqlen_k =
@@ -232,20 +231,20 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 max_seqlen_k = real_seqlen_k;
             }
 
-            // flop += nhead * (static_cast<std::size_t>(3) * static_cast<std::size_t>(2) *
-            //                      real_seqlen_q * real_seqlen_k * hdim_q + // Q@K/dS^T@Q^T/dS@K^T
-            //                  static_cast<std::size_t>(2) * static_cast<std::size_t>(2) *
-            //                      real_seqlen_q * real_seqlen_k * hdim_v); // dO@V/P^T@dO^T
+            flop += nhead * (static_cast<std::size_t>(3) * static_cast<std::size_t>(2) *
+                                 real_seqlen_q * real_seqlen_k * hdim_q + // Q@K/dS^T@Q^T/dS@K^T
+                             static_cast<std::size_t>(2) * static_cast<std::size_t>(2) *
+                                 real_seqlen_q * real_seqlen_k * hdim_v); // dO@V/P^T@dO^T
 
-            // num_byte += nhead * (sizeof(QDataType) * real_seqlen_q * hdim_q +
-            //                      sizeof(KDataType) * real_seqlen_k * hdim_q +
-            //                      sizeof(VDataType) * real_seqlen_k * hdim_v +
-            //                      sizeof(ODataType) * real_seqlen_q * hdim_v +
-            //                      sizeof(OGradDataType) * real_seqlen_q * hdim_v +
-            //                      sizeof(QGradDataType) * real_seqlen_q * hdim_q +
-            //                      sizeof(KGradDataType) * real_seqlen_k * hdim_q +
-            //                      sizeof(VGradDataType) * real_seqlen_k * hdim_v +
-            //                      sizeof(LSEDataType) * real_seqlen_q);
+            num_byte += nhead * (sizeof(QDataType) * real_seqlen_q * hdim_q +
+                                 sizeof(KDataType) * real_seqlen_k * hdim_q +
+                                 sizeof(VDataType) * real_seqlen_k * hdim_v +
+                                 sizeof(ODataType) * real_seqlen_q * hdim_v +
+                                 sizeof(OGradDataType) * real_seqlen_q * hdim_v +
+                                 sizeof(QGradDataType) * real_seqlen_q * hdim_q +
+                                 sizeof(KGradDataType) * real_seqlen_k * hdim_q +
+                                 sizeof(VGradDataType) * real_seqlen_k * hdim_v +
+                                 sizeof(LSEDataType) * real_seqlen_q);
         }
     }
 
@@ -460,168 +459,96 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
 
-        return fmha_bwd_args{
-            q_buf.GetDeviceBuffer(),
-            k_buf.GetDeviceBuffer(),
-            v_buf.GetDeviceBuffer(),
-            bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
-                                            : bias_buf.GetDeviceBuffer(),
-            o_buf.GetDeviceBuffer(),
-            lse_buf.GetDeviceBuffer(),
-            do_buf.GetDeviceBuffer(),
-            d_buf.GetDeviceBuffer(), // 需要使用dot_do_o kernel 生成d_buf(对应niels 的odo buffer)
-            randval_buf.GetDeviceBuffer(),
-            dq_buf.GetDeviceBuffer(),
-            dk_buf.GetDeviceBuffer(),
-            dv_buf.GetDeviceBuffer(),
-            dbias_buf.GetDeviceBuffer(),
-            dq_acc_buf.GetDeviceBuffer(),
-            seqstart_q.GetDeviceBuffer(),
-            seqstart_k.GetDeviceBuffer(),
-            nullptr,
-            shape_seqlen_q,
-            shape_seqlen_k,
-            batch,
-            max_seqlen_q,
-            max_seqlen_k,
-            hdim_q,
-            hdim_v,
-            nhead,
-            nhead_k,
-            scale,
-            stride_q,
-            stride_k,
-            stride_v,
-            bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead) : stride_bias,
-            stride_o,
-            stride_randval,
-            stride_do,
-            stride_q, // stride_dq_acc
-            stride_q, // stride_dq
-            stride_dk,
-            stride_dv,
-            stride_dbias,
-            nhead_stride_q,
-            nhead_stride_k,
-            nhead_stride_v,
-            nhead_stride_bias,
-            nhead_stride_o,
-            nhead_stride_randval,
-            nhead_stride_do,
-            nhead_stride_lsed,
-            nhead_stride_q, // nhead_stride_dq_acc
-            nhead_stride_q, // nhead_stride_dq
-            nhead_stride_k, // nhead_stride_dk
-            nhead_stride_v, // nhead_stride_dv
-            nhead_stride_dbias,
-            batch_stride_q,
-            batch_stride_k,
-            batch_stride_v,
-            batch_stride_bias,
-            batch_stride_o,
-            batch_stride_randval,
-            batch_stride_do,
-            batch_stride_lsed,
-            batch_stride_q, // batch_stride_dq_acc
-            batch_stride_q, // batch_stride_dq
-            batch_stride_dk,
-            batch_stride_dv,
-            batch_stride_dbias,
-            split_stride_dq_acc,
-            mask.left,
-            mask.right,
-            static_cast<ck_tile::index_t>(mask.type),
-            p_drop,
-            p_undrop,
-              {drop_seed, drop_offset}};
+        return fmha_bwd_args{q_buf.GetDeviceBuffer(),
+                             k_buf.GetDeviceBuffer(),
+                             v_buf.GetDeviceBuffer(),
+                             bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
+                                                             : bias_buf.GetDeviceBuffer(),
+                             o_buf.GetDeviceBuffer(),
+                             lse_buf.GetDeviceBuffer(),
+                             do_buf.GetDeviceBuffer(),
+                             d_buf.GetDeviceBuffer(),
+                             randval_buf.GetDeviceBuffer(),
+                             dq_buf.GetDeviceBuffer(),
+                             dk_buf.GetDeviceBuffer(),
+                             dv_buf.GetDeviceBuffer(),
+                             dbias_buf.GetDeviceBuffer(),
+                             dq_acc_buf.GetDeviceBuffer(),
+                             seqstart_q.GetDeviceBuffer(),
+                             seqstart_k.GetDeviceBuffer(),
+                             nullptr,
+                             shape_seqlen_q,
+                             shape_seqlen_k,
+                             batch,
+                             max_seqlen_q,
+                             max_seqlen_k,
+                             hdim_q,
+                             hdim_v,
+                             nhead,
+                             nhead_k,
+                             scale,
+                             stride_q,
+                             stride_k,
+                             stride_v,
+                             bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
+                                                             : stride_bias,
+                             stride_o,
+                             stride_randval,
+                             stride_do,
+                             stride_q, // stride_dq_acc
+                             stride_q, // stride_dq
+                             stride_dk,
+                             stride_dv,
+                             stride_dbias,
+                             nhead_stride_q,
+                             nhead_stride_k,
+                             nhead_stride_v,
+                             nhead_stride_bias,
+                             nhead_stride_o,
+                             nhead_stride_randval,
+                             nhead_stride_do,
+                             nhead_stride_lsed,
+                             nhead_stride_q, // nhead_stride_dq_acc
+                             nhead_stride_q, // nhead_stride_dq
+                             nhead_stride_k, // nhead_stride_dk
+                             nhead_stride_v, // nhead_stride_dv
+                             nhead_stride_dbias,
+                             batch_stride_q,
+                             batch_stride_k,
+                             batch_stride_v,
+                             batch_stride_bias,
+                             batch_stride_o,
+                             batch_stride_randval,
+                             batch_stride_do,
+                             batch_stride_lsed,
+                             batch_stride_q, // batch_stride_dq_acc
+                             batch_stride_q, // batch_stride_dq
+                             batch_stride_dk,
+                             batch_stride_dv,
+                             batch_stride_dbias,
+                             split_stride_dq_acc,
+                             mask.left,
+                             mask.right,
+                             static_cast<ck_tile::index_t>(mask.type),
+                             p_drop,
+                             p_undrop,
+                             {drop_seed, drop_offset}};
     }();
 
-    float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config, 0);
+    float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
     if(ave_time < 0)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
         return false;
     }
 
-    int atm_f32    = 1;
-    int skip_dq_rd = 1;
-    int mask_asm       = 1;
-    int mask_kb_asm    = 0;
+    float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 
-    int ts_qo            = 32;
-    int ts_kv            = 128;
-    int dump_result      = 0;
-    auto fmha_ext_traits = fmha_bwd_ext_traits{batch,
-                                               nhead,
-                                               seqlen_q,
-                                               hdim_q,
-                                               atm_f32,
-                                               skip_dq_rd,
-                                               mask_asm,
-                                               mask_kb_asm,
-                                               ts_qo,
-                                               ts_kv,
-                                               dump_result};
-    int stride_tg        = ts_kv * hdim_q * 2;
-    int stride_head      = seqlen_q * hdim_q * 2;
-    int stride_batch     = nhead * seqlen_q * hdim_q * 2;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    float k_log2e  = log2f(expf(1));
-    float k_scalar = sqrt(hdim_q);
-
-    k_scalar = static_cast<float>(1.0 / static_cast<double>(k_scalar));
-
-#ifdef ASM_PRINT
-    // debug pointer
-    float *host_print, *print;
-    host_print = (float*)malloc(bdx * 8);
-    HIP_CALL(hipMalloc(&print, bdx * 8));
-#endif
-    fmha_bwd_asm_args args;
-
-    args.ptr_dq = dq_acc_buf.GetDeviceBuffer(); // dev_dq;
-    // args.ptr_dq  = dq_buf.GetDeviceBuffer();  // dev_dq;
-    args.ptr_dk  = dk_buf.GetDeviceBuffer();  // dev_dk;
-    args.ptr_dv  = dv_buf.GetDeviceBuffer();  // dev_dv;
-    args.ptr_q   = q_buf.GetDeviceBuffer();   // dev_q;
-    args.ptr_k   = k_buf.GetDeviceBuffer();   // dev_k;
-    args.ptr_v   = v_buf.GetDeviceBuffer();   // dev_v;
-    args.ptr_do  = do_buf.GetDeviceBuffer();  // dev_do;
-    args.ptr_lse = lse_buf.GetDeviceBuffer(); // dev_lse;
-    args.ptr_odo = d_buf.GetDeviceBuffer();   // dev_odo;
-    args.scalar  = k_scalar;
-    args.log2e   = k_log2e;
-    args.seq_len = seqlen_q;
-    args.Ts      = stride_tg;
-    args.Hs      = stride_head;
-    args.BAs     = stride_batch;
-#ifdef ASM_PRINT
-    args.print = (void*)print;
-#endif
-
-    hipStream_t stream_ext = nullptr;
-    fmha_bwd_ext(fmha_ext_traits, args, stream_ext);
-
-    fmha_bwd(fmha_traits, fmha_args, stream_config, 1);
-
-    // if((atm_f32 == 1) || ((!skip_dq_rd) && (atm_f32 == 2)))
-    //     HIP_CALL(
-    //         hipMemcpy(host_fp32_dq, dev_dq, sz_mx_dq * sizeof(float), hipMemcpyDeviceToHost));
-    // else
-    //     HIP_CALL(
-    //         hipMemcpy(host_fp16_dq, dev_dq, sz_mx * sizeof(float) / 2, hipMemcpyDeviceToHost));
-    // ;
-    // HIP_CALL(hipMemcpy(host_fp16_dk, dev_dk, sz_mx * sizeof(float) / 2, hipMemcpyDeviceToHost));
-    // HIP_CALL(hipMemcpy(host_fp16_dv, dev_dv, sz_mx * sizeof(float) / 2, hipMemcpyDeviceToHost));
-
-    // float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
-
-    // float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    // std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
-    //           << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) <<
-    //           gb_per_sec
-    //           << " GB/s" << std::flush;
+    std::cout << std::fixed << ", " << std::setprecision(3) << ave_time << " ms, "
+              << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2) << gb_per_sec
+              << " GB/s" << std::flush;
 
     if(!do_validation)
     {
@@ -845,12 +772,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::stream_config stream_config_v{
         nullptr, true, 0, 0, 1, arg_parser.get_str("timer") == std::string("gpu")};
-    // just fot odo buffer
-    fmha_bwd(fmha_traits, fmha_args, stream_config_v, 0);
-
-    fmha_bwd_ext(fmha_ext_traits, args, stream_ext);
-
-    fmha_bwd(fmha_traits, fmha_args, stream_config_v, 1);
+    fmha_bwd(fmha_traits, fmha_args, stream_config_v);
 
     dq_buf.FromDevice(dq_host.data());
     dk_buf.FromDevice(dk_host.data());
@@ -1017,6 +939,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+
     return pass;
 }
 
@@ -1031,10 +954,10 @@ int main(int argc, char* argv[])
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
-    // else if(data_type == "bf16")
-    // {
-    //     return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
-    // }
+    else if(data_type == "bf16")
+    {
+        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
+    }
 
     return -3;
 }

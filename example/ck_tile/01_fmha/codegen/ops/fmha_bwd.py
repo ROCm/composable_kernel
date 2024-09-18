@@ -163,6 +163,146 @@ std::string fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_{F_idx}>()
 FMHA_BWD_API_FILENAME="fmha_bwd_api.cpp"
 FMHA_BWD_API="""
 #include <iostream>
+#include <hip/hip_runtime.h>
+#include <hip/hip_fp16.h>
+#include "hsaco/fmha_hsaco.h"
+
+#define HSA_KERNEL "kernel_func"
+#define HIP_CALL(call)                                                              \\
+    do                                                                              \\
+    {{                                                                               \\
+        hipError_t err = call;                                                      \\
+        if(err != hipSuccess)                                                       \\
+        {{                                                                           \\
+            printf("[hiperror](%d) fail to call %s", static_cast<int>(err), #call); \\
+            exit(0);                                                                \\
+        }}                                                                           \\
+    }} while(0)
+
+// extern declare the function since hip/hip_ext.h header is broken
+extern hipError_t hipExtModuleLaunchKernel(hipFunction_t, // NOLINT
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           uint32_t,
+                                           size_t,
+                                           hipStream_t,
+                                           void**,
+                                           void**,
+                                           hipEvent_t = nullptr,
+                                           hipEvent_t = nullptr,
+                                           uint32_t   = 0);
+
+struct p3
+{{
+    unsigned int _p0;
+    unsigned int _p1;
+    unsigned int _p2;
+}};
+struct p2
+{{
+    unsigned int _p0;
+    unsigned int _p1;
+}};
+struct __attribute__((packed)) fmha_bwd_asm_args
+{{
+    void* ptr_dq;
+    p2 _p0;
+    void* ptr_dk;
+    p2 _p1;
+    void* ptr_dv;
+    p2 _p2;
+    const void* ptr_q;
+    p2 _p3;
+    const void* ptr_k;
+    p2 _p4;
+    const void* ptr_v;
+    p2 _p5;
+    const void* ptr_do;
+    p2 _p6;
+    const void* ptr_lse;
+    p2 _p7;
+    const void* ptr_d;
+    p2 _p8;
+    float scalar;
+    p3 _p9;
+    float log2e;
+    p3 _p10;
+    unsigned int seq_len;
+    p3 _p11;
+    unsigned int Ts;
+    p3 _p12;
+    unsigned int Hs;
+    p3 _p13;
+    unsigned int BAs;
+    p3 _p14;
+}};
+
+struct fmha_bwd_ext_traits
+{{
+    int b;
+    int h;
+    int s;
+    int d;
+
+    int atm_f32;
+    int mask;
+    int ts_qo;
+    int ts_kv;
+}};
+
+std::string hip_error(int error) {{ return hipGetErrorString(static_cast<hipError_t>(error)); }}
+
+class fmha_bwd_ext_kernel
+{{
+    public:
+    fmha_bwd_ext_kernel(const std::string& name, unsigned char buffer[])
+    {{
+        // HIP_CALL(hipModuleLoadData(&module, buffer));
+        auto status = hipModuleLoadData(&module, buffer);
+        if(status != hipSuccess)
+            throw std::runtime_error("Failed to load module: " + hip_error(status));
+        HIP_CALL(hipModuleGetFunction(&kernel_func, module, name.c_str()));
+    }}
+
+    void
+    launch_kernel(fmha_bwd_ext_traits fmha_ext_traits, fmha_bwd_asm_args args, const ck_tile::stream_config& s) const
+    {{
+        size_t arg_size = sizeof(args);
+        void* config[]  = {{HIP_LAUNCH_PARAM_BUFFER_POINTER,
+                           &args,
+                           HIP_LAUNCH_PARAM_BUFFER_SIZE,
+                           &arg_size,
+                           HIP_LAUNCH_PARAM_END}};
+
+        int bdx = 256;
+        int gdx = fmha_ext_traits.s / fmha_ext_traits.ts_kv;
+        int gdy = fmha_ext_traits.h;
+        int gdz = fmha_ext_traits.b;
+        if(fmha_ext_traits.mask > 0)
+        {{
+            int num_tg = fmha_ext_traits.s / fmha_ext_traits.ts_kv;
+            gdx        = (num_tg % 2) ? (num_tg / 2 + 1) : (num_tg / 2);
+        }}
+        HIP_CALL(hipModuleLaunchKernel(kernel_func,
+                                       gdx,
+                                       gdy,
+                                       gdz,
+                                       bdx,
+                                       1,
+                                       1,
+                                       0,
+                                       s.stream_id_,
+                                       NULL,
+                                       reinterpret_cast<void**>(&config)));
+    }}
+
+    private:
+    hipModule_t module;
+    hipFunction_t kernel_func;
+}};
 
 template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_dq_trait_>
 float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
@@ -176,8 +316,83 @@ float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
     );
 }}
 
+template <typename dot_do_o_trait_, typename convert_dq_trait_>
+float fmha_ext_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a,  unsigned char bwd_ext_asm[], const std::string& bwd_ext_name)
+{{
+    if(s.log_level_ > 0)
+        std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << ", " << bwd_ext_name << ", " << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << std::flush;
+    fmha_bwd_asm_args args;
+    args.ptr_dq  = a.dq_acc_ptr;
+    args.ptr_dk  = a.dk_ptr;
+    args.ptr_dv  = a.dv_ptr;
+    args.ptr_q   = a.q_ptr;
+    args.ptr_k   = a.k_ptr;
+    args.ptr_v   = a.v_ptr;
+    args.ptr_do  = a.do_ptr;
+    args.ptr_lse = a.lse_ptr;
+    args.ptr_d   = a.d_ptr;
+    args.scalar  = a.scale;
+    args.log2e   = ck_tile::log2e_v<float>;
+    args.seq_len = a.seqlen_q;
+    args.Ts      = 128 * a.hdim_q * 2;
+    args.Hs      = a.seqlen_q * a.hdim_q * 2;
+    args.BAs     = a.nhead_q * a.seqlen_q * a.hdim_q * 2;
+    auto traits = fmha_bwd_ext_traits{{a.batch,
+                                       a.nhead_q,
+                                       a.seqlen_q,
+                                       a.hdim_q,
+                                       1,
+                                       a.mask_type,
+                                       32,
+                                       128}};
+    HIP_CALL(hipSetDevice(0));
+    fmha_bwd_ext_kernel impl(HSA_KERNEL, bwd_ext_asm);
+    return ck_tile::launch_kernel(s,
+        [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
+        [=](const ck_tile::stream_config& s_){{ impl.launch_kernel(traits, args, s_); }},
+        [=](const ck_tile::stream_config& s_){{ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a); }}
+    );
+}}
+
 float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
+
+    if ((t.is_group_mode == false) && (t.bias_type == bias_enum::no_bias) && (t.has_dbias == false) && (t.has_dropout == false) &&
+                (a.seqlen_q == a.seqlen_k) && (a.seqlen_k % 128 == 0) && (a.hdim_q == 128) && (a.hdim_v == 128) && (t.is_deterministic == false)) {{
+        if(t.data_type.compare("fp16") == 0){{
+            if(t.mask_type == mask_enum::no_mask){{
+                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
+                const std::string bwd_ext_name = "bwd_ext_fp16_a32";
+                r = fmha_ext_bwd_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_a32, bwd_ext_name);
+                return r;
+            }}
+            else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
+                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::fp16_t, false, false, false>;
+                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::fp16_t, false, false, false, false>;
+                const std::string bwd_ext_name = "bwd_ext_fp16_causal_a32";
+                r = fmha_ext_bwd_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_fp16_causal_a32, bwd_ext_name);
+                return r;
+            }}
+        }}
+        else if(t.data_type.compare("bf16") == 0){{
+            if(t.mask_type == mask_enum::no_mask){{
+                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                const std::string bwd_ext_name = "bwd_ext_bf16_a32";
+                r = fmha_ext_bwd_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_a32, bwd_ext_name);
+                return r;
+            }}
+            else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
+                using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<128, ck_tile::bf16_t, false, false, false, false>;
+                const std::string bwd_ext_name = "bwd_ext_bf16_causal_a32";
+                r = fmha_ext_bwd_<dot_do_o_trait_, convert_dq_trait_>(s, a, bwd_bf16_causal_a32, bwd_ext_name);
+                return r;
+            }}
+        }}
+    }}
+
 {F_dispatch}
     return r;
 }}
@@ -451,14 +666,14 @@ class FmhaBwdDQDKDVKernel:
 def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            # '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            # '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"]
+            # '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            #             "kr_ktr_vr_iglp", "kr_ktr_vr"]
         }
     else:
         return None
@@ -501,7 +716,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                         continue
             if receipt == 3:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= bias in ['no', 'alibi']
+                    cond &= bias in ['no']
                     cond &= dpad == dvpad
                     cond &= deterministic == "f"
                     if not cond:
