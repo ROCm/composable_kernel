@@ -1653,6 +1653,7 @@ struct DynamicUnaryOp
                       "Data type is not supported by this operation!");
     }
 
+
     private:
     enum class UnaryOpType
     { 
