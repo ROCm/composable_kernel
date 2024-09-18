@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
-#include "fmha_hsaco.h"
+#include "fmha_hsaco.hpp"
 
 unsigned char bwd_bf16_nocoex_causal_a32[] = {
     0x7F, 0x45, 0x4C, 0x46, 0x02, 0x01, 0x01, 0x40, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
