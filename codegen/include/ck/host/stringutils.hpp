@@ -100,5 +100,33 @@ inline auto Transform(const Range1& r1, const Range2& r2, F f)
     return result;
 }
 
+inline bool StartsWith(const std::string& value, const std::string& prefix)
+{
+    if(prefix.size() > value.size())
+        return false;
+    else
+        return std::equal(prefix.begin(), prefix.end(), value.begin());
+}
+
+inline bool EndsWith(const std::string& value, const std::string& suffix)
+{
+    if(suffix.size() > value.size())
+        return false;
+    else
+        return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
+}
+
+inline std::vector<std::string> SplitString(const std::string& s, char delim)
+{
+    std::vector<std::string> elems;
+    std::stringstream ss(s + delim);
+    std::string item;
+    while(std::getline(ss, item, delim))
+    {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
 } // namespace host
 } // namespace ck

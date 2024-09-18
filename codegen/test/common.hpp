@@ -8,16 +8,71 @@
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 #include <fstream>
+#include <unordered_set>
+#include "ck/host/headers.hpp"
+#include "rtc/hiprtc_enable_env.hpp"
+#include "ck/host/stringutils.hpp"
 
-std::vector<rtc::src_file> get_headers_for_test()
+// NOLINTNEXTLINE
+const char* const disable_warning_pragma = R"__migraphx__(
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+${content}
+#pragma clang diagnostic pop
+)__migraphx__";
+
+template <class P>
+inline std::string ck_disable_warnings(P p)
+{
+    return ck::host::InterpolateString(disable_warning_pragma,
+                                       {{"content", std::string{p.data(), p.size()}}});
+}
+
+inline std::vector<rtc::src_file> create_headers_for_hiprtc_test()
+{
+    auto ck_headers = ck::host::GetHeaders();
+    std::vector<rtc::src_file> result;
+
+    std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(result), [&](auto& p) {
+        return rtc::src_file{p.first, ck_disable_warnings(p.second)};
+    });
+
+    return result;
+}
+
+inline const std::vector<rtc::src_file>& get_headers_for_hiprtc_test()
+{
+    static const std::vector<rtc::src_file> headers = create_headers_for_hiprtc_test();
+    return headers;
+}
+
+inline std::vector<rtc::src_file> create_headers_for_clang_test()
 {
     std::vector<rtc::src_file> result;
     auto hs = ck::host::GetHeaders();
     std::transform(
         hs.begin(), hs.end(), std::back_inserter(result), [&](const auto& p) -> rtc::src_file {
-            return {p.first, p.second};
+            return {p.first, {p.second.begin(), p.second.end()}};
         });
     return result;
+}
+
+inline const std::vector<rtc::src_file>& get_headers_for_clang_test()
+{
+    static const std::vector<rtc::src_file> headers = create_headers_for_clang_test();
+    return headers;
+}
+
+inline const std::vector<rtc::src_file>& get_headers_for_test()
+{
+    if(ck::EnvIsEnabled(CK_ENV(CK_CODEGEN_TESTS_ENABLE_HIPRTC)))
+    {
+        return get_headers_for_hiprtc_test();
+    }
+    else
+    {
+        return get_headers_for_clang_test();
+    }
 }
 
 template <typename V>
@@ -34,16 +89,22 @@ std::size_t GetSize(V mLens, V mStrides)
     return space;
 }
 
-template <class T, typename V>
-rtc::buffer<T> generate_buffer(V mLens, V mStrides, std::size_t seed = 0)
+template <class T>
+rtc::buffer<T> generate_buffer(std::size_t n, std::size_t seed = 0)
 {
-    std::size_t space = GetSize(mLens, mStrides);
-    rtc::buffer<T> result(space);
+    rtc::buffer<T> result(n);
     std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dis(-1.0);
     std::generate(result.begin(), result.end(), [&] { return dis(gen); });
-    // std::fill(result.begin(), result.end(), 1);
     return result;
+}
+
+template <class T, typename V>
+std::enable_if_t<!std::is_integral_v<V>, rtc::buffer<T>>
+generate_buffer(V mLens, V mStrides, std::size_t seed = 0)
+{
+    std::size_t space = GetSize(mLens, mStrides);
+    return generate_buffer<T>(space, seed);
 }
 
 template <class T, class U>

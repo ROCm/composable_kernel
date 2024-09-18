@@ -1,0 +1,3 @@
+#include <ck/utility/env.hpp>
+
+CK_DECLARE_ENV_VAR_BOOL(CK_CODEGEN_TESTS_ENABLE_HIPRTC)
