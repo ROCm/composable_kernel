@@ -703,7 +703,7 @@ def process_results(Map conf=[:]){
 }
 
 //launch develop branch daily at 23:00 UT in FULL_QA mode and at 19:00 UT with latest staging compiler version
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2; RUN_CK_TILE_TESTS=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCMVERSION=6.2;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true
                                               0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
@@ -775,9 +775,13 @@ pipeline {
             defaultValue: false,
             description: "Run the grouped conv large cases tests (default: OFF)")
         booleanParam(
-            name: "RUN_CK_TILE_TESTS",
+            name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
-            description: "Run the ck_tile tests (default: OFF)")
+            description: "Run the ck_tile FMHA tests (default: OFF)")
+        booleanParam(
+            name: "RUN_CK_TILE_GEMM_TESTS",
+            defaultValue: false,
+            description: "Run the ck_tile GEMM tests (default: OFF)")
         booleanParam(
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
@@ -894,15 +898,15 @@ pipeline {
                 }
             }
         }
-        stage("Run CK_TILE Tests")
+        stage("Run CK_TILE_FMHA Tests")
         {
             parallel
             {
-                stage("Run CK_TILE Tests on gfx90a")
+                stage("Run CK_TILE_FMHA Tests on gfx90a")
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -917,11 +921,11 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Run CK_TILE Tests on gfx942")
+                stage("Run CK_TILE_FMHA Tests on gfx942")
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_CK_TILE_TESTS.toBoolean() }
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
@@ -930,6 +934,52 @@ pipeline {
                                            make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run CK_TILE_GEMM Tests")
+        {
+            parallel
+            {
+
+                stage("Run CK_TILE_GEMM Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 tile_example_gemm_basic && \
+                                           cd ../ &&
+                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+
+                }
+                stage("Run CK_TILE_GEMM Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
+                                           make -j64 tile_example_gemm_basic && \
+                                           cd ../ &&
+                                           example/ck_tile/03_gemm/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -952,7 +1002,6 @@ pipeline {
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install \
                                          -DGPU_TARGETS="gfx908;gfx90a;gfx940;gfx941;gfx942" \
-                                         -DCMAKE_EXE_LINKER_FLAGS=" -L ${env.WORKSPACE}/script -T hip_fatbin_insert " \
                                          -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \

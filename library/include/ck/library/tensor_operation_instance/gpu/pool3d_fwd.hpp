@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,7 +22,7 @@ static constexpr auto WindowRank = 3;
 
 static constexpr auto MaxOp = ck::ReduceTensorOp::MAX;
 static constexpr auto AvgOp = ck::ReduceTensorOp::AVG;
-#ifdef CK_ENABLE_FP16
+
 // FP16
 void add_device_pool3d_fwd_ndhwc_f16_instances(
     std::vector<std::unique_ptr<
@@ -36,8 +36,22 @@ void add_device_pool3d_fwd_ndhwc_f16_instances(
 void add_device_pool3d_fwd_ndhwc_index_f16_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F16, F16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
-#ifdef CK_ENABLE_BF16
+
+using F8 = ck::f8_t;
+// F8
+void add_device_pool3d_fwd_ndhwc_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, MaxOp, false>>>&);
+
+void add_device_pool3d_fwd_ndhwc_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, AvgOp, false>>>&);
+
+// FP8 - return index
+void add_device_pool3d_fwd_ndhwc_index_f8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, F8, F8, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+
 // BF16
 void add_device_pool3d_fwd_ndhwc_bf16_instances(
     std::vector<std::unique_ptr<
@@ -51,8 +65,7 @@ void add_device_pool3d_fwd_ndhwc_bf16_instances(
 void add_device_pool3d_fwd_ndhwc_index_bf16_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, BF16, BF16, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
-#ifdef CK_ENABLE_FP32
+
 // FP32
 void add_device_pool3d_fwd_ndhwc_f32_instances(
     std::vector<std::unique_ptr<
@@ -66,7 +79,21 @@ void add_device_pool3d_fwd_ndhwc_f32_instances(
 void add_device_pool3d_fwd_ndhwc_index_f32_instances(
     std::vector<std::unique_ptr<
         DevicePoolFwd<InOutRank, WindowRank, F32, F32, I32, NDHWC, NDHWC, MaxOp, true>>>&);
-#endif
+
+// I8
+void add_device_pool3d_fwd_ndhwc_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NDHWC, NDHWC, MaxOp, false>>>&);
+
+void add_device_pool3d_fwd_ndhwc_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NDHWC, NDHWC, AvgOp, false>>>&);
+
+// I8 - return index
+void add_device_pool3d_fwd_ndhwc_index_i8_instances(
+    std::vector<std::unique_ptr<
+        DevicePoolFwd<InOutRank, WindowRank, I8, I8, I32, NDHWC, NDHWC, MaxOp, true>>>&);
+
 template <typename InDataType,
           typename OutDataType,
           typename IndexDataType,
@@ -99,7 +126,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
         if constexpr(is_same_v<InLayout, NDHWC> && is_same_v<OutLayout, NDHWC>)
         {
-#ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, F16> && is_same_v<OutDataType, F16> &&
                          is_same_v<IndexDataType, I32>)
             {
@@ -112,8 +138,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_f16_instances(op_ptrs);
                 }
             }
-#endif
-#ifdef CK_ENABLE_BF16
             else if constexpr(is_same_v<InDataType, BF16> && is_same_v<OutDataType, BF16> &&
                               is_same_v<IndexDataType, I32>)
             {
@@ -126,8 +150,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_bf16_instances(op_ptrs);
                 }
             }
-#endif
-#ifdef CK_ENABLE_FP32
             else if constexpr(is_same_v<InDataType, F32> && is_same_v<OutDataType, F32> &&
                               is_same_v<IndexDataType, I32>)
             {
@@ -140,7 +162,30 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DevicePoolFw
                     add_device_pool3d_fwd_ndhwc_f32_instances(op_ptrs);
                 }
             }
-#endif
+            else if constexpr(is_same_v<InDataType, F8> && is_same_v<OutDataType, F8> &&
+                              is_same_v<IndexDataType, I32>)
+            {
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_f8_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_f8_instances(op_ptrs);
+                }
+            }
+            else if constexpr(is_same_v<InDataType, I8> && is_same_v<OutDataType, I8> &&
+                              is_same_v<IndexDataType, I32>)
+            {
+                if constexpr(OutputIndex && ReduceOpId == MaxOp)
+                {
+                    add_device_pool3d_fwd_ndhwc_index_i8_instances(op_ptrs);
+                }
+                else
+                {
+                    add_device_pool3d_fwd_ndhwc_i8_instances(op_ptrs);
+                }
+            }
         }
 
         return op_ptrs;
