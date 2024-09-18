@@ -171,6 +171,16 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
 
                     Argument arg_ = arg;
 
+                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
+                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
+                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
+                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
+
+                    auto size_a_buffer =
+                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
+                    auto size_b_buffer =
+                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
+
                     const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
                         arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
 
@@ -179,11 +189,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                         DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
                     });
                     ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                        arg_,
-                        stream_config.rotating_count,
-                        arg_.M * arg_.K * sizeof(ADataType),
-                        arg_.K * arg_.N * sizeof(BDataType),
-                        DsSize);
+                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
