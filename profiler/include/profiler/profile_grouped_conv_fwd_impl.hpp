@@ -44,13 +44,10 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    // using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
     using OutElementOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-
-    // const auto out_element_op = ck::tensor_operation::element_wise::Logistic{};
     ck::tensor_operation::element_wise::DynamicUnaryOp out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::PassThrough());
     
     if(dynamicActivationFunction == "PassThrough"){
