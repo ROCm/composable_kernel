@@ -208,7 +208,7 @@ TEST(Custom_uint8, TestAsType)
     ck::static_for<0, size, 1>{}([&](auto i) {
         right_vec.template AsType<custom_uint8_t>()(Number<i>{}) = custom_uint8_t{test_vec.at(i)};
     });
-    // copy the first half of a vector
+    // copy the vector
     vector_type<custom_uint8_t, size> left_vec{right_vec};
     // check if values were copied correctly
     ck::static_for<0, size, 1>{}([&](auto i) {
