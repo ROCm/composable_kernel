@@ -1164,7 +1164,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 return false;
             }
-            if constexpr(!is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>())
+            if constexpr(!(is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
+                           is_NGCSpatial_GKSpatial_NGKSpatial<ALayout, BLayout, ELayout>()))
             {
                 return false;
             }

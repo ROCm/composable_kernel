@@ -1425,6 +1425,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                     (arg.GetWorkspaceETensorSizeBytes() + arg.GetWorkspaceATensorSizeBytes()) /
                         sizeof(BDataType);
 
+                // Different data type for A and B is not supported
                 auto kernel_transpose = kernel_elementwise_dual<GridwiseElementwiseTranspose,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
                                                                 ck::Tuple<NGCHWTransposeDescType>,
