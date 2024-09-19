@@ -794,6 +794,10 @@ pipeline {
             name: "NINJA_BUILD_TRACE",
             defaultValue: false,
             description: "Generate a ninja build trace (default: OFF)")
+        booleanParam(
+            name: "BUILD_LEGACY_OS",
+            defaultValue: false,
+            description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -946,7 +950,6 @@ pipeline {
         {
             parallel
             {
-
                 stage("Run CK_TILE_GEMM Tests on gfx90a")
                 {
                     when {
@@ -965,7 +968,6 @@ pipeline {
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
-
                 }
                 stage("Run CK_TILE_GEMM Tests on gfx942")
                 {
@@ -988,6 +990,51 @@ pipeline {
                 }
             }
         }
+        stage("Build CK with Legacy OS")
+        {
+            parallel
+            {
+                stage("Build CK with RHEL8")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        params.USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
+                        setup_args = """ -DGPU_TARGETS="gfx942" \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        execute_args = " "
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Build CK with SLES15")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        params.USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
+                        setup_args = """ -DGPU_TARGETS="gfx942" \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        execute_args = " "
+                   }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+
 		stage("Build CK and run Tests")
         {
             parallel
