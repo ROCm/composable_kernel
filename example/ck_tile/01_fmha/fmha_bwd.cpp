@@ -91,7 +91,9 @@ auto create_args(int argc, char* argv[])
         .insert("deterministic",
                 "0",
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
-                "will not be used");
+                "will not be used")
+        .insert("ext_asm", "0", "if set to 1, some cases will call the ext asm dqdkdv kernel")
+        .insert("asm_atomic_fp32", "1", "if set to 0, atomic fp16/bf16 is used when calling the ext asm dqdkdv kernel");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -176,10 +178,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
-    int stream_warmup  = arg_parser.get_int("warmup");
-    int stream_repeat  = arg_parser.get_int("repeat");
-    bool kname         = arg_parser.get_bool("kname");
-    bool deterministic = arg_parser.get_bool("deterministic");
+    int stream_warmup    = arg_parser.get_int("warmup");
+    int stream_repeat    = arg_parser.get_int("repeat");
+    bool kname           = arg_parser.get_bool("kname");
+    bool deterministic   = arg_parser.get_bool("deterministic");
+    bool ext_asm         = arg_parser.get_bool("ext_asm");
+    bool asm_atomic_fp32 = arg_parser.get_bool("asm_atomic_fp32");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -416,7 +420,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        use_dbias,
                                        p_drop > 0.0f,
                                        s_randval,
-                                       deterministic};
+                                       deterministic,
+                                       ext_asm,
+                                       asm_atomic_fp32};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
