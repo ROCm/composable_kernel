@@ -32,23 +32,29 @@ if(EXISTS ${FMHA_CPP_FOLDER}/blob_list.txt)
     file(REMOVE ${FMHA_CPP_FOLDER}/blob_list.txt)
 endif()
 
+set(FMHA_KNOWN_APIS "fwd,fwd_splitkv,fwd_appendkv,bwd")
+
 # generate a list of kernels, but not actually emit files at config stage
 execute_process(
-  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
+  COMMAND ${PYTHON_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
   --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
+  --api ${FMHA_KNOWN_APIS}
+  --receipt 3
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
   message( FATAL_ERROR "CK Tile MHA FAILED to genrate a list of kernels via Python.")
 else()
-  file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_FWD_GEN_BLOBS)
+  file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_GEN_BLOBS)
 endif()
 
 # actually generate the kernel content now
 add_custom_command(
-  OUTPUT ${FMHA_FWD_GEN_BLOBS}
-  COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_SOURCE_DIR}/example/ck_tile/01_fmha/generate.py
+  OUTPUT ${FMHA_GEN_BLOBS}
+  COMMAND ${PYTHON_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
   --output_dir ${FMHA_CPP_FOLDER}
+  --api ${FMHA_KNOWN_APIS}
+  --receipt 3
   COMMENT "Generating mha kernel (cpp) files now ..."
   VERBATIM
 )
@@ -57,12 +63,12 @@ add_custom_command(
 # have filename. Since, it was cauing the cmake
 # to throw "File name too long"
 set(device_files)
-foreach(filepath IN LISTS FMHA_FWD_GEN_BLOBS)
+foreach(filepath IN LISTS FMHA_GEN_BLOBS)
     get_filename_component(filename ${filepath} NAME)
     # Append the filename to the device_files list
     list(APPEND device_files ${filename})
 endforeach()
-add_custom_target(generate_cpp_files DEPENDS ${FMHA_FWD_GEN_BLOBS})
+add_custom_target(generate_cpp_files DEPENDS ${FMHA_GEN_BLOBS})
 
 add_instance_library(device_mha_instance ${device_files})
 
