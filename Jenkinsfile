@@ -34,8 +34,11 @@ def runShell(String command){
 
 def getDockerImageName(){
     def img
-    if (env.USE_CUSTOM_DOCKER != ""){
-        img = "${env.USE_CUSTOM_DOCKER}"
+    if (params.USE_CUSTOM_DOCKER != ""){
+        img = "${params.USE_CUSTOM_DOCKER}"
+    }
+    else if ( params.BUILD_LEGACY_OS.toBoolean() ){
+        img = "${USE_LEGACY_DOCKER}"
     }
     else{
     if (params.ROCMVERSION != "6.3"){
@@ -809,8 +812,6 @@ pipeline {
         status_wrapper_creds = "${status_wrapper_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        USE_CUSTOM_DOCKER="${param.USE_CUSTOM_DOCKER}"
-
     }
     stages{
         stage("Build Docker"){
@@ -1004,7 +1005,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        env.USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
+                        def USE_LEGACY_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
@@ -1023,7 +1024,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        env.USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
+                        def USE_LEGACY_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
