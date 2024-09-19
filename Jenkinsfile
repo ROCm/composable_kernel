@@ -1002,7 +1002,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        params.USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
+                        USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
@@ -1021,7 +1021,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        params.USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
+                        USE_CUSTOM_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
