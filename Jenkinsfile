@@ -283,19 +283,11 @@ def cmake_build(Map conf=[:]){
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
             build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
         }
-        if(params.BUILD_LEGACY_OS){
-            cmd = conf.get("cmd", """
-                ${setup_cmd}
-                ${execute_cmd}
-            """)
-        }
-        else{
-            cmd = conf.get("cmd", """
-                ${setup_cmd}
-                ${build_cmd}
-                ${execute_cmd}
-            """)
-        }
+        cmd = conf.get("cmd", """
+            ${setup_cmd}
+            ${build_cmd}
+            ${execute_cmd}
+        """)
     }
     else{
         cmd = conf.get("cmd", """
@@ -1043,7 +1035,7 @@ pipeline {
                         execute_args = " "
                    }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker_name: docker_name)
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
                         cleanWs()
                     }
                 }
@@ -1062,7 +1054,7 @@ pipeline {
                         execute_args = " "
                    }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker_name: docker_name)
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
                         cleanWs()
                     }
                 }
