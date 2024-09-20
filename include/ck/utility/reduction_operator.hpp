@@ -516,7 +516,7 @@ struct InMemoryDataOperationSupportedOnDataType<InMemoryDataOperationEnum::Add, 
     static constexpr bool value =
         is_same<DataType, float>::value || is_same<DataType, double>::value ||
         is_same<DataType, half_t>::value || is_same<DataType, int8_t>::value ||
-        is_same<DataType, int32_t>::value || is_same<DataType, f8_t>::value;
+        is_same<DataType, int32_t>::value;
 };
 
 } // namespace reduce
