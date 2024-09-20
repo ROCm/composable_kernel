@@ -101,7 +101,7 @@ def getDockerImage(Map conf=[:]){
     }
     echo "Docker Args: ${dockerArgs}"
     def image
-    if ( params.BUILD_LEGACY_OS ){
+    if ( params.BUILD_LEGACY_OS && conf.get("docker_name", "") != "" ){
         image = conf.get("docker_name", "")
         echo "Using legacy docker: ${image}"
     }
@@ -339,7 +339,7 @@ def buildHipClangJob(Map conf=[:]){
         checkout scm
 
         def image
-        if ( params.BUILD_LEGACY_OS ){
+        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
             image = conf.get("docker_name", "")
             echo "Using legacy docker: ${image}"
         }
@@ -529,7 +529,7 @@ def Build_CK(Map conf=[:]){
         checkout scm
 
         def image
-        if ( params.BUILD_LEGACY_OS ){
+        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
             image = conf.get("docker_name", "")
             echo "Using legacy docker: ${image}"
         }
