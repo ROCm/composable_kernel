@@ -346,9 +346,12 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasDropout)
         {
-           if (drop_seed_ptr != nullptr)
+            if (drop_seed_ptr != nullptr)
             {   
                 kargs.drop_seed = *(reinterpret_cast<const uint64_t*>(drop_seed_ptr));
+            }
+            if (drop_offset_ptr != nullptr)
+            {
                 kargs.drop_offset = *(reinterpret_cast<const uint64_t*>(drop_offset_ptr));
             }
             kargs.init_dropout(p_drop, drop_seed_offset);
@@ -467,8 +470,11 @@ struct FmhaFwdKernel
             if (drop_seed_ptr != nullptr)
             {   
                 kargs.drop_seed = *(reinterpret_cast<const uint64_t*>(drop_seed_ptr));
-                kargs.drop_offset = *(reinterpret_cast<const uint64_t*>(drop_offset_ptr));
             }            
+            if (drop_offset_ptr != nullptr)
+            {
+                kargs.drop_offset = *(reinterpret_cast<const uint64_t*>(drop_offset_ptr));
+            }
             kargs.init_dropout(p_drop, drop_seed_offset);
             kargs.rand_val_ptr         = rand_val_ptr;
             kargs.stride_randval       = stride_randval;
