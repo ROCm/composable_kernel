@@ -37,9 +37,6 @@ def getDockerImageName(){
     if (params.USE_CUSTOM_DOCKER != ""){
         img = "${params.USE_CUSTOM_DOCKER}"
     }
-    else if ( params.BUILD_LEGACY_OS.toBoolean() ){
-        img = "${USE_LEGACY_DOCKER}"
-    }
     else{
     if (params.ROCMVERSION != "6.3"){
        if (params.COMPILER_VERSION == "") {
@@ -333,7 +330,13 @@ def buildHipClangJob(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = getDockerImageName() 
+        def image
+        if ( params.BUILD_LEGACY_OS.toBoolean() ){
+            image = conf.get("docker", "")
+        }
+        else{
+            image = getDockerImageName()
+        }
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -1005,14 +1008,14 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        def USE_LEGACY_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
+                        def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
                    }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker: docker_name)
                         cleanWs()
                     }
                 }
@@ -1024,14 +1027,14 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        def USE_LEGACY_DOCKER = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
+                        def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
                         setup_args = """ -DGPU_TARGETS="gfx942" \
                                          -DCMAKE_CXX_FLAGS=" -O3 " \
                                          -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
                         execute_args = " "
                    }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker: docker_name)
                         cleanWs()
                     }
                 }
