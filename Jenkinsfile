@@ -281,7 +281,7 @@ def cmake_build(Map conf=[:]){
         }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j${nt} ${config_targets}")
+            build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
         }
         cmd = conf.get("cmd", """
             ${setup_cmd}
