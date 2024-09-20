@@ -472,7 +472,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
