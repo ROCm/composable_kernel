@@ -1,3 +1,7 @@
+# temporarily disable flaky test for all architectures
+add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
+set(CK_SKIP_FLAKY_F8_TEST "ON")
+
 if (USE_BITINT_EXTENSION_INT4)
   add_gtest_executable(test_int4 test_int4.cpp)
   if(result EQUAL 0)

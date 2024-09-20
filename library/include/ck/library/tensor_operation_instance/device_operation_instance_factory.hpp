@@ -74,6 +74,10 @@ using GNWK   = ck::tensor_layout::convolution::GNWK;
 using GNHWK  = ck::tensor_layout::convolution::GNHWK;
 using GNDHWK = ck::tensor_layout::convolution::GNDHWK;
 
+using NGKW   = ck::tensor_layout::convolution::NGKW;
+using NGKHW  = ck::tensor_layout::convolution::NGKHW;
+using NGKDHW = ck::tensor_layout::convolution::NGKDHW;
+
 //
 using NWGC   = ck::tensor_layout::convolution::NWGC;
 using NHWGC  = ck::tensor_layout::convolution::NHWGC;
@@ -86,6 +90,10 @@ using KZYXGC = ck::tensor_layout::convolution::KZYXGC;
 using NWGK   = ck::tensor_layout::convolution::NWGK;
 using NHWGK  = ck::tensor_layout::convolution::NHWGK;
 using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
+
+using NGCW   = ck::tensor_layout::convolution::NGCW;
+using NGCHW  = ck::tensor_layout::convolution::NGCHW;
+using NGCDHW = ck::tensor_layout::convolution::NGCDHW;
 
 //
 using G_K         = ck::tensor_layout::convolution::G_K;
