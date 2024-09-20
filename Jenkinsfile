@@ -331,11 +331,13 @@ def buildHipClangJob(Map conf=[:]){
         checkout scm
 
         def image
-        if ( params.BUILD_LEGACY_OS.toBoolean() ){
+        if ( params.BUILD_LEGACY_OS ){
             image = conf.get("docker_name", "")
+            echo "Using legacy docker: ${image}"
         }
         else{
             image = getDockerImageName()
+            echo "Using default docker: ${image}"
         }
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
@@ -519,11 +521,13 @@ def Build_CK(Map conf=[:]){
         checkout scm
 
         def image
-        if ( params.BUILD_LEGACY_OS.toBoolean() ){
+        if ( params.BUILD_LEGACY_OS ){
             image = conf.get("docker_name", "")
+            echo "Using legacy docker: ${image}"
         }
         else{
             image = getDockerImageName()
+            echo "Using default docker: ${image}"
         }
 
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
