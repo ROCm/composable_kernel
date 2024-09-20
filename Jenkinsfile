@@ -100,7 +100,15 @@ def getDockerImage(Map conf=[:]){
         dockerArgs = dockerArgs + " --no-cache "
     }
     echo "Docker Args: ${dockerArgs}"
-    def image = getDockerImageName()
+    def image
+    if ( params.BUILD_LEGACY_OS ){
+        image = conf.get("docker_name", "")
+        echo "Using legacy docker: ${image}"
+    }
+    else{
+        image = getDockerImageName()
+        echo "Using default docker: ${image}"
+    }
     //Check if image exists 
     def retimage
     try 
