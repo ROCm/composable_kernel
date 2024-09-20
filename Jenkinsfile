@@ -277,11 +277,15 @@ def cmake_build(Map conf=[:]){
         if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
             echo "running ninja build trace"
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake -G Ninja ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
+            if(!params.BUILD_LEGACY_OS){
+                build_cmd = conf.get("build_cmd", "${build_envs} ninja -j${nt} ${config_targets}")
+            }
         }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
+            if(!params.BUILD_LEGACY_OS){
+                build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
+            }
         }
         cmd = conf.get("cmd", """
             ${setup_cmd}
