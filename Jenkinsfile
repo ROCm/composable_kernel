@@ -332,7 +332,7 @@ def buildHipClangJob(Map conf=[:]){
 
         def image
         if ( params.BUILD_LEGACY_OS.toBoolean() ){
-            image = conf.get("docker", "")
+            image = conf.get("docker_name", "")
         }
         else{
             image = getDockerImageName()
@@ -518,7 +518,14 @@ def Build_CK(Map conf=[:]){
         env.DOCKER_BUILDKIT=1
         checkout scm
 
-        def image = getDockerImageName() 
+        def image
+        if ( params.BUILD_LEGACY_OS.toBoolean() ){
+            image = conf.get("docker_name", "")
+        }
+        else{
+            image = getDockerImageName()
+        }
+
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -1015,7 +1022,7 @@ pipeline {
                         execute_args = " "
                    }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker: docker_name)
+                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker_name: docker_name)
                         cleanWs()
                     }
                 }
@@ -1034,7 +1041,7 @@ pipeline {
                         execute_args = " "
                    }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker: docker_name)
+                        Build_CK_and_Reboot(setup_args: setup_args, no_reboot:true, build_type: 'Release', docker_name: docker_name)
                         cleanWs()
                     }
                 }
