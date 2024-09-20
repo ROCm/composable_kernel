@@ -278,7 +278,9 @@ struct FmhaFwdKernel
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset, 
+              const void* drop_seed_ptr, 
+              const void* drop_offset_ptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -344,6 +346,11 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasDropout)
         {
+           if (drop_seed_ptr != nullptr)
+            {   
+                kargs.drop_seed = *(reinterpret_cast<const uint64_t*>(drop_seed_ptr));
+                kargs.drop_offset = *(reinterpret_cast<const uint64_t*>(drop_offset_ptr));
+            }
             kargs.init_dropout(p_drop, drop_seed_offset);
             kargs.rand_val_ptr         = rand_val_ptr;
             kargs.stride_randval       = stride_randval;
@@ -392,7 +399,9 @@ struct FmhaFwdKernel
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset, 
+              const void* drop_seed_ptr, 
+              const void* drop_offset_ptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -455,6 +464,11 @@ struct FmhaFwdKernel
         }
         if constexpr(kHasDropout)
         {
+            if (drop_seed_ptr != nullptr)
+            {   
+                kargs.drop_seed = *(reinterpret_cast<const uint64_t*>(drop_seed_ptr));
+                kargs.drop_offset = *(reinterpret_cast<const uint64_t*>(drop_offset_ptr));
+            }            
             kargs.init_dropout(p_drop, drop_seed_offset);
             kargs.rand_val_ptr         = rand_val_ptr;
             kargs.stride_randval       = stride_randval;

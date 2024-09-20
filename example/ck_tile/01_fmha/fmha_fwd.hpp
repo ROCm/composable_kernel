@@ -145,6 +145,8 @@ struct fmha_fwd_args
     float p_drop;
     bool s_randval;
     std::tuple<uint64_t, uint64_t> drop_seed_offset;
+    const void* drop_seed_ptr;
+    const void* drop_offset_ptr;
 };
 
 struct fmha_fwd_splitkv_args
@@ -309,7 +311,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
-                                         args.drop_seed_offset);
+                                         args.drop_seed_offset, 
+                                         args.drop_seed_ptr, 
+                                         args.drop_offset_ptr);
         }
         else
         { // create batch mode kernel arguments
@@ -354,7 +358,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
-                                         args.drop_seed_offset);
+                                         args.drop_seed_offset, 
+                                         args.drop_seed_ptr, 
+                                         args.drop_offset_ptr);
         }
     }();
 
