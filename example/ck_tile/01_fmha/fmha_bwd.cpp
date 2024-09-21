@@ -95,7 +95,8 @@ auto create_args(int argc, char* argv[])
         .insert("ext_asm", "0", "if set to 1, some cases will call the ext asm dqdkdv kernel")
         .insert("asm_atomic_fp32",
                 "1",
-                "if set to 0, atomic fp16/bf16 is used when calling the ext asm dqdkdv kernel");
+                "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when ext_asm is set to 1")
+        .insert("asm_no_coex", "0", "if set to 1 will use non-coexectuion kernel when ext_asm is set to 1");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -186,6 +187,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool deterministic   = arg_parser.get_bool("deterministic");
     bool ext_asm         = arg_parser.get_bool("ext_asm");
     bool asm_atomic_fp32 = arg_parser.get_bool("asm_atomic_fp32");
+    bool asm_no_coex     = arg_parser.get_bool("asm_no_coex");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -312,9 +314,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
     ck_tile::HostTensor<AccDataType> dq_acc_host(
-        i_perm
-            ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
-            : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
+        std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q});
 
     if(init_method == 0)
     {
@@ -424,7 +424,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        s_randval,
                                        deterministic,
                                        ext_asm,
-                                       asm_atomic_fp32};
+                                       asm_atomic_fp32,
+                                       asm_no_coex};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
@@ -438,6 +439,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
         const ck_tile::index_t stride_do      = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_dq_acc  = hdim_q;
         const ck_tile::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
         const ck_tile::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_dbias   = (i_perm ? max_seqlen_k : nhead * max_seqlen_k);
@@ -450,6 +452,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_do      = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
+        const ck_tile::index_t nhead_stride_dq_acc  = shape_seqlen_q * hdim_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
         // setup batch_stride_* arguments
@@ -503,7 +506,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              stride_o,
                              stride_randval,
                              stride_do,
-                             stride_q, // stride_dq_acc
+                             stride_dq_acc,
                              stride_q, // stride_dq
                              stride_dk,
                              stride_dv,
@@ -516,7 +519,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
-                             nhead_stride_q, // nhead_stride_dq_acc
+                             nhead_stride_dq_acc,
                              nhead_stride_q, // nhead_stride_dq
                              nhead_stride_k, // nhead_stride_dk
                              nhead_stride_v, // nhead_stride_dv
