@@ -788,14 +788,14 @@ class FmhaBwdDQDKDVKernel:
 def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
-            # '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            # '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-            #             "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
+            '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
             '128' : [FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                         "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            # '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-            #             "kr_ktr_vr_iglp", "kr_ktr_vr"]
+            '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+                        "kr_ktr_vr_iglp", "kr_ktr_vr"]
         }
     else:
         return None
@@ -838,7 +838,7 @@ def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                         continue
             if receipt == 3:
                     cond = dtype in ['fp16', 'bf16']
-                    cond &= bias in ['no']
+                    cond &= bias in ['no', 'alibi']
                     cond &= dpad == dvpad
                     cond &= deterministic == "f"
                     if not cond:
