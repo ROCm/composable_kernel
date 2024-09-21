@@ -133,7 +133,9 @@ def buildDocker(install_prefix){
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' --build-arg DISABLE_CACHE='git rev-parse ${params.COMPILER_VERSION}' "
-
+    if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
+        dockerArgs = dockerArgs + " --no-cache "
+    }
     echo "Build Args: ${dockerArgs}"
     try{
         if(params.BUILD_DOCKER){
@@ -267,9 +269,7 @@ def cmake_build(Map conf=[:]){
             """)
         sh cmd3
     }
-    if(params.BUILD_LEGACY_OS){
-        sh "export LD_LIBRARY_PATH=/opt/Python-3.8.13/lib:\$LD_LIBRARY_PATH"
-    }
+
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
     def cmd
@@ -551,6 +551,9 @@ def Build_CK(Map conf=[:]){
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
+        }
+        if(params.BUILD_LEGACY_OS){
+            dockerOpts = dockerOpts + " --env LD_LIBRARY_PATH=/opt/Python-3.8.13/lib:$LD_LIBRARY_PATH "
         }
         def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
         def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
