@@ -553,7 +553,7 @@ def Build_CK(Map conf=[:]){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
         if(params.BUILD_LEGACY_OS){
-            dockerOpts = dockerOpts + " --env LD_LIBRARY_PATH=/opt/Python-3.8.13/lib:$LD_LIBRARY_PATH "
+            dockerOpts = dockerOpts + " --env LD_LIBRARY_PATH='/opt/Python-3.8.13/lib' "
         }
         def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
         def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
