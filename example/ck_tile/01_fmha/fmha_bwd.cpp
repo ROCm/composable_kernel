@@ -93,10 +93,13 @@ auto create_args(int argc, char* argv[])
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
                 "will not be used")
         .insert("ext_asm", "0", "if set to 1, some cases will call the ext asm dqdkdv kernel")
-        .insert("asm_atomic_fp32",
-                "1",
-                "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when ext_asm is set to 1")
-        .insert("asm_no_coex", "0", "if set to 1 will use non-coexectuion kernel when ext_asm is set to 1");
+        .insert(
+            "asm_atomic_fp32",
+            "1",
+            "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when ext_asm is set to 1")
+        .insert("asm_no_coex",
+                "0",
+                "if set to 1 will use non-coexectuion kernel when ext_asm is set to 1");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
