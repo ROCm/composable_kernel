@@ -35,6 +35,8 @@ endif()
 set(FMHA_KNOWN_APIS "fwd,fwd_splitkv,fwd_appendkv,bwd")
 
 # generate a list of kernels, but not actually emit files at config stage
+# Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
+# With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
 execute_process(
   COMMAND ${PYTHON_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
   --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
@@ -49,6 +51,8 @@ else()
 endif()
 
 # actually generate the kernel content now
+# Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
+# With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
 add_custom_command(
   OUTPUT ${FMHA_GEN_BLOBS}
   COMMAND ${PYTHON_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
