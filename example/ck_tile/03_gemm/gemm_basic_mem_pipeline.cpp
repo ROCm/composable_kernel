@@ -32,32 +32,56 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename LayoutA,
-          typename LayoutB,
-          typename LayoutC,
-          typename PipelineProblem,
-          typename GemmPipeline,
-          typename GemmShape>
+template <typename LayoutA, typename LayoutB, typename LayoutC>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
+    // ToDo: This will be modified by the codegen code later.
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t K_Tile = 32;
+
+    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t N_Warp = 2;
+    constexpr ck_tile::index_t K_Warp = 1;
+
+    constexpr ck_tile::index_t M_Warp_Tile = 32;
+    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t K_Warp_Tile = 8;
+
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadA = true;
     constexpr bool kPadB = true;
+    constexpr bool kPadC = true;
 
     constexpr int kBlockPerCu = 1;
 
+    // ===============================================
+
+    using GemmShape =
+        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
+                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
+                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
     using TilePartitioner = ck_tile::GemmTilePartitioner<GemmShape>;
-    using GemmEpilogue    = ck_tile::Default2DEpilogue<
+    using PipelineProblem =
+        ck_tile::BlockGemmUniversalPipelineProblem<ADataType,
+                                                   BDataType,
+                                                   CDataType,
+                                                   GemmShape,
+                                                   kPadA,
+                                                   kPadB,
+                                                   kPadC,
+                                                   ck_tile::BlockGemmPipelineScheduler::Intrawave>;
+
+    // The GemmPipeline should also come from the Codegen.
+    using GemmPipeline = ck_tile::BlockGemmPipelineAgBgCrMem<PipelineProblem>;
+    using GemmEpilogue = ck_tile::Default2DEpilogue<
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>;
-    // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
-    // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel =
         ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, LayoutA, LayoutB, LayoutC>;
 
     auto kargs = Kernel::MakeKargs(args.p_a,
                                    args.p_b,
                                    args.p_c,
-                                   args.epsilon,
                                    args.M,
                                    args.N,
                                    args.K,
@@ -74,13 +98,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     return ave_time;
 }
 
-template <typename DataType,
-          typename LayoutA,
-          typename LayoutB,
-          typename LayoutC,
-          typename PipelineProblem,
-          typename GemmPipeline,
-          typename GemmShape>
+template <typename DataType, typename LayoutA, typename LayoutB, typename LayoutC>
 float invoke_gemm(ck_tile::DeviceMem& a_buf,
                   ck_tile::DeviceMem& b_buf,
                   ck_tile::DeviceMem& c_buf,
@@ -123,16 +141,14 @@ float invoke_gemm(ck_tile::DeviceMem& a_buf,
     }
     else
     {
-        args.stride_A = [&]() {
-            if constexpr(std::is_same_v<LayoutA, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                return M;
-            }
-            else
-            {
-                return K;
-            }
-        }();
+        if constexpr(std::is_same_v<LayoutA, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            args.stride_A = K;
+        }
+        else
+        {
+            args.stride_A = M;
+        }
     }
 
     if(stride_b != 0)
@@ -141,16 +157,14 @@ float invoke_gemm(ck_tile::DeviceMem& a_buf,
     }
     else
     {
-        args.stride_B = [&]() {
-            if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                return N;
-            }
-            else
-            {
-                return K;
-            }
-        }();
+        if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            args.stride_B = N;
+        }
+        else
+        {
+            args.stride_B = K;
+        }
     }
 
     if(stride_c != 0)
@@ -159,29 +173,27 @@ float invoke_gemm(ck_tile::DeviceMem& a_buf,
     }
     else
     {
-        args.stride_C = [&]() {
-            if constexpr(std::is_same_v<LayoutC, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                return M;
-            }
-            else
-            {
-                return N;
-            }
-        }();
+        if constexpr(std::is_same_v<LayoutC, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            args.stride_C = N;
+        }
+        else
+        {
+            args.stride_C = M;
+        }
     }
 
-    float ave_time = gemm_calc<LayoutA, LayoutB, LayoutC, PipelineProblem, GemmPipeline, GemmShape>(
-        args, ck_tile::stream_config{nullptr, true});
+    float ave_time =
+        gemm_calc<LayoutA, LayoutB, LayoutC>(args, ck_tile::stream_config{nullptr, true});
     std::size_t num_byte =
         sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "The overall perfomance of the GEMM with "
               << "[" << data_type << "]"
-              << "batch size: " << batch_size << ". m:" << M << ", n:" << N << ", k:" << K
-              << " is: \n";
-    std::cout << "Running time: " << ave_time << "ms, Throughput " << gb_per_sec << "GB/s \n"
+              << "batch size: " << batch_size << ". m:" << M << ",n:" << N << ", k:" << K
+              << "is: \n";
+    std::cout << "Running time :" << ave_time << "ms, Throughput" << gb_per_sec << "GB/s \n"
               << std::flush;
 
     return ave_time;
@@ -232,50 +244,11 @@ int main(int argc, char* argv[])
     a_buf.ToDevice(a_host.data());
     b_buf.ToDevice(b_host.data());
 
-    // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA = true;
-    constexpr bool kPadB = true;
-    constexpr bool kPadC = true;
-
-    // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 128;
-    constexpr ck_tile::index_t N_Tile = 128;
-    constexpr ck_tile::index_t K_Tile = 32;
-
-    constexpr ck_tile::index_t M_Warp = 2;
-    constexpr ck_tile::index_t N_Warp = 2;
-    constexpr ck_tile::index_t K_Warp = 1;
-
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 8;
-
-    using CodegenGemmShape =
-        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
-
-    using CodegenPipelineProblem = ck_tile::BlockGemmPipelineProblem<ADataType,
-                                                                     BDataType,
-                                                                     AccDataType,
-                                                                     CodegenGemmShape,
-                                                                     kPadA,
-                                                                     kPadB,
-                                                                     kPadC>;
-
-    using CodegenGemmPipeline = ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
-
-    invoke_gemm<ck_tile::half_t,
-                matrix_a_layout,
-                matrix_b_layout,
-                matrix_c_layout,
-                CodegenPipelineProblem,
-                CodegenGemmPipeline,
-                CodegenGemmShape>(a_buf, b_buf, c_buf, arg_parser);
+    invoke_gemm<ck_tile::half_t, matrix_a_layout, matrix_b_layout, matrix_c_layout>(
+        a_buf, b_buf, c_buf, arg_parser);
 
     c_buf.FromDevice(c_host_dev.data());
-
-    bool pass_cpu = true;
+    bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
     {
@@ -288,15 +261,11 @@ int main(int argc, char* argv[])
                                 matrix_b_layout,
                                 matrix_c_layout>(a_host, b_host, c_host_ref);
 
-        pass_cpu = ck_tile::check_err(c_host_dev, c_host_ref);
+        pass = ck_tile::check_err(c_host_dev, c_host_ref);
 
-        std::cout << "The CPU veification result is:" << (pass_cpu ? "correct" : "fail")
-                  << std::flush;
+        std::cout << "The CPU veification result is:" << (pass ? "correct" : "fail") << std::flush;
     }
-
-    bool pass_gpu = true;
-
-    if(arg_parser.get_int("v") == 2)
+    else if(arg_parser.get_int("v") == 2)
     {
         ck_tile::index_t stride_a = arg_parser.get_int("stride_a");
         ck_tile::index_t stride_b = arg_parser.get_int("stride_b");
@@ -304,13 +273,13 @@ int main(int argc, char* argv[])
 
         if(stride_a == 0)
         {
-            if constexpr(std::is_same_v<matrix_a_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<matrix_a_layout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                stride_a = M;
+                stride_a = K;
             }
             else
             {
-                stride_a = K;
+                stride_a = M;
             }
         }
 
@@ -328,13 +297,13 @@ int main(int argc, char* argv[])
 
         if(stride_c == 0)
         {
-            if constexpr(std::is_same_v<matrix_c_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+            if constexpr(std::is_same_v<matrix_c_layout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                stride_c = M;
+                stride_c = N;
             }
             else
             {
-                stride_c = N;
+                stride_c = M;
             }
         }
 
@@ -346,13 +315,12 @@ int main(int argc, char* argv[])
 
         c_buf.FromDevice(c_host_gpu_ref.data());
 
-        pass_gpu = ck_tile::check_err(c_host_dev, c_host_gpu_ref);
+        pass = ck_tile::check_err(c_host_dev, c_host_gpu_ref);
 
-        std::cout << "The GPU veification result is: " << (pass_gpu ? "correct" : "fail")
-                  << std::flush;
+        std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::flush;
     }
 
     std::cout << std::endl << std::flush;
 
-    return !pass_gpu;
+    return pass;
 }

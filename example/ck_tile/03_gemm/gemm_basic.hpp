@@ -20,7 +20,7 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     using ADataType   = ck_tile::half_t;
     using BDataType   = ck_tile::half_t;
     using AccDataType = float;
-    using CDataType   = ck_tile::half_t; // type convert
+    using CDataType   = float;
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
