@@ -827,6 +827,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 },
                 s_acc,
                 bias_s_tile);
+            __builtin_amdgcn_sched_barrier(0);
         }
         else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
         {
@@ -967,6 +968,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 Policy::template MakeBiasTileDistribution<Problem>());
             shuffle_tile(dbias_tile, shuffled_dbias_tile);
             store_tile(dbias_dram_window, dbias_tile);
+            __builtin_amdgcn_sched_barrier(0);
         }
 
         // STAGE 6, SGrad^T@Q^T Gemm3
