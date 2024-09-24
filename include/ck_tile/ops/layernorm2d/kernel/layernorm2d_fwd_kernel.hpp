@@ -183,7 +183,8 @@ struct Layernorm2dFwd
         if constexpr(kSaveMean)
             store_tile(mean_block_window, cast_tile<MeanDataType>(mean_compute_block_tensor));
         if constexpr(kSaveInvStd)
-            store_tile(inv_std_block_window, cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
+            store_tile(inv_std_block_window,
+                       cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
 
         // reverse read x to reuse cache
         ck_tile::index_t stride_to_right_most_window = N - kNPerBlock;
@@ -276,7 +277,8 @@ struct Layernorm2dFwd
         if constexpr(kSaveMean)
             store_tile(mean_block_window, cast_tile<MeanDataType>(mean_compute_block_tensor));
         if constexpr(kSaveInvStd)
-            store_tile(inv_std_block_window, cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
+            store_tile(inv_std_block_window,
+                       cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
 
         // normalize
         const auto gamma_block_tensor = load_tile(gamma_block_window);
@@ -339,12 +341,12 @@ struct Layernorm2dFwd
         auto x_block_window = make_tile_window(
             x_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0}, xDstr);
 
-        const auto y_m_n = make_naive_tensor_view<address_space_enum::global>(
-            static_cast<YDataType*>(kargs.p_y),
-            make_tuple(kargs.M, kargs.N),
-            make_tuple(kargs.N, 1),
-            number<32>{},
-            number<1>{});
+        const auto y_m_n =
+            make_naive_tensor_view<address_space_enum::global>(static_cast<YDataType*>(kargs.p_y),
+                                                               make_tuple(kargs.M, kargs.N),
+                                                               make_tuple(kargs.N, 1),
+                                                               number<32>{},
+                                                               number<1>{});
 
         auto y_block_window = make_tile_window(
             y_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0});
