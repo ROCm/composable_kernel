@@ -8,7 +8,7 @@
 #include "ck/utility/integral_constant.hpp"
 
 namespace ck {
-#ifdef __HIPCC_RTC__
+#ifdef CK_CODE_GEN_RTC
 // NOLINTNEXTLINE
 #define CK_BUILTIN_TYPE_TRAIT1(name)         \
     template <class T>                       \
@@ -161,26 +161,12 @@ using remove_pointer_t = typename remove_pointer<T>::type;
 template <typename T>
 inline constexpr bool is_pointer_v = is_pointer<T>::value;
 
-template <typename Y,
-          typename X,
-          typename ck::enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
+template <typename Y, typename X, typename enable_if<sizeof(X) == sizeof(Y), bool>::type = false>
 __host__ __device__ constexpr Y bit_cast(const X& x)
 {
-#if CK_EXPERIMENTAL_USE_MEMCPY_FOR_BIT_CAST
-    Y y;
+    static_assert(__has_builtin(__builtin_bit_cast), "");
+    static_assert(sizeof(X) == sizeof(Y), "Do not support cast between different size of type");
 
-    __builtin_memcpy(&y, &x, sizeof(X));
-
-    return y;
-#else
-    union AsType
-    {
-        X x;
-        Y y;
-    };
-
-    return AsType{x}.y;
-#endif
+    return __builtin_bit_cast(Y, x);
 }
-
 } // namespace ck
