@@ -70,10 +70,7 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ALayout,
-          typename BLayout,
-          typename CLayout,
-          typename ADataType,
+template <typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
