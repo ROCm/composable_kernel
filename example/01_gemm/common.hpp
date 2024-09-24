@@ -21,6 +21,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "ck/library/reference_tensor_operation/gpu/reference_gemm.hpp"
 
 struct ProblemSize final
 {
@@ -74,9 +75,10 @@ struct ProblemSizeSplitK final
 
 struct ExecutionConfig final
 {
-    bool do_verification = true;
-    int init_method      = 2;
-    bool time_kernel     = false;
+    // 0 - no verification, 1 - CPU, 2 - GPU
+    int do_verification = 2;
+    int init_method     = 2;
+    bool time_kernel    = false;
 };
 
 template <ck::index_t... Is>
@@ -125,7 +127,7 @@ bool parse_cmd_args<ProblemSize>(int argc,
     }
     else
     {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
+        std::cerr << "arg1: verification (0=no, 1=CPU, 2=GPU)" << std::endl
                   << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
@@ -175,7 +177,7 @@ bool parse_cmd_args<ProblemSizeStreamK_universal>(int argc,
     else
     {
         std::cerr
-            << "arg1: verification (0=no, 1=yes)" << std::endl
+            << "arg1: verification (0=no, 1=CPU, 2=GPU)" << std::endl
             << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)" << std::endl
             << "arg3: time kernel (0=no, 1=yes)" << std::endl
             << "arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideC" << std::endl
@@ -224,7 +226,7 @@ bool parse_cmd_args<ProblemSizeStreamK>(int argc,
     }
     else
     {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
+        std::cerr << "arg1: verification (0=no, 1=CPU, 2=GPU)" << std::endl
                   << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
@@ -274,7 +276,7 @@ bool parse_cmd_args<ProblemSizeSplitK>(int argc,
     }
     else
     {
-        std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
+        std::cerr << "arg1: verification (0=no, 1=CPU, 2=GPU)" << std::endl
                   << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)"
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl

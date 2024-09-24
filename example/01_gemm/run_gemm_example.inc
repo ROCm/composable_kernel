@@ -173,6 +173,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
+    Tensor<CDataType> c_m_n_device_ref_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
@@ -193,6 +194,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
+    DeviceMem c_m_n_device_ref_buf(sizeof(CDataType) *
+                                   c_m_n_device_ref_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
@@ -325,7 +328,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    if(config.do_verification)
+    // CPU verification
+    if(config.do_verification == 1)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
@@ -352,6 +356,42 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                     get_rtol<CDataType>(),
                                     get_atol<CDataType>());
 #endif
+    }
+
+    // GPU verification
+    if(config.do_verification == 2)
+    {
+        auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
+        auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
+
+        auto ref_argument_gpu = ref_gemm_gpu.MakeArgument(
+            static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
+            static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
+            static_cast<CDataType*>(c_m_n_device_ref_buf.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            StrideA,
+            StrideB,
+            StrideC,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+
+        // ref_invoker_gpu.Run(ref_argument_gpu);
+
+        ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
+        // ave_time = ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{nullptr,
+        // config.time_kernel});
+
+        c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
+        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+
+        return ck::utils::check_err(c_m_n_device_result,
+                                    c_m_n_device_ref_result,
+                                    "Error: Incorrect results!",
+                                    get_rtol<CDataType>(),
+                                    get_atol<CDataType>());
     }
 
     return true;
