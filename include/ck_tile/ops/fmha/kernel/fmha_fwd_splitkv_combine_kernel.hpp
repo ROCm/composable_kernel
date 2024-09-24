@@ -91,8 +91,6 @@ struct FmhaFwdSplitKVCombineKernel
         ck_tile::index_t nhead_stride_o_acc;
         ck_tile::index_t nhead_stride_o;
 
-        ck_tile::index_t batch_stride_o_acc;
-
         ck_tile::index_t split_stride_lse_acc;
         ck_tile::index_t split_stride_o_acc;
     };
@@ -114,8 +112,9 @@ struct FmhaFwdSplitKVCombineKernel
           std::conditional_t<kStoreLSE, CommonLSEKargs, EmptyKargs<0>>,
           std::conditional_t<kDoFp8StaticQuant, Fp8StaticQuantKargs, EmptyKargs<1>>
     {
-        ck_tile::index_t batch_stride_o;
         ck_tile::index_t batch_stride_lse_acc;
+        ck_tile::index_t batch_stride_o_acc;
+        ck_tile::index_t batch_stride_o;
     };
 
     struct GroupModeKargs
@@ -166,13 +165,13 @@ struct FmhaFwdSplitKVCombineKernel
                      nhead_stride_lse_acc,
                      nhead_stride_o_acc,
                      nhead_stride_o,
-                     batch_stride_o_acc,
                      split_stride_lse_acc,
                      split_stride_o_acc}, // args for common karg
                     {},                   // placeholder for lse
                     {},                   // placeholder for fp8_static_quant args
-                    batch_stride_o,
-                    batch_stride_lse_acc};
+                    batch_stride_lse_acc,
+                    batch_stride_o_acc,
+                    batch_stride_o};
 
         if constexpr(kStoreLSE)
         {
@@ -206,7 +205,6 @@ struct FmhaFwdSplitKVCombineKernel
               ck_tile::index_t nhead_stride_o_acc,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t batch_stride_o_acc,
               ck_tile::index_t split_stride_lse_acc,
               ck_tile::index_t split_stride_o_acc)
     {
@@ -223,7 +221,6 @@ struct FmhaFwdSplitKVCombineKernel
                      nhead_stride_lse_acc,
                      nhead_stride_o_acc,
                      nhead_stride_o,
-                     batch_stride_o_acc,
                      split_stride_lse_acc,
                      split_stride_o_acc}, // args for common karg
                     {},                   // placeholder for lse
@@ -270,10 +267,8 @@ struct FmhaFwdSplitKVCombineKernel
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
-        const long_index_t batch_offset_o_acc =
-            static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
-
         long_index_t batch_offset_lse_acc = 0;
+        long_index_t batch_offset_o_acc   = 0;
         long_index_t batch_offset_lse     = 0;
         long_index_t batch_offset_o       = 0;
 
@@ -282,13 +277,15 @@ struct FmhaFwdSplitKVCombineKernel
             // get starting offset for each batch
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
 
-            batch_offset_o       = query_start * kargs.row_stride_o;
             batch_offset_lse_acc = query_start;
+            batch_offset_o_acc   = query_start * kargs.row_stride_o_acc;
 
             if constexpr(kStoreLSE)
             {
                 batch_offset_lse = query_start;
             }
+
+            batch_offset_o = query_start * kargs.row_stride_o;
 
             // get real # queries & # keys under group mode
             const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
@@ -303,13 +300,15 @@ struct FmhaFwdSplitKVCombineKernel
         }
         else
         {
-            batch_offset_o       = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
             batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
+            batch_offset_o_acc   = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
 
             if constexpr(kStoreLSE)
             {
                 batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
+
+            batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
 
         // for simplicity, batch stride we just modify the pointer

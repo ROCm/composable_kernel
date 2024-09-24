@@ -616,9 +616,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 4>{num_splits, shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || use_kvcache
-            ? std::array<ck_tile::index_t, 5>{num_splits, batch, nhead, max_seqlen_q, hdim_v}
-            : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
+        1 < num_splits || use_kvcache ? std::array<ck_tile::index_t, 5>{num_splits,
+                                                                        shape_batch,
+                                                                        nhead,
+                                                                        shape_seqlen_q,
+                                                                        hdim_v}
+                                      : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
@@ -881,7 +884,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_lse_acc = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_o_acc   = (max_seqlen_q * hdim_v);
+        const ck_tile::index_t nhead_stride_o_acc   = (shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
@@ -897,12 +900,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_lse_acc = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_o_acc   = (nhead * max_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_o_acc   = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
         // setup split_stride_* arguments (only used in split-kv kernel)
         const ck_tile::index_t split_stride_lse_acc = (shape_batch * nhead * shape_seqlen_q);
-        const ck_tile::index_t split_stride_o_acc   = (batch * nhead * max_seqlen_q * hdim_v);
+        const ck_tile::index_t split_stride_o_acc = (shape_batch * nhead * shape_seqlen_q * hdim_v);
 
         args.q_ptr = q_buf.GetDeviceBuffer();
         args.k_ptr = k_buf.GetDeviceBuffer();

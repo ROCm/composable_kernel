@@ -135,9 +135,6 @@ struct FmhaFwdSplitKVKernel
         ck_tile::index_t nhead_stride_lse_acc;
         ck_tile::index_t nhead_stride_o_acc;
 
-        ck_tile::index_t batch_stride_lse_acc;
-        ck_tile::index_t batch_stride_o_acc;
-
         ck_tile::index_t split_stride_lse_acc;
         ck_tile::index_t split_stride_o_acc;
     };
@@ -201,6 +198,8 @@ struct FmhaFwdSplitKVKernel
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
+        ck_tile::index_t batch_stride_lse_acc;
+        ck_tile::index_t batch_stride_o_acc;
     };
 
     struct GroupModeKargs
@@ -296,8 +295,6 @@ struct FmhaFwdSplitKVKernel
                      nhead_stride_v,
                      nhead_stride_lse_acc,
                      nhead_stride_o_acc,
-                     batch_stride_lse_acc,
-                     batch_stride_o_acc,
                      split_stride_lse_acc,
                      split_stride_o_acc}, // args for common karg
                     {},                   // placeholder for bias
@@ -307,7 +304,9 @@ struct FmhaFwdSplitKVKernel
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr),
                     batch_stride_q,
                     batch_stride_k,
-                    batch_stride_v};
+                    batch_stride_v,
+                    batch_stride_lse_acc,
+                    batch_stride_o_acc};
 
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
@@ -377,8 +376,6 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t nhead_stride_o_acc,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_lse_acc,
-              ck_tile::index_t batch_stride_o_acc,
               ck_tile::index_t split_stride_lse_acc,
               ck_tile::index_t split_stride_o_acc,
               ck_tile::index_t window_size_left,
@@ -412,8 +409,6 @@ struct FmhaFwdSplitKVKernel
                      nhead_stride_v,
                      nhead_stride_lse_acc,
                      nhead_stride_o_acc,
-                     batch_stride_lse_acc,
-                     batch_stride_o_acc,
                      split_stride_lse_acc,
                      split_stride_o_acc}, // args for common karg
                     {},                   // placeholder for bias
@@ -483,8 +478,7 @@ struct FmhaFwdSplitKVKernel
         long_index_t batch_offset_v       = 0;
         long_index_t batch_offset_bias    = 0;
         long_index_t batch_offset_lse_acc = 0;
-        const long_index_t batch_offset_o_acc =
-            static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
+        long_index_t batch_offset_o_acc   = 0;
 
         if constexpr(kIsGroupMode)
         {
@@ -492,9 +486,9 @@ struct FmhaFwdSplitKVKernel
             const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
 
-            batch_offset_q       = query_start * kargs.stride_q;
-            batch_offset_k       = key_start * kargs.stride_k;
-            batch_offset_lse_acc = query_start;
+            batch_offset_q = query_start * kargs.stride_q;
+            batch_offset_k = key_start * kargs.stride_k;
+
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 batch_offset_v = key_start * kargs.stride_v;
@@ -507,6 +501,9 @@ struct FmhaFwdSplitKVKernel
             {
                 batch_offset_bias = query_start * kargs.stride_bias + key_start;
             }
+
+            batch_offset_lse_acc = query_start;
+            batch_offset_o_acc   = query_start * kargs.stride_o_acc;
 
             // get real # queries & # keys under group mode
             kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
@@ -545,6 +542,7 @@ struct FmhaFwdSplitKVKernel
             batch_offset_k       = static_cast<long_index_t>(i_cache_batch) * kargs.batch_stride_k;
             batch_offset_v       = static_cast<long_index_t>(i_cache_batch) * kargs.batch_stride_v;
             batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse_acc;
+            batch_offset_o_acc   = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o_acc;
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
