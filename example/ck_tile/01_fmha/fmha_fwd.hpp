@@ -398,8 +398,8 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.nhead_stride_bias,
                                      args.nhead_stride_lse_acc,
                                      args.nhead_stride_o_acc,
-                                     args.batch_stride_k,
-                                     args.batch_stride_v,
+                                     args.batch_stride_k, // only used for paged-kvcache
+                                     args.batch_stride_v, // only used for paged-kvcache
                                      args.split_stride_lse_acc,
                                      args.split_stride_o_acc,
                                      args.window_size_left,
