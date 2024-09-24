@@ -11,7 +11,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
-#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_dynamic.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -39,42 +39,15 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    int init_method,
                                    bool do_log,
                                    bool time_kernel,
-                                   const ck::utils::conv::ConvParam& conv_param,
-                                   std::string dynamicActivationFunction)
+                                   const ck::utils::conv::ConvParam& conv_param)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
-    using OutElementOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
+    using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
 
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
-    ck::tensor_operation::element_wise::DynamicUnaryOp out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::PassThrough());
-    
-    if(dynamicActivationFunction == "PassThrough"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::PassThrough());
-    }else if(dynamicActivationFunction == "UnaryAbs"){
-       out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::UnaryAbs());
-    }else if(dynamicActivationFunction == "Relu"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::Relu());
-    }else if(dynamicActivationFunction == "Sigmoid"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::Sigmoid());
-    }else if(dynamicActivationFunction == "TanH"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::TanH());
-    }else if(dynamicActivationFunction == "Swish"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::Swish());
-    }else if(dynamicActivationFunction == "SoftRelu"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::SoftRelu());
-    }else if(dynamicActivationFunction == "Power"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::Power());
-    }else if(dynamicActivationFunction == "ClippedRelu"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::ClippedRelu());
-    }else if(dynamicActivationFunction == "LeakyRelu"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::LeakyRelu());
-    }else if(dynamicActivationFunction == "Elu"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::Elu());
-    }else if(dynamicActivationFunction == "Logistic"){
-        out_element_op = ck::tensor_operation::element_wise::DynamicUnaryOp(ck::tensor_operation::element_wise::Logistic());
-    }
+    const auto out_element_op = OutElementOp{};
 
     const auto in_g_n_c_wis_desc =
         ck::utils::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
