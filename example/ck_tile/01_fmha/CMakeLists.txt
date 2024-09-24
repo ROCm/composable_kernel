@@ -22,12 +22,20 @@ string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api ${FMHA_FWD_APIS} --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
+  RESULT_VARIABLE ret
 )
+if(ret AND NOT ret EQUAL 0)
+  message( FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of FWD kernels via Python.")
+endif()
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt --receipt 3
+  RESULT_VARIABLE ret
 )
+if(ret AND NOT ret EQUAL 0)
+  message( FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of BWD kernels via Python.")
+endif()
 
 # NOTE: for cmake, the FMHA_FWD_GEN_BLOBS/FMHA_BWD_GEN_BLOBS files must be in the same directory
 #       as current cmake list, otherwise will not figure out the dependency properly
