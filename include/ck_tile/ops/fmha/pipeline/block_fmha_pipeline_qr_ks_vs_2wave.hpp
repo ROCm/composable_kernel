@@ -35,6 +35,8 @@ struct BlockFmhaPipelineQRKSVS2Wave
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
 
+    static constexpr bool kKLoadOnce = true;
+
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t kM0            = BlockFmhaShape::kM0;
@@ -149,22 +151,23 @@ struct BlockFmhaPipelineQRKSVS2Wave
                 std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
             "wrong!");
 
-        static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kK0 == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                          kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                          kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
-                      "wrong!");
+        static_assert(
+            kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                kK0BlockLength == QDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                kK0BlockLength == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            "wrong!");
 
         // K tile in LDS
-        KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
-            static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
-        auto k_lds           = make_tensor_view<address_space_enum::lds>(
-            k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
-        auto k_lds_window =
-            make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
+        auto k_lds = make_tensor_view<address_space_enum::lds>(
+            reinterpret_cast<KDataType*>(smem_ptr),
+            Policy::template MakeKLdsStoreBlockDescriptor<Problem>());
+        auto k_lds_window_for_store =
+            make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0BlockLength>{}), {0, 0});
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
@@ -264,7 +267,7 @@ struct BlockFmhaPipelineQRKSVS2Wave
         constexpr index_t k0_loops = kK0BlockLength / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
-        static_assert(2 <= k0_loops);
+        static_assert(1 <= k0_loops);
         static_assert(1 <= k1_loops);
         do
         {
@@ -278,11 +281,12 @@ struct BlockFmhaPipelineQRKSVS2Wave
 
             auto k_block_tile = load_tile(k_dram_window);
             {
-                move_tile_window(k_dram_window, {0, kK0});
-                clear_tile(s_acc); // initialize C
-                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
-                k_block_tile = load_tile(k_dram_window);
+                clear_tile(s_acc);
+                store_tile(k_lds_window_for_store,
+                           tile_elementwise_in(k_element_func, k_block_tile));
             }
+            auto k_lds_window_for_load =
+                make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -296,44 +300,19 @@ struct BlockFmhaPipelineQRKSVS2Wave
                     0); // prevent from messing up the order of global loads
             }
 
-            if constexpr(k0_loops > 2)
             {
-                static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
-                    block_sync_lds();
+                block_sync_lds();
+                static_for<0, k0_loops, 1>{}([&](auto i_k0) {
                     gemm_0(s_acc,
                            get_slice_tile(q_tile,
                                           sequence<0, i_k0 * kK0>{},
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           k_lds_window);
-                    block_sync_lds();
-                    move_tile_window(k_dram_window, {0, kK0});
-
-                    store_tile(
-                        k_lds_window,
-                        tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                           k_lds_window_for_load);
+                    move_tile_window(k_lds_window_for_load, {0, kK0});
                 });
             }
 
             const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-            {                                                 // tail
-                block_sync_lds();
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 2) * kK0>{},
-                                      sequence<kM0, (k0_loops - 1) * kK0>{}),
-                       k_lds_window);
-                block_sync_lds();
-
-                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
-                block_sync_lds();
-
-                gemm_0(s_acc,
-                       get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 1) * kK0>{},
-                                      sequence<kM0, k0_loops * kK0>{}),
-                       k_lds_window);
-            }
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
