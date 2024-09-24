@@ -3,11 +3,12 @@
 
 #pragma once
 
+#include <iostream>
+#include <string>
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include <iostream>
-
-#include <string>
+#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
 namespace ck_tile {
 
@@ -25,7 +26,7 @@ struct GemmKernel
     using LayoutA                            = remove_cvref_t<LayoutA_>;
     using LayoutB                            = remove_cvref_t<LayoutB_>;
     using LayoutC                            = remove_cvref_t<LayoutC_>;
-    static constexpr index_t KernelBlockSize = GemmPipeline::kBlockSize;
+    static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType    = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -44,9 +45,6 @@ struct GemmKernel
         const void* a_ptr;
         const void* b_ptr;
         void* c_ptr;
-
-        float epsilon;
-
         ck_tile::index_t M;
         ck_tile::index_t N;
         ck_tile::index_t K;
@@ -58,7 +56,6 @@ struct GemmKernel
     CK_TILE_HOST static constexpr GemmCommonKargs MakeKargs(const void* a_ptr,
                                                             const void* b_ptr,
                                                             void* c_ptr,
-                                                            float epsilon,
                                                             ck_tile::index_t M,
                                                             ck_tile::index_t N,
                                                             ck_tile::index_t K,
@@ -66,7 +63,7 @@ struct GemmKernel
                                                             ck_tile::index_t stride_B,
                                                             ck_tile::index_t stride_C)
     {
-        return GemmCommonKargs{a_ptr, b_ptr, c_ptr, epsilon, M, N, K, stride_A, stride_B, stride_C};
+        return GemmCommonKargs{a_ptr, b_ptr, c_ptr, M, N, K, stride_A, stride_B, stride_C};
     }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
@@ -148,9 +145,85 @@ struct GemmKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        const index_t num_loop = (kargs.K + TilePartitioner::kK - 1) / TilePartitioner::kK;
+        GemmPipeline pipeline;
+        const index_t num_loop = TilePartitioner::GetLoopNum(kargs.K);
+        bool has_hot_loop      = pipeline.BlockHasHotloop(num_loop);
+        // TailNumber tail_num = pipeline.GetBlockLoopTailNum(num_loop);
+        auto c_block_tile = typename GemmPipeline::CBlockTile();
 
-        auto acc = GemmPipeline{}(ABlockWindow, BBlockWindow, num_loop, smem_ptr);
+        if(has_hot_loop)
+        {
+            // This holds only for: BlockGemmPipelineAgBgCrMem
+            // Tail pipeline One to Seven
+            if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::One)
+            {
+                pipeline.template operator()<true, TailNumber::One>(
+                    ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+            }
+            else if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Full)
+            {
+                pipeline.template operator()<true, TailNumber::Full>(
+                    ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+            }
+
+            if constexpr(GemmPipeline::PrefetchStages > 2)
+            {
+                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Two)
+                {
+                    pipeline.template operator()<true, TailNumber::Two>(
+                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+                }
+            }
+            if constexpr(GemmPipeline::PrefetchStages > 3)
+            {
+                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Three)
+                {
+                    pipeline.template operator()<true, TailNumber::Three>(
+                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+                }
+            }
+            if constexpr(GemmPipeline::PrefetchStages > 4)
+            {
+                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Four)
+                {
+                    pipeline.template operator()<true, TailNumber::Four>(
+                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+                }
+            }
+            if constexpr(GemmPipeline::PrefetchStages > 5)
+            {
+                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Five)
+                {
+                    pipeline.template operator()<true, TailNumber::Five>(
+                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+                }
+            }
+            if constexpr(GemmPipeline::PrefetchStages > 6)
+            {
+                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Six)
+                {
+                    pipeline.template operator()<true, TailNumber::Six>(
+                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+                }
+            }
+            if constexpr(GemmPipeline::PrefetchStages > 7)
+            {
+                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Seven)
+                {
+                    pipeline.template operator()<true, TailNumber::Seven>(
+                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+                }
+            }
+        }
+        else
+        {
+            // Tail number always 1
+            if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::One)
+            {
+                pipeline.template operator()<false, TailNumber::One>(
+                    ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
+            }
+        }
 
         CODataType* c_start = static_cast<CODataType*>(kargs.c_ptr);
 
@@ -184,7 +257,7 @@ struct GemmKernel
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
-        EpiloguePipeline{}(CBlockWindow_pad, acc);
+        EpiloguePipeline{}(CBlockWindow_pad, c_block_tile);
     }
 };
 

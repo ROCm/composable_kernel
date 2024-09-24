@@ -24,6 +24,11 @@ struct GemmTilePartitioner
         return dim3(GridDimX, GridDimY, GridDimZ);
     }
 
+    CK_TILE_DEVICE static constexpr auto GetLoopNum(index_t K)
+    {
+        return integer_divide_ceil(K, kK);
+    }
+
     CK_TILE_DEVICE auto operator()()
     {
         const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx.x * kM);
