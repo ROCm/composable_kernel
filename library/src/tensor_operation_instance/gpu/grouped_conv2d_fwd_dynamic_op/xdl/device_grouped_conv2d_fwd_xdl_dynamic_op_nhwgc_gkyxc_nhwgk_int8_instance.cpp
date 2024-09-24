@@ -9,7 +9,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
                                                                 ck::Tuple<>,
@@ -24,7 +24,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instanc
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<3,
+        device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<2,
                                                               NHWGC,
                                                               GKYXC,
                                                               Tuple<>,
@@ -32,7 +32,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instanc
                                                               ConvFwdDefault>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<3,
+        device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<2,
                                                               NHWGC,
                                                               GKYXC,
                                                               Tuple<>,
@@ -40,7 +40,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instanc
                                                               ConvFwd1x1P0>{});
     add_device_operation_instances(
         instances,
-        device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<3,
+        device_grouped_conv_fwd_xdl_dynamic_op_int8_instances<2,
                                                               NHWGC,
                                                               GKYXC,
                                                               Tuple<>,

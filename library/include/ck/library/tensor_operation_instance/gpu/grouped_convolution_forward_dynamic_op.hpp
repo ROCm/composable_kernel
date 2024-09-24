@@ -24,7 +24,7 @@ using DynamicUnaryOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
 #ifdef CK_ENABLE_BF16
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
 void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
                                                                 ck::Tuple<>,
@@ -40,7 +40,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_bf16_instanc
 
 #ifdef CK_ENABLE_FP16
 void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
                                                                 ck::Tuple<>,
@@ -56,7 +56,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f16_instance
 
 #ifdef CK_ENABLE_FP32
 void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
                                                                 ck::Tuple<>,
@@ -72,7 +72,7 @@ void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f32_instance
 
 #ifdef CK_ENABLE_INT8
 void add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
                                                                 NHWGC,
                                                                 GKYXC,
                                                                 ck::Tuple<>,
