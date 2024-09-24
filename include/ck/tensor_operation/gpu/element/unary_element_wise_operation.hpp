@@ -1659,7 +1659,7 @@ struct DynamicUnaryOp
     }
 
     template <typename X, typename Y>
-    __host__ void isSupported() const
+    __host__ constexpr void isSupported() const
     {
 
         static_assert(std::is_same<X, Y>::value, "X and Y must be of the same type");
