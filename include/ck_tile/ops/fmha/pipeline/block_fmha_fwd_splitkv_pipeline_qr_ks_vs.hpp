@@ -212,8 +212,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         const auto [seqlen_k_start, seqlen_k_end] = mask.GetTileRangeAlongX(
             q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
 
-        // check early exit if masked and no work to do.
-        if constexpr(FmhaMask::IsMasking || kHasUnevenSplits)
+        // check early exit if no work to do
+        if constexpr(FmhaMask::IsMasking || kPadSeqLenK || kHasUnevenSplits)
         {
             const index_t original_num_total_loop =
                 integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
