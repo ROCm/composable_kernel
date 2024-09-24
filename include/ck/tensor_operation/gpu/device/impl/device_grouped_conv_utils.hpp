@@ -26,6 +26,15 @@ constexpr bool is_GNWC_GKXC_GNWK()
            is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
            is_same_v<OutLayout, tensor_layout::convolution::GNWK>;
 }
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCW_GKXC_NGKW()
+{
+    return is_same_v<InLayout, tensor_layout::convolution::NGCW> &&
+           is_same_v<WeiLayout, tensor_layout::convolution::GKXC> &&
+           is_same_v<OutLayout, tensor_layout::convolution::NGKW>;
+}
+
 // 2d
 template <typename InLayout, typename WeiLayout, typename OutLayout>
 constexpr bool is_NHWGC_GKYXC_NHWGK()
@@ -89,6 +98,14 @@ constexpr bool is_GNSpatialC_GKSpatial_GNSpatialK()
     return is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>() ||
            is_GNHWC_GKYXC_GNHWK<InLayout, WeiLayout, OutLayout>() ||
            is_GNDHWC_GKZYXC_GNDHWK<InLayout, WeiLayout, OutLayout>();
+}
+
+template <typename InLayout, typename WeiLayout, typename OutLayout>
+constexpr bool is_NGCSpatial_GKSpatial_NGKSpatial()
+{
+    return is_NGCW_GKXC_NGKW<InLayout, WeiLayout, OutLayout>() ||
+           is_NGCHW_GKYXC_NGKHW<InLayout, WeiLayout, OutLayout>() ||
+           is_NGCDHW_GKZYXC_NGKDHW<InLayout, WeiLayout, OutLayout>();
 }
 
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0, typename = void>
