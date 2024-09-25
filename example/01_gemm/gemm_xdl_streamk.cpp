@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "common.hpp"
 
@@ -42,6 +42,9 @@ using DeviceGemmStreamK = ck::tensor_operation::device::DeviceGemmXdlStreamK
 using DeviceGemmInstance = DeviceGemmStreamK;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+
+using ReferenceGemmInstanceGPU = ck::tensor_operation::device::
     ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 #include "run_gemm_example.inc"
