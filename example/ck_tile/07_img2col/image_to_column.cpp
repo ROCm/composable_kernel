@@ -16,9 +16,11 @@ float image_to_column(const image_to_column_traits& traits,
 {
     if(traits.data_type.compare("fp16") == 0)
     {
-        using thread_tile = ck_tile::sequence<4, 4>;
-        using warp_tile   = ck_tile::sequence<8, 128>;
-        using block_tile  = ck_tile::sequence<32, 128>;
+        constexpr ck_tile::index_t NDimSpatial = 2;
+
+        using thread_tile = ck_tile::sequence<8, 8>;
+        using warp_tile   = ck_tile::sequence<64, 64>;
+        using block_tile  = ck_tile::sequence<128, 128>;
 
         using Shape = ck_tile::TileImageToColumnShape<thread_tile, warp_tile, block_tile>;
 
@@ -26,7 +28,7 @@ float image_to_column(const image_to_column_traits& traits,
         using OutDataType = ck_tile::half_t;
 
         using PipelineProblem =
-            ck_tile::BlockImageToColumnProblem<InDataType, OutDataType, Shape, 2>;
+            ck_tile::BlockImageToColumnProblem<InDataType, OutDataType, Shape, NDimSpatial>;
 
         using Kernel = ck_tile::ImageToColumn<PipelineProblem>;
 

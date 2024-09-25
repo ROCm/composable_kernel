@@ -101,7 +101,9 @@ struct ImageToColumn
             make_tuple(kargs.image_g_n_c_wis_strides[I1],
                        kargs.image_g_n_c_wis_strides[I3],
                        kargs.image_g_n_c_wis_strides[I4],
-                       kargs.image_g_n_c_wis_strides[I2]));
+                       kargs.image_g_n_c_wis_strides[I2]),
+            number<8>{},
+            number<1>{});
 
         const auto in_n_hip_wip_c_desc = transform_tensor_descriptor(
             in_n_hi_wi_c_desc,
@@ -183,8 +185,9 @@ struct ImageToColumn
         const auto gemm_m_k = make_naive_tensor_view<address_space_enum::global>(
             static_cast<OutDataType*>(kargs.p_out) + out_offset,
             make_tuple(M, K),
-            make_tuple(kargs.gemm_g_m_k_strides[I1],
-                       kargs.gemm_g_m_k_strides[I2])); //, number<kKPerThread>{}, I1);
+            make_tuple(kargs.gemm_g_m_k_strides[I1], kargs.gemm_g_m_k_strides[I2]),
+            number<8>{},
+            number<1>{});
 
         const auto image_m_k_padded =
             pad_tensor_view(image_m_k,
