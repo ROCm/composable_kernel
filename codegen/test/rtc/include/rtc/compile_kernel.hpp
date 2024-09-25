@@ -10,8 +10,9 @@ namespace rtc {
 
 struct src_file
 {
+    src_file(std::filesystem::path p, std::string c) : path{std::move(p)}, content{std::move(c)} {}
     CK::fs::path path;
-    std::string_view content;
+    std::string content;
 };
 
 struct compile_options
