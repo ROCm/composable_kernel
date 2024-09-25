@@ -651,97 +651,97 @@ struct MfmaSelector
     static constexpr auto GetMfma();
 
     template <>
-    static constexpr auto GetMfma<double, 16, 16>()
+    constexpr auto GetMfma<double, 16, 16>()
     {
         return MfmaInstr::mfma_f64_16x16x4f64;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 64, 64>()
+    constexpr auto GetMfma<float, 64, 64>()
     {
         return MfmaInstr::mfma_f32_32x32x1xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 32, 64>()
+    constexpr auto GetMfma<float, 32, 64>()
     {
         return MfmaInstr::mfma_f32_32x32x1xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 16, 64>()
+    constexpr auto GetMfma<float, 16, 64>()
     {
         return MfmaInstr::mfma_f32_16x16x1xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 8, 64>()
+    constexpr auto GetMfma<float, 8, 64>()
     {
         return MfmaInstr::mfma_f32_4x4x1xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 4, 64>()
+    constexpr auto GetMfma<float, 4, 64>()
     {
         return MfmaInstr::mfma_f32_4x4x1xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 32, 32>()
+    constexpr auto GetMfma<float, 32, 32>()
     {
         return MfmaInstr::mfma_f32_32x32x2xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<float, 16, 16>()
+    constexpr auto GetMfma<float, 16, 16>()
     {
         return MfmaInstr::mfma_f32_16x16x4xf32;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 64, 64>()
+    constexpr auto GetMfma<half_t, 64, 64>()
     {
         return MfmaInstr::mfma_f32_32x32x4f16;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 32, 64>()
+    constexpr auto GetMfma<half_t, 32, 64>()
     {
         return MfmaInstr::mfma_f32_32x32x4f16;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 32, 32>()
+    constexpr auto GetMfma<half_t, 32, 32>()
     {
         return MfmaInstr::mfma_f32_32x32x8f16;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 16, 16>()
+    constexpr auto GetMfma<half_t, 16, 16>()
     {
         return MfmaInstr::mfma_f32_16x16x16f16;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 16, 64>()
+    constexpr auto GetMfma<half_t, 16, 64>()
     {
         return MfmaInstr::mfma_f32_16x16x4f16;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 8, 64>()
+    constexpr auto GetMfma<half_t, 8, 64>()
     {
         return MfmaInstr::mfma_f32_4x4x4f16;
     }
 
     template <>
-    static constexpr auto GetMfma<half_t, 4, 64>()
+    constexpr auto GetMfma<half_t, 4, 64>()
     {
         return MfmaInstr::mfma_f32_4x4x4f16;
     }
 
     template <>
-    static constexpr auto GetMfma<bhalf_t, 32, 32>()
+    constexpr auto GetMfma<bhalf_t, 32, 32>()
     {
 #if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_32x32x8bf16_1k;
@@ -751,7 +751,7 @@ struct MfmaSelector
     }
 
     template <>
-    static constexpr auto GetMfma<bhalf_t, 16, 16>()
+    constexpr auto GetMfma<bhalf_t, 16, 16>()
     {
 #if defined(CK_USE_AMD_MFMA_BF16_1K_OP)
         return MfmaInstr::mfma_f32_16x16x16bf16_1k;
@@ -762,72 +762,72 @@ struct MfmaSelector
 
 #if defined(CK_USE_AMD_MFMA_GFX940)
     template <>
-    static constexpr auto GetMfma<int8_t, 32, 32>()
+    constexpr auto GetMfma<int8_t, 32, 32>()
     {
         return MfmaInstr::mfma_i32_32x32x16i8;
     }
     template <>
-    static constexpr auto GetMfma<int8_t, 16, 16>()
+    constexpr auto GetMfma<int8_t, 16, 16>()
     {
         return MfmaInstr::mfma_i32_16x16x32i8;
     }
 #else
     template <>
-    static constexpr auto GetMfma<int8_t, 32, 32>()
+    constexpr auto GetMfma<int8_t, 32, 32>()
     {
         return MfmaInstr::mfma_i32_32x32x8i8;
     }
     template <>
-    static constexpr auto GetMfma<int8_t, 16, 16>()
+    constexpr auto GetMfma<int8_t, 16, 16>()
     {
         return MfmaInstr::mfma_i32_16x16x16i8;
     }
 #endif
 
     template <>
-    static constexpr auto GetMfma<f8_t, 32, 32>()
+    constexpr auto GetMfma<f8_t, 32, 32>()
     {
         return MfmaInstr::mfma_f32_32x32x16f8f8;
     }
 
     template <>
-    static constexpr auto GetMfma<f8_t, 16, 16>()
+    constexpr auto GetMfma<f8_t, 16, 16>()
     {
         return MfmaInstr::mfma_f32_16x16x32f8f8;
     }
 
     template <>
-    static constexpr auto GetMfma<bf8_t, 32, 32>()
+    constexpr auto GetMfma<bf8_t, 32, 32>()
     {
         return MfmaInstr::mfma_f32_32x32x16bf8bf8;
     }
 
     template <>
-    static constexpr auto GetMfma<bf8_t, 16, 16>()
+    constexpr auto GetMfma<bf8_t, 16, 16>()
     {
         return MfmaInstr::mfma_f32_16x16x32bf8bf8;
     }
 
     template <>
-    static constexpr auto GetMfma<f8_t, 32, 32, bf8_t>()
+    constexpr auto GetMfma<f8_t, 32, 32, bf8_t>()
     {
         return MfmaInstr::mfma_f32_32x32x16f8bf8;
     }
 
     template <>
-    static constexpr auto GetMfma<f8_t, 16, 16, bf8_t>()
+    constexpr auto GetMfma<f8_t, 16, 16, bf8_t>()
     {
         return MfmaInstr::mfma_f32_16x16x32f8bf8;
     }
 
     template <>
-    static constexpr auto GetMfma<bf8_t, 32, 32, f8_t>()
+    constexpr auto GetMfma<bf8_t, 32, 32, f8_t>()
     {
         return MfmaInstr::mfma_f32_32x32x16bf8f8;
     }
 
     template <>
-    static constexpr auto GetMfma<bf8_t, 16, 16, f8_t>()
+    constexpr auto GetMfma<bf8_t, 16, 16, f8_t>()
     {
         return MfmaInstr::mfma_f32_16x16x32bf8f8;
     }
