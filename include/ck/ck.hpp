@@ -5,10 +5,11 @@
 
 #include "ck/config.h"
 #include "ck/utility/env.hpp"
-
+#ifndef CK_CODE_GEN_RTC
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
+#endif
 #endif
 
 // environment variable to enable logging:
