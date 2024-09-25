@@ -371,7 +371,7 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 48, unit: 'HOURS')
                 {
@@ -426,7 +426,7 @@ def runCKProfiler(Map conf=[:]){
         def variant = env.STAGE_NAME
         def retimage
 
-        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -563,7 +563,7 @@ def Build_CK(Map conf=[:]){
         def variant = env.STAGE_NAME
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -668,7 +668,7 @@ def process_results(Map conf=[:]){
     def variant = env.STAGE_NAME
     def retimage
 
-    gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try {
             (retimage, image) = getDockerImage(conf)
         }
@@ -838,7 +838,7 @@ pipeline {
         dbsshport = "${dbsshport}"
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
-        status_wrapper_creds = "${status_wrapper_creds}"
+        ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
     }
