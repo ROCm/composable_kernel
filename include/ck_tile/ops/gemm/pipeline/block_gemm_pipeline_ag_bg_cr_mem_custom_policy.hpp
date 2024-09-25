@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_as_bs_cr_default_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_as_bs_cr.hpp"
 
 namespace ck_tile {
 
