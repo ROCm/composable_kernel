@@ -171,7 +171,20 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
+    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
+    {
+        os << "dim " << desc.get_num_of_dimension() << ", ";
+
+        os << "lengths {";
+        LogRange(os, desc.get_lengths(), ", ");
+        os << "}, ";
+
+        os << "strides {";
+        LogRange(os, desc.get_strides(), ", ");
+        os << "}";
+
+        return os;
+    }
 
     private:
     std::vector<std::size_t> mLens;

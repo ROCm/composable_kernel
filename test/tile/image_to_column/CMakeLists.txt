@@ -1,0 +1,1 @@
+add_gtest_executable(test_tile_image_to_column test_tile_image_to_column.cpp)
