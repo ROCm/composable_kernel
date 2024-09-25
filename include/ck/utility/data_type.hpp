@@ -4,8 +4,20 @@
 #pragma once
 
 #include "ck/utility/statically_indexed_array.hpp"
-
+#ifdef CK_CODE_GEN_RTC
+using int8_t   = signed char;
+using uint8_t  = unsigned char;
+using int16_t  = signed short;
+using uint16_t = unsigned short;
+using float_t  = float;
+#endif
 namespace ck {
+
+#ifdef __HIPCC_RTC__
+using byte = unsigned char;
+#else
+using std::byte;
+#endif
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
@@ -1061,6 +1073,9 @@ using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
 template <typename T>
+struct NumericLimits;
+
+template <typename T>
 struct NumericLimits
 {
     __host__ __device__ static constexpr T Min() { return std::numeric_limits<T>::min(); }
@@ -1075,6 +1090,95 @@ struct NumericLimits
     }
 
     __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
+};
+
+template <>
+struct NumericLimits<int32_t>
+{
+    __host__ __device__ static constexpr int32_t Lowest() noexcept { return -2147483647 - 1; }
+
+    __host__ __device__ static constexpr int32_t Min() noexcept { return -2147483647 - 1; }
+
+    __host__ __device__ static constexpr int32_t Max() noexcept { return 2147483647; }
+
+    __host__ __device__ static constexpr int32_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr int32_t QuietNaN() { return 0; }
+};
+template <>
+struct NumericLimits<int16_t>
+{
+    __host__ __device__ static constexpr int16_t Lowest() noexcept { return -32768; }
+
+    __host__ __device__ static constexpr int16_t Min() noexcept { return -32768; }
+
+    __host__ __device__ static constexpr int16_t Max() noexcept { return 32767; }
+
+    __host__ __device__ static constexpr int16_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr int16_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<int8_t>
+{
+    __host__ __device__ static constexpr int8_t Lowest() noexcept { return -128; }
+
+    __host__ __device__ static constexpr int8_t Min() noexcept { return -128; }
+
+    __host__ __device__ static constexpr int8_t Max() noexcept { return 127; }
+
+    __host__ __device__ static constexpr int8_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr int8_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint32_t>
+{
+    __host__ __device__ static constexpr uint32_t Lowest() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint32_t Min() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint32_t Max() noexcept { return 4294967295U; }
+
+    __host__ __device__ static constexpr uint32_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint32_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint16_t>
+{
+    __host__ __device__ static constexpr uint16_t Lowest() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint16_t Min() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint16_t Max() noexcept { return 65535U; }
+
+    __host__ __device__ static constexpr uint16_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint16_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<float>
+{
+    static constexpr unsigned int binary_min    = 0x00800000;
+    static constexpr unsigned int binary_max    = 0x7F7FFFFF;
+    static constexpr unsigned int binary_lowest = 0xFF7FFFFF;
+    static constexpr unsigned int binary_qnan   = 0xFFC00001;
+    static constexpr unsigned int binary_inf    = 0x7F8000000;
+
+    __host__ __device__ static constexpr float Min() { return bit_cast<float>(binary_min); }
+
+    __host__ __device__ static constexpr float Max() { return bit_cast<float>(binary_max); }
+
+    __host__ __device__ static constexpr float Lowest() { return bit_cast<float>(binary_lowest); }
+
+    __host__ __device__ static constexpr float QuietNaN() { return bit_cast<float>(binary_qnan); }
+
+    __host__ __device__ static constexpr float Infinity() { return bit_cast<float>(binary_inf); }
 };
 
 template <>
