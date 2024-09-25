@@ -18,6 +18,7 @@ namespace math {
 extern "C" __device__ float __ocml_native_recip_f32(float);
 #endif
 
+#ifndef __HIPCC_RTC__
 // math functions for the host,  some are implemented by calling C++ std functions
 
 static inline __host__ float abs(float x) { return std::abs(x); };
@@ -457,6 +458,7 @@ inline __host__ double expm1<double>(double x)
 {
     return std::expm1(x);
 }
+#endif
 
 // math functions for the HIP kernel,  some are implemented by calling hip builtin functions
 
@@ -918,6 +920,24 @@ template <>
 inline __device__ double expm1<double>(double x)
 {
     return expm1(x);
+};
+
+template <typename T>
+inline __device__ T cos(T x)
+{
+    return ck::type_convert<T>(cosf(ck::type_convert<float>(x)));
+};
+
+template <>
+inline __device__ float cos<float>(float x)
+{
+    return cosf(x);
+};
+
+template <>
+inline __device__ double cos<double>(double x)
+{
+    return cos(x);
 };
 
 } // namespace math

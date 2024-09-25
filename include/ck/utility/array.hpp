@@ -38,6 +38,8 @@ struct Array
     }
     __host__ __device__ constexpr const TData* begin() const { return &mData[0]; }
     __host__ __device__ constexpr const TData* end() const { return &mData[NSize]; }
+    __host__ __device__ constexpr TData* begin() { return &mData[0]; }
+    __host__ __device__ constexpr TData* end() { return &mData[NSize]; }
 };
 
 // empty Array
@@ -54,7 +56,7 @@ template <typename X, typename... Xs>
 __host__ __device__ constexpr auto make_array(X&& x, Xs&&... xs)
 {
     using data_type = remove_cvref_t<X>;
-    return Array<data_type, sizeof...(Xs) + 1>{std::forward<X>(x), std::forward<Xs>(xs)...};
+    return Array<data_type, sizeof...(Xs) + 1>{ck::forward<X>(x), ck::forward<Xs>(xs)...};
 }
 
 // make empty array

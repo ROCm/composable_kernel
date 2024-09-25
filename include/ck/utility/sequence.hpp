@@ -3,7 +3,9 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <ostream>
+#endif
 
 #include "ck/utility/integral_constant.hpp"
 #include "ck/utility/type.hpp"
@@ -900,6 +902,7 @@ using uniform_sequence_gen_t = typename uniform_sequence_gen<NSize, I>::type;
 
 } // namespace ck
 
+#ifndef __HIPCC_RTC__
 template <ck::index_t... Is>
 std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
 {
@@ -910,3 +913,4 @@ std::ostream& operator<<(std::ostream& os, const ck::Sequence<Is...>)
     os << S::At(S::Size() - ck::Number<1>{}).value << "}";
     return os;
 }
+#endif

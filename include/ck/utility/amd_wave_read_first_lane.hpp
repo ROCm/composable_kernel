@@ -7,10 +7,12 @@
 #include "ck/utility/functional2.hpp"
 #include "ck/utility/math.hpp"
 
+#ifndef __HIPCC_RTC__
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
+#endif
 
 namespace ck {
 namespace detail {
@@ -37,7 +39,7 @@ struct get_carrier<3>
     {
         using value_type = uint32_t;
 
-        std::array<std::byte, 3> bytes;
+        Array<ck::byte, 3> bytes;
         static_assert(sizeof(bytes) <= sizeof(value_type));
 
         // replacement of host std::copy_n()
@@ -61,22 +63,22 @@ struct get_carrier<3>
         // method to trigger template substitution failure
         __device__ carrier(const carrier& other) noexcept
         {
-            copy_n(other.bytes.begin(), bytes.size(), bytes.begin());
+            copy_n(other.bytes.begin(), bytes.Size(), bytes.begin());
         }
 
         public:
         __device__ carrier& operator=(value_type value) noexcept
         {
-            copy_n(reinterpret_cast<const std::byte*>(&value), bytes.size(), bytes.begin());
+            copy_n(reinterpret_cast<const ck::byte*>(&value), bytes.Size(), bytes.begin());
 
             return *this;
         }
 
         __device__ operator value_type() const noexcept
         {
-            std::byte result[sizeof(value_type)];
+            ck::byte result[sizeof(value_type)];
 
-            copy_n(bytes.begin(), bytes.size(), result);
+            copy_n(bytes.begin(), bytes.Size(), result);
 
             return *reinterpret_cast<const value_type*>(result);
         }
@@ -109,8 +111,8 @@ __device__ inline int64_t amd_wave_read_first_lane(int64_t value)
 {
     constexpr unsigned object_size        = sizeof(int64_t);
     constexpr unsigned second_part_offset = object_size / 2;
-    auto* const from_obj                  = reinterpret_cast<const std::byte*>(&value);
-    alignas(int64_t) std::byte to_obj[object_size];
+    auto* const from_obj                  = reinterpret_cast<const ck::byte*>(&value);
+    alignas(int64_t) ck::byte to_obj[object_size];
 
     using Sgpr = uint32_t;
 
@@ -124,15 +126,15 @@ __device__ inline int64_t amd_wave_read_first_lane(int64_t value)
 
 template <
     typename Object,
-    typename = std::enable_if_t<std::is_class_v<Object> && std::is_trivially_copyable_v<Object>>>
+    typename = ck::enable_if_t<ck::is_class_v<Object> && ck::is_trivially_copyable_v<Object>>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;
     constexpr Size SgprSize   = 4;
     constexpr Size ObjectSize = sizeof(Object);
 
-    auto* const from_obj = reinterpret_cast<const std::byte*>(&obj);
-    alignas(Object) std::byte to_obj[ObjectSize];
+    auto* const from_obj = reinterpret_cast<const ck::byte*>(&obj);
+    alignas(Object) ck::byte to_obj[ObjectSize];
 
     constexpr Size RemainedSize             = ObjectSize % SgprSize;
     constexpr Size CompleteSgprCopyBoundary = ObjectSize - RemainedSize;
