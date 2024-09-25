@@ -36,6 +36,7 @@ struct BlockFmhaPipelineQRKSVS2Wave
     static_assert(kQLoadOnce == Policy::QLoadOnce);
 
     static constexpr bool kKLoadOnce = true;
+    static constexpr bool kVLoadOnce = true;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -157,7 +158,7 @@ struct BlockFmhaPipelineQRKSVS2Wave
                 kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                 kK0BlockLength == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                 kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                kN0 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                 kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                 kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
             "wrong!");
@@ -172,9 +173,9 @@ struct BlockFmhaPipelineQRKSVS2Wave
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<VDataType*>(smem_ptr),
-            Policy::template MakeVLdsBlockDescriptor<Problem>());
-        auto v_lds_window = make_tile_window(
-            v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+            Policy::template MakeVLdsStoreBlockDescriptor<Problem>());
+        auto v_lds_window =
+            make_tile_window(v_lds, make_tuple(number<kN1>{}, number<kN0>{}), {0, 0});
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -311,8 +312,6 @@ struct BlockFmhaPipelineQRKSVS2Wave
                     move_tile_window(k_lds_window_for_load, {0, kK0});
                 });
             }
-
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -471,64 +470,42 @@ struct BlockFmhaPipelineQRKSVS2Wave
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }
 
-            block_sync_lds();
+            const auto p =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+
+            const auto v = load_tile(v_dram_window); // load next v
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                     Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                shuffle_tile(v_shuffle_tmp, v_prefetch);
-                store_tile(
-                    v_lds_window,
-                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+                shuffle_tile(v_shuffle_tmp, v);
+                store_tile(v_lds_window,
+                           tile_elementwise_in(v_element_func,
+                                               v_shuffle_tmp)); // store the prefetch
             }
             else
             {
-                store_tile(v_lds_window,
-                           tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
+                store_tile(v_lds_window, tile_elementwise_in(v_element_func, v)); // store next v
             }
-            move_tile_window(v_dram_window, {0, kK1});
+            move_tile_window(v_dram_window, {0, kN0});
 
-            const auto p =
-                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+            auto v_lds_window_for_load =
+                make_tile_window(v_lds, make_tuple(number<kN1>{}, number<kK1>{}), {0, 0});
 
             // STAGE 3, KV gemm
-            if constexpr(k1_loops > 1)
             {
-                static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
-                    const auto v = load_tile(v_dram_window); // load next v
-                    block_sync_lds();
+                block_sync_lds();
+                static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                     gemm_1(o_acc,
                            get_slice_tile(
                                p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                           v_lds_window);
-                    block_sync_lds();
-                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-                    {
-                        auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
-                            Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
-                        shuffle_tile(v_shuffle_tmp, v);
-                        store_tile(v_lds_window,
-                                   tile_elementwise_in(v_element_func,
-                                                       v_shuffle_tmp)); // store the prefetch
-                    }
-                    else
-                    {
-                        store_tile(v_lds_window,
-                                   tile_elementwise_in(v_element_func, v)); // store next v
-                    }
-                    move_tile_window(v_dram_window, {0, kK1});
+                           v_lds_window_for_load);
+
+                    move_tile_window(v_lds_window_for_load, {0, kK1});
                 });
             }
             // move K tile windows
             move_tile_window(k_dram_block_window, {kN0, 0});
-            // tail
-            {
-                block_sync_lds();
-                gemm_1(o_acc,
-                       get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
-                       v_lds_window);
-                block_sync_lds();
-            }
         } while(++i_total_loops < num_total_loop);
 
         // store lse
