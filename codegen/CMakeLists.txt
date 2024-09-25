@@ -27,6 +27,8 @@ file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
 add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
+
+##message(STATUS "SOURCE_FILES: ${SOURCES}")
 # TODO: Use object library
 add_library(ck_host STATIC ${SOURCES})
 target_link_libraries(ck_host PRIVATE ck_headers)
@@ -48,6 +50,4 @@ rocm_install(
 )
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-if(BUILD_TESTING)
 add_subdirectory(test)
-endif()

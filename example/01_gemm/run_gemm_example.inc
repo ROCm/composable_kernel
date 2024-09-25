@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,11 +34,11 @@ inline __host__ __device__ constexpr double get_rtol()
     }
     else if constexpr(std::is_same_v<DataType, ck::f8_t>)
     {
-        return 1e-1; // 240 and 224 are acceptable
+        return 2e-1;
     }
     else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
     {
-        return 1.5e-1; // 57344 and 49152 are acceptable
+        return 2e-1;
     }
     else
     {
@@ -75,11 +75,11 @@ inline __host__ __device__ constexpr double get_atol()
     }
     else if constexpr(std::is_same_v<DataType, ck::f8_t>)
     {
-        return 16.1; // 240 and 224 are acceptable
+        return 2e-1;
     }
     else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
     {
-        return 8192.1; // 57344 and 49152 are acceptable
+        return 2e-1;
     }
     else
     {
@@ -304,6 +304,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             free(ws_ptr);
         }
 #endif
+    }
+    else
+    {
+        // When the Problem Type and Problem Size does not fit.
+
+        std::cerr << gemm.GetTypeString() << ": the instance does not support the problem config."
+                  << std::endl;
+        return true;
     }
 
     std::size_t flop = 2_uz * M * N * K;

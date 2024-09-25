@@ -75,14 +75,15 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::QDataType,
-                                     typename Problem::KDataType,
-                                     typename Problem::SaccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN0,
-                                                   Problem::BlockFmhaShape::kK0>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem<
+            typename Problem::QDataType,
+            typename Problem::KDataType,
+            typename Problem::SaccDataType,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                   Problem::BlockFmhaShape::kN0,
+                                   Problem::BlockFmhaShape::kK0>,
+                          typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                          typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -198,14 +199,15 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::QDataType,
-                                     typename Problem::KDataType,
-                                     typename Problem::SaccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN0,
-                                                   Problem::BlockFmhaShape::kK0>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem<
+            typename Problem::QDataType,
+            typename Problem::KDataType,
+            typename Problem::SaccDataType,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                   Problem::BlockFmhaShape::kN0,
+                                   Problem::BlockFmhaShape::kK0>,
+                          typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                          typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -707,16 +709,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     {
         if constexpr(AsyncCopyK)
         {
-            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
+            return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>(0);
         }
         else
         {
-            return ck_tile::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>());
+            return ck_tile::max(GetSmemSizeKV<Problem>(), GetSmemSizeDropout<Problem>(0));
         }
     }
 
+    // this method is only available when Problem::kHasDropout is present
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
+    CK_TILE_HOST_DEVICE static constexpr std::
+        enable_if_t<std::is_convertible_v<decltype(Problem::kHasDropout), bool>, ck_tile::index_t>
+        GetSmemSizeDropout(int)
     {
         if constexpr(Problem::kHasDropout)
         {
@@ -734,6 +739,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         {
             return 0;
         }
+    }
+
+    // fallback version if Problem::kHasDropout is not exist
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout(...)
+    {
+        return 0;
     }
 
     template <typename Problem>
@@ -942,14 +954,15 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
     {
-        using BlockGemmProblem =
-            BlockGemmPipelineProblem<typename Problem::PDataType,
-                                     typename Problem::VDataType,
-                                     typename Problem::OaccDataType,
-                                     Problem::kBlockSize,
-                                     TileGemmShape<Problem::BlockFmhaShape::kM0,
-                                                   Problem::BlockFmhaShape::kN1,
-                                                   Problem::BlockFmhaShape::kK1>>;
+        using BlockGemmProblem = BlockGemmPipelineProblem<
+            typename Problem::PDataType,
+            typename Problem::VDataType,
+            typename Problem::OaccDataType,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                   Problem::BlockFmhaShape::kN1,
+                                   Problem::BlockFmhaShape::kK1>,
+                          typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                          typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         auto warp_gemm = [&]() {
             if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&

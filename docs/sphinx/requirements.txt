@@ -103,7 +103,7 @@ requests==2.32.3
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core==1.7.1
+rocm-docs-core==1.8.1
     # via -r requirements.in
 six==1.16.0
     # via pybtex
@@ -137,7 +137,7 @@ sphinx-notfound-page==1.0.3
     # via rocm-docs-core
 sphinxcontrib-applehelp==2.0.0
     # via sphinx
-sphinxcontrib-bibtex==2.6.2
+sphinxcontrib-bibtex==2.6.3
     # via -r requirements.in
 sphinxcontrib-devhelp==2.0.0
     # via sphinx
