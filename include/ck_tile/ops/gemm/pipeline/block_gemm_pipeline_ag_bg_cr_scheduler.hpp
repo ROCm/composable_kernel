@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include "ck_tile/core.hpp"
-
 namespace ck_tile {
 
 enum struct BlockGemmPipelineScheduler
@@ -34,3 +32,5 @@ enum struct TailNumber
     // prefetchstages
     Full,
 };
+
+} // namespace ck_tile
