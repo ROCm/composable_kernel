@@ -13,10 +13,12 @@
 template <typename DataType>
 class TestCkTileImageToColumn : public ::testing::Test
 {
+    static constexpr ck_tile::index_t VectorSize  = 1;
+    static constexpr ck_tile::index_t NDimSpatial = 2;
+
     protected:
     void Run(const ck_tile::conv::ConvParam conv_params)
     {
-        constexpr ck_tile::index_t NDimSpatial = 2;
 
         using ImLayout = ck_tile::tensor_layout::convolution::NHWGC;
 
@@ -62,7 +64,12 @@ class TestCkTileImageToColumn : public ::testing::Test
 
         using Shape = ck_tile::TileImageToColumnShape<thread_tile, warp_tile, block_tile>;
 
-        using PipelineProblem = ck_tile::BlockImageToColumnProblem<DataType, DataType, Shape, 2>;
+        using PipelineProblem = ck_tile::BlockImageToColumnProblem<DataType,
+                                                                   DataType,
+                                                                   Shape,
+                                                                   NDimSpatial,
+                                                                   VectorSize,
+                                                                   VectorSize>;
 
         using Kernel = ck_tile::ImageToColumn<PipelineProblem>;
 

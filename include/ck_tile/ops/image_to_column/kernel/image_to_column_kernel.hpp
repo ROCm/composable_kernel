@@ -26,6 +26,9 @@ struct ImageToColumn
 
     static constexpr index_t NDimSpatial = Problem::NDimSpatial;
 
+    static constexpr index_t AligmentIn  = Problem::AligmentIn;
+    static constexpr index_t AligmentOut = Problem::AligmentOut;
+
     static_assert(NDimSpatial == 2, "Not supported.");
 
     static constexpr index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
@@ -102,8 +105,8 @@ struct ImageToColumn
                        kargs.image_g_n_c_wis_strides[I3],
                        kargs.image_g_n_c_wis_strides[I4],
                        kargs.image_g_n_c_wis_strides[I2]),
-            number<8>{},
-            number<1>{});
+            number<AligmentIn>{},
+            I1);
 
         const auto in_n_hip_wip_c_desc = transform_tensor_descriptor(
             in_n_hi_wi_c_desc,
@@ -186,8 +189,8 @@ struct ImageToColumn
             static_cast<OutDataType*>(kargs.p_out) + out_offset,
             make_tuple(M, K),
             make_tuple(kargs.gemm_g_m_k_strides[I1], kargs.gemm_g_m_k_strides[I2]),
-            number<8>{},
-            number<1>{});
+            number<AligmentOut>{},
+            I1);
 
         const auto image_m_k_padded =
             pad_tensor_view(image_m_k,
