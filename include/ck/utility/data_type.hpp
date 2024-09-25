@@ -5,7 +5,24 @@
 
 #include "ck/utility/statically_indexed_array.hpp"
 
+#ifdef __HIPCC_RTC__
+/// Definitions from <cstdint>, <cmath> conflict with
+/// /opt/rocm/include/hip/amd_detail/amd_hip_vector_types.h.
+
+using int8_t   = signed char;
+using uint8_t  = unsigned char;
+using int16_t  = signed short;
+using uint16_t = unsigned short;
+using float_t  = float;
+#endif // __HIPCC_RTC__
+
 namespace ck {
+
+#ifdef __HIPCC_RTC__
+using byte = unsigned char;
+#else
+using std::byte;
+#endif
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
@@ -1060,6 +1077,146 @@ using uint8x16_t = typename vector_type<uint8_t, 16>::type;
 using uint8x32_t = typename vector_type<uint8_t, 32>::type;
 using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
+#ifdef __HIPCC_RTC__
+template <typename T>
+struct NumericLimits;
+
+template <>
+struct NumericLimits<int32_t>
+{
+    __host__ __device__ static constexpr int32_t Lowest() noexcept { return -2147483647 - 1; }
+
+    __host__ __device__ static constexpr int32_t Min() noexcept { return -2147483647 - 1; }
+
+    __host__ __device__ static constexpr int32_t Max() noexcept { return 2147483647; }
+
+    __host__ __device__ static constexpr int32_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr int32_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<int16_t>
+{
+    __host__ __device__ static constexpr int16_t Lowest() noexcept { return -32768; }
+
+    __host__ __device__ static constexpr int16_t Min() noexcept { return -32768; }
+
+    __host__ __device__ static constexpr int16_t Max() noexcept { return 32767; }
+
+    __host__ __device__ static constexpr int16_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr int16_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<int8_t>
+{
+    __host__ __device__ static constexpr int8_t Lowest() noexcept { return -128; }
+
+    __host__ __device__ static constexpr int8_t Min() noexcept { return -128; }
+
+    __host__ __device__ static constexpr int8_t Max() noexcept { return 127; }
+
+    __host__ __device__ static constexpr int8_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr int8_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint32_t>
+{
+    __host__ __device__ static constexpr uint32_t Lowest() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint32_t Min() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint32_t Max() noexcept { return 4294967295U; }
+
+    __host__ __device__ static constexpr uint32_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint32_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<uint16_t>
+{
+    __host__ __device__ static constexpr uint16_t Lowest() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint16_t Min() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint16_t Max() noexcept { return 65535U; }
+
+    __host__ __device__ static constexpr uint16_t Infinity() noexcept { return 0; }
+
+    __host__ __device__ static constexpr uint16_t QuietNaN() { return 0; }
+};
+
+template <>
+struct NumericLimits<float>
+{
+    static constexpr unsigned int binary_min    = 0x00800000;
+    static constexpr unsigned int binary_max    = 0x7F7FFFFF;
+    static constexpr unsigned int binary_lowest = 0xFF7FFFFF;
+    static constexpr unsigned int binary_qnan   = 0xFFC00001;
+    static constexpr unsigned int binary_inf    = 0x7F8000000;
+
+    __host__ __device__ static constexpr float Min() { return bit_cast<float>(binary_min); }
+
+    __host__ __device__ static constexpr float Max() { return bit_cast<float>(binary_max); }
+
+    __host__ __device__ static constexpr float Lowest() { return bit_cast<float>(binary_lowest); }
+
+    __host__ __device__ static constexpr float QuietNaN() { return bit_cast<float>(binary_qnan); }
+
+    __host__ __device__ static constexpr float Infinity() { return bit_cast<float>(binary_inf); }
+};
+
+template <>
+struct NumericLimits<half_t>
+{
+    static constexpr unsigned short binary_min    = 0x0400;
+    static constexpr unsigned short binary_max    = 0x7BFF;
+    static constexpr unsigned short binary_lowest = 0xFBFF;
+    static constexpr unsigned short binary_qnan   = 0x7FFF;
+
+    __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
+
+    __host__ __device__ static constexpr half_t Max() { return bit_cast<half_t>(binary_max); }
+
+    __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
+};
+
+#ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+template <>
+struct NumericLimits<int4_t>
+{
+    __host__ __device__ static constexpr int4_t Min() { return int4_t(-8); }
+
+    __host__ __device__ static constexpr int4_t Max() { return int4_t(7); }
+
+    __host__ __device__ static constexpr int4_t Lowest() { return int4_t(-8); }
+};
+#endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
+
+template <>
+struct NumericLimits<f8_t>
+{
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000
+    static constexpr uint8_t binary_max    = 0x77; // 0b01110111
+    static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
+    static constexpr uint8_t binary_qnan   = 0x80; // 0b10000000
+
+    __host__ __device__ static constexpr f8_t Min() { return bit_cast<f8_t>(binary_min); }
+
+    __host__ __device__ static constexpr f8_t Max() { return bit_cast<f8_t>(binary_max); }
+
+    __host__ __device__ static constexpr f8_t Lowest() { return bit_cast<f8_t>(binary_lowest); }
+
+    __host__ __device__ static constexpr f8_t QuietNaN() { return bit_cast<f8_t>(binary_qnan); }
+};
+#else
 template <typename T>
 struct NumericLimits
 {
@@ -1151,6 +1308,7 @@ struct NumericLimits<bf8_t>
 
     __host__ __device__ static constexpr bf8_t QuietNaN() { return bf8_t(binary_qnan); }
 };
+#endif
 
 template <typename T>
 struct NumericUtils

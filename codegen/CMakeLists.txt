@@ -54,7 +54,7 @@ add_executable(ck-template-driver driver/main.cpp)
 target_link_libraries(ck-template-driver ck_host)
   
 rocm_install(
-    TARGETS ck_host ck_headers
+    TARGETS ck_host
     EXPORT ck_hostTargets
 )
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

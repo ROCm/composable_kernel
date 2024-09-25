@@ -466,7 +466,7 @@ struct FastGelu
 
     template <typename Y, typename X>
     __device__ void operator()(Y& y, const X& x) const;
-
+#ifndef __HIPCC_RTC__
     template <>
     __host__ void operator()<float, float>(float& y, const float& x) const
     {
@@ -477,7 +477,7 @@ struct FastGelu
         const float emu = exp(u);
         y               = x / (1.f + emu);
     }
-
+#endif
     // device code, use lower precision "__ocml_exp_f32" and "rcp"
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const

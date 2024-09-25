@@ -23,6 +23,26 @@ struct TileDesc
     int n_Xdl_per_wave           = 0;
     int num_gemmk_prefetch_stage = 0;
 };
+
+struct TileDescGemmSoftmaxGemm
+{
+    int block_size               = 0;
+    int gemm01_m_per_block       = 0;
+    int gemm0_n_per_block        = 0;
+    int gemm0_k_per_block        = 0;
+    int gemm1_n_per_block        = 0;
+    int gemm1_k_per_block        = 0;
+    int ak1                      = 0;
+    int bk1                      = 0;
+    int b1k1                     = 0;
+    int m_per_XDL                = 0;
+    int n_per_XDL                = 0;
+    int gemm0_m_Xdl_per_wave     = 0;
+    int gemm0_n_Xdl_per_wave     = 0;
+    int gemm1_n_Xdl_per_wave     = 0;
+    int num_gemmk_prefetch_stage = 0;
+};
+
 struct BlockTransferDesc
 {
     std::string thread_cluster_length        = "";

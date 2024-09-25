@@ -3,8 +3,10 @@
 
 #pragma once
 
+#ifndef __HIPCC_RTC__
 #include <iostream>
 #include <ostream>
+#endif
 
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v1.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_v2.hpp"
@@ -53,12 +55,15 @@ constexpr auto GridwiseGemmPipeline_Selector()
     }
     else
     {
+#ifndef __HIPCC_RTC__
         std::cerr << "GridwiseGemmPipeline configuration is not available" << std::endl;
+#endif
     }
 }
 
 } // namespace ck
 
+#ifndef __HIPCC_RTC__
 inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
 {
     switch(p)
@@ -71,3 +76,4 @@ inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
     }
     return os;
 }
+#endif

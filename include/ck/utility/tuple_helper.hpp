@@ -29,7 +29,7 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
                                                              const Tuple<Y&...>& ty)
 {
     return unpack2(
-        [&](auto&&... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto&&... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }
@@ -38,7 +38,7 @@ template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuple<Y...>& ty)
 {
     return unpack2(
-        [&](auto... zs) { return Tuple<decltype(zs)...>{std::forward<decltype(zs)>(zs)...}; },
+        [&](auto... zs) { return Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
         tx,
         ty);
 }
@@ -157,6 +157,7 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
     }
 }
 
+#ifndef __HIPCC_RTC__
 template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
 
@@ -165,6 +166,7 @@ __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
     return (is_detected<is_tuple, Ts>::value || ...);
 }
+#endif
 
 template <index_t depth = 0, typename T>
 __host__ __device__ constexpr auto TupleDepth(const T&)

@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
 
 #include "ck/ck.hpp"
@@ -160,3 +160,4 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     return 0;
 #endif
 }
+#endif
