@@ -33,6 +33,7 @@ struct Layernorm2dFwd
     static constexpr ck_tile::index_t kNPerBlock = Problem::BlockShape::kNPerBlock;
 
     static constexpr ck_tile::index_t kNThreadPerWarp = Problem::BlockShape::kNThreadPerWarp;
+    static constexpr ck_tile::index_t kNPerThread = Problem::BlockShape::kNPerThread;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -319,21 +320,21 @@ struct Layernorm2dFwd
             static_cast<const XDataType*>(kargs.p_x),
             make_tuple(kargs.M, kargs.N),
             make_tuple(kargs.N, 1),
-            number<32>{},
+            number<kNPerThread>{},
             number<1>{});
 
         const auto gamma_n = make_naive_tensor_view<address_space_enum::global>(
             static_cast<const GammaDataType*>(kargs.p_gamma),
             make_tuple(kargs.N),
             make_tuple(1),
-            number<32>{},
+            number<kNPerThread>{},
             number<1>{});
 
         const auto beta_n = make_naive_tensor_view<address_space_enum::global>(
             static_cast<const BetaDataType*>(kargs.p_beta),
             make_tuple(kargs.N),
             make_tuple(1),
-            number<32>{},
+            number<kNPerThread>{},
             number<1>{});
 
         const auto iM = get_block_id() * kMPerBlock;
@@ -347,7 +348,7 @@ struct Layernorm2dFwd
             make_naive_tensor_view<address_space_enum::global>(static_cast<YDataType*>(kargs.p_y),
                                                                make_tuple(kargs.M, kargs.N),
                                                                make_tuple(kargs.N, 1),
-                                                               number<32>{},
+                                                               number<kNPerThread>{},
                                                                number<1>{});
 
         auto y_block_window = make_tile_window(
@@ -366,7 +367,7 @@ struct Layernorm2dFwd
             if constexpr(kSaveMean)
             {
                 const auto mean_m = make_naive_tensor_view_packed<address_space_enum::global>(
-                    static_cast<MeanDataType*>(kargs.p_mean), make_tuple(kargs.M), number<32>{});
+                    static_cast<MeanDataType*>(kargs.p_mean), make_tuple(kargs.M), number<1>{});
 
                 return make_tile_window(mean_m, make_tuple(number<kMPerBlock>{}), {iM});
             }
@@ -378,9 +379,7 @@ struct Layernorm2dFwd
             if constexpr(kSaveInvStd)
             {
                 const auto inv_std_m = make_naive_tensor_view_packed<address_space_enum::global>(
-                    static_cast<InvStdDataType*>(kargs.p_invStd),
-                    make_tuple(kargs.M),
-                    number<32>{});
+                    static_cast<InvStdDataType*>(kargs.p_invStd), make_tuple(kargs.M), number<1>{});
 
                 return make_tile_window(inv_std_m, make_tuple(number<kMPerBlock>{}), {iM});
             }
