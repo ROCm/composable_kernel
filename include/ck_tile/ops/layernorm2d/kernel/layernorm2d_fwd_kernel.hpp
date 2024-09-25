@@ -152,7 +152,8 @@ struct Layernorm2dFwd
         index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(N / kNPerBlock);
 
         // TODO: padding - handle max_count if N % kNPerBlock != 0
-        constexpr auto xDstr      = MakeXBlockTileDistribution();
+        auto xDstr = x_block_window.get_tile_distribution();
+
         constexpr auto NPerThread = GetNPerThread(xDstr);
         ThreadWelford<ComputeDataType, XDataType> thread_welford{
             type_convert<int>(NPerThread * N / kNPerBlock)};
@@ -252,7 +253,8 @@ struct Layernorm2dFwd
                           ck_tile::index_t N) const
     {
         // TODO: padding - handle max_count if N % kNPerBlock != 0
-        constexpr auto xDstr      = MakeXBlockTileDistribution();
+        auto xDstr = x_block_window.get_tile_distribution();
+
         constexpr auto NPerThread = GetNPerThread(xDstr);
         ThreadWelford<ComputeDataType, XDataType> thread_welford{
             type_convert<int>(NPerThread * N / kNPerBlock)};
