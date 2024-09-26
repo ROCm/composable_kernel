@@ -47,8 +47,20 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr int kBlockPerCu = 1;
 
     using TilePartitioner = ck_tile::GemmTilePartitioner<GemmShape>;
-    using GemmEpilogue    = ck_tile::Default2DEpilogue<
-        ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>;
+
+    // The rank and permutation will also be generate out by the CodeGen part.
+    constexpr ck_tile::index_t kOutputRank = 2;
+
+    using GemmEpilogue =
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                                                   CDataType,
+                                                                   kPadA,
+                                                                   kPadB,
+                                                                   kOutputRank,
+                                                                   1,
+                                                                   0,
+                                                                   TilePartitioner::kM,
+                                                                   TilePartitioner::kN>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel =

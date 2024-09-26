@@ -184,6 +184,7 @@ struct GemmKernel
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
+
         EpiloguePipeline{}(CBlockWindow_pad, acc);
     }
 };
