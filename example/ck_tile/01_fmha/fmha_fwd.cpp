@@ -552,16 +552,33 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 #endif
 
-    auto get_lengths = [&](bool permute,
-                           ck_tile::index_t b /*batch*/,
-                           ck_tile::index_t h /*nhead*/,
-                           ck_tile::index_t s /*seqlen*/,
-                           ck_tile::index_t d /*hdim*/) {
-        if(permute)
-            return std::array<ck_tile::index_t, 4>{b, h, s, d};
-        else
-            return std::array<ck_tile::index_t, 4>{b, s, h, d};
-    };
+    struct
+    {
+        auto operator()(bool permute,
+                        ck_tile::index_t b /*batch*/,
+                        ck_tile::index_t h /*nhead*/,
+                        ck_tile::index_t s /*seqlen*/,
+                        ck_tile::index_t d /*hdim*/)
+        {
+            if(permute)
+                return std::array<ck_tile::index_t, 4>{b, h, s, d};
+            else
+                return std::array<ck_tile::index_t, 4>{b, s, h, d};
+        }
+
+        auto operator()(bool permute,
+                        ck_tile::index_t ns /*num_splits*/,
+                        ck_tile::index_t b /*batch*/,
+                        ck_tile::index_t h /*nhead*/,
+                        ck_tile::index_t s /*seqlen*/,
+                        ck_tile::index_t d /*hdim*/)
+        {
+            if(permute)
+                return std::array<ck_tile::index_t, 5>{ns, b, h, s, d};
+            else
+                return std::array<ck_tile::index_t, 5>{ns, b, s, h, d};
+        }
+    } get_lengths;
 
     bool is_v_rowmajor = vlayout == std::string("r");
 
@@ -616,12 +633,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 4>{num_splits, shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
     ck_tile::HostTensor<OaccDataType> o_acc_host(
-        1 < num_splits || use_kvcache ? std::array<ck_tile::index_t, 5>{num_splits,
-                                                                        shape_batch,
-                                                                        nhead,
-                                                                        shape_seqlen_q,
-                                                                        hdim_v}
-                                      : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
+        1 < num_splits || use_kvcache
+            ? get_lengths(o_perm, num_splits, shape_batch, nhead, shape_seqlen_q, hdim_v)
+            : std::array<ck_tile::index_t, 5>{1, 1, 1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
@@ -857,7 +871,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }();
         const ck_tile::index_t stride_bias    = (i_perm ? shape_seqlen_k : 1 * shape_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_o_acc   = hdim_v;
+        const ck_tile::index_t stride_o_acc   = (o_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
@@ -884,7 +898,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_lse_acc = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_o_acc   = (shape_seqlen_q * hdim_v);
+        const ck_tile::index_t nhead_stride_o_acc   = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
