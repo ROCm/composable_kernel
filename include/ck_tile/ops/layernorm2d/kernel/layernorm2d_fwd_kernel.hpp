@@ -31,9 +31,11 @@ struct Layernorm2dFwd
 
     static constexpr ck_tile::index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
     static constexpr ck_tile::index_t kNPerBlock = Problem::BlockShape::kNPerBlock;
+    static constexpr bool kPadM                  = Problem::kPadM;
+    static constexpr bool kPadN                  = Problem::kPadN;
 
     static constexpr ck_tile::index_t kNThreadPerWarp = Problem::BlockShape::kNThreadPerWarp;
-    static constexpr ck_tile::index_t kNPerThread = Problem::BlockShape::kNPerThread;
+    static constexpr ck_tile::index_t kNPerThread     = Problem::BlockShape::kNPerThread;
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -100,19 +102,25 @@ struct Layernorm2dFwd
                 sequence<2>>{});
     }
 
-    template <typename Dstr>
-    CK_TILE_DEVICE static constexpr auto GetNPerThread(Dstr)
+    CK_TILE_DEVICE static int GetWelfordMaxCount(int N)
     {
-        constexpr auto nDstrSpan = Dstr::get_distributed_spans().template at<1>();
+        constexpr ck_tile::index_t kNThreadPerBlock = kNPerBlock / kNPerThread;
 
-        using Lengths = decltype(nDstrSpan.impl_);
+        int thread_id_n = get_thread_id() % kNThreadPerBlock;
+        int max_count =
+            __builtin_amdgcn_readfirstlane(N < kNPerBlock ? 0 : kNPerThread * (N / kNPerBlock));
+        int n_per_block_tail_loop =
+            __builtin_amdgcn_readfirstlane(N - max_count * kNThreadPerBlock);
 
-        ck_tile::index_t ret = 1;
+        if(n_per_block_tail_loop > 0)
+        {
+            int thread_max_n = (thread_id_n + 1) * kNPerThread;
+            int delta        = thread_max_n - n_per_block_tail_loop;
+            delta            = clamp(thread_max_n - n_per_block_tail_loop, 0, kNPerThread);
+            max_count += kNPerThread - delta;
+        }
 
-        ck_tile::static_for<0, Lengths::size(), 1>{}(
-            [&](auto idx) { ret *= Lengths::template at(idx); });
-
-        return ret;
+        return max_count;
     }
 
     template <typename DistributedTensor>
@@ -150,14 +158,12 @@ struct Layernorm2dFwd
                           ComputeDataType epsilon,
                           ck_tile::index_t N) const
     {
-        index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(N / kNPerBlock);
+        // TODO - Optimize tail loop to reduce move_tile_window()
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, kNPerBlock));
 
-        // TODO: padding - handle max_count if N % kNPerBlock != 0
-        auto xDstr = x_block_window.get_tile_distribution();
-
-        constexpr auto NPerThread = GetNPerThread(xDstr);
-        ThreadWelford<ComputeDataType, XDataType> thread_welford{
-            type_convert<int>(NPerThread * N / kNPerBlock)};
+        int welford_max_count = GetWelfordMaxCount(N);
+        ThreadWelford<ComputeDataType, XDataType> thread_welford{welford_max_count};
 
         using XTensorType = decltype(load_tile(x_block_window));
         auto mean_compute_block_tensor =
@@ -189,7 +195,8 @@ struct Layernorm2dFwd
                        cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
 
         // reverse read x to reuse cache
-        ck_tile::index_t stride_to_right_most_window = N - kNPerBlock;
+        ck_tile::index_t stride_to_right_most_window =
+            N % kNPerBlock == 0 ? N - kNPerBlock : N - N % kNPerBlock;
 
         move_tile_window(x_block_window, {0, -kNPerBlock});
         move_tile_window(gamma_block_window, {stride_to_right_most_window});
@@ -253,12 +260,8 @@ struct Layernorm2dFwd
                           ComputeDataType epsilon,
                           ck_tile::index_t N) const
     {
-        // TODO: padding - handle max_count if N % kNPerBlock != 0
-        auto xDstr = x_block_window.get_tile_distribution();
-
-        constexpr auto NPerThread = GetNPerThread(xDstr);
-        ThreadWelford<ComputeDataType, XDataType> thread_welford{
-            type_convert<int>(NPerThread * N / kNPerBlock)};
+        int welford_max_count = GetWelfordMaxCount(N);
+        ThreadWelford<ComputeDataType, XDataType> thread_welford{welford_max_count};
 
         using XTensorType = decltype(load_tile(x_block_window));
         auto mean_compute_block_tensor =
@@ -316,26 +319,42 @@ struct Layernorm2dFwd
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        const auto x_m_n = make_naive_tensor_view<address_space_enum::global>(
-            static_cast<const XDataType*>(kargs.p_x),
-            make_tuple(kargs.M, kargs.N),
-            make_tuple(kargs.N, 1),
-            number<kNPerThread>{},
-            number<1>{});
+        const auto x_m_n = [&]() {
+            const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                static_cast<const XDataType*>(kargs.p_x),
+                make_tuple(kargs.M, kargs.N),
+                make_tuple(kargs.N, 1),
+                number<kNPerThread>{},
+                number<1>{});
 
-        const auto gamma_n = make_naive_tensor_view<address_space_enum::global>(
-            static_cast<const GammaDataType*>(kargs.p_gamma),
-            make_tuple(kargs.N),
-            make_tuple(1),
-            number<kNPerThread>{},
-            number<1>{});
+            return pad_tensor_view(x_dram_naive,
+                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                   sequence<kPadM, kPadN>{});
+        }();
 
-        const auto beta_n = make_naive_tensor_view<address_space_enum::global>(
-            static_cast<const BetaDataType*>(kargs.p_beta),
-            make_tuple(kargs.N),
-            make_tuple(1),
-            number<kNPerThread>{},
-            number<1>{});
+        const auto gamma_n = [&]() {
+            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                static_cast<const GammaDataType*>(kargs.p_gamma),
+                make_tuple(kargs.N),
+                make_tuple(1),
+                number<kNPerThread>{},
+                number<1>{});
+
+            return pad_tensor_view(
+                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<kPadN>{});
+        }();
+
+        const auto beta_n = [&]() {
+            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                static_cast<const BetaDataType*>(kargs.p_beta),
+                make_tuple(kargs.N),
+                make_tuple(1),
+                number<kNPerThread>{},
+                number<1>{});
+
+            return pad_tensor_view(
+                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<kPadN>{});
+        }();
 
         const auto iM = get_block_id() * kMPerBlock;
 
@@ -344,12 +363,18 @@ struct Layernorm2dFwd
         auto x_block_window = make_tile_window(
             x_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0}, xDstr);
 
-        const auto y_m_n =
-            make_naive_tensor_view<address_space_enum::global>(static_cast<YDataType*>(kargs.p_y),
-                                                               make_tuple(kargs.M, kargs.N),
-                                                               make_tuple(kargs.N, 1),
-                                                               number<kNPerThread>{},
-                                                               number<1>{});
+        const auto y_m_n = [&]() {
+            const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                static_cast<YDataType*>(kargs.p_y),
+                make_tuple(kargs.M, kargs.N),
+                make_tuple(kargs.N, 1),
+                number<kNPerThread>{},
+                number<1>{});
+
+            return pad_tensor_view(y_dram_naive,
+                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                   sequence<kPadM, kPadN>{});
+        }();
 
         auto y_block_window = make_tile_window(
             y_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0});
@@ -366,8 +391,16 @@ struct Layernorm2dFwd
         auto mean_block_window = [&]() {
             if constexpr(kSaveMean)
             {
-                const auto mean_m = make_naive_tensor_view_packed<address_space_enum::global>(
-                    static_cast<MeanDataType*>(kargs.p_mean), make_tuple(kargs.M), number<1>{});
+                const auto mean_m = [&]() {
+                    const auto mean_dram_naive =
+                        make_naive_tensor_view_packed<address_space_enum::global>(
+                            static_cast<MeanDataType*>(kargs.p_mean),
+                            make_tuple(kargs.M),
+                            number<1>{});
+
+                    return pad_tensor_view(
+                        mean_dram_naive, make_tuple(number<kMPerBlock>{}), sequence<kPadM>{});
+                }();
 
                 return make_tile_window(mean_m, make_tuple(number<kMPerBlock>{}), {iM});
             }
@@ -378,8 +411,16 @@ struct Layernorm2dFwd
         auto inv_std_block_window = [&]() {
             if constexpr(kSaveInvStd)
             {
-                const auto inv_std_m = make_naive_tensor_view_packed<address_space_enum::global>(
-                    static_cast<InvStdDataType*>(kargs.p_invStd), make_tuple(kargs.M), number<1>{});
+                const auto inv_std_m = [&]() {
+                    const auto inv_std_dram_naive =
+                        make_naive_tensor_view_packed<address_space_enum::global>(
+                            static_cast<InvStdDataType*>(kargs.p_invStd),
+                            make_tuple(kargs.M),
+                            number<1>{});
+
+                    return pad_tensor_view(
+                        inv_std_dram_naive, make_tuple(number<kMPerBlock>{}), sequence<kPadM>{});
+                }();
 
                 return make_tile_window(inv_std_m, make_tuple(number<kMPerBlock>{}), {iM});
             }
