@@ -5,7 +5,9 @@
 
 #include "functional4.hpp"
 #include "tuple.hpp"
+#ifndef CK_CODE_GEN_RTC
 #include "is_detected.hpp"
+#endif
 
 namespace ck {
 
@@ -157,13 +159,17 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
     }
 }
 
+#ifndef CK_CODE_GEN_RTC
 template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
+#endif
 
 template <typename... Ts>
 __host__ __device__ constexpr auto IsNestedTuple(const Tuple<Ts...>&)
 {
+#ifndef CK_CODE_GEN_RTC
     return (is_detected<is_tuple, Ts>::value || ...);
+#endif
 }
 
 template <index_t depth = 0, typename T>
