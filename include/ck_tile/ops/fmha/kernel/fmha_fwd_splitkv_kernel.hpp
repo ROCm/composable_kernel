@@ -893,7 +893,7 @@ struct FmhaFwdSplitKVKernel
             const auto o_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_acc_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.hdim_v, 1),
+                make_tuple(kargs.stride_o_acc, 1),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
 
