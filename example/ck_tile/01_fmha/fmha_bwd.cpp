@@ -111,10 +111,10 @@ auto get_elimit<ck_tile::bf16_t>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_
 {
     double rtol = 1e-2;
     double atol = 1e-2;
-    if(hdim_q > 128 && hdim_v > 128)
+    if(hdim_q > 128 && hdim_v > 128) // 3.2 for RTZ/1.5 for RTN
     {
-        rtol = 1.5e-2;
-        atol = 1.5e-2;
+        rtol = 3.2e-2;
+        atol = 3.2e-2;
     }
     return ck_tile::make_tuple(rtol, atol);
 }
