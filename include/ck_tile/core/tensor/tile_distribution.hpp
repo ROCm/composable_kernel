@@ -17,6 +17,14 @@
 
 namespace ck_tile {
 
+namespace detail {
+template <typename Distribution>
+CK_TILE_HOST_DEVICE auto get_partition_index(Distribution)
+{
+    return Distribution::_get_partition_index();
+}
+} // namespace detail
+
 // distributed span
 template <index_t... PartialHsLengths>
 struct tile_distributed_span
@@ -83,6 +91,21 @@ struct tile_distribution
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_p() { return NDimP; }
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension_r() { return NDimR; }
 
+    CK_TILE_HOST_DEVICE static auto _get_partition_index()
+    {
+        // only support warp-tile and block-tile
+        static_assert(NDimP == 1 or NDimP == 2, "wrong!");
+
+        if constexpr(NDimP == 1)
+        {
+            return array<index_t, 1>{get_lane_id()};
+        }
+        else if constexpr(NDimP == 2)
+        {
+            return array<index_t, 2>{get_warp_id(), get_lane_id()};
+        }
+    }
+
     CK_TILE_HOST_DEVICE static constexpr auto get_lengths()
     {
 #if 0
@@ -148,6 +171,16 @@ struct tile_distribution
         return rs_idx;
     }
 #endif
+
+    template <typename PartitionIndex = decltype(_get_partition_index())>
+    CK_TILE_HOST_DEVICE auto
+    calculate_index(const PartitionIndex& ps_idx = _get_partition_index()) const
+    {
+        const auto ps_ys_idx = container_concat(ps_idx, array<index_t, NDimY>{0});
+        const auto window_adaptor_thread_coord_tmp =
+            make_tensor_adaptor_coordinate(ps_ys_to_xs_, ps_ys_idx);
+        return window_adaptor_thread_coord_tmp.get_bottom_index();
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto get_distributed_spans()
     {
@@ -499,22 +532,6 @@ CK_TILE_HOST_DEVICE constexpr auto make_static_tile_distribution(StaticTileDistr
 //***********************************************************************************
 
 namespace detail {
-
-template <typename Distribution>
-CK_TILE_HOST_DEVICE auto get_partition_index(Distribution)
-{
-    // only support warp-tile and block-tile
-    static_assert(Distribution::NDimP == 1 or Distribution::NDimP == 2, "wrong!");
-
-    if constexpr(Distribution::NDimP == 1)
-    {
-        return array<index_t, 1>{get_lane_id()};
-    }
-    else if constexpr(Distribution::NDimP == 2)
-    {
-        return array<index_t, 2>{get_warp_id(), get_lane_id()};
-    }
-}
 
 template <typename, typename, typename, index_t>
 struct reverse_slice_sequence_impl;

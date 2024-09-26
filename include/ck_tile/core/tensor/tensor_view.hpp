@@ -105,6 +105,23 @@ struct tensor_view
     }
 
     template <typename X,
+              bool oob_conditional_check = true,
+              typename std::enable_if<
+                  std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                 typename vector_traits<remove_cvref_t<DataType>>::scalar_type>,
+                  bool>::type = false>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+                                  const TensorCoord& coord) const
+    {
+        return buf_.template async_get<X>(
+            smem,
+            coord.get_offset(),
+            coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
+            bool_constant<oob_conditional_check>{});
+    }
+
+    template <typename X,
               bool pre_nop = false,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
