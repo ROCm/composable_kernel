@@ -29,9 +29,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::QDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kM0,
-                                   Problem::BlockFmhaShape::BlockTile::kN0,
-                                   Problem::BlockFmhaShape::BlockTile::kK0>,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                   Problem::BlockFmhaShape::kN0,
+                                   Problem::BlockFmhaShape::kK0>,
                           typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
@@ -62,9 +62,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::GemmDataType,
             typename Problem::OGradDataType,
             typename Problem::AccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kN0,
-                                   Problem::BlockFmhaShape::BlockTile::kVHeaddim,
-                                   Problem::BlockFmhaShape::BlockTile::kK1>,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kN0,
+                                   Problem::BlockFmhaShape::kVHeaddim,
+                                   Problem::BlockFmhaShape::kK1>,
                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
@@ -94,9 +94,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::OGradDataType,
             typename Problem::VDataType,
             typename Problem::AccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kM0,
-                                   Problem::BlockFmhaShape::BlockTile::kN0,
-                                   Problem::BlockFmhaShape::BlockTile::kK2>,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                   Problem::BlockFmhaShape::kN0,
+                                   Problem::BlockFmhaShape::kK2>,
                           typename Problem::BlockFmhaShape::Gemm2BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm2WarpTile>>;
 
@@ -127,9 +127,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::GemmDataType,
             typename Problem::QDataType,
             typename Problem::AccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kN0,
-                                   Problem::BlockFmhaShape::BlockTile::kQKHeaddim,
-                                   Problem::BlockFmhaShape::BlockTile::kK3>,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kN0,
+                                   Problem::BlockFmhaShape::kQKHeaddim,
+                                   Problem::BlockFmhaShape::kK3>,
                           typename Problem::BlockFmhaShape::Gemm3BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm3WarpTile>>;
 
@@ -159,9 +159,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::GemmDataType,
             typename Problem::KDataType,
             typename Problem::AccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::BlockTile::kM0,
-                                   Problem::BlockFmhaShape::BlockTile::kQKHeaddim,
-                                   Problem::BlockFmhaShape::BlockTile::kK4>,
+            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                   Problem::BlockFmhaShape::kQKHeaddim,
+                                   Problem::BlockFmhaShape::kK4>,
                           typename Problem::BlockFmhaShape::Gemm4BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm4WarpTile>>;
 
@@ -1727,7 +1727,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<0>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<0>()
         {
             // Mem: Q, LSE, OGrad, D global load, OGrad^T LDS load
             // Comp: Q x K
@@ -1759,7 +1759,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<1>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<1>()
         {
             // Mem:  Q^T LDS load
             // Comp: OGrad x V
@@ -1777,7 +1777,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<2>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<2>()
         {
             // Mem: Q, QT, LSE, OGrad, OGradT, D, LDS store
             // Comp: PT x OGrad
@@ -1796,7 +1796,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<3>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<3>()
         {
             // Mem: SGradT LDS store, SGrad, Q, LSE LDS load.
             // Comp: SGradT x QT
@@ -1830,7 +1830,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<4>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<4>()
         {
             // Mem: SGrad, OGrad, D LDS load.
             // Comp: SGrad x KT

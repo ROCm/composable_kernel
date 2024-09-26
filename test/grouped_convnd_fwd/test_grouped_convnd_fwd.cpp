@@ -62,7 +62,9 @@ using KernelTypes2d = ::testing::Types<std::tuple<float, GNHWC, GKYXC, GNHWK>,
                                        std::tuple<float, NHWGC, GKYXC, NHWGK>,
                                        std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK>,
                                        std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>>;
+                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>,
+                                       std::tuple<float, NGCHW, GKYXC, NGKHW>,
+                                       std::tuple<ck::half_t, NGCHW, GKYXC, NGKHW>>;
 
 using KernelTypes3d = ::testing::Types<std::tuple<float, GNDHWC, GKZYXC, GNDHWK>,
                                        std::tuple<ck::half_t, GNDHWC, GKZYXC, GNDHWK>,
