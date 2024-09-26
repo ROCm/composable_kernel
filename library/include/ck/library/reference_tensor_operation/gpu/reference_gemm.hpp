@@ -135,7 +135,7 @@ struct ReferenceGemm : public device::BaseOperator
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            int block_size = 8;
+            int block_size = 4;
             dim3 block_dim(block_size, block_size, 1);
             dim3 grid_dim(
                 (arg.m_ + block_size - 1) / block_size, (arg.n_ + block_size - 1) / block_size, 1);
