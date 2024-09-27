@@ -11,7 +11,10 @@
 
 namespace ck {
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
@@ -37,6 +40,8 @@ __global__ void
                           const BElementwiseOperation b_element_op,
                           const CDEElementwiseOperation c_element_op)
 {
+    using RowMajor = ck::tensor_layout::gemm::RowMajor;
+
     const int row_idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int col_idx = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -50,17 +55,44 @@ __global__ void
 
         for(int k_idx = 0; k_idx < k; ++k_idx)
         {
+            int element_idx_a = 0;
+            int element_idx_b = 0;
+            if constexpr(std::is_same_v<ALayout, RowMajor>)
+            {
+                element_idx_a = row_idx * stride_a + k_idx;
+            }
+            else
+            {
+                element_idx_a = row_idx + stride_a * k_idx;
+            }
+            if constexpr(std::is_same_v<BLayout, RowMajor>)
+            {
+                element_idx_b = k_idx * stride_b + col_idx;
+            }
+            else
+            {
+                element_idx_b = k_idx + stride_b * col_idx;
+            }
             // apply a_element_op
-            a_element_op(v_a, p_a_grid[row_idx * stride_a + k_idx]);
+            a_element_op(v_a, p_a_grid[element_idx_a]);
             // apply b_element_op
-            b_element_op(v_b, p_b_grid[k_idx * stride_b + col_idx]);
+            b_element_op(v_b, p_b_grid[element_idx_b]);
             // multiply and accumulate
             v_acc += static_cast<AccDataType>(v_a) * static_cast<AccDataType>(v_b);
         }
         // apply c_element_op
         c_element_op(v_c, v_acc);
+        int element_idx_c = 0;
+        if constexpr(std::is_same_v<CLayout, RowMajor>)
+        {
+            element_idx_c = row_idx * stride_c + col_idx;
+        }
+        else
+        {
+            element_idx_c = row_idx + stride_c * col_idx;
+        }
         // prepare output
-        p_c_grid[row_idx * stride_c + col_idx] = v_c;
+        p_c_grid[element_idx_c] = v_c;
     }
 }
 
@@ -70,7 +102,10 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-template <typename ADataType,
+template <typename ALayout,
+          typename BLayout,
+          typename CLayout,
+          typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
@@ -141,7 +176,10 @@ struct ReferenceGemm : public device::BaseOperator
                 (arg.m_ + block_size - 1) / block_size, (arg.n_ + block_size - 1) / block_size, 1);
 
             auto launch_kernel = [&]() {
-                const auto kernel = naive_gemm_kernel<ADataType,
+                const auto kernel = naive_gemm_kernel<ALayout,
+                                                      BLayout,
+                                                      CLayout,
+                                                      ADataType,
                                                       BDataType,
                                                       CDataType,
                                                       AccDataType,

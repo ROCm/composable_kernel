@@ -41,8 +41,16 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
                                                                             BElementOp,
                                                                             CElementOp>;
 
-using ReferenceGemmInstanceGPU = ck::tensor_operation::device::
-    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
+                                                                             BLayout,
+                                                                             CLayout,
+                                                                             ADataType,
+                                                                             BDataType,
+                                                                             CDataType,
+                                                                             AccDataType,
+                                                                             AElementOp,
+                                                                             BElementOp,
+                                                                             CElementOp>;
 
 #include "run_gemm_example.inc"
 
