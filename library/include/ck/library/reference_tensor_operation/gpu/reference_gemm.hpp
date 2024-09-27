@@ -33,9 +33,6 @@ __global__ void
                           index_t m,
                           index_t n,
                           index_t k,
-                          index_t stride_a,
-                          index_t stride_b,
-                          index_t stride_c,
                           const AElementwiseOperation a_element_op,
                           const BElementwiseOperation b_element_op,
                           const CDEElementwiseOperation c_element_op)
@@ -55,23 +52,24 @@ __global__ void
 
         for(int k_idx = 0; k_idx < k; ++k_idx)
         {
+            // check input matrices layout
             int element_idx_a = 0;
             int element_idx_b = 0;
             if constexpr(std::is_same_v<ALayout, RowMajor>)
             {
-                element_idx_a = row_idx * stride_a + k_idx;
+                element_idx_a = row_idx * k + k_idx;
             }
             else
             {
-                element_idx_a = row_idx + stride_a * k_idx;
+                element_idx_a = row_idx + m * k_idx;
             }
             if constexpr(std::is_same_v<BLayout, RowMajor>)
             {
-                element_idx_b = k_idx * stride_b + col_idx;
+                element_idx_b = k_idx * n + col_idx;
             }
             else
             {
-                element_idx_b = k_idx + stride_b * col_idx;
+                element_idx_b = k_idx + k * col_idx;
             }
             // apply a_element_op
             a_element_op(v_a, p_a_grid[element_idx_a]);
@@ -82,14 +80,15 @@ __global__ void
         }
         // apply c_element_op
         c_element_op(v_c, v_acc);
+        // check output matrix layout
         int element_idx_c = 0;
         if constexpr(std::is_same_v<CLayout, RowMajor>)
         {
-            element_idx_c = row_idx * stride_c + col_idx;
+            element_idx_c = row_idx * n + col_idx;
         }
         else
         {
-            element_idx_c = row_idx + stride_c * col_idx;
+            element_idx_c = row_idx + m * col_idx;
         }
         // prepare output
         p_c_grid[element_idx_c] = v_c;
@@ -125,9 +124,6 @@ struct ReferenceGemm : public device::BaseOperator
                  index_t m,
                  index_t n,
                  index_t k,
-                 index_t stride_a,
-                 index_t stride_b,
-                 index_t stride_c,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
                  CElementwiseOperation c_element_op)
@@ -137,9 +133,6 @@ struct ReferenceGemm : public device::BaseOperator
               m_{m},
               n_{n},
               k_{k},
-              stride_a_{stride_a},
-              stride_b_{stride_b},
-              stride_c_{stride_c},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op}
@@ -153,10 +146,6 @@ struct ReferenceGemm : public device::BaseOperator
         index_t m_;
         index_t n_;
         index_t k_;
-
-        index_t stride_a_;
-        index_t stride_b_;
-        index_t stride_c_;
 
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
@@ -200,9 +189,6 @@ struct ReferenceGemm : public device::BaseOperator
                                               arg.m_,
                                               arg.n_,
                                               arg.k_,
-                                              arg.stride_a_,
-                                              arg.stride_b_,
-                                              arg.stride_c_,
                                               arg.a_element_op_,
                                               arg.b_element_op_,
                                               arg.c_element_op_);
@@ -226,25 +212,12 @@ struct ReferenceGemm : public device::BaseOperator
                              index_t m,
                              index_t n,
                              index_t k,
-                             index_t stride_a,
-                             index_t stride_b,
-                             index_t stride_c,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a_grid,
-                        p_b_grid,
-                        p_c_grid,
-                        m,
-                        n,
-                        k,
-                        stride_a,
-                        stride_b,
-                        stride_c,
-                        a_element_op,
-                        b_element_op,
-                        c_element_op};
+        return Argument{
+            p_a_grid, p_b_grid, p_c_grid, m, n, k, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

@@ -371,9 +371,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             M,
             N,
             K,
-            StrideA,
-            StrideB,
-            StrideC,
             a_element_op,
             b_element_op,
             c_element_op);
