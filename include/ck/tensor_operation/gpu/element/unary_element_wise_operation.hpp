@@ -16,7 +16,7 @@ namespace element_wise {
 struct UnaryOpBase
 {
     public:
-    __host__ __device__ virtual ~UnaryOpBase() {}
+    __host__ __device__ virtual ~UnaryOpBase() = default;
 
     __host__ __device__ UnaryOpBase()                   = default;
     __host__ __device__ UnaryOpBase(const UnaryOpBase&) = default;
@@ -24,35 +24,17 @@ struct UnaryOpBase
     __host__ __device__ UnaryOpBase(UnaryOpBase&&)                 = default;
     __host__ __device__ UnaryOpBase& operator=(UnaryOpBase&&) = default;
 
-    __host__ __device__ virtual void operator()([[maybe_unused]] float& y,
-                                                [[maybe_unused]] const float& x) const
-    {
-    }
+    __host__ __device__ virtual inline void operator()(float& y, const float& x) const = 0;
 
-    __host__ __device__ virtual void operator()([[maybe_unused]] double& y,
-                                                [[maybe_unused]] const double& x) const
-    {
-    }
+    __host__ __device__ virtual inline void operator()(double& y, const double& x) const = 0;
 
-    __host__ __device__ virtual void operator()([[maybe_unused]] int32_t& y,
-                                                [[maybe_unused]] const int32_t& x) const
-    {
-    }
+    __host__ __device__ virtual inline void operator()(int32_t& y, const int32_t& x) const = 0;
 
-    __host__ __device__ virtual void operator()([[maybe_unused]] int8_t& y,
-                                                [[maybe_unused]] const int8_t& x) const
-    {
-    }
+    __host__ __device__ virtual inline void operator()(int8_t& y, const int8_t& x) const = 0;
 
-    __host__ __device__ virtual void operator()([[maybe_unused]] half_t& y,
-                                                [[maybe_unused]] const half_t& x) const
-    {
-    }
+    __host__ __device__ virtual inline void operator()(half_t& y, const half_t& x) const = 0;
 
-    __host__ __device__ virtual void operator()([[maybe_unused]] bhalf_t& y,
-                                                [[maybe_unused]] const bhalf_t& x) const
-    {
-    }
+    __host__ __device__ virtual inline void operator()(bhalf_t& y, const bhalf_t& x) const = 0;
 };
 
 struct PassThroughPack2
@@ -71,17 +53,17 @@ struct PassThroughPack2
 struct PassThrough : public UnaryOpBase
 {
 
-    __host__ __device__ void operator()(float& y, const float& x) const override { y = x; }
+    __host__ __device__ inline void operator()(float& y, const float& x) const final { y = x; }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override { y = x; }
+    __host__ __device__ inline void operator()(double& y, const double& x) const final { y = x; }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override { y = x; }
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final { y = x; }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override { y = x; }
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final { y = x; }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override { y = x; }
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final { y = x; }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override { y = x; }
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final { y = x; }
 
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
@@ -429,32 +411,32 @@ struct UnarySquare
 
 struct UnaryAbs : public UnaryOpBase
 {
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         y = ck::math::abs(x);
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         y = ck::math::abs(x);
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         y = ck::math::abs(x);
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         y = ck::math::abs(x);
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         y = ck::math::abs(x);
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         y = ck::math::abs(x);
     }
@@ -474,32 +456,32 @@ struct UnarySqrt
 
 struct Relu : public UnaryOpBase
 {
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         y = x > 0 ? x : 0;
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         y = x > 0 ? x : 0;
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         y = x > 0 ? x : 0;
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         y = x > 0 ? x : 0;
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         y = x > 0 ? x : 0;
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         float x_f32 = ck::type_convert<float>(x);
         float y_f32 = x_f32 > 0 ? x_f32 : 0;
@@ -649,37 +631,37 @@ struct Gelu
 struct Sigmoid : public UnaryOpBase
 {
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         constexpr float one = type_convert<float>(1);
         y                   = one / (one + ck::math::exp(-x));
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         constexpr double one = type_convert<double>(1);
         y                    = one / (one + ck::math::exp(-x));
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         constexpr int32_t one = type_convert<int32_t>(1);
         y                     = one / (one + ck::math::exp(-x));
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         constexpr int8_t one = type_convert<int8_t>(1);
         y                    = one / (one + ck::math::exp(-x));
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         constexpr half_t one = type_convert<half_t>(1);
         y                    = one / (one + ck::math::exp(-x));
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         constexpr float one = type_convert<float>(1);
         float x_f32         = ck::type_convert<float>(x);
@@ -703,32 +685,32 @@ struct Silu
 
 struct TanH : public UnaryOpBase
 {
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         y = ck::math::tanh(x);
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         y = ck::math::tanh(x);
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         y = ck::math::tanh(x);
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         y = ck::math::tanh(x);
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         y = ck::math::tanh(x);
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         y = ck::math::tanh(x);
     }
@@ -978,37 +960,37 @@ struct Swish : public UnaryOpBase
 
     const float beta_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<float>(x / (1.f + ck::math::exp(bx)));
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<double>(x / (1.f + ck::math::exp(bx)));
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<int32_t>(x / (1.f + ck::math::exp(bx)));
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<int8_t>(x / (1.f + ck::math::exp(bx)));
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<half_t>(x / (1.f + ck::math::exp(bx)));
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         float bx = -beta_ * type_convert<float>(x);
         y        = type_convert<bhalf_t>(x / (1.f + ck::math::exp(bx)));
@@ -1036,42 +1018,42 @@ struct SoftRelu : public UnaryOpBase
 
     const float alpha_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float casted_alpha  = type_convert<float>(alpha_);
         constexpr float one = type_convert<float>(1);
         y                   = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         double casted_alpha  = type_convert<double>(alpha_);
         constexpr double one = type_convert<double>(1);
         y                    = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         int32_t casted_alpha  = type_convert<int32_t>(alpha_);
         constexpr int32_t one = type_convert<int32_t>(1);
         y                     = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         int8_t casted_alpha  = type_convert<int8_t>(alpha_);
         constexpr int8_t one = type_convert<int8_t>(1);
         y                    = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         half_t casted_alpha  = type_convert<half_t>(alpha_);
         constexpr half_t one = type_convert<half_t>(1);
         y                    = ck::math::log(one + ck::math::exp(x * casted_alpha)) / casted_alpha;
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         bhalf_t casted_alpha  = type_convert<bhalf_t>(alpha_);
         constexpr bhalf_t one = type_convert<bhalf_t>(1);
@@ -1090,7 +1072,7 @@ struct Power : public UnaryOpBase
     const float beta_;
     const float gamma_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float casted_alpha = type_convert<float>(alpha_);
         float casted_beta  = type_convert<float>(beta_);
@@ -1100,7 +1082,7 @@ struct Power : public UnaryOpBase
         y                      = ck::math::pow(shifted_scaled_x, casted_gamma);
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         double casted_alpha = type_convert<double>(alpha_);
         double casted_beta  = type_convert<double>(beta_);
@@ -1110,7 +1092,7 @@ struct Power : public UnaryOpBase
         y                       = ck::math::pow(shifted_scaled_x, casted_gamma);
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         int32_t casted_alpha = type_convert<int32_t>(alpha_);
         int32_t casted_beta  = type_convert<int32_t>(beta_);
@@ -1120,7 +1102,7 @@ struct Power : public UnaryOpBase
         y                        = ck::math::pow(shifted_scaled_x, casted_gamma);
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         int8_t casted_alpha = type_convert<int8_t>(alpha_);
         int8_t casted_beta  = type_convert<int8_t>(beta_);
@@ -1130,7 +1112,7 @@ struct Power : public UnaryOpBase
         y                       = ck::math::pow(shifted_scaled_x, casted_gamma);
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         half_t casted_alpha = type_convert<half_t>(alpha_);
         half_t casted_beta  = type_convert<half_t>(beta_);
@@ -1140,7 +1122,7 @@ struct Power : public UnaryOpBase
         y                       = ck::math::pow(shifted_scaled_x, casted_gamma);
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         bhalf_t casted_alpha = type_convert<bhalf_t>(alpha_);
         bhalf_t casted_beta  = type_convert<bhalf_t>(beta_);
@@ -1161,42 +1143,42 @@ struct ClippedRelu : public UnaryOpBase
     const float alpha_;
     const float beta_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float casted_alpha = type_convert<float>(alpha_);
         float casted_beta  = type_convert<float>(beta_);
         y                  = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         double casted_alpha = type_convert<double>(alpha_);
         double casted_beta  = type_convert<double>(beta_);
         y                   = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         int32_t casted_alpha = type_convert<int32_t>(alpha_);
         int32_t casted_beta  = type_convert<int32_t>(beta_);
         y                    = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         int8_t casted_alpha = type_convert<int8_t>(alpha_);
         int8_t casted_beta  = type_convert<int8_t>(beta_);
         y                   = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         half_t casted_alpha = type_convert<half_t>(alpha_);
         half_t casted_beta  = type_convert<half_t>(beta_);
         y                   = ck::math::min(casted_beta, ck::math::max(casted_alpha, x));
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         bhalf_t casted_alpha = type_convert<bhalf_t>(alpha_);
         bhalf_t casted_beta  = type_convert<bhalf_t>(beta_);
@@ -1211,38 +1193,38 @@ struct LeakyRelu : public UnaryOpBase
 
     const float alpha_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float casted_alpha = type_convert<float>(alpha_);
         y                  = x >= 0 ? x : x * casted_alpha;
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         double casted_alpha = type_convert<double>(alpha_);
         y                   = x >= 0 ? x : x * casted_alpha;
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         int32_t casted_alpha = type_convert<int32_t>(alpha_);
         y                    = x >= 0 ? x : x * casted_alpha;
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         int8_t casted_alpha = type_convert<int8_t>(alpha_);
         y                   = x >= 0 ? x : x * casted_alpha;
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         half_t casted_alpha = type_convert<half_t>(alpha_);
         y                   = x >= 0 ? x : x * casted_alpha;
     }
 
-    __host__ __device__ void operator()([[maybe_unused]] bhalf_t& y,
-                                        [[maybe_unused]] const bhalf_t& x) const override
+    __host__ __device__ inline void operator()([[maybe_unused]] bhalf_t& y,
+                                               [[maybe_unused]] const bhalf_t& x) const final
     {
     }
 };
@@ -1254,37 +1236,37 @@ struct Elu : public UnaryOpBase
 
     const float alpha_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float casted_alpha = type_convert<float>(alpha_);
         y                  = x > 0 ? x : casted_alpha * ck::math::expm1(x);
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         double casted_alpha = type_convert<double>(alpha_);
         y                   = x > 0 ? x : casted_alpha * ck::math::expm1(x);
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         int32_t casted_alpha = type_convert<int32_t>(alpha_);
         y                    = x > 0 ? x : casted_alpha * ck::math::expm1(x);
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         int8_t casted_alpha = type_convert<int8_t>(alpha_);
         y                   = x > 0 ? x : casted_alpha * ck::math::expm1(x);
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         half_t casted_alpha = type_convert<half_t>(alpha_);
         y                   = x > 0 ? x : casted_alpha * ck::math::expm1(x);
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         bhalf_t casted_alpha = type_convert<bhalf_t>(alpha_);
         y                    = x > 0 ? x : casted_alpha * ck::math::expm1(x);
@@ -1298,42 +1280,42 @@ struct Logistic : public UnaryOpBase
 
     const float alpha_;
 
-    __host__ __device__ void operator()(float& y, const float& x) const override
+    __host__ __device__ inline void operator()(float& y, const float& x) const final
     {
         float casted_alpha  = type_convert<float>(alpha_);
         constexpr float one = type_convert<float>(1);
         y                   = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
     }
 
-    __host__ __device__ void operator()(double& y, const double& x) const override
+    __host__ __device__ inline void operator()(double& y, const double& x) const final
     {
         double casted_alpha  = type_convert<double>(alpha_);
         constexpr double one = type_convert<double>(1);
         y                    = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
     }
 
-    __host__ __device__ void operator()(int32_t& y, const int32_t& x) const override
+    __host__ __device__ inline void operator()(int32_t& y, const int32_t& x) const final
     {
         int32_t casted_alpha  = type_convert<int32_t>(alpha_);
         constexpr int32_t one = type_convert<int32_t>(1);
         y                     = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
     }
 
-    __host__ __device__ void operator()(int8_t& y, const int8_t& x) const override
+    __host__ __device__ inline void operator()(int8_t& y, const int8_t& x) const final
     {
         int8_t casted_alpha  = type_convert<int8_t>(alpha_);
         constexpr int8_t one = type_convert<int8_t>(1);
         y                    = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
     }
 
-    __host__ __device__ void operator()(half_t& y, const half_t& x) const override
+    __host__ __device__ inline void operator()(half_t& y, const half_t& x) const final
     {
         half_t casted_alpha  = type_convert<half_t>(alpha_);
         constexpr half_t one = type_convert<half_t>(1);
         y                    = casted_alpha / (one + ck::math::exp(-x) * casted_alpha);
     }
 
-    __host__ __device__ void operator()(bhalf_t& y, const bhalf_t& x) const override
+    __host__ __device__ inline void operator()(bhalf_t& y, const bhalf_t& x) const final
     {
         bhalf_t casted_alpha  = type_convert<bhalf_t>(alpha_);
         constexpr bhalf_t one = type_convert<bhalf_t>(1);
@@ -1598,68 +1580,34 @@ struct DynamicUnaryOp
     template <typename Y, typename X>
     __device__ void operator()(Y& y, const X& x) const
     {
+        isSupported<X, Y>();
         unary_op_ptr_->operator()(y, x);
     }
 
     template <typename Y, typename X>
     __host__ void operator()(Y& y, const X& x) const
     {
+        isSupported<X, Y>();
         switch(unary_op_type_)
         {
-        case(UnaryOpType::Swish):
-            isSupported<X, Y>();
-            Swish{}.operator()(y, x);
-            break;
-        case(UnaryOpType::Sigmoid):
-            isSupported<X, Y>();
-            Sigmoid{}.operator()(y, x);
-            break;
-        case(UnaryOpType::PassThrough):
-            isSupported<X, Y>();
-            PassThrough{}.operator()(y, x);
-            break;
-        case(UnaryOpType::Logistic):
-            isSupported<X, Y>();
-            Logistic{}.operator()(y, x);
-            break;
-        case(UnaryOpType::TanH):
-            isSupported<X, Y>();
-            TanH{}.operator()(y, x);
-            break;
-        case(UnaryOpType::Relu):
-            isSupported<X, Y>();
-            Relu{}.operator()(y, x);
-            break;
-        case(UnaryOpType::SoftRelu):
-            isSupported<X, Y>();
-            SoftRelu{}.operator()(y, x);
-            break;
-        case(UnaryOpType::UnaryAbs):
-            isSupported<X, Y>();
-            UnaryAbs{}.operator()(y, x);
-            break;
-        case(UnaryOpType::Power):
-            isSupported<X, Y>();
-            Power{}.operator()(y, x);
-            break;
-        case(UnaryOpType::ClippedRelu):
-            isSupported<X, Y>();
-            ClippedRelu{}.operator()(y, x);
-            break;
-        case(UnaryOpType::LeakyRelu):
-            isSupported<X, Y>();
-            LeakyRelu{}.operator()(y, x);
-            break;
-        case(UnaryOpType::Elu):
-            isSupported<X, Y>();
-            Elu{}.operator()(y, x);
-            break;
+        case(UnaryOpType::Swish): Swish{}.operator()(y, x); break;
+        case(UnaryOpType::Sigmoid): Sigmoid{}.operator()(y, x); break;
+        case(UnaryOpType::PassThrough): PassThrough{}.operator()(y, x); break;
+        case(UnaryOpType::Logistic): Logistic{}.operator()(y, x); break;
+        case(UnaryOpType::TanH): TanH{}.operator()(y, x); break;
+        case(UnaryOpType::Relu): Relu{}.operator()(y, x); break;
+        case(UnaryOpType::SoftRelu): SoftRelu{}.operator()(y, x); break;
+        case(UnaryOpType::UnaryAbs): UnaryAbs{}.operator()(y, x); break;
+        case(UnaryOpType::Power): Power{}.operator()(y, x); break;
+        case(UnaryOpType::ClippedRelu): ClippedRelu{}.operator()(y, x); break;
+        case(UnaryOpType::LeakyRelu): LeakyRelu{}.operator()(y, x); break;
+        case(UnaryOpType::Elu): Elu{}.operator()(y, x); break;
         default: break;
         }
     }
 
     template <typename X, typename Y>
-    __host__ constexpr void isSupported() const
+    __device__ __host__ constexpr void isSupported() const
     {
 
         static_assert(std::is_same<X, Y>::value, "X and Y must be of the same type");
