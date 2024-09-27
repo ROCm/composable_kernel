@@ -173,7 +173,7 @@ function(add_gtest_executable TEST_NAME)
 endfunction()
 
 add_compile_options(-Wno-c++20-extensions)
-add_subdirectory(tile)
+add_subdirectory(ck_tile)
 add_subdirectory(magic_number_division)
 add_subdirectory(space_filling_curve)
 add_subdirectory(conv_util)
