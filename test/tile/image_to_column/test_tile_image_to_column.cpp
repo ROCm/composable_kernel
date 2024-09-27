@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <algorithm>
+#include <gtest/gtest.h>
+
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/image_to_column.hpp"
-
-#include <algorithm>
-#include <gtest/gtest.h>
 
 // Host API implementation
 template <typename DataType>

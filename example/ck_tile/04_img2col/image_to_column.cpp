@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck_tile/host.hpp"
-
-#include "image_to_column.hpp"
-
 #include <algorithm>
 #include <cstring>
+
+#include "ck_tile/host.hpp"
+#include "image_to_column.hpp"
 
 // Host API implementation
 template <>
@@ -96,13 +95,13 @@ int main(int argc, char* argv[])
     const auto N = conv_params.N_;
     const auto C = conv_params.C_;
 
-    const ck_tile::long_index_t NDoHoWo =
+    const ck_tile::long_index_t NHoWo =
         N * std::accumulate(conv_params.output_spatial_lengths_.begin(),
                             std::next(conv_params.output_spatial_lengths_.begin(), NDimSpatial),
                             1,
                             std::multiplies<>());
 
-    const ck_tile::long_index_t CZYX =
+    const ck_tile::long_index_t CYX =
         C * std::accumulate(conv_params.filter_spatial_lengths_.begin(),
                             std::next(conv_params.filter_spatial_lengths_.begin(), NDimSpatial),
                             1,
@@ -110,7 +109,7 @@ int main(int argc, char* argv[])
 
     const auto in_desc =
         ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<ImLayout>(conv_params);
-    const auto out_desc = ck_tile::HostTensorDescriptor({G, NDoHoWo, CZYX});
+    const auto out_desc = ck_tile::HostTensorDescriptor({G, NHoWo, CYX});
 
     // host verify
     ck_tile::HostTensor<InDataType> in(in_desc);
@@ -150,7 +149,7 @@ int main(int argc, char* argv[])
     float ave_time =
         image_to_column(traits, args, ck_tile::stream_config{nullptr, config.time_kernel});
 
-    std::size_t num_btype = G * NDoHoWo * CZYX * (sizeof(OutDataType) + sizeof(InDataType));
+    std::size_t num_btype = G * NHoWo * CYX * (sizeof(OutDataType) + sizeof(InDataType));
     float gb_per_sec      = num_btype / 1.E6 / ave_time;
     std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
 
@@ -164,10 +163,8 @@ int main(int argc, char* argv[])
         out_device_buf.FromDevice(out_device.data());
         pass = ck_tile::check_err(out_device, out_host);
 
-        std::cout << "valid:" << (pass ? "y" : "n") << std::flush;
+        std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
     }
-
-    std::cout << std::endl << std::flush;
 
     return !pass;
 }

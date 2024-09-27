@@ -5,8 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/welford/thread/thread_welford.hpp"
-#include "ck_tile/ops/welford/warp/warp_welford.hpp"
 
 namespace ck_tile {
 
@@ -195,11 +193,11 @@ struct ImageToColumn
         const auto image_m_k_padded =
             pad_tensor_view(image_m_k,
                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                            sequence<true, true>{});
+                            sequence<false, true>{});
         const auto gemm_m_k_padded =
             pad_tensor_view(gemm_m_k,
                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                            sequence<true, true>{});
+                            sequence<false, true>{});
 
         constexpr auto dstr = MakeBlockTileDistribution();
 

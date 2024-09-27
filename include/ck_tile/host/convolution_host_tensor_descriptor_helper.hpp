@@ -14,31 +14,9 @@ namespace detail {
 template <typename OldLayout>
 CK_TILE_HOST std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
 {
-    // HACK: NHWC/KYXC/NHWK, which is treated as GNHWC/GKYXC/GNHWK by this function,
-    // is used by some legacy kernel. New kernel should use GNHWK/GKYXC/GNHWK
-    // TODO: remove this branch after removing legacy kernel
-    if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NWC> ||
-                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::KXC> ||
-                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NWK>)
-    {
-        return {0, 1, 3, 2};
-    }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NHWC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::KYXC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NHWK>)
-    {
-        return {0, 1, 4, 2, 3};
-    }
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NDHWC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::KZYXC> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::NDHWK>)
-    {
-        return {0, 1, 5, 2, 3, 4};
-    }
-    // separate from legacy code above
-    else if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNCW> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKCX> ||
-                      std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNKW>)
+    if constexpr(std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNCW> ||
+                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GKCX> ||
+                 std::is_same_v<OldLayout, ck_tile::tensor_layout::convolution::GNKW>)
     {
         return {0, 1, 2, 3};
     }
@@ -107,30 +85,9 @@ make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck_tile::conv::ConvPara
 {
     std::vector<std::size_t> physical_lengths;
 
-    // HACK: NHWC/KYXC/NHWK, which is treated as GNHWC/GKYXC/GNHWK by this function,
-    // is used by some legacy kernel. New kernel should use GNHWK/GKYXC/GNHWK
-    // TODO: remove this branch after removing legacy kernel
-    if constexpr(std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::NWC> ||
-                 std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::NHWC> ||
-                 std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::NDHWC>)
-    {
-        if(param.G_ != 1)
-        {
-            throw std::runtime_error("wrong! G != 1");
-        }
-
-        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
-                                                    static_cast<std::size_t>(param.N_),
-                                                    static_cast<std::size_t>(param.C_)};
-
-        physical_lengths.insert(physical_lengths.begin() + 2,
-                                param.input_spatial_lengths_.begin(),
-                                param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
-    }
-    // separate from legacy code above
-    else if constexpr(std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCW> ||
-                      std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCHW> ||
-                      std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCDHW>)
+    if constexpr(std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCW> ||
+                 std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCHW> ||
+                 std::is_same_v<InLayout, ck_tile::tensor_layout::convolution::GNCDHW>)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),
@@ -184,30 +141,9 @@ make_weight_host_tensor_descriptor_g_k_c_xs_packed(const ck_tile::conv::ConvPara
 {
     std::vector<std::size_t> physical_lengths;
 
-    // HACK: NHWC/KYXC/NHWK, which is treated as GNHWC/GKYXC/GNHWK by this function,
-    // is used by some legacy kernel. New kernel should use GNHWK/GKYXC/GNHWK
-    // TODO: remove this branch after removing legacy kernel
     if constexpr(std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KXC> ||
                  std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KYXC> ||
                  std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KZYXC>)
-    {
-        if(param.G_ != 1)
-        {
-            throw std::runtime_error("wrong! G != 1");
-        }
-
-        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
-                                                    static_cast<std::size_t>(param.K_),
-                                                    static_cast<std::size_t>(param.C_)};
-
-        physical_lengths.insert(physical_lengths.begin() + 2,
-                                param.filter_spatial_lengths_.begin(),
-                                param.filter_spatial_lengths_.begin() + param.num_dim_spatial_);
-    }
-    // separate from legacy code above
-    else if constexpr(std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KXC> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KYXC> ||
-                      std::is_same_v<WeiLayout, ck_tile::tensor_layout::convolution::KZYXC>)
     {
         if(param.G_ != 1)
         {
@@ -277,30 +213,9 @@ make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck_tile::conv::ConvPar
 {
     std::vector<std::size_t> physical_lengths;
 
-    // HACK: NHWC/KYXC/NHWK, which is treated as GNHWC/GKYXC/GNHWK by this function,
-    // is used by some legacy kernel. New kernel should use GNHWK/GKYXC/GNHWK
-    // TODO: remove this branch after removing legacy kernel
-    if constexpr(std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::NWK> ||
-                 std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::NHWK> ||
-                 std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::NDHWK>)
-    {
-        if(param.G_ != 1)
-        {
-            throw std::runtime_error("wrong! G != 1");
-        }
-
-        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
-                                                    static_cast<std::size_t>(param.N_),
-                                                    static_cast<std::size_t>(param.K_)};
-
-        physical_lengths.insert(physical_lengths.begin() + 2,
-                                param.output_spatial_lengths_.begin(),
-                                param.output_spatial_lengths_.begin() + param.num_dim_spatial_);
-    }
-    // separate from legacy code above
-    else if constexpr(std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKW> ||
-                      std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKHW> ||
-                      std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKDHW>)
+    if constexpr(std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKW> ||
+                 std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKHW> ||
+                 std::is_same_v<OutLayout, ck_tile::tensor_layout::convolution::GNKDHW>)
     {
         physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.G_),
                                                     static_cast<std::size_t>(param.N_),

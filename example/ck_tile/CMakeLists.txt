@@ -5,4 +5,4 @@ include_directories(AFTER
 add_subdirectory(01_fmha)
 add_subdirectory(02_layernorm2d)
 add_subdirectory(03_gemm)
-add_subdirectory(07_img2col)
+add_subdirectory(04_img2col)
