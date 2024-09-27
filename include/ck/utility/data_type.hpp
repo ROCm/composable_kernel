@@ -13,7 +13,7 @@ using float_t  = float;
 #endif
 namespace ck {
 
-#ifdef __HIPCC_RTC__
+#ifdef CK_CODE_GEN_RTC_
 using byte = unsigned char;
 #else
 using std::byte;
@@ -1074,6 +1074,21 @@ using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 
 template <typename T>
 struct NumericLimits;
+
+template <typename T>
+struct NumericLimits
+{
+#ifndef CK_CODE_GEN_RTC
+    __host__ __device__ static constexpr T Min() { return std::numeric_limits<T>::min(); }
+    __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
+    __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
+    __host__ __device__ static constexpr T QuietNaN()
+    {
+        return std::numeric_limits<T>::quiet_NaN();
+    }
+    __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
+#endif
+};
 
 template <>
 struct NumericLimits<int32_t>
