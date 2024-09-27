@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,16 +37,16 @@ using InLayout  = ck::tensor_layout::convolution::GNDHWC;
 using WeiLayout = ck::tensor_layout::convolution::GKZYXC;
 using OutLayout = ck::tensor_layout::convolution::GNDHWK;
 
-using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
-using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
+using InElementOp      = ck::tensor_operation::element_wise::PassThrough;
+using WeiElementOp     = ck::tensor_operation::element_wise::PassThrough;
+using DynamicElementOp = ck::tensor_operation::element_wise::DynamicUnaryOp;
 
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-template <typename OutElementOp>
-using DeviceGroupedConvNDFwdInstance =
+using DeviceGroupedConvNDActivInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         NDimSpatial,
         InLayout,
@@ -61,7 +61,7 @@ using DeviceGroupedConvNDFwdInstance =
         OutDataType,
         InElementOp,
         WeiElementOp,
-        OutElementOp,
+        DynamicElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
         1,           //
