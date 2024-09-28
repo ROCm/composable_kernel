@@ -27,7 +27,7 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
                                  const BElementOp& b_element_op     = {},
                                  const ACCElementOp& acc_element_op = {})
 {
-    const int N = (std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
+    const int N = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
                       ? b_n_k.mDesc.get_lengths()[0]
                       : b_n_k.mDesc.get_lengths()[1];
     const int K = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
@@ -47,7 +47,7 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
                 ADataType v_a = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
                                     ? a_element_op(a_m_k(m, k))
                                     : a_element_op(a_m_k(k, m));
-                BDataType v_b = (std::is_same_v<LayoutB, tensor_layout::gemm::RowMajor>)
+                BDataType v_b = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
                                     ? b_element_op(b_n_k(n, k))
                                     : b_element_op(b_n_k(k, n));
 
