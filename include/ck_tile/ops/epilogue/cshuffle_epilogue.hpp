@@ -63,6 +63,7 @@ struct CShuffleEpilogue
         for(index_t i = 0; i < kRank; ++i)
         {
             tile_coords[i] = current_window_origin[i] / tile_sizes[i];
+            printf("The tile_coord is: %d", tile_coords[i]);
         }
 
         // Apply the permutation to the tile coordinates
@@ -70,6 +71,7 @@ struct CShuffleEpilogue
         for(index_t i = 0; i < kRank; ++i)
         {
             permuted_tile_coords[i] = tile_coords[kPerm[i]];
+            printf("The new permuted_tile_coords is: %d", permuted_tile_coords[i]);
         }
 
         // Compute the permuted window origin
@@ -77,6 +79,7 @@ struct CShuffleEpilogue
         for(index_t i = 0; i < kRank; ++i)
         {
             permuted_window_origin[i] = permuted_tile_coords[i] * tile_sizes[i];
+            printf("The new permuted_window_origin is: %d", permuted_window_origin[i]);
         }
 
         typename ODramWindowTmp::BottomTensorIndex step = {};

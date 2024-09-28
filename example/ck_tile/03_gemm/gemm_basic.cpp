@@ -51,7 +51,13 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     // The rank and permutation will also be generate out by the CodeGen part.
     constexpr ck_tile::index_t kOutputRank = 2;
 
-    using GemmEpilogue =
+    // Whether doing the CShuffle (transpose before the global memory), depending on the output
+    // layout.
+    constexpr bool CShuffleEpilogue =
+        std::is_same_v<LayoutC, ck_tile::tensor_layout::gemm::ColumnMajor>;
+
+    using GemmEpilogue = std::conditional_t<
+        CShuffleEpilogue,
         ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
                                                                    CDataType,
                                                                    kPadA,
@@ -60,7 +66,9 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                                    1,
                                                                    0,
                                                                    TilePartitioner::kM,
-                                                                   TilePartitioner::kN>>;
+                                                                   TilePartitioner::kN>>,
+        ck_tile::Default2DEpilogue<
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel =
@@ -353,7 +361,7 @@ int main(int argc, char* argv[])
         ck_tile::HostTensor<CDataType> c_host_gpu_ref(c_dimensions);
         ck_tile::DeviceMem c_gpu_buf(c_host_gpu_ref.get_element_space_size_in_bytes());
 
-        ck_tile::reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType>(
+        ck_tile::reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType, matrix_a_layout, matrix_b_layout, matrix_c_layout>(
             a_buf, b_buf, c_gpu_buf, M, N, K, stride_a, stride_b, stride_c);
 
         c_buf.FromDevice(c_host_gpu_ref.data());
