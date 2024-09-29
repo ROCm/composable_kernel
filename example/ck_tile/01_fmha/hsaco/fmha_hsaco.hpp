@@ -4,8 +4,10 @@
 #pragma once
 
 extern unsigned char bwd_bf16_a16[];
+extern unsigned char bwd_bf16_a16_rtz[];
 extern unsigned char bwd_bf16_a32[];
 extern unsigned char bwd_bf16_causal_a16[];
+extern unsigned char bwd_bf16_causal_a16_rtz[];
 extern unsigned char bwd_bf16_causal_a32[];
 extern unsigned char bwd_bf16_nocoex_a32[];
 extern unsigned char bwd_bf16_nocoex_causal_a32[];

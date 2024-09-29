@@ -441,6 +441,7 @@ struct fmha_bwd_traits
     bool uses_ext_asm;
     bool is_asm_atomic_fp32;
     bool is_asm_no_coex;
+    bool is_asm_rtz_cvt;
     // TODO: padding check is inside this api
 };
 float fmha_bwd(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);

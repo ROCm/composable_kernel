@@ -620,11 +620,20 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config&
                         }}
                     }}
                     else if((t.is_asm_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                        using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                        const std::string bwd_ext_name = "bwd_ext_bf16_a16";
-                        bool io_perm = a.nhead_stride_q > a.stride_q;
-                        r = fmha_ext_bwd_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16, bwd_ext_name, io_perm);
-                        return r;
+                        if(t.is_asm_rtz_cvt == true){{
+                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                            const std::string bwd_ext_name = "bwd_ext_bf16_a16_rtz";
+                            bool io_perm = a.nhead_stride_q > a.stride_q;
+                            r = fmha_ext_bwd_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16_rtz, bwd_ext_name, io_perm);
+                            return r;
+                        }}
+                        else{{
+                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                            const std::string bwd_ext_name = "bwd_ext_bf16_a16";
+                            bool io_perm = a.nhead_stride_q > a.stride_q;
+                            r = fmha_ext_bwd_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_a16, bwd_ext_name, io_perm);
+                            return r;
+                        }}
                     }}
                 }}
                 else if((t.mask_type != mask_enum::no_mask) && ((a.window_size_left == -1) && (a.window_size_right == 0))){{
@@ -648,11 +657,20 @@ float fmha_bwd(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_config&
                         }}
                     }}
                     else if((t.is_asm_atomic_fp32 == false) && (a.nhead_q % a.nhead_k == 0)){{
-                        using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
-                        const std::string bwd_ext_name = "bwd_ext_bf16_causal_a16";
-                        bool io_perm = a.nhead_stride_q > a.stride_q;
-                        r = fmha_ext_bwd_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16, bwd_ext_name, io_perm);
-                        return r;
+                        if(t.is_asm_rtz_cvt == true){{
+                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                            const std::string bwd_ext_name = "bwd_ext_bf16_causal_a16_rtz";
+                            bool io_perm = a.nhead_stride_q > a.stride_q;
+                            r = fmha_ext_bwd_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16_rtz, bwd_ext_name, io_perm);
+                            return r;
+                        }}
+                        else{{
+                            using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<128, ck_tile::bf16_t, false, false, false>;
+                            const std::string bwd_ext_name = "bwd_ext_bf16_causal_a16";
+                            bool io_perm = a.nhead_stride_q > a.stride_q;
+                            r = fmha_ext_bwd_xqa_<dot_do_o_trait_>(s, a, bwd_bf16_causal_a16, bwd_ext_name, io_perm);
+                            return r;
+                        }}
                     }}
                 }}
             }}

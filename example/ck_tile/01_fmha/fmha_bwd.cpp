@@ -99,7 +99,10 @@ auto create_args(int argc, char* argv[])
             "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when ext_asm is set to 1")
         .insert("asm_no_coex",
                 "0",
-                "if set to 1 will use non-coexectuion kernel when ext_asm is set to 1");
+                "if set to 1 will use non-coexectuion kernel when ext_asm is set to 1")
+        .insert("asm_rtz_cvt",
+                "0",
+                "if set to 1 will use float to bf16 RTZ convert when ext_asm is set to 1");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -191,6 +194,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool ext_asm         = arg_parser.get_bool("ext_asm");
     bool asm_atomic_fp32 = arg_parser.get_bool("asm_atomic_fp32");
     bool asm_no_coex     = arg_parser.get_bool("asm_no_coex");
+    bool asm_rtz_cvt     = arg_parser.get_bool("asm_rtz_cvt");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -428,7 +432,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        deterministic,
                                        ext_asm,
                                        asm_atomic_fp32,
-                                       asm_no_coex};
+                                       asm_no_coex,
+                                       asm_rtz_cvt};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
