@@ -45,6 +45,34 @@ struct BlockFmhaPipelineQRAsyncEx
     static constexpr index_t kK1            = BlockFmhaShape::kK1;
     static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
 
+    static constexpr index_t Block_M0 = BlockFmhaShape::Block_M0;
+    static constexpr index_t Block_N0 = BlockFmhaShape::Block_N0;
+    static constexpr index_t Block_K0 = BlockFmhaShape::Block_K0;
+    static constexpr index_t BlockWarps_M0 = BlockFmhaShape::BlockWarps_M0;
+    static constexpr index_t BlockWarps_N0 = BlockFmhaShape::BlockWarps_N0;
+    static constexpr index_t BlockWarps_K0 = BlockFmhaShape::BlockWarps_K0;
+    static constexpr index_t Warps_M0 = BlockFmhaShape::Warps_M0;
+    static constexpr index_t Warps_N0 = BlockFmhaShape::Warps_N0;
+    static constexpr index_t Warps_K0 = BlockFmhaShape::Warps_K0;
+    static constexpr index_t Repeat_M0 = BlockFmhaShape::Repeat_M0;
+    static constexpr index_t Repeat_N0 = BlockFmhaShape::Repeat_N0;
+    static constexpr index_t Repeat_K0 = BlockFmhaShape::Repeat_K0;
+
+    static constexpr index_t Block_M1 = BlockFmhaShape::Block_M1;
+    static constexpr index_t Block_N1 = BlockFmhaShape::Block_N1;
+    static constexpr index_t Block_K1 = BlockFmhaShape::Block_K1;
+    static constexpr index_t BlockWarps_M1 = BlockFmhaShape::BlockWarps_M1;
+    static constexpr index_t BlockWarps_N1 = BlockFmhaShape::BlockWarps_N1;
+    static constexpr index_t BlockWarps_K1 = BlockFmhaShape::BlockWarps_K1;
+    static constexpr index_t Warps_M1 = BlockFmhaShape::Warps_M1;
+    static constexpr index_t Warps_N1 = BlockFmhaShape::Warps_N1;
+    static constexpr index_t Warps_K1 = BlockFmhaShape::Warps_K1;
+    static constexpr index_t Repeat_M1 = BlockFmhaShape::Repeat_M1;
+    static constexpr index_t Repeat_N1 = BlockFmhaShape::Repeat_N1;
+    static constexpr index_t Repeat_K1 = BlockFmhaShape::Repeat_K1;
+
+    static constexpr index_t UnrollStages = 2;  // pipeline unroll the gemm/softmax/gemm
+
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
     //       only need special care about seq_k padding (oob need set -INF of p instead of zero)
@@ -176,11 +204,10 @@ struct BlockFmhaPipelineQRAsyncEx
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
-
         // K tile in LDS
-        auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
-        auto k_lds_store = generate_tuple(
+        auto k_lds_store = [&](){
+            auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
+            return generate_tuple(
             [&](auto i_buf) {
                 return make_tile_window(
                     make_tensor_view<address_space_enum::lds>(
@@ -189,28 +216,64 @@ struct BlockFmhaPipelineQRAsyncEx
                     {0, 0, 0});
             },
             number<Policy::NumPrefetchK>{});
+        }();
 
-        auto k_lds_Load_view = make_tensor_view<address_space_enum::lds>(
-            k_lds_ptr, Policy::template MakeSmemLoadDesc_K<Problem>());
-
-        auto k_lds_load = make_tile_window(
-            k_lds_Load_view, Policy::template MakeSmemLoadDesc_K<Problem>().get_lengths(), {0, 0});
+        auto k_lds_load = [&](){
+            auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
+            return make_tile_window(
+                make_tensor_view<address_space_enum::lds>(
+                k_lds_ptr,
+                Policy::template MakeSmemLoadDesc_K<Problem>()),
+                Policy::template MakeSmemLoadDesc_K<Problem>().get_lengths(), {0, 0});
+        }();
 
         // V tile in LDS
-        auto v_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<VDataType*>(smem_ptr), Policy::template MakeSmemLoadDesc_V<Problem>());
-        auto v_lds_window = make_tile_window(
-            v_lds, Policy::template MakeSmemLoadDesc_V<Problem>().get_lengths(), {0, 0});
+        auto v_lds_store = [&](){
+            auto v_lds_ptr   = reinterpret_cast<VDataType*>(smem_ptr);
+            return generate_tuple(
+            [&](auto i_buf) {
+                return make_tile_window(
+                    make_tensor_view<address_space_enum::lds>(
+                        v_lds_ptr, Policy::template MakeSmemStoreDesc_V<Problem>(i_buf)),
+                    Policy::template MakeSmemStoreDesc_V<Problem>(i_buf).get_lengths(),
+                    {0, 0, 0});
+            },
+            number<Policy::NumPrefetchV>{});
+        }();
+
+        auto v_lds_load = [&](){
+            auto v_lds_ptr   = reinterpret_cast<VDataType*>(smem_ptr);
+            return make_tile_window(
+                make_tensor_view<address_space_enum::lds>(
+                v_lds_ptr,
+                Policy::template MakeSmemLoadDesc_V<Problem>()),
+                Policy::template MakeSmemLoadDesc_V<Problem>().get_lengths(), {0, 0});
+        }();
+
+        // reduction function for softmax
+        const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
+        const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetBlockGemm_0<Problem>();
-        constexpr auto gemm_1 = Policy::template GetBlockGemm_1<Problem>();
+        constexpr auto warp_gemm_0 = Policy::template GetWarpGemm_0<Problem>();
+        constexpr auto warp_gemm_1 = Policy::template GetWarpGemm_1<Problem>();
 
-        auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
+        auto gemm_0 = [&](){
+            constexpr index_t total_repeats = Repeat_M0 * Repeat_N0 * Repeat_K0;
+            // n*k*m, more relaxed ds_read
+            static_for<0, total_repeats, 1>{}(
+                [&](auto i_r){
+                    constexpr index_t i_m = i_r % Repeat_M0;
+                    constexpr index_t i_k = (i_r / Repeat_M0) % Repeat_K0;
+                    constexpr index_t i_n = i_r / (Repeat_M0 * Repeat_K0);
+                }
+            );
+        };
+
+        auto q_dram_window = make_tile_window_raw(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               q_dram_block_window_tmp.get_window_lengths(),
                                               q_dram_block_window_tmp.get_window_origin(),
                                               Policy::template MakeGlobalDesc_Q<Problem>());
-        q_dram_window.init_raw();
 
         // TODO: we use async Copy for K, which is inline asm
         // a side effect is we have to use inline asm for q as well
@@ -221,12 +284,8 @@ struct BlockFmhaPipelineQRAsyncEx
         load_tile_raw(q, q_dram_window);
         __builtin_amdgcn_sched_barrier(0);
 
-        using SaccBlockTileType = decltype(gemm_0.MakeCBlockTile());
-        auto s_accs = generate_tuple([&](auto) { return SaccBlockTileType{}; }, number<2>{});
-
-        // reduction function for softmax
-        const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
-        const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
+        using SaccBlockTileType = decltype(Policy::template MakeBlockGemmAccTile_0<Problem>());
+        auto s_accs = generate_tuple([&](auto) { return SaccBlockTileType{}; }, number<UnrollStages>{});
 
         // infer Sacc, S, P, M, L, Oacc type
         using SBlockTileType = decltype(cast_tile<SMPLComputeDataType>(s_accs));
@@ -234,14 +293,14 @@ struct BlockFmhaPipelineQRAsyncEx
         using MLBlockTileType = decltype(block_tile_reduce<SMPLComputeDataType>(
             SBlockTileType{}, sequence<1>{}, f_max, SMPLComputeDataType{0}));
 
-        using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
+        using OaccBlockTileType = decltype(Policy::template MakeBlockGemmAccTile_1<Problem>());
 
         // init Oacc, M, L
-        auto o_accs = generate_tuple([&](auto) { return OaccBlockTileType{}; }, number<2>{});
-        auto ms     = generate_tuple([&](auto) { return MLBlockTileType{}; }, number<2>{});
-        auto ls     = generate_tuple([&](auto) { return MLBlockTileType{}; }, number<2>{});
+        auto o_accs = generate_tuple([&](auto) { return OaccBlockTileType{}; }, number<UnrollStages>{});
+        auto ms     = generate_tuple([&](auto) { return MLBlockTileType{}; }, number<UnrollStages>{});
+        auto ls     = generate_tuple([&](auto) { return MLBlockTileType{}; }, number<UnrollStages>{});
 
-        static_for<0, 2, 1>{}([&](auto i) {
+        static_for<0, UnrollStages, 1>{}([&](auto i) {
             clear_tile(o_accs(i));
             set_tile(ms(i), -numeric<SMPLComputeDataType>::infinity());
             clear_tile(ls(i));

@@ -102,28 +102,20 @@ struct BlockFmhaPipelineQRAsyncEx
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm_0()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBlockGemmAccTile_0()
     {
-        using BlockGemmProblem = BlockGemmPipelineProblem<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::SaccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                   Problem::BlockFmhaShape::kN0,
-                                   Problem::BlockFmhaShape::kK0>,
-                          typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                          typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
-
-        constexpr auto warp_gemm = GetWarpGemm_0<Problem>();
-
-        using BlockGemmPolicy =
-            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::QDataType,
-                                                 typename Problem::KDataType,
-                                                 typename Problem::SaccDataType,
-                                                 typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                                 decltype(warp_gemm)>;
-
-        return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
+        using AccWarpDescEnc_ = typename decltype(GetWarpGemm_0())::CWarpDstrEncoding;
+        using BlockTile_ = sequence<Problem::BlockFmhaShape::Block_M0, Problem::BlockFmhaShape::Block_N0>;
+        using BlockWarps_ = sequence<Problem::BlockFmhaShape::BlockWarps_M0, Problem::BlockFmhaShape::BlockWarps_N0>;
+        using WarpTile_ = sequence<Problem::BlockFmhaShape::Warp_M0, Problem::BlockFmhaShape::Warp_N0>;
+        constexpr auto enc = make_block_gemm_acc_enc<
+            AccWarpDescEnc_,
+            BlockTile_,
+            BlockWarps_,
+            WarpTile_>();
+        constexpr auto dstr = make_static_tile_distribution(enc);
+        auto t         = make_static_distributed_tensor<typename Problem::SaccDataType>(dstr);
+        return t;
     }
 
     template <typename Problem>
@@ -451,13 +443,8 @@ struct BlockFmhaPipelineQRAsyncEx
     {
         if constexpr(Problem::kHasDropout)
         {
-            constexpr auto gemm_0 = QXPolicy::template GetBlockGemm_0<Problem>();
-            constexpr auto config =
-                decltype(gemm_0)::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-            using WG                    = remove_cvref_t<decltype(config.template at<0>())>;
-            constexpr index_t MWarp     = config.template at<1>();
-            constexpr index_t kMPerStep = MWarp * WG::kM;
-            constexpr index_t kNPerStep = WG::kN;
+            constexpr index_t kMPerStep = Problem::BlockFmhaShape::BlockWarps_M0 * Problem::BlockFmhaShape::Warp_M0;
+            constexpr index_t kNPerStep = Problem::BlockFmhaShape::BlockWarps_N0 * Problem::BlockFmhaShape::Warp_N0;
 
             return (kMPerStep + 1) * kNPerStep * sizeof(uint8_t);
         }
@@ -622,29 +609,20 @@ struct BlockFmhaPipelineQRAsyncEx
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm_1()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBlockGemmAccTile_1()
     {
-        using BlockGemmProblem = BlockGemmPipelineProblem<
-            typename Problem::PDataType,
-            typename Problem::VDataType,
-            typename Problem::OaccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                   Problem::BlockFmhaShape::kN1,
-                                   Problem::BlockFmhaShape::kK1>,
-                          typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                          typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
-
-        auto warp_gemm = GetWarpGemm_1<Problem>();
-
-        using WarpGemm = remove_cvref_t<decltype(warp_gemm)>;
-
-        using BlockGemmPolicy =
-            BlockGemmARegBSmemCRegV2CustomPolicy<typename Problem::PDataType,
-                                                 typename Problem::VDataType,
-                                                 typename Problem::OaccDataType,
-                                                 typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                                 WarpGemm>;
-        return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
+        using AccWarpDescEnc_ = typename decltype(GetWarpGemm_1())::CWarpDstrEncoding;
+        using BlockTile_ = sequence<Problem::BlockFmhaShape::Block_M1, Problem::BlockFmhaShape::Block_N1>;
+        using BlockWarps_ = sequence<Problem::BlockFmhaShape::BlockWarps_M1, Problem::BlockFmhaShape::BlockWarps_N1>;
+        using WarpTile_ = sequence<Problem::BlockFmhaShape::Warp_M1, Problem::BlockFmhaShape::Warp_N1>;
+        constexpr auto enc = make_block_gemm_acc_enc<
+            AccWarpDescEnc_,
+            BlockTile_,
+            BlockWarps_,
+            WarpTile_>();
+        constexpr auto dstr = make_static_tile_distribution(enc);
+        auto t         = make_static_distributed_tensor<typename Problem::OaccDataType>(dstr);
+        return t;
     }
 };
 
