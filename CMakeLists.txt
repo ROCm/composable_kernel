@@ -122,6 +122,12 @@ rocm_setup_version(VERSION ${version})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
 
 message("GPU_TARGETS= ${GPU_TARGETS}")
+message("GPU_ARCHS= ${GPU_ARCHS}")
+if(GPU_ARCHS)
+    #disable GPU_TARGETS to avoid conflicts, this needs to happen before we call hip package
+    unset(GPU_TARGETS CACHE)
+    unset(AMDGPU_TARGETS CACHE)
+endif()
 
 find_package(hip)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
@@ -151,8 +157,6 @@ endif()
 #otherwise, if user set GPU_TARGETS, use that set of targets
 if(GPU_ARCHS)
     set(CK_GPU_TARGETS ${GPU_ARCHS})
-    #disable GPU_TARGETS to avoid conflicts
-    set(GPU_TARGETS "" CACHE STRING " " FORCE) 
 else()
     if(GPU_TARGETS)
         set(CK_GPU_TARGETS ${GPU_TARGETS})
