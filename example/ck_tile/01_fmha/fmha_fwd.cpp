@@ -122,6 +122,7 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("drop_prefs", "0", "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert(
             "rotary_dim", "0", "RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all")
@@ -442,6 +443,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs     = arg_parser.get_bool("drop_prefs");
+
     if(p_drop < 0.0f || p_drop > 1.0f)
     {
         std::cerr << "The value of p_drop should be 0~1" << std::endl;
@@ -998,7 +1001,31 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
                 args.p_drop           = p_drop;
                 args.s_randval        = s_randval;
-                args.drop_seed_offset = std::tie(drop_seed, drop_offset);
+                if (drop_prefs)
+                {
+                    ck_tile::DeviceMem device_drop_seed(sizeof(std::uint64_t));
+                    ck_tile::DeviceMem device_drop_offset(sizeof(std::uint64_t));
+
+                    ck_tile::hip_check_error(hipMemcpy(device_drop_seed.GetDeviceBuffer(), 
+                                                reinterpret_cast<std::uint8_t*>(&drop_seed), 
+                                                sizeof(std::uint64_t), 
+                                                hipMemcpyHostToDevice));
+
+                    ck_tile::hip_check_error(hipMemcpy(device_drop_offset.GetDeviceBuffer(),
+                                              reinterpret_cast<std::uint8_t*>(&drop_offset), 
+                                              sizeof(std::uint64_t), 
+                                              hipMemcpyHostToDevice));
+
+                    args.drop_seed_offset_data.payload.device.seed_ptr = device_drop_seed.GetDeviceBuffer();
+                    args.drop_seed_offset_data.payload.device.offset_ptr = device_drop_offset.GetDeviceBuffer();
+                    args.drop_seed_offset_data.is_host = false;
+                }
+                else 
+                {
+                    args.drop_seed_offset_data.payload.host.seed = drop_seed;
+                    args.drop_seed_offset_data.payload.host.offset = drop_offset;
+                    args.drop_seed_offset_data.is_host = true;
+                }
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
             {

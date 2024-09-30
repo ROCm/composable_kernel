@@ -70,8 +70,13 @@ args:
        -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
+  -drop_seed    seed for the random number generator for the dropout layer, default is 1
+-drop_offset    offset for the dropout layer which is used during random number generation, default is 0
+ -drop_prefs    flag to indicate `drop_seed` and `drop_offset` values if present on the GPU, default is 0, 0 - host, 1 - GPU
 ```
-Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
+Example 1: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
+Example 2: `./bin/tile_example_fmha_fwd -b=1 -h=8 -s=16384 -d=64 -drop_pref=1 -drop_seed=10 -drop_offset=1234` will run a fmha case with 
+  batch=1, nhead=8, sequence length=16384, hdim=64, drop_seed=0 (in GPU memory), drop_offset=1234 (in GPU memory) fp16 case
 
 ## support features
 Currently we are still in rapid development stage, so more features/optimizations will be coming soon.

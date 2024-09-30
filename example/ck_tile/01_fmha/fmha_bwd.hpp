@@ -61,6 +61,21 @@ struct FmhaMasks
     using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
 };
 
+struct dropout_cmdline_pref
+{
+    union {
+        struct {
+            const void* seed_ptr;
+            const void* offset_ptr;
+        } device;
+        struct {
+            std::uint64_t seed;
+            std::uint64_t offset;
+        } host;
+    } payload;
+    bool is_host;
+};
+
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_bwd_args
 {
@@ -135,7 +150,7 @@ struct fmha_bwd_args
     ck_tile::index_t mask_type;
     float p_drop;
     float p_undrop;
-    std::tuple<uint64_t, uint64_t> drop_seed_offset;
+    dropout_cmdline_pref drop_seed_offset_data;
 };
 
 template <typename FmhaBwdDQDKDVKernel>
@@ -192,7 +207,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.window_size_right,
                                                   args.mask_type,
                                                   args.p_drop,
-                                                  args.drop_seed_offset);
+                                                  reinterpret_cast<const void*>(&args.drop_seed_offset_data));
         }
         else
         { // create batch mode kernel arguments
@@ -252,7 +267,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                   args.window_size_right,
                                                   args.mask_type,
                                                   args.p_drop,
-                                                  args.drop_seed_offset);
+                                                  reinterpret_cast<const void*>(&args.drop_seed_offset_data));
         }
     }();
 

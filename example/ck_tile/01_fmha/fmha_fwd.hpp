@@ -88,6 +88,21 @@ struct FmhaMasks
     using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
 };
 
+struct dropout_cmdline_pref
+{
+    union {
+        struct {
+            const void* seed_ptr;
+            const void* offset_ptr;
+        } device;
+        struct {
+            std::uint64_t seed;
+            std::uint64_t offset;
+        } host;
+    } payload;
+    bool is_host;
+};
+
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_fwd_args
 {
@@ -144,9 +159,8 @@ struct fmha_fwd_args
 
     float p_drop;
     bool s_randval;
-    std::tuple<uint64_t, uint64_t> drop_seed_offset;
-    const void* drop_seed_ptr;
-    const void* drop_offset_ptr;
+
+    dropout_cmdline_pref drop_seed_offset_data;
 };
 
 struct fmha_fwd_splitkv_args
@@ -311,12 +325,11 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
-                                         args.drop_seed_offset, 
-                                         args.drop_seed_ptr, 
-                                         args.drop_offset_ptr);
+                                         reinterpret_cast<const void*>(&args.drop_seed_offset_data));
         }
         else
-        { // create batch mode kernel arguments
+        {            
+            // create batch mode kernel arguments
             return FmhaKernel::MakeKargs(args.q_ptr,
                                          args.k_ptr,
                                          args.v_ptr,
@@ -358,9 +371,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.mask_type,
                                          args.p_drop,
                                          args.s_randval,
-                                         args.drop_seed_offset, 
-                                         args.drop_seed_ptr, 
-                                         args.drop_offset_ptr);
+                                         reinterpret_cast<const void *>(&args.drop_seed_offset_data));
         }
     }();
 
