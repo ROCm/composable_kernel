@@ -56,16 +56,22 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
             }
 
             CDataType& c_ref = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
-                               ? c_m_n(m, n)
-                               : c_m_n(n, m);
-            c_ref = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
+                                   ? c_m_n(m, n)
+                                   : c_m_n(n, m);
+            c_ref            = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
         }
     };
 
     make_ParallelTensorFunctor(f, M)(std::thread::hardware_concurrency());
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename LayoutA, typename LayoutB, typename LayoutC>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename LayoutA,
+          typename LayoutB,
+          typename LayoutC>
 __global__ void naive_gemm_kernel(ADataType* A,
                                   BDataType* B,
                                   CDataType* C,
@@ -86,17 +92,29 @@ __global__ void naive_gemm_kernel(ADataType* A,
         for(int k = 0; k < K; ++k)
         {
             // Adjust indexing based on matrix layout
-            int a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>) ? row * strideA + k : k * strideA + row;
-            int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>) ? col * strideB + k : k * strideB + col;
+            int a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
+                              ? row * strideA + k
+                              : k * strideA + row;
+            int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
+                              ? col * strideB + k
+                              : k * strideB + col;
             acc += static_cast<AccDataType>(A[a_index]) * static_cast<AccDataType>(B[b_index]);
         }
 
-        int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>) ? row * strideC + col : col * strideC + row;
-        C[c_index] = acc;
+        int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
+                          ? row * strideC + col
+                          : col * strideC + row;
+        C[c_index]  = acc;
     }
 }
 
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType, typename LayoutA, typename LayoutB, typename LayoutC>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename LayoutA,
+          typename LayoutB,
+          typename LayoutC>
 void reference_gemm_gpu(DeviceMem& a_device,
                         DeviceMem& b_device,
                         DeviceMem& c_device,

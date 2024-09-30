@@ -41,8 +41,9 @@ template <typename LayoutA,
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA = true;
-    constexpr bool kPadB = true;
+    constexpr bool kPadA        = true;
+    constexpr bool kPadB        = true;
+    constexpr bool kTilePermute = true;
 
     constexpr int kBlockPerCu = 1;
 
@@ -62,6 +63,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
                                                                    CDataType,
                                                                    kPadA,
                                                                    kPadB,
+                                                                   kTilePermute,
                                                                    kOutputRank,
                                                                    1,
                                                                    0,
@@ -220,7 +222,7 @@ int main(int argc, char* argv[])
     // The Matrix Multiplication goes with Matrix A (M, K), Matrix B (N, K) = Matrix C (M, N).
     using matrix_a_layout = ck_tile::tensor_layout::gemm::RowMajor;
     using matrix_b_layout = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using matrix_c_layout = ck_tile::tensor_layout::gemm::RowMajor;
+    using matrix_c_layout = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     // host verify
     std::vector<int> a_dimensions =
@@ -361,7 +363,13 @@ int main(int argc, char* argv[])
         ck_tile::HostTensor<CDataType> c_host_gpu_ref(c_dimensions);
         ck_tile::DeviceMem c_gpu_buf(c_host_gpu_ref.get_element_space_size_in_bytes());
 
-        ck_tile::reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType, matrix_a_layout, matrix_b_layout, matrix_c_layout>(
+        ck_tile::reference_gemm_gpu<ADataType,
+                                    BDataType,
+                                    AccDataType,
+                                    CDataType,
+                                    matrix_a_layout,
+                                    matrix_b_layout,
+                                    matrix_c_layout>(
             a_buf, b_buf, c_gpu_buf, M, N, K, stride_a, stride_b, stride_c);
 
         c_buf.FromDevice(c_host_gpu_ref.data());
