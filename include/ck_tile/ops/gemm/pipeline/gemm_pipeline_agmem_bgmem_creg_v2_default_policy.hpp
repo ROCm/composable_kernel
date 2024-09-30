@@ -12,7 +12,7 @@ namespace ck_tile {
 // NOTE: policy should be binded to its corresponding operation. It's just a coincidence that
 //   BlockGemmPipelineAGmemBGmemCRegV2DefaultPolicy is the same as
 //   BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy
-using BlockGemmPipelineAGmemBGmemCRegV2DefaultPolicy =
-    BlockGemmPipelineAGmemBGmemCRegV1DefaultPolicy;
+using GemmPipelineAGmemBGmemCRegV2DefaultPolicy =
+    GemmPipelineAGmemBGmemCRegV1DefaultPolicy;
 
 } // namespace ck_tile

@@ -14,7 +14,7 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename TileGemmTraits_>
-struct BlockGemmPipelineProblem
+struct GemmPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
