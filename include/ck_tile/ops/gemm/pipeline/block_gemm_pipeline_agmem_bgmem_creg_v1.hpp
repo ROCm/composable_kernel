@@ -33,6 +33,10 @@ struct BlockGemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadB = Problem::kPadB;
     static constexpr bool kPadC = Problem::kPadC;
 
+    using LayoutA = remove_cvref_t<typename Problem::LayoutA>;
+    using LayoutB = remove_cvref_t<typename Problem::LayoutB>;
+    using LayoutC = remove_cvref_t<typename Problem::LayoutC>;
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
         return ck_tile::integer_divide_ceil(

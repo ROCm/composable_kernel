@@ -43,7 +43,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
     constexpr bool kPadA        = true;
     constexpr bool kPadB        = true;
-    constexpr bool kTilePermute = true;
+    constexpr bool kTilePermute = false;
 
     constexpr int kBlockPerCu = 1;
 
@@ -73,8 +73,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
             ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-    using Kernel =
-        ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, LayoutA, LayoutB, LayoutC>;
+    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
     auto kargs = Kernel::MakeKargs(args.p_a,
                                    args.p_b,
@@ -222,7 +221,7 @@ int main(int argc, char* argv[])
     // The Matrix Multiplication goes with Matrix A (M, K), Matrix B (N, K) = Matrix C (M, N).
     using matrix_a_layout = ck_tile::tensor_layout::gemm::RowMajor;
     using matrix_b_layout = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using matrix_c_layout = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using matrix_c_layout = ck_tile::tensor_layout::gemm::RowMajor;
 
     // host verify
     std::vector<int> a_dimensions =
@@ -277,13 +276,14 @@ int main(int argc, char* argv[])
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
+    using CodegenGemmTraits = ck_tile::
+        TileGemmTraits<kPadA, kPadB, kPadC, matrix_a_layout, matrix_b_layout, matrix_c_layout>;
+
     using CodegenPipelineProblem = ck_tile::BlockGemmPipelineProblem<ADataType,
                                                                      BDataType,
                                                                      AccDataType,
                                                                      CodegenGemmShape,
-                                                                     kPadA,
-                                                                     kPadB,
-                                                                     kPadC>;
+                                                                     CodegenGemmTraits>;
 
     using CodegenGemmPipeline = ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 

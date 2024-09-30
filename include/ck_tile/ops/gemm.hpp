@@ -29,6 +29,7 @@
 #include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp"
