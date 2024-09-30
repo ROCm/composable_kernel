@@ -17,7 +17,7 @@ namespace ck {
 // Convert X to Y, both X and Y are non-const data types.
 template <typename Y,
           typename X,
-          std::enable_if_t<!(std::is_const_v<Y> || std::is_const_v<X>), bool> = false>
+          ck::enable_if_t<!(ck::is_const_v<Y> || ck::is_const_v<X>), bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
     static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
@@ -28,13 +28,13 @@ __host__ __device__ constexpr Y type_convert(X x)
 // Convert X to Y, either X or Y is a const data type.
 template <typename Y,
           typename X,
-          std::enable_if_t<std::is_const_v<Y> || std::is_const_v<X>, bool> = false>
+          ck::enable_if_t<ck::is_const_v<Y> || ck::is_const_v<X>, bool> = false>
 __host__ __device__ constexpr Y type_convert(X x)
 {
     static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
 
-    using NonConstY = std::remove_const_t<Y>;
-    using NonConstX = std::remove_const_t<X>;
+    using NonConstY = ck::remove_const_t<Y>;
+    using NonConstX = ck::remove_const_t<X>;
     return static_cast<Y>(type_convert<NonConstY, NonConstX>(x));
 }
 
@@ -501,11 +501,11 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
 #endif
 }
 
-template <typename Y, typename X, std::size_t NumElems>
+template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
                                               const std::array<X, NumElems>& x)
 {
-    for(std::size_t i = 0; i < NumElems; i++)
+    for(size_t i = 0; i < NumElems; i++)
     {
         y[i] = type_convert<Y>(x[i]);
     }
@@ -514,7 +514,7 @@ inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
 template <typename Y, typename X, index_t NumElems>
 inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array<X, NumElems>& x)
 {
-    for(std::size_t i = 0; i < NumElems; i++)
+    for(size_t i = 0; i < NumElems; i++)
     {
         y[i] = type_convert<Y>(x[i]);
     }

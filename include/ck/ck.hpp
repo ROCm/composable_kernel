@@ -10,12 +10,11 @@
 #include "hip/hip_runtime.h"
 #include "hip/hip_fp16.h"
 #endif
-#endif
 
 // environment variable to enable logging:
 // export CK_LOGGING=ON or CK_LOGGING=1 or CK_LOGGING=ENABLED
 CK_DECLARE_ENV_VAR_BOOL(CK_LOGGING)
-
+#endif
 // to do: add various levels of logging with CK_LOG_LEVEL
 
 #define CK_TIME_KERNEL 1

@@ -94,6 +94,16 @@ struct remove_pointer<T* const volatile>
 {
     typedef T type;
 };
+template <class T>
+struct remove_const
+{
+    typedef T type;
+};
+template <class T>
+struct remove_const<const T>
+{
+    typedef T type;
+};
 
 template <typename T>
 constexpr T&& forward(typename remove_reference<T>::type& t_) noexcept
@@ -116,6 +126,7 @@ using std::is_pointer;
 using std::is_reference;
 using std::is_trivially_copyable;
 using std::is_unsigned;
+using std::remove_const;
 using std::remove_cv;
 using std::remove_pointer;
 using std::remove_reference;
@@ -131,11 +142,24 @@ struct is_same<X, X> : public integral_constant<bool, true>
 {
 };
 
+template <typename X>
+struct is_const : public integral_constant<bool, false>
+{
+};
+
+template <typename X>
+struct is_const<const X> : public integral_constant<bool, true>
+{
+};
+
 template <typename T>
 inline constexpr bool is_reference_v = is_reference<T>::value;
 
 template <typename X, typename Y>
 inline constexpr bool is_same_v = is_same<X, Y>::value;
+
+template <typename X>
+inline constexpr bool is_const_v = is_const<X>::value;
 
 template <typename X, typename Y>
 inline constexpr bool is_base_of_v = is_base_of<X, Y>::value;
@@ -157,6 +181,9 @@ using remove_cvref_t = remove_cv_t<remove_reference_t<T>>;
 
 template <typename T>
 using remove_pointer_t = typename remove_pointer<T>::type;
+
+template <typename T>
+using remove_const_t = typename remove_const<T>::type;
 
 template <typename T>
 inline constexpr bool is_pointer_v = is_pointer<T>::value;

@@ -13,7 +13,7 @@ using float_t  = float;
 #endif
 namespace ck {
 
-#ifdef CK_CODE_GEN_RTC_
+#ifdef CK_CODE_GEN_RTC
 using byte = unsigned char;
 #else
 using std::byte;
