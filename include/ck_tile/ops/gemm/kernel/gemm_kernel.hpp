@@ -140,84 +140,11 @@ struct GemmKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        GemmPipeline pipeline;
         const index_t num_loop = TilePartitioner::GetLoopNum(kargs.K);
-        bool has_hot_loop      = pipeline.BlockHasHotloop(num_loop);
-        // TailNumber tail_num = pipeline.GetBlockLoopTailNum(num_loop);
-        auto c_block_tile = typename GemmPipeline::CBlockTile();
+        auto c_block_tile =
+            GemmPipeline{}.template operator()(ABlockWindow, BBlockWindow, num_loop, smem_ptr);
 
-        if(has_hot_loop)
         {
-            // This holds only for: BlockGemmPipelineAgBgCrMem
-            // Tail pipeline One to Seven
-            if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::One)
-            {
-                pipeline.template operator()<true, TailNumber::One>(
-                    ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-            }
-            else if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Full)
-            {
-                pipeline.template operator()<true, TailNumber::Full>(
-                    ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-            }
-
-            if constexpr(GemmPipeline::PrefetchStages > 2)
-            {
-                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Two)
-                {
-                    pipeline.template operator()<true, TailNumber::Two>(
-                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-                }
-            }
-            if constexpr(GemmPipeline::PrefetchStages > 3)
-            {
-                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Three)
-                {
-                    pipeline.template operator()<true, TailNumber::Three>(
-                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-                }
-            }
-            if constexpr(GemmPipeline::PrefetchStages > 4)
-            {
-                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Four)
-                {
-                    pipeline.template operator()<true, TailNumber::Four>(
-                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-                }
-            }
-            if constexpr(GemmPipeline::PrefetchStages > 5)
-            {
-                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Five)
-                {
-                    pipeline.template operator()<true, TailNumber::Five>(
-                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-                }
-            }
-            if constexpr(GemmPipeline::PrefetchStages > 6)
-            {
-                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Six)
-                {
-                    pipeline.template operator()<true, TailNumber::Six>(
-                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-                }
-            }
-            if constexpr(GemmPipeline::PrefetchStages > 7)
-            {
-                if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::Seven)
-                {
-                    pipeline.template operator()<true, TailNumber::Seven>(
-                        ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-                }
-            }
-        }
-        else
-        {
-            // Tail number always 1
-            if(pipeline.GetBlockLoopTailNum(num_loop) == TailNumber::One)
-            {
-                pipeline.template operator()<false, TailNumber::One>(
-                    ABlockWindow, BBlockWindow, num_loop, smem_ptr, c_block_tile);
-            }
         }
 
         CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr);
