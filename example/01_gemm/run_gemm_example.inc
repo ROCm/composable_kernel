@@ -375,11 +375,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             b_element_op,
             c_element_op);
 
-        // ref_invoker_gpu.Run(ref_argument_gpu);
-
         ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
-        // ave_time = ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{nullptr,
-        // config.time_kernel});
 
         c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
