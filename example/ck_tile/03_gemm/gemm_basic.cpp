@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "gemm_basic.hpp"
 #include <hip/hip_runtime.h>
 
 #include <cstring>
@@ -10,6 +9,11 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+
+#include "ck_tile/ops/epilogue.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/host.hpp"
+#include "gemm_basic.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -22,7 +26,6 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("e", "1e-5", "Absolute error tolerance")
         .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "10", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
@@ -51,13 +54,11 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
-    using Kernel =
-        ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, LayoutA, LayoutB, LayoutC>;
+    using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
     auto kargs = Kernel::MakeKargs(args.p_a,
                                    args.p_b,
                                    args.p_c,
-                                   args.epsilon,
                                    args.M,
                                    args.N,
                                    args.K,
@@ -96,7 +97,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_buf,
         return -1; // Or handle the error appropriately
     }
 
-    float epsilon               = arg_parser.get_float("e");
     ck_tile::index_t batch_size = arg_parser.get_int("b");
     ck_tile::index_t M          = arg_parser.get_int("m");
     ck_tile::index_t N          = arg_parser.get_int("n");
@@ -107,69 +107,37 @@ float invoke_gemm(ck_tile::DeviceMem& a_buf,
     ck_tile::index_t stride_c = arg_parser.get_int("stride_c");
 
     gemm_basic_args args;
-    args.p_a     = a_buf.GetDeviceBuffer();
-    args.p_b     = b_buf.GetDeviceBuffer();
-    args.p_c     = c_buf.GetDeviceBuffer();
-    args.epsilon = epsilon;
-    args.kbatch  = batch_size;
-    args.M       = M;
-    args.N       = N;
-    args.K       = K;
+    args.p_a    = a_buf.GetDeviceBuffer();
+    args.p_b    = b_buf.GetDeviceBuffer();
+    args.p_c    = c_buf.GetDeviceBuffer();
+    args.kbatch = batch_size;
+    args.M      = M;
+    args.N      = N;
+    args.K      = K;
 
-    // Only set stride_M and stride_N if they are non-zero and not equal to K.
-    if(stride_a != 0)
-    {
-        args.stride_A = stride_a;
-    }
-    else
-    {
-        args.stride_A = [&]() {
-            if constexpr(std::is_same_v<LayoutA, ck_tile::tensor_layout::gemm::ColumnMajor>)
+    auto f_get_default_stride = [](std::size_t row,
+                                   std::size_t col,
+                                   std::size_t stride,
+                                   auto layout) {
+        if(stride == 0)
+        {
+            // give a chance if stride is zero, return a default packed stride
+            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
             {
-                return M;
+                return col;
             }
             else
             {
-                return K;
+                return row;
             }
-        }();
-    }
+        }
+        else
+            return stride;
+    };
 
-    if(stride_b != 0)
-    {
-        args.stride_B = stride_b;
-    }
-    else
-    {
-        args.stride_B = [&]() {
-            if constexpr(std::is_same_v<LayoutB, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                return N;
-            }
-            else
-            {
-                return K;
-            }
-        }();
-    }
-
-    if(stride_c != 0)
-    {
-        args.stride_C = stride_c;
-    }
-    else
-    {
-        args.stride_C = [&]() {
-            if constexpr(std::is_same_v<LayoutC, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                return M;
-            }
-            else
-            {
-                return N;
-            }
-        }();
-    }
+    args.stride_A = f_get_default_stride(M, K, stride_a, LayoutA{});
+    args.stride_B = f_get_default_stride(K, N, stride_b, LayoutB{});
+    args.stride_C = f_get_default_stride(M, N, stride_c, LayoutC{});
 
     float ave_time = gemm_calc<LayoutA, LayoutB, LayoutC, PipelineProblem, GemmPipeline, GemmShape>(
         args, ck_tile::stream_config{nullptr, true});
@@ -197,30 +165,57 @@ int main(int argc, char* argv[])
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
-    // The Matrix Multiplication goes with Matrix A (M, K), Matrix B (N, K) = Matrix C (M, N).
-    using matrix_a_layout = ck_tile::tensor_layout::gemm::RowMajor;
-    using matrix_b_layout = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using matrix_c_layout = ck_tile::tensor_layout::gemm::RowMajor;
+    ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
+    ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
+    ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    // host verify
-    std::vector<int> a_dimensions =
-        (std::is_same_v<matrix_a_layout, ck_tile::tensor_layout::gemm::RowMajor>)
-            ? std::vector<int>{M, K}
-            : std::vector<int>{K, M};
-    std::vector<int> b_dimensions =
-        (std::is_same_v<matrix_b_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            ? std::vector<int>{N, K}
-            : std::vector<int>{K, N};
-    std::vector<int> c_dimensions =
-        (std::is_same_v<matrix_c_layout, ck_tile::tensor_layout::gemm::RowMajor>)
-            ? std::vector<int>{M, N}
-            : std::vector<int>{N, M};
+    using ALayout = ck_tile::tensor_layout::gemm::RowMajor;
+    using BLayout = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using CLayout = ck_tile::tensor_layout::gemm::RowMajor;
 
-    ck_tile::HostTensor<ADataType> a_host(a_dimensions);
-    ck_tile::HostTensor<BDataType> b_host(b_dimensions);
+    using namespace ck_tile::literals;
 
-    ck_tile::HostTensor<CDataType> c_host_ref(c_dimensions);
-    ck_tile::HostTensor<CDataType> c_host_dev(c_dimensions);
+    auto f_host_tensor_descriptor =
+        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
+            }
+            else
+            {
+                return ck_tile::HostTensorDescriptor({row, col}, {1_uz, stride});
+            }
+        };
+
+    auto f_get_default_stride = [](std::size_t row,
+                                   std::size_t col,
+                                   std::size_t stride,
+                                   auto layout) {
+        if(stride == 0)
+        {
+            // give a chance if stride is zero, return a default packed stride
+            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                return col;
+            }
+            else
+            {
+                return row;
+            }
+        }
+        else
+            return stride;
+    };
+
+    stride_A = f_get_default_stride(M, K, stride_A, ALayout{});
+    stride_B = f_get_default_stride(K, N, stride_B, BLayout{});
+    stride_C = f_get_default_stride(M, N, stride_C, CLayout{});
+
+    ck_tile::HostTensor<ADataType> a_host(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
+    ck_tile::HostTensor<BDataType> b_host(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
+
+    ck_tile::HostTensor<CDataType> c_host_ref(f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
+    ck_tile::HostTensor<CDataType> c_host_dev(f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
     ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_host);
     ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_host);
@@ -259,6 +254,9 @@ int main(int argc, char* argv[])
                                                                      BDataType,
                                                                      AccDataType,
                                                                      CodegenGemmShape,
+                                                                     ALayout,
+                                                                     BLayout,
+                                                                     CLayout,
                                                                      kPadA,
                                                                      kPadB,
                                                                      kPadC>;
@@ -266,9 +264,9 @@ int main(int argc, char* argv[])
     using CodegenGemmPipeline = ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
     invoke_gemm<ck_tile::half_t,
-                matrix_a_layout,
-                matrix_b_layout,
-                matrix_c_layout,
+                ALayout,
+                BLayout,
+                CLayout,
                 CodegenPipelineProblem,
                 CodegenGemmPipeline,
                 CodegenGemmShape>(a_buf, b_buf, c_buf, arg_parser);
@@ -280,17 +278,12 @@ int main(int argc, char* argv[])
     if(arg_parser.get_int("v") == 1)
     {
         // ToDo: Will Add the Element Op (bias) verification in the future.
-        ck_tile::reference_gemm<ADataType,
-                                BDataType,
-                                AccDataType,
-                                CDataType,
-                                matrix_a_layout,
-                                matrix_b_layout,
-                                matrix_c_layout>(a_host, b_host, c_host_ref);
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_host, b_host, c_host_ref);
 
         pass_cpu = ck_tile::check_err(c_host_dev, c_host_ref);
 
-        std::cout << "The CPU veification result is:" << (pass_cpu ? "correct" : "fail")
+        std::cout << "The CPU verification result is:" << (pass_cpu ? "correct" : "fail")
                   << std::flush;
     }
 
@@ -298,57 +291,19 @@ int main(int argc, char* argv[])
 
     if(arg_parser.get_int("v") == 2)
     {
-        ck_tile::index_t stride_a = arg_parser.get_int("stride_a");
-        ck_tile::index_t stride_b = arg_parser.get_int("stride_b");
-        ck_tile::index_t stride_c = arg_parser.get_int("stride_c");
-
-        if(stride_a == 0)
-        {
-            if constexpr(std::is_same_v<matrix_a_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                stride_a = M;
-            }
-            else
-            {
-                stride_a = K;
-            }
-        }
-
-        if(stride_b == 0)
-        {
-            if constexpr(std::is_same_v<matrix_b_layout, ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                stride_b = N;
-            }
-            else
-            {
-                stride_b = K;
-            }
-        }
-
-        if(stride_c == 0)
-        {
-            if constexpr(std::is_same_v<matrix_c_layout, ck_tile::tensor_layout::gemm::ColumnMajor>)
-            {
-                stride_c = M;
-            }
-            else
-            {
-                stride_c = N;
-            }
-        }
-
-        ck_tile::HostTensor<CDataType> c_host_gpu_ref(c_dimensions);
+        ck_tile::HostTensor<CDataType> c_host_gpu_ref(
+            f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
         ck_tile::DeviceMem c_gpu_buf(c_host_gpu_ref.get_element_space_size_in_bytes());
+        c_gpu_buf.SetZero();
 
         ck_tile::reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType>(
-            a_buf, b_buf, c_gpu_buf, M, N, K, stride_a, stride_b, stride_c);
+            a_buf, b_buf, c_gpu_buf, M, N, K, stride_A, stride_B, stride_C);
 
-        c_buf.FromDevice(c_host_gpu_ref.data());
+        c_gpu_buf.FromDevice(c_host_gpu_ref.data());
 
         pass_gpu = ck_tile::check_err(c_host_dev, c_host_gpu_ref);
 
-        std::cout << "The GPU veification result is: " << (pass_gpu ? "correct" : "fail")
+        std::cout << "The GPU verification result is: " << (pass_gpu ? "correct" : "fail")
                   << std::flush;
     }
 

@@ -4,12 +4,10 @@
 
 #pragma once
 
+#include <string>
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/host.hpp"
-#include <string>
 
 template <typename DataType>
 struct GemmBasicTypeConfig;
@@ -58,7 +56,6 @@ struct gemm_basic_args
     const void* p_a;
     const void* p_b;
     void* p_c;
-    float epsilon;
     ck_tile::index_t kbatch;
     ck_tile::index_t M;
     ck_tile::index_t N;

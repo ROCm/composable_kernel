@@ -13,6 +13,9 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
           bool kPadA_ = false,
           bool kPadB_ = false,
           bool kPadC_ = false>
@@ -22,6 +25,10 @@ struct BlockGemmPipelineProblem
     using BDataType      = remove_cvref_t<BDataType_>;
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
+
+    using ALayout = remove_cvref_t<ALayout_>;
+    using BLayout = remove_cvref_t<BLayout_>;
+    using CLayout = remove_cvref_t<CLayout_>;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
     static constexpr bool kPadA         = kPadA_;
@@ -37,18 +44,29 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          bool kPadA_                           = false,
-          bool kPadB_                           = false,
-          bool kPadC_                           = false,
-          BlockGemmPipelineScheduler Scheduler_ = BlockGemmPipelineScheduler::Intrawave>
-struct BlockGemmUniversalPipelineProblem
+          typename ALayout_,
+          typename BLayout_,
+          typename CLayout_,
+          bool kPadA_                      = false,
+          bool kPadB_                      = false,
+          bool kPadC_                      = false,
+          GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
+          bool HasHotLoop_                 = false,
+          TailNumber TailNum_              = TailNumber::Full>
+struct UniversalGemmPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
+    using ALayout = remove_cvref_t<ALayout_>;
+    using BLayout = remove_cvref_t<BLayout_>;
+    using CLayout = remove_cvref_t<CLayout_>;
+
     static constexpr auto Scheduler     = Scheduler_;
+    static constexpr auto HasHotLoop    = HasHotLoop_;
+    static constexpr auto TailNum       = TailNum_;
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
     static constexpr bool kPadA = kPadA_;

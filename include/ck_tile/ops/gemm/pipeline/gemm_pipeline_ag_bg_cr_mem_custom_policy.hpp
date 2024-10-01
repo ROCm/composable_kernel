@@ -9,14 +9,14 @@
 
 namespace ck_tile {
 
-// Default policy for BlockGemmPipelineAGmemBGmemCRegV1
+// Default policy for GemmPipelineAGmemBGmemCRegV1
 
 // Maximum Global Memory throughput pipeline with >=32KB data in fly
 // GlobalPrefetchStages: >=2
 // LocalPreFillStages: 1
 // LocalPreFetchStages: 0
 // LocalSharedMemoryBuffer: 1
-struct BlockGemmPipelineAgBgCrMemCustomPolicy
+struct GemmPipelineAgBgCrMemCustomPolicy
 {
     // 3d + padding
     template <typename Problem>
@@ -47,8 +47,6 @@ struct BlockGemmPipelineAgBgCrMemCustomPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using namespace ck_tile;
-
         constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
@@ -69,7 +67,7 @@ struct BlockGemmPipelineAgBgCrMemCustomPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
         constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
                                         MakeALdsBlockDescriptor<Problem>().get_element_space_size();
@@ -77,7 +75,7 @@ struct BlockGemmPipelineAgBgCrMemCustomPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr index_t smem_size_b = sizeof(typename Problem::BDataType) *
                                         MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
@@ -85,7 +83,7 @@ struct BlockGemmPipelineAgBgCrMemCustomPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
