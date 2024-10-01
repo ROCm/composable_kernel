@@ -32,7 +32,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 
 // clang-format off
-using DeviceGemmV2Instance = 
+using DeviceGemmV2_Streamk_Instance = 
     ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle_Streamk_V3<
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
