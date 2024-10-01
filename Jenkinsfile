@@ -320,7 +320,7 @@ def cmake_build(Map conf=[:]){
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
-    if (params.RUN_CK_TILE_TESTS){
+    if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_fwd_*.log"
             archiveArtifacts "perf_fmha_bwd_*.log"
@@ -682,7 +682,7 @@ def process_results(Map conf=[:]){
         timeout(time: 1, unit: 'HOURS'){
             try{
                 dir("script"){
-                    if (params.RUN_CK_TILE_TESTS){
+                    if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_fwd_gfx942.log"
                             unstash "perf_fmha_bwd_gfx942.log"
