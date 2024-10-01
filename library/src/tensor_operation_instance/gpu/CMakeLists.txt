@@ -64,7 +64,7 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
     endforeach()
-    # Do not build mha instances if gfx94 targets are not on the target list
+    # Do not build mha instances if gfx94 or gfx90a targets are not on the target list
     foreach(source IN LISTS ARGN)
     if(NOT INST_TARGETS MATCHES "gfx94" AND NOT INST_TARGETS MATCHES "gfx90a" AND source MATCHES "mha")
          message("removing mha instance ${source} ")
