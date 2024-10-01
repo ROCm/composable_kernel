@@ -744,6 +744,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         need_append_kvcache ? cache_seqlen_ks.size() * sizeof(int32_t) : 0);
     ck_tile::DeviceMem rotary_cos_buf(rotary_cos_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem rotary_sin_buf(rotary_sin_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
+    ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem randval_buf(randval_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
@@ -762,6 +764,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     cache_seqlen_k_buf.ToDevice(need_append_kvcache ? cache_seqlen_ks.data() : nullptr);
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
+    drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
+    drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
     block_table_buf.ToDevice(block_table_host.data());
     cache_batch_idx_buf.ToDevice(cache_batch_idx_host.data());
@@ -1005,31 +1009,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.s_randval = s_randval;
                 if(drop_prefs)
                 {
-                    ck_tile::DeviceMem device_drop_seed(sizeof(std::uint64_t));
-                    ck_tile::DeviceMem device_drop_offset(sizeof(std::uint64_t));
-
-                    ck_tile::hip_check_error(hipMemcpy(device_drop_seed.GetDeviceBuffer(),
-                                                       reinterpret_cast<std::uint8_t*>(&drop_seed),
-                                                       sizeof(std::uint64_t),
-                                                       hipMemcpyHostToDevice));
-
-                    ck_tile::hip_check_error(
-                        hipMemcpy(device_drop_offset.GetDeviceBuffer(),
-                                  reinterpret_cast<std::uint8_t*>(&drop_offset),
-                                  sizeof(std::uint64_t),
-                                  hipMemcpyHostToDevice));
-
-                    args.drop_seed_offset_data.payload.device.seed_ptr =
-                        device_drop_seed.GetDeviceBuffer();
-                    args.drop_seed_offset_data.payload.device.offset_ptr =
-                        device_drop_offset.GetDeviceBuffer();
-                    args.drop_seed_offset_data.is_host = false;
+                    args.drop_seed_offset.template emplace<1>(drop_seed_buf.GetDeviceBuffer(),
+                                                              drop_offset_buf.GetDeviceBuffer());
                 }
                 else
                 {
-                    args.drop_seed_offset_data.payload.host.seed   = drop_seed;
-                    args.drop_seed_offset_data.payload.host.offset = drop_offset;
-                    args.drop_seed_offset_data.is_host             = true;
+                    args.drop_seed_offset.template emplace<0>(drop_seed, drop_offset);
                 }
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)

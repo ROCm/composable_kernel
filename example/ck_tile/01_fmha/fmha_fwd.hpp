@@ -88,24 +88,6 @@ struct FmhaMasks
     using CausalMask  = ck_tile::GenericAttentionMask<true, false>;
 };
 
-struct dropout_cmdline_pref
-{
-    union
-    {
-        struct
-        {
-            const void* seed_ptr;
-            const void* offset_ptr;
-        } device;
-        struct
-        {
-            std::uint64_t seed;
-            std::uint64_t offset;
-        } host;
-    } payload;
-    bool is_host;
-};
-
 // runtime args, some will passed to karg, some will used to compute grids/blocks
 struct fmha_fwd_args
 {
@@ -163,7 +145,8 @@ struct fmha_fwd_args
     float p_drop;
     bool s_randval;
 
-    dropout_cmdline_pref drop_seed_offset_data;
+    std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+        drop_seed_offset;
 };
 
 struct fmha_fwd_splitkv_args
@@ -293,90 +276,88 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
         // create group mode kernel arguments
         if constexpr(FmhaKernel::kIsGroupMode)
         {
-            return FmhaKernel::MakeKargs(
-                args.q_ptr,
-                args.k_ptr,
-                args.v_ptr,
-                args.bias_ptr,
-                args.rand_val_ptr,
-                args.lse_ptr,
-                args.o_ptr,
-                args.seqstart_q_ptr,
-                args.seqstart_k_ptr,
-                args.seqlen_k_ptr,
-                args.hdim_q,
-                args.hdim_v,
-                args.nhead_q,
-                args.nhead_q / args.nhead_k,
-                args.scale_s,
-                args.scale_p,
-                args.scale_o,
-                args.stride_q,
-                args.stride_k,
-                args.stride_v,
-                args.stride_bias,
-                args.stride_randval,
-                args.stride_o,
-                args.nhead_stride_q,
-                args.nhead_stride_k,
-                args.nhead_stride_v,
-                args.nhead_stride_bias,
-                args.nhead_stride_randval,
-                args.nhead_stride_lse,
-                args.nhead_stride_o,
-                args.window_size_left,
-                args.window_size_right,
-                args.mask_type,
-                args.p_drop,
-                args.s_randval,
-                reinterpret_cast<const void*>(&args.drop_seed_offset_data));
+            return FmhaKernel::MakeKargs(args.q_ptr,
+                                         args.k_ptr,
+                                         args.v_ptr,
+                                         args.bias_ptr,
+                                         args.rand_val_ptr,
+                                         args.lse_ptr,
+                                         args.o_ptr,
+                                         args.seqstart_q_ptr,
+                                         args.seqstart_k_ptr,
+                                         args.seqlen_k_ptr,
+                                         args.hdim_q,
+                                         args.hdim_v,
+                                         args.nhead_q,
+                                         args.nhead_q / args.nhead_k,
+                                         args.scale_s,
+                                         args.scale_p,
+                                         args.scale_o,
+                                         args.stride_q,
+                                         args.stride_k,
+                                         args.stride_v,
+                                         args.stride_bias,
+                                         args.stride_randval,
+                                         args.stride_o,
+                                         args.nhead_stride_q,
+                                         args.nhead_stride_k,
+                                         args.nhead_stride_v,
+                                         args.nhead_stride_bias,
+                                         args.nhead_stride_randval,
+                                         args.nhead_stride_lse,
+                                         args.nhead_stride_o,
+                                         args.window_size_left,
+                                         args.window_size_right,
+                                         args.mask_type,
+                                         args.p_drop,
+                                         args.s_randval,
+                                         args.drop_seed_offset);
         }
         else
         {
             // create batch mode kernel arguments
-            return FmhaKernel::MakeKargs(
-                args.q_ptr,
-                args.k_ptr,
-                args.v_ptr,
-                args.bias_ptr,
-                args.rand_val_ptr,
-                args.lse_ptr,
-                args.o_ptr,
-                args.seqlen_q,
-                args.seqlen_k,
-                args.hdim_q,
-                args.hdim_v,
-                args.nhead_q,
-                args.nhead_q / args.nhead_k,
-                args.scale_s,
-                args.scale_p,
-                args.scale_o,
-                args.stride_q,
-                args.stride_k,
-                args.stride_v,
-                args.stride_bias,
-                args.stride_randval,
-                args.stride_o,
-                args.nhead_stride_q,
-                args.nhead_stride_k,
-                args.nhead_stride_v,
-                args.nhead_stride_bias,
-                args.nhead_stride_randval,
-                args.nhead_stride_lse,
-                args.nhead_stride_o,
-                args.batch_stride_q,
-                args.batch_stride_k,
-                args.batch_stride_v,
-                args.batch_stride_bias,
-                args.batch_stride_randval,
-                args.batch_stride_lse,
-                args.batch_stride_o,
-                args.window_size_left,
-                args.window_size_right,
-                args.mask_type,
-                args.p_drop,
-                args.s_randval,
-                reinterpret_cast<const void*>(&args.drop_seed_offset_data));
+            return FmhaKernel::MakeKargs(args.q_ptr,
+                                         args.k_ptr,
+                                         args.v_ptr,
+                                         args.bias_ptr,
+                                         args.rand_val_ptr,
+                                         args.lse_ptr,
+                                         args.o_ptr,
+                                         args.seqlen_q,
+                                         args.seqlen_k,
+                                         args.hdim_q,
+                                         args.hdim_v,
+                                         args.nhead_q,
+                                         args.nhead_q / args.nhead_k,
+                                         args.scale_s,
+                                         args.scale_p,
+                                         args.scale_o,
+                                         args.stride_q,
+                                         args.stride_k,
+                                         args.stride_v,
+                                         args.stride_bias,
+                                         args.stride_randval,
+                                         args.stride_o,
+                                         args.nhead_stride_q,
+                                         args.nhead_stride_k,
+                                         args.nhead_stride_v,
+                                         args.nhead_stride_bias,
+                                         args.nhead_stride_randval,
+                                         args.nhead_stride_lse,
+                                         args.nhead_stride_o,
+                                         args.batch_stride_q,
+                                         args.batch_stride_k,
+                                         args.batch_stride_v,
+                                         args.batch_stride_bias,
+                                         args.batch_stride_randval,
+                                         args.batch_stride_lse,
+                                         args.batch_stride_o,
+                                         args.window_size_left,
+                                         args.window_size_right,
+                                         args.mask_type,
+                                         args.p_drop,
+                                         args.s_randval,
+                                         args.drop_seed_offset);
         }
     }();
 
