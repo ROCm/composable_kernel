@@ -501,6 +501,7 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_t>(bf8_t x)
 #endif
 }
 
+#ifndef CK_CODE_GEN_RTC
 template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
                                               const std::array<X, NumElems>& x)
@@ -510,6 +511,7 @@ inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,
         y[i] = type_convert<Y>(x[i]);
     }
 }
+#endif
 
 template <typename Y, typename X, index_t NumElems>
 inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array<X, NumElems>& x)

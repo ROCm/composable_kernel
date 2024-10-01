@@ -148,8 +148,8 @@ struct TransformConvFwdToGemm
 
     template <typename ConvDimsType,
               typename ConvSpatialDimsType,
-              index_t NDim                                   = NDimSpatial,
-              typename std::enable_if<NDim == 1, bool>::type = false>
+              index_t NDim                                  = NDimSpatial,
+              typename ck::enable_if<NDim == 1, bool>::type = false>
     __host__ __device__ TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
                                                const ConvDimsType& a_g_n_c_wis_strides,
                                                const ConvDimsType& b_g_k_c_xs_lengths,
@@ -201,11 +201,15 @@ struct TransformConvFwdToGemm
           InRightPadW_{input_right_pads[I0]},
           ZYX_{X_}
     {
+#ifdef CK_CODE_GEN_RTC
+        static_assert(is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
+        static_assert(is_same_v<ConvDimsType, ck::Array<IndexType, NDimSpatial + I3>>);
+#else
         static_assert(is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
         static_assert(is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       is_same_v<ConvDimsType, ck::Array<IndexType, NDimSpatial + I3>>);
-
+#endif
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(
@@ -219,8 +223,8 @@ struct TransformConvFwdToGemm
 
     template <typename ConvDimsType,
               typename ConvSpatialDimsType,
-              index_t NDim                                   = NDimSpatial,
-              typename std::enable_if<NDim == 2, bool>::type = false>
+              index_t NDim                                  = NDimSpatial,
+              typename ck::enable_if<NDim == 2, bool>::type = false>
     __host__ __device__ TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
                                                const ConvDimsType& a_g_n_c_wis_strides,
                                                const ConvDimsType& b_g_k_c_xs_lengths,
@@ -272,11 +276,15 @@ struct TransformConvFwdToGemm
           InRightPadW_{input_right_pads[I1]},
           ZYX_{Y_ * X_}
     {
+#ifdef CK_CODE_GEN_RTC
+        static_assert(is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
+        static_assert(is_same_v<ConvDimsType, ck::Array<IndexType, NDimSpatial + I3>>);
+#else
         static_assert(is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
         static_assert(is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       is_same_v<ConvDimsType, ck::Array<IndexType, NDimSpatial + I3>>);
-
+#endif
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(
@@ -290,8 +298,8 @@ struct TransformConvFwdToGemm
 
     template <typename ConvDimsType,
               typename ConvSpatialDimsType,
-              index_t NDim                                   = NDimSpatial,
-              typename std::enable_if<NDim == 3, bool>::type = false>
+              index_t NDim                                  = NDimSpatial,
+              typename ck::enable_if<NDim == 3, bool>::type = false>
     __host__ __device__ TransformConvFwdToGemm(const ConvDimsType& a_g_n_c_wis_lengths,
                                                const ConvDimsType& a_g_n_c_wis_strides,
                                                const ConvDimsType& b_g_k_c_xs_lengths,
@@ -343,11 +351,15 @@ struct TransformConvFwdToGemm
           InRightPadW_{input_right_pads[I2]},
           ZYX_{Z_ * Y_ * X_}
     {
+#ifdef CK_CODE_GEN_RTC
+        static_assert(is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
+        static_assert(is_same_v<ConvDimsType, ck::Array<IndexType, NDimSpatial + I3>>);
+#else
         static_assert(is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       is_same_v<ConvSpatialDimsType, ck::Array<IndexType, NDimSpatial>>);
         static_assert(is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       is_same_v<ConvDimsType, ck::Array<IndexType, NDimSpatial + I3>>);
-
+#endif
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(
@@ -478,11 +490,11 @@ struct TransformConvFwdToGemm
     // TODO: implement ck::tensor_layout::convolution that describe packed/strided dimemsion as
     // properties
     template <typename ALayout,
-              typename std::enable_if<NDimSpatial == 1 &&
-                                          (is_same_v<ALayout, tensor_layout::convolution::G_NW_C> ||
-                                           is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
-                                           is_same_v<ALayout, tensor_layout::convolution::GNWC>),
-                                      bool>::type = false>
+              typename ck::enable_if<NDimSpatial == 1 &&
+                                         (is_same_v<ALayout, tensor_layout::convolution::G_NW_C> ||
+                                          is_same_v<ALayout, tensor_layout::convolution::NWGC> ||
+                                          is_same_v<ALayout, tensor_layout::convolution::GNWC>),
+                                     bool>::type = false>
     __host__ __device__ auto MakeADescriptor_M_K() const
     {
         if constexpr(ConvForwardSpecialization ==
@@ -691,11 +703,11 @@ struct TransformConvFwdToGemm
     }
 
     template <typename ALayout,
-              typename std::enable_if<
-                  NDimSpatial == 2 && (is_same_v<ALayout, tensor_layout::convolution::G_NHW_C> ||
-                                       is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
-                                       is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
-                  bool>::type = false>
+              typename ck::enable_if<NDimSpatial == 2 &&
+                                         (is_same_v<ALayout, tensor_layout::convolution::G_NHW_C> ||
+                                          is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
+                                          is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
+                                     bool>::type = false>
     __host__ __device__ auto MakeADescriptor_M_K() const
 
     {
@@ -932,7 +944,7 @@ struct TransformConvFwdToGemm
     }
 
     template <typename ALayout,
-              typename std::enable_if<
+              typename ck::enable_if<
                   NDimSpatial == 3 && (is_same_v<ALayout, tensor_layout::convolution::G_NDHW_C> ||
                                        is_same_v<ALayout, tensor_layout::convolution::NDHWGC> ||
                                        is_same_v<ALayout, tensor_layout::convolution::GNDHWC>),
@@ -1242,19 +1254,19 @@ struct TransformConvFwdToGemm
     }
 
     template <typename BLayout,
-              typename std::enable_if<is_same_v<BLayout, tensor_layout::convolution::GKXC> ||
-                                          is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
-                                          is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
-                                      bool>::type = false>
+              typename ck::enable_if<is_same_v<BLayout, tensor_layout::convolution::GKXC> ||
+                                         is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
+                                         is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
+                                     bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_N_K() const
     {
         if constexpr(ConvForwardSpecialization ==
                      device::ConvolutionForwardSpecialization::Filter3x3)
         {
             using FilterSizeNumType =
-                std::conditional_t<NDimSpatial == 1,
-                                   Number<3>,
-                                   std::conditional_t<NDimSpatial == 2, Number<9>, Number<27>>>;
+                ck::conditional_t<NDimSpatial == 1,
+                                  Number<3>,
+                                  ck::conditional_t<NDimSpatial == 2, Number<9>, Number<27>>>;
 
             if constexpr(NumGroupsToMerge == 1)
             {
@@ -1297,13 +1309,13 @@ struct TransformConvFwdToGemm
 
     template <
         typename BLayout,
-        typename std::enable_if<is_same_v<BLayout, tensor_layout::convolution::G_K_X_C> ||
-                                    is_same_v<BLayout, tensor_layout::convolution::G_K_YX_C> ||
-                                    is_same_v<BLayout, tensor_layout::convolution::G_K_ZYX_C> ||
-                                    is_same_v<BLayout, tensor_layout::convolution::KXGC> ||
-                                    is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
-                                    is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
-                                bool>::type = false>
+        typename ck::enable_if<is_same_v<BLayout, tensor_layout::convolution::G_K_X_C> ||
+                                   is_same_v<BLayout, tensor_layout::convolution::G_K_YX_C> ||
+                                   is_same_v<BLayout, tensor_layout::convolution::G_K_ZYX_C> ||
+                                   is_same_v<BLayout, tensor_layout::convolution::KXGC> ||
+                                   is_same_v<BLayout, tensor_layout::convolution::KYXGC> ||
+                                   is_same_v<BLayout, tensor_layout::convolution::KZYXGC>,
+                               bool>::type = false>
     __host__ __device__ auto MakeBDescriptor_N_K() const
     {
         const auto wei_k_yx_c_desc = make_naive_tensor_descriptor(
@@ -1318,36 +1330,36 @@ struct TransformConvFwdToGemm
         return wei_gemmn_gemmk_desc;
     }
 
-    template <typename CLayout,
-              index_t NDimSp = NDimSpatial,
+    template <
+        typename CLayout,
+        index_t NDimSp = NDimSpatial,
 
-              typename std::enable_if<NDimSp == 1 &&
-                                          (is_same_v<CLayout, tensor_layout::convolution::G_K>),
-                                      bool>::type = false>
+        typename ck::enable_if<NDimSp == 1 && (is_same_v<CLayout, tensor_layout::convolution::G_K>),
+                               bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         return make_naive_tensor_descriptor(make_tuple(N_ * Wo_, K_),
                                             make_tuple(I0, KStrideTensorC_));
     }
 
-    template <typename CLayout,
-              index_t NDimSp = NDimSpatial,
+    template <
+        typename CLayout,
+        index_t NDimSp = NDimSpatial,
 
-              typename std::enable_if<NDimSp == 2 &&
-                                          (is_same_v<CLayout, tensor_layout::convolution::G_K>),
-                                      bool>::type = false>
+        typename ck::enable_if<NDimSp == 2 && (is_same_v<CLayout, tensor_layout::convolution::G_K>),
+                               bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_),
                                             make_tuple(I0, KStrideTensorC_));
     }
 
-    template <typename CLayout,
-              index_t NDimSp = NDimSpatial,
+    template <
+        typename CLayout,
+        index_t NDimSp = NDimSpatial,
 
-              typename std::enable_if<NDimSp == 3 &&
-                                          (is_same_v<CLayout, tensor_layout::convolution::G_K>),
-                                      bool>::type = false>
+        typename ck::enable_if<NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_K>),
+                               bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         return make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, K_),
@@ -1355,12 +1367,12 @@ struct TransformConvFwdToGemm
     }
 
     template <typename CLayout,
-              index_t NDimSp                      = NDimSpatial,
-              typename std::enable_if<NDimSp == 1 &&
-                                          (is_same_v<CLayout, tensor_layout::convolution::G_NW_K> ||
-                                           is_same_v<CLayout, tensor_layout::convolution::NWGK> ||
-                                           is_same_v<CLayout, tensor_layout::convolution::GNWK>),
-                                      bool>::type = false>
+              index_t NDimSp                     = NDimSpatial,
+              typename ck::enable_if<NDimSp == 1 &&
+                                         (is_same_v<CLayout, tensor_layout::convolution::G_NW_K> ||
+                                          is_same_v<CLayout, tensor_layout::convolution::NWGK> ||
+                                          is_same_v<CLayout, tensor_layout::convolution::GNWK>),
+                                     bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         const IndexType NDoHoWo = N_ * Wo_;
@@ -1410,11 +1422,11 @@ struct TransformConvFwdToGemm
     template <typename CLayout,
               index_t NDimSp = NDimSpatial,
 
-              typename std::enable_if<
-                  NDimSp == 2 && (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
-                                  is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
-                                  is_same_v<CLayout, tensor_layout::convolution::GNHWK>),
-                  bool>::type = false>
+              typename ck::enable_if<NDimSp == 2 &&
+                                         (is_same_v<CLayout, tensor_layout::convolution::G_NHW_K> ||
+                                          is_same_v<CLayout, tensor_layout::convolution::NHWGK> ||
+                                          is_same_v<CLayout, tensor_layout::convolution::GNHWK>),
+                                     bool>::type = false>
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         const IndexType NDoHoWo = N_ * Ho_ * Wo_;
@@ -1467,7 +1479,7 @@ struct TransformConvFwdToGemm
 
     template <typename CLayout,
               index_t NDimSp = NDimSpatial,
-              typename std::enable_if<
+              typename ck::enable_if<
                   NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::G_NDHW_K> ||
                                   is_same_v<CLayout, tensor_layout::convolution::NDHWGK> ||
                                   is_same_v<CLayout, tensor_layout::convolution::GNDHWK>),
