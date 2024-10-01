@@ -212,9 +212,13 @@ __global__ void
 }
 
 } // namespace
-
+#ifdef CK_CODE_GEN_RTC
+template <typename T>
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#else
 template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
+#endif
 
 //
 // @brief      Device Convolution operation.

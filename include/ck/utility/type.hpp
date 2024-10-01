@@ -116,9 +116,13 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
 {
     return static_cast<T&&>(t_);
 }
+
+template <typename T>
+T&& declval() noexcept;
 #else
 #include <utility>
 #include <type_traits>
+using std::declval;
 using std::forward;
 using std::is_base_of;
 using std::is_class;

@@ -3,7 +3,9 @@
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include <array>
+#endif
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
@@ -13,8 +15,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+#ifdef CK_CODE_GEN_RTC
+template <typename T>
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
+#else
 template <typename T>
 using is_tuple = decltype(std::declval<T&>().IsTuple());
+#endif
 
 /**
  * \brief Grouped Convolution Forward
@@ -72,12 +79,18 @@ struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static_assert(NumDTensor == DsLayout::Size(), "wrong! Inconsistent NumDTensor");
-
+#ifdef CK_CODE_GEN_RTC
+    using APointers = ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
+    using BPointers = ck::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
+#else
     // If DataType is tuple, user has to pass std::array with pointers.
     using APointers =
-        std::conditional_t<isMultiA, std::array<const void*, NumATensor>&, const void*>;
+        ck::conditional_t<isMultiA, std::array<const void*, NumATensor>&, const void*>;
     using BPointers =
-        std::conditional_t<isMultiB, std::array<const void*, NumBTensor>&, const void*>;
+        ck::conditional_t<isMultiB, std::array<const void*, NumBTensor>&, const void*>;
+#endif
+
+#ifndef CK_CODE_GEN_RTC
 
     /**
      * \brief Make argument pointer for grouped conv fwd.
@@ -151,6 +164,7 @@ struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };
+#endif
 
 } // namespace device
 } // namespace tensor_operation
