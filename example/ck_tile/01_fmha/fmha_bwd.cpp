@@ -85,7 +85,9 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
-        .insert("drop_prefs", "0", "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
+        .insert("drop_prefs",
+                "0",
+                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
@@ -475,32 +477,31 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
 
-
         dropout_cmdline_pref drop_seed_offset_data;
-        if (drop_prefs)
+        if(drop_prefs)
         {
             ck_tile::DeviceMem device_drop_seed(sizeof(std::uint64_t));
             ck_tile::DeviceMem device_drop_offset(sizeof(std::uint64_t));
 
-            ck_tile::hip_check_error(hipMemcpy(device_drop_seed.GetDeviceBuffer(), 
-                                                reinterpret_cast<std::uint8_t*>(&drop_seed), 
-                                                sizeof(std::uint64_t), 
-                                                hipMemcpyHostToDevice));
+            ck_tile::hip_check_error(hipMemcpy(device_drop_seed.GetDeviceBuffer(),
+                                               reinterpret_cast<std::uint8_t*>(&drop_seed),
+                                               sizeof(std::uint64_t),
+                                               hipMemcpyHostToDevice));
 
             ck_tile::hip_check_error(hipMemcpy(device_drop_offset.GetDeviceBuffer(),
-                                              reinterpret_cast<std::uint8_t*>(&drop_offset), 
-                                              sizeof(std::uint64_t), 
-                                              hipMemcpyHostToDevice));
+                                               reinterpret_cast<std::uint8_t*>(&drop_offset),
+                                               sizeof(std::uint64_t),
+                                               hipMemcpyHostToDevice));
 
-            drop_seed_offset_data.payload.device.seed_ptr = device_drop_seed.GetDeviceBuffer();
+            drop_seed_offset_data.payload.device.seed_ptr   = device_drop_seed.GetDeviceBuffer();
             drop_seed_offset_data.payload.device.offset_ptr = device_drop_offset.GetDeviceBuffer();
-            drop_seed_offset_data.is_host = false;
+            drop_seed_offset_data.is_host                   = false;
         }
-        else 
+        else
         {
-            drop_seed_offset_data.payload.host.seed = drop_seed;
+            drop_seed_offset_data.payload.host.seed   = drop_seed;
             drop_seed_offset_data.payload.host.offset = drop_offset;
-            drop_seed_offset_data.is_host = true;
+            drop_seed_offset_data.is_host             = true;
         }
 
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),

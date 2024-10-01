@@ -194,21 +194,24 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
-    struct dropout_params 
+    struct dropout_params
     {
-        union {
-            struct {
+        union
+        {
+            struct
+            {
                 const void* seed_ptr;
                 const void* offset_ptr;
             } device;
-            struct {
+            struct
+            {
                 std::uint64_t seed;
                 std::uint64_t offset;
             } host;
         } payload;
         bool is_host;
-    };    
-    
+    };
+
     struct FmhaBwdCommonDropoutKargs
     {
         void init_dropout(const float p_drop, const float raw_scale)
@@ -221,20 +224,20 @@ struct FmhaBwdDQDKDVKernel
 
             drop_seed_offset_args.payload.host.seed   = 1;
             drop_seed_offset_args.payload.host.offset = 0;
-            drop_seed_offset_args.is_host = true;
+            drop_seed_offset_args.is_host             = true;
         }
         void init_seed_offset(uint64_t seed_val, uint64_t offset_val)
         {
             drop_seed_offset_args.payload.host.seed   = seed_val;
             drop_seed_offset_args.payload.host.offset = offset_val;
-            drop_seed_offset_args.is_host = true;
+            drop_seed_offset_args.is_host             = true;
         }
 
         void init_seed_offset_ptrs(const uint64_t* seed_ptr, const uint64_t* offset_ptr)
         {
             drop_seed_offset_args.payload.device.seed_ptr   = seed_ptr;
             drop_seed_offset_args.payload.device.offset_ptr = offset_ptr;
-            drop_seed_offset_args.is_host = false;
+            drop_seed_offset_args.is_host                   = false;
         }
 
         float rp_undrop             = 1;
@@ -242,7 +245,7 @@ struct FmhaBwdDQDKDVKernel
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
 
         dropout_params drop_seed_offset_args;
-        void* rand_val_ptr          = nullptr;
+        void* rand_val_ptr = nullptr;
 
         ck_tile::index_t stride_randval       = 0;
         ck_tile::index_t nhead_stride_randval = 0;
@@ -434,15 +437,18 @@ struct FmhaBwdDQDKDVKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, scale);
-            
+
             dropout_params drop_seed_offset = *static_cast<const dropout_params*>(drop_params_ptr);
-            if (drop_seed_offset.is_host)
+            if(drop_seed_offset.is_host)
             {
-                kargs.init_seed_offset(drop_seed_offset.payload.host.seed, drop_seed_offset.payload.host.offset);
+                kargs.init_seed_offset(drop_seed_offset.payload.host.seed,
+                                       drop_seed_offset.payload.host.offset);
             }
             else
             {
-                kargs.init_seed_offset_ptrs(reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.seed_ptr), reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.offset_ptr));
+                kargs.init_seed_offset_ptrs(
+                    reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.seed_ptr),
+                    reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.offset_ptr));
             }
 
             if constexpr(kIsStoreRandval)
@@ -581,13 +587,16 @@ struct FmhaBwdDQDKDVKernel
             kargs.init_dropout(p_drop, scale);
 
             dropout_params drop_seed_offset = *static_cast<const dropout_params*>(drop_params_ptr);
-            if (drop_seed_offset.is_host)
+            if(drop_seed_offset.is_host)
             {
-                kargs.init_seed_offset(drop_seed_offset.payload.host.seed, drop_seed_offset.payload.host.offset);
+                kargs.init_seed_offset(drop_seed_offset.payload.host.seed,
+                                       drop_seed_offset.payload.host.offset);
             }
             else
             {
-                kargs.init_seed_offset_ptrs(reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.seed_ptr), reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.offset_ptr));
+                kargs.init_seed_offset_ptrs(
+                    reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.seed_ptr),
+                    reinterpret_cast<const uint64_t*>(drop_seed_offset.payload.device.offset_ptr));
             }
 
             if constexpr(kIsStoreRandval)
@@ -1008,8 +1017,14 @@ struct FmhaBwdDQDKDVKernel
                 return FmhaDropout{i_batch_,
                                    i_nhead_,
                                    kargs.num_head_q,
-                                   kargs.drop_seed_offset_args.is_host ? kargs.drop_seed_offset_args.payload.host.seed : *reinterpret_cast<const uint64_t*>(kargs.drop_seed_offset_args.payload.device.seed_ptr),
-                                   kargs.drop_seed_offset_args.is_host ? kargs.drop_seed_offset_args.payload.host.offset : *reinterpret_cast<const uint64_t*>(kargs.drop_seed_offset_args.payload.device.offset_ptr),
+                                   kargs.drop_seed_offset_args.is_host
+                                       ? kargs.drop_seed_offset_args.payload.host.seed
+                                       : *reinterpret_cast<const uint64_t*>(
+                                             kargs.drop_seed_offset_args.payload.device.seed_ptr),
+                                   kargs.drop_seed_offset_args.is_host
+                                       ? kargs.drop_seed_offset_args.payload.host.offset
+                                       : *reinterpret_cast<const uint64_t*>(
+                                             kargs.drop_seed_offset_args.payload.device.offset_ptr),
                                    kargs.rp_undrop,
                                    kargs.p_undrop_in_uint8_t};
             }
