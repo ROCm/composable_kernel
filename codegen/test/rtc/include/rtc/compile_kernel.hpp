@@ -2,14 +2,14 @@
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_COMPILE_KERNEL
 
 #include <rtc/kernel.hpp>
-#include <filesystem>
+#include <ck/filesystem.hpp>
 #include <string>
 
 namespace rtc {
 
 struct src_file
 {
-    std::filesystem::path path;
+    CK::fs::path path;
     std::string_view content;
 };
 
