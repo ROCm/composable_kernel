@@ -314,8 +314,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                          args.drop_seed_offset);
         }
         else
-        {
-            // create batch mode kernel arguments
+        { // create batch mode kernel arguments
             return FmhaKernel::MakeKargs(args.q_ptr,
                                          args.k_ptr,
                                          args.v_ptr,
