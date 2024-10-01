@@ -406,7 +406,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
     }
 
     template <>
-    __device__ static constexpr auto TailScheduler<1>()
+    __device__ constexpr auto TailScheduler<1>()
     {
         // schedule
         constexpr auto num_ds_read_inst =
@@ -433,7 +433,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
     }
 
     template <>
-    __device__ static constexpr auto TailScheduler<2>()
+    __device__ constexpr auto TailScheduler<2>()
     {
         // schedule
         constexpr auto num_ds_read_inst =

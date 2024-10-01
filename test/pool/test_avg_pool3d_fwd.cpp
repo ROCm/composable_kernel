@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "profiler/profile_pool3d_fwd_impl.hpp"
@@ -16,10 +16,19 @@ class TestAvgPool3dFwd : public ::testing::Test
 
     std::vector<PoolingParam> params;
 
+    ck::profiler::PoolFwdInputParams in_params_avg_pool{true, 2, false, false, false, 1};
+
     void Run()
     {
         for(auto param : params)
         {
+            ck::profiler::PoolFwdKernelParams kernel_params{param.length_,
+                                                            param.window_spatial_lengths_,
+                                                            param.window_strides_,
+                                                            param.window_dilations_,
+                                                            param.input_left_pads_,
+                                                            param.input_right_pads_};
+
             bool success =
                 ck::profiler::profile_pool3d_fwd_impl<InDataType,
                                                       OutDataType,
@@ -29,26 +38,18 @@ class TestAvgPool3dFwd : public ::testing::Test
                                                       ck::tensor_layout::convolution::NDHWC,
                                                       ck::ReduceTensorOp::AVG,
                                                       false,
-                                                      false>(true,
-                                                             2,
-                                                             false,
-                                                             false,
-                                                             param.length_,
-                                                             param.window_spatial_lengths_,
-                                                             param.window_strides_,
-                                                             param.window_dilations_,
-                                                             param.input_left_pads_,
-                                                             param.input_right_pads_);
+                                                      false>(in_params_avg_pool, kernel_params);
             EXPECT_TRUE(success);
         }
     }
 };
-#ifdef CK_ENABLE_FP16
-using KernelTypes =
-    ::testing::Types<std::tuple<F16, F16, F32, I32>, std::tuple<F32, F32, F32, I32>>;
-#else
-using KernelTypes = ::testing::Types<std::tuple<F32, F32, F32, I32>>;
-#endif
+
+using KernelTypes = ::testing::Types<std::tuple<I8, I8, I32, I32>,
+                                     std::tuple<F8, F8, F32, I32>,
+                                     std::tuple<F16, F16, F32, I32>,
+                                     std::tuple<BF16, BF16, F32, I32>,
+                                     std::tuple<F32, F32, F32, I32>>;
+
 TYPED_TEST_SUITE(TestAvgPool3dFwd, KernelTypes);
 TYPED_TEST(TestAvgPool3dFwd, Test_Pool)
 {

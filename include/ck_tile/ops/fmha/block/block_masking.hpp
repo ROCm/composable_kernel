@@ -308,9 +308,9 @@ struct SimplifiedGenericAttentionMask
     {
         auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
 
-        const index_t x_per_split = ck_tile::max(1, x_total / num_splits);
+        const index_t x_per_split = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
         const index_t split_start = x_per_split * i_split;
-        const index_t split_end = (i_split == num_splits - 1 ? x_total : split_start + x_per_split);
+        const index_t split_end   = split_start + x_per_split;
 
         return ck_tile::make_tuple(ck_tile::max(origin_start, split_start),
                                    ck_tile::min(origin_end, split_end));

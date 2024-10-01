@@ -99,10 +99,23 @@ auto create_args(int argc, char* argv[])
 
 // different threshold for different dtype
 template <typename DataType>
-auto get_elimit(int /*init_method*/)
+auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<ck_tile::bf16_t>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
+{
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    if(hdim_q > 128 && hdim_v > 128) // 3.2 for RTZ/1.5 for RTN
+    {
+        rtol = 3.2e-2;
+        atol = 3.2e-2;
+    }
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -899,7 +912,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         // clang-format on
 
-        auto [rtol, atol] = get_elimit<DataType>(init_method);
+        auto [rtol, atol] = get_elimit<DataType>(hdim_q, hdim_v);
         bool dq_cur_pass  = ck_tile::check_err(dq_host_result,
                                               dq_host_ref,
                                               std::string("Error: QGrad Incorrect results!"),

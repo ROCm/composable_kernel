@@ -45,6 +45,8 @@ static void print_helper_msg()
                  "N, Ho, Wo, K]\n"
               << "                     2: Input[N, Hi, Wi, G, C], Weight[G, K, Y, X, C], Output[N, "
                  "Ho, Wo, G, K]\n"
+              << "                     3: Input[N, G, C, Hi, Wi], Weight[G, K, Y, X, C], Output[N, "
+                 "G, K, Ho, Wo]\n"
               << "arg4: verification (0: no, 1: yes)\n"
               << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
               << "arg6: print tensor value (0: no; 1: yes)\n"
