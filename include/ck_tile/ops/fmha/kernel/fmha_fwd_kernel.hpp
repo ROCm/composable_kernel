@@ -175,14 +175,15 @@ struct FmhaFwdKernel
 
     struct FmhaFwdDropoutSeedOffset
     {
-        using val_or_ptr = union
+        template <typename T>
+        union ValueOrPointer
         {
-            uint64_t val;
-            const uint64_t* ptr;
+            T val;
+            const T* ptr;
         };
 
-        val_or_ptr drop_seed;
-        val_or_ptr drop_offset;
+        ValueOrPointer<uint64_t> drop_seed;
+        ValueOrPointer<uint64_t> drop_offset;
         bool is_drop_seed_offset_from_host;
     };
 
