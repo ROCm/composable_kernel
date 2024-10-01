@@ -173,56 +173,49 @@ struct FmhaFwdKernel
         ck_tile::index_t batch_stride_lse = 0;
     };
 
-    struct dropout_params
+    struct FmhaFwdDropoutSeedOffset
     {
-        union
+        using val_or_ptr = union
         {
-            struct
-            {
-                const uint64_t* seed_ptr;
-                const uint64_t* offset_ptr;
-            } device;
-            struct
-            {
-                uint64_t seed;
-                uint64_t offset;
-            } host;
-        } payload;
-        bool is_host;
+            uint64_t val;
+            const uint64_t* ptr;
+        };
+
+        val_or_ptr drop_seed;
+        val_or_ptr drop_offset;
+        bool is_drop_seed_offset_from_host;
     };
 
-    struct FmhaFwdCommonDropoutKargs
+    struct FmhaFwdCommonDropoutKargs : FmhaFwdDropoutSeedOffset
     {
-        void init_dropout(float p_drop, uint64_t drop_seed, uint64_t drop_offset)
+        void init_dropout(float p_drop, uint64_t seed, uint64_t offset)
         {
             float p_undrop = 1.0 - p_drop;
             p_undrop_in_uint8_t =
                 uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
             rp_undrop = 1.0 / p_undrop;
 
-            drop_seed_offset.payload.host.seed   = drop_seed;
-            drop_seed_offset.payload.host.offset = drop_offset;
-            drop_seed_offset.is_host             = true;
+            this->drop_seed.val                 = seed;
+            this->drop_offset.val               = offset;
+            this->is_drop_seed_offset_from_host = true;
         }
 
-        void
-        init_dropout(float p_drop, const uint64_t* drop_seed_ptr, const uint64_t* drop_offset_ptr)
+        void init_dropout(float p_drop, const uint64_t* seed_ptr, const uint64_t* offset_ptr)
         {
             float p_undrop = 1.0 - p_drop;
             p_undrop_in_uint8_t =
                 uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
             rp_undrop = 1.0 / p_undrop;
 
-            drop_seed_offset.payload.device.seed_ptr   = drop_seed_ptr;
-            drop_seed_offset.payload.device.offset_ptr = drop_offset_ptr;
-            drop_seed_offset.is_host                   = false;
+            this->drop_seed.ptr                 = seed_ptr;
+            this->drop_offset.ptr               = offset_ptr;
+            this->is_drop_seed_offset_from_host = false;
         }
 
         float rp_undrop             = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
         bool is_store_randval       = false;
-        dropout_params drop_seed_offset;
-        void* rand_val_ptr = nullptr;
+        void* rand_val_ptr          = nullptr;
 
         ck_tile::index_t stride_randval       = 0;
         ck_tile::index_t nhead_stride_randval = 0;
@@ -809,12 +802,10 @@ struct FmhaFwdKernel
                 return BlockDropout{i_batch_,
                                     i_nhead_,
                                     kargs.num_head_q,
-                                    kargs.drop_seed_offset.is_host
-                                        ? kargs.drop_seed_offset.payload.host.seed
-                                        : *kargs.drop_seed_offset.payload.device.seed_ptr,
-                                    kargs.drop_seed_offset.is_host
-                                        ? kargs.drop_seed_offset.payload.host.offset
-                                        : *kargs.drop_seed_offset.payload.device.offset_ptr,
+                                    kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
+                                                                        : *kargs.drop_seed.ptr,
+                                    kargs.is_drop_seed_offset_from_host ? kargs.drop_offset.val
+                                                                        : *kargs.drop_offset.ptr,
                                     kargs.rp_undrop,
                                     kargs.p_undrop_in_uint8_t,
                                     kargs.is_store_randval};
