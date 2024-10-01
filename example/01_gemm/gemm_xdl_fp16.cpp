@@ -14,7 +14,7 @@ using CDataType        = ck::half_t;
 
 using F16 = ck::half_t;
 
-using ALayout = Row;
+using ALayout = Col;
 using BLayout = Row;
 using CLayout = Row;
 
