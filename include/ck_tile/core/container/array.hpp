@@ -4,6 +4,7 @@
 #pragma once
 
 #include <initializer_list>
+#include <vector>
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
