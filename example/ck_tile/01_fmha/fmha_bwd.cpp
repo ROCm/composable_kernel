@@ -386,6 +386,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
+    ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dq_acc_buf(dq_acc_host.get_element_space_size_in_bytes());
 
@@ -396,6 +398,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
+    drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
@@ -477,32 +481,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
 
-        dropout_cmdline_pref drop_seed_offset_data;
-        if(drop_prefs)
-        {
-            ck_tile::DeviceMem device_drop_seed(sizeof(std::uint64_t));
-            ck_tile::DeviceMem device_drop_offset(sizeof(std::uint64_t));
-
-            ck_tile::hip_check_error(hipMemcpy(device_drop_seed.GetDeviceBuffer(),
-                                               reinterpret_cast<std::uint8_t*>(&drop_seed),
-                                               sizeof(std::uint64_t),
-                                               hipMemcpyHostToDevice));
-
-            ck_tile::hip_check_error(hipMemcpy(device_drop_offset.GetDeviceBuffer(),
-                                               reinterpret_cast<std::uint8_t*>(&drop_offset),
-                                               sizeof(std::uint64_t),
-                                               hipMemcpyHostToDevice));
-
-            drop_seed_offset_data.payload.device.seed_ptr   = device_drop_seed.GetDeviceBuffer();
-            drop_seed_offset_data.payload.device.offset_ptr = device_drop_offset.GetDeviceBuffer();
-            drop_seed_offset_data.is_host                   = false;
-        }
-        else
-        {
-            drop_seed_offset_data.payload.host.seed   = drop_seed;
-            drop_seed_offset_data.payload.host.offset = drop_offset;
-            drop_seed_offset_data.is_host             = true;
-        }
+        const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
+            if(drop_prefs)
+            {
+                return std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                      drop_offset_buf.GetDeviceBuffer());
+            }
+            else
+            {
+                return std::make_pair(drop_seed, drop_offset);
+            }
+        }();
 
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
@@ -577,7 +566,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
                              p_undrop,
-                             drop_seed_offset_data};
+                             drop_seed_offset};
     }();
 
     float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);

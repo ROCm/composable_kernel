@@ -13,6 +13,8 @@
 #include "rotary.hpp"
 
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 template <typename DataType>
 struct FmhaFwdTypeConfig;

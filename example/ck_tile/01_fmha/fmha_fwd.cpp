@@ -1009,12 +1009,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 args.s_randval = s_randval;
                 if(drop_prefs)
                 {
-                    args.drop_seed_offset.template emplace<1>(drop_seed_buf.GetDeviceBuffer(),
-                                                              drop_offset_buf.GetDeviceBuffer());
+                    args.drop_seed_offset = std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                                           drop_offset_buf.GetDeviceBuffer());
                 }
                 else
                 {
-                    args.drop_seed_offset.template emplace<0>(drop_seed, drop_offset);
+                    args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
                 }
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
