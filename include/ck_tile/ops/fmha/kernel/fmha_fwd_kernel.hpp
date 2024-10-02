@@ -376,15 +376,15 @@ struct FmhaFwdKernel
         {
             if(drop_seed_offset.index() == 0) // seed & offset come from host
             {
-                const auto& ints = std::get<0>(drop_seed_offset);
-                kargs.init_dropout(p_drop, ints.first, ints.second);
+                const auto& [seed, offset] = std::get<0>(drop_seed_offset);
+                kargs.init_dropout(p_drop, seed, offset);
             }
             else // seed & offset come from device
             {
-                const auto& ptrs = std::get<1>(drop_seed_offset);
+                const auto& [seed_ptr, offset_ptr] = std::get<1>(drop_seed_offset);
                 kargs.init_dropout(p_drop,
-                                   reinterpret_cast<const uint64_t*>(ptrs.first),
-                                   reinterpret_cast<const uint64_t*>(ptrs.second));
+                                   reinterpret_cast<const uint64_t*>(seed_ptr),
+                                   reinterpret_cast<const uint64_t*>(offset_ptr));
             }
 
             kargs.rand_val_ptr         = rand_val_ptr;
@@ -500,15 +500,15 @@ struct FmhaFwdKernel
         {
             if(drop_seed_offset.index() == 0) // seed & offset come from host
             {
-                const auto& ints = std::get<0>(drop_seed_offset);
-                kargs.init_dropout(p_drop, ints.first, ints.second);
+                const auto& [seed, offset] = std::get<0>(drop_seed_offset);
+                kargs.init_dropout(p_drop, seed, offset);
             }
             else // seed & offset come from device
             {
-                const auto& ptrs = std::get<1>(drop_seed_offset);
+                const auto& [seed_ptr, offset_ptr] = std::get<1>(drop_seed_offset);
                 kargs.init_dropout(p_drop,
-                                   reinterpret_cast<const uint64_t*>(ptrs.first),
-                                   reinterpret_cast<const uint64_t*>(ptrs.second));
+                                   reinterpret_cast<const uint64_t*>(seed_ptr),
+                                   reinterpret_cast<const uint64_t*>(offset_ptr));
             }
 
             kargs.rand_val_ptr         = rand_val_ptr;
