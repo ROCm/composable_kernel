@@ -14,65 +14,33 @@
 #include "ck/host/stringutils.hpp"
 
 // NOLINTNEXTLINE
-const char* const disable_warning_pragma = R"__migraphx__(
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
+const char* const content_wrapper = R"__ck__(
 ${content}
-#pragma clang diagnostic pop
-)__migraphx__";
+)__ck__";
 
 template <class P>
-inline std::string ck_disable_warnings(P p)
+inline std::string ck_content_wrapper(P p)
 {
-    return ck::host::InterpolateString(disable_warning_pragma,
+    return ck::host::InterpolateString(content_wrapper,
                                        {{"content", std::string{p.data(), p.size()}}});
 }
 
-inline std::vector<rtc::src_file> create_headers_for_hiprtc_test()
+inline std::vector<rtc::src_file> create_headers_for_test()
 {
     auto ck_headers = ck::host::GetHeaders();
     std::vector<rtc::src_file> result;
 
     std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(result), [&](auto& p) {
-        return rtc::src_file{p.first, ck_disable_warnings(p.second)};
+        return rtc::src_file{p.first, ck_content_wrapper(p.second)};
     });
 
     return result;
 }
 
-inline const std::vector<rtc::src_file>& get_headers_for_hiprtc_test()
-{
-    static const std::vector<rtc::src_file> headers = create_headers_for_hiprtc_test();
-    return headers;
-}
-
-inline std::vector<rtc::src_file> create_headers_for_clang_test()
-{
-    std::vector<rtc::src_file> result;
-    auto hs = ck::host::GetHeaders();
-    std::transform(
-        hs.begin(), hs.end(), std::back_inserter(result), [&](const auto& p) -> rtc::src_file {
-            return {p.first, {p.second.begin(), p.second.end()}};
-        });
-    return result;
-}
-
-inline const std::vector<rtc::src_file>& get_headers_for_clang_test()
-{
-    static const std::vector<rtc::src_file> headers = create_headers_for_clang_test();
-    return headers;
-}
-
 inline const std::vector<rtc::src_file>& get_headers_for_test()
 {
-    if(ck::EnvIsEnabled(CK_ENV(CK_CODEGEN_TESTS_ENABLE_HIPRTC)))
-    {
-        return get_headers_for_hiprtc_test();
-    }
-    else
-    {
-        return get_headers_for_clang_test();
-    }
+    static const std::vector<rtc::src_file> headers = create_headers_for_test();
+    return headers;
 }
 
 template <typename V>

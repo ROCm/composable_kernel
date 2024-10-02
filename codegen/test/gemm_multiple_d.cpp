@@ -71,11 +71,11 @@ TEST_CASE(test_problem_kernel)
                                                        {"m", std::to_string(prob.M)},
                                                        {"n", std::to_string(prob.N)},
                                                        {"k", std::to_string(prob.K)}});
-
+        auto srcs = get_headers_for_test();
+        srcs.push_back({"main.cpp", src});
         rtc::compile_options options;
         options.kernel_name          = "f";
-        options.additional_src_files = get_headers_for_test();
-        auto k                       = rtc::compile_kernel(src, options);
+        auto k                       = rtc::compile_kernel(srcs, options);
         auto block_size              = solution.GetTemplateParameter<std::size_t>("BlockSize");
         auto m_per_block             = solution.GetTemplateParameter<std::size_t>("MPerBlock");
         auto n_per_block             = solution.GetTemplateParameter<std::size_t>("NPerBlock");
