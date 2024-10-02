@@ -1,8 +1,6 @@
 #include "common.hpp"
 #include "ck/host/device_gemm_multiple_d/problem.hpp"
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
-#include "ck/host/device_batched_gemm_softmax_gemm/problem.hpp"
-#include "ck/host/device_batched_gemm_softmax_gemm/operation.hpp"
 #include "ck/host/headers.hpp"
 #include "ck/host/stringutils.hpp"
 #include "ck/host/utils.hpp"
@@ -84,36 +82,6 @@ TEST_CASE(test_problem_kernel)
         k.launch(nullptr, grid_size * block_size, block_size)(a.data(), b.data(), c.data());
 
         CHECK(report(solution, check(rtc::from_gpu(c))));
-    }
-}
-
-TEST_CASE(test_gemm_softmax_gemm)
-{
-    ck::host::device_batched_gemm_softmax_gemm::Problem prob;
-    prob.TransA  = false;
-    prob.TransB  = true;
-    prob.TransB1 = false;
-    prob.TransC  = false;
-    prob.M = 1024;
-    prob.N = 1024;
-    prob.K = 1024;
-    prob.O = 1024;
-    check_all<half> check;
-    auto a  = to_gpu(generate_buffer<half>(1024 * 1024, 0));
-    auto b  = to_gpu(generate_buffer<half>(1024 * 1024, 1));
-    auto b1 = to_gpu(generate_buffer<half>(1024 * 1024, 2));
-    auto c  = to_gpu(generate_buffer<half>(1024 * 1024, 3));
-
-    std::string epilogue = "";
-    std::string prologue = "";
-
-    auto solutions = prob.GetSolutions("gfx90a", prologue, epilogue);
-    std::cout << "Num solutions: " << solutions.size() << std::endl;
-
-    for(auto i = 0; i < solutions.size(); ++i) {
-        std::cout << "Solution " << i << std::endl;
-        std::cout << solutions[i].ToTemplateString() << std::endl;
-        std::cout << std::endl;
     }
 }
 

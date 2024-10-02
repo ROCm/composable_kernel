@@ -41,8 +41,6 @@ struct Operation_Xdl_CShuffle
     operation::BlockTransferDesc b_block_transfer{};
     operation::CShuffleDesc cshuffle{};
     operation::CBlockTransferDesc c_block_transfer{};
-    LoopScheduler loop_scheduler{};
-    PipelineVersion pipeline_version{};
 
     // functions to update fusion operators if provided
     void update_prologue(const std::string& prologue);
