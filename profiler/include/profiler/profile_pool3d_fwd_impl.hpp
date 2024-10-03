@@ -229,11 +229,8 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
         {
             out_device_buf.FromDevice(out_n_c_do_ho_wo_device.mData.data());
 
-            auto absolute_error_threshold = 1e-3;
+            auto absolute_error_threshold = ck::utils::get_absolute_threshold<ComputeDataType>();
             auto relative_error_threshold = ck::utils::get_relative_threshold<ComputeDataType>();
-
-            // DEBUG
-            std::cout << "relative_error_threshold: " << relative_error_threshold << std::endl;
 
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,
                                              out_n_c_do_ho_wo_host.mData,
