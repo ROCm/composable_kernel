@@ -5,13 +5,51 @@
 
 #include "ck/utility/statically_indexed_array.hpp"
 
+#ifdef CK_USE_FNUZ_FP8
+#define CK_USE_FNUZ_FP8 1
+#else
+#define CK_USE_FNUZ_FP8 0
+#endif
+
+#ifdef CK_USE_OCP_FP8
+#define CK_USE_OCP_FP8 1
+#else
+#define CK_USE_OCP_FP8 0
+#endif
+
 namespace ck {
 
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
-using f8_t    = _BitInt(8);
-using bf8_t   = unsigned _BitInt(8);
+
+using f8_fnuz_t  = _BitInt(8);
+using bf8_fnuz_t = unsigned _BitInt(8);
+
+typedef unsigned char __hip_fp8_storage_t;
+struct f8_ocp_t
+{
+    using type = __hip_fp8_storage_t;
+    type data;
+};
+
+struct bf8_ocp_t
+{
+    using type = __hip_fp8_storage_t;
+    type data;
+};
+
+#if CK_USE_OCP_FP8
+using f8_t  = f8_ocp_t;
+using bf8_t = bf8_ocp_t;
+#define CK_FP8_TYPE_FNUZ 0
+#define CK_FP8_TYPE_OCP 1
+#else
+using f8_t  = f8_fnuz_t;
+using bf8_t = bf8_fnuz_t;
+#define CK_FP8_TYPE_FNUZ 1
+#define CK_FP8_TYPE_OCP 0
+#endif
 
 // vector_type
 template <typename T, index_t N>
@@ -150,18 +188,32 @@ struct scalar_type<int4_t>
 #endif
 
 template <>
-struct scalar_type<f8_t>
+struct scalar_type<f8_fnuz_t>
 {
-    using type                           = f8_t;
+    using type                           = f8_fnuz_t;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
-struct scalar_type<bf8_t>
+struct scalar_type<bf8_fnuz_t>
 {
-    using type                           = bf8_t;
+    using type                           = bf8_fnuz_t;
     static constexpr index_t vector_size = 1;
 };
+
+// template <>
+// struct scalar_type<f8_ocp_t>
+// {
+//     using type                           = f8_ocp_t;
+//     static constexpr index_t vector_size = 1;
+// };
+
+// template <>
+// struct scalar_type<bf8_ocp_t>
+// {
+//     using type                           = bf8_ocp_t;
+//     static constexpr index_t vector_size = 1;
+// };
 
 template <>
 struct scalar_type<bool>
@@ -1037,20 +1089,71 @@ using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
 
 // f8
-using f8x2_t  = typename vector_type<f8_t, 2>::type;
-using f8x4_t  = typename vector_type<f8_t, 4>::type;
-using f8x8_t  = typename vector_type<f8_t, 8>::type;
-using f8x16_t = typename vector_type<f8_t, 16>::type;
-using f8x32_t = typename vector_type<f8_t, 32>::type;
-using f8x64_t = typename vector_type<f8_t, 64>::type;
+using f8x2_fnuz_t  = typename vector_type<f8_fnuz_t, 2>::type;
+using f8x4_fnuz_t  = typename vector_type<f8_fnuz_t, 4>::type;
+using f8x8_fnuz_t  = typename vector_type<f8_fnuz_t, 8>::type;
+using f8x16_fnuz_t = typename vector_type<f8_fnuz_t, 16>::type;
+using f8x32_fnuz_t = typename vector_type<f8_fnuz_t, 32>::type;
+using f8x64_fnuz_t = typename vector_type<f8_fnuz_t, 64>::type;
 
 // bf8
-using bf8x2_t  = typename vector_type<bf8_t, 2>::type;
-using bf8x4_t  = typename vector_type<bf8_t, 4>::type;
-using bf8x8_t  = typename vector_type<bf8_t, 8>::type;
-using bf8x16_t = typename vector_type<bf8_t, 16>::type;
-using bf8x32_t = typename vector_type<bf8_t, 32>::type;
-using bf8x64_t = typename vector_type<bf8_t, 64>::type;
+using bf8x2_fnuz_t  = typename vector_type<bf8_fnuz_t, 2>::type;
+using bf8x4_fnuz_t  = typename vector_type<bf8_fnuz_t, 4>::type;
+using bf8x8_fnuz_t  = typename vector_type<bf8_fnuz_t, 8>::type;
+using bf8x16_fnuz_t = typename vector_type<bf8_fnuz_t, 16>::type;
+using bf8x32_fnuz_t = typename vector_type<bf8_fnuz_t, 32>::type;
+using bf8x64_fnuz_t = typename vector_type<bf8_fnuz_t, 64>::type;
+
+// f8
+using f8x2_ocp_t  = typename vector_type<f8_ocp_t::type, 2>::type;
+using f8x4_ocp_t  = typename vector_type<f8_ocp_t::type, 4>::type;
+using f8x8_ocp_t  = typename vector_type<f8_ocp_t::type, 8>::type;
+using f8x16_ocp_t = typename vector_type<f8_ocp_t::type, 16>::type;
+using f8x32_ocp_t = typename vector_type<f8_ocp_t::type, 32>::type;
+using f8x64_ocp_t = typename vector_type<f8_ocp_t::type, 64>::type;
+
+// bf8
+using bf8x2_ocp_t  = typename vector_type<bf8_ocp_t::type, 2>::type;
+using bf8x4_ocp_t  = typename vector_type<bf8_ocp_t::type, 4>::type;
+using bf8x8_ocp_t  = typename vector_type<bf8_ocp_t::type, 8>::type;
+using bf8x16_ocp_t = typename vector_type<bf8_ocp_t::type, 16>::type;
+using bf8x32_ocp_t = typename vector_type<bf8_ocp_t::type, 32>::type;
+using bf8x64_ocp_t = typename vector_type<bf8_ocp_t::type, 64>::type;
+
+#if CK_FP8_TYPE_OCP
+// f8
+using f8x2_t  = f8x2_ocp_t;
+using f8x4_t  = f8x4_ocp_t;
+using f8x8_t  = f8x8_ocp_t;
+using f8x16_t = f8x16_ocp_t;
+using f8x32_t = f8x32_ocp_t;
+using f8x64_t = f8x64_ocp_t;
+
+// bf8
+using bf8x2_t  = bf8x2_ocp_t;
+using bf8x4_t  = bf8x4_ocp_t;
+using bf8x8_t  = bf8x8_ocp_t;
+using bf8x16_t = bf8x16_ocp_t;
+using bf8x32_t = bf8x32_ocp_t;
+using bf8x64_t = bf8x64_ocp_t;
+#elif CK_FP8_TYPE_FNUZ
+// f8
+using f8x2_t  = f8x2_fnuz_t;
+using f8x4_t  = f8x4_fnuz_t;
+using f8x8_t  = f8x8_fnuz_t;
+using f8x16_t = f8x16_fnuz_t;
+using f8x32_t = f8x32_fnuz_t;
+using f8x64_t = f8x64_fnuz_t;
+
+// bf8
+using bf8x2_t  = bf8x2_fnuz_t;
+using bf8x4_t  = bf8x4_fnuz_t;
+using bf8x8_t  = bf8x8_fnuz_t;
+using bf8x16_t = bf8x16_fnuz_t;
+using bf8x32_t = bf8x32_fnuz_t;
+using bf8x64_t = bf8x64_fnuz_t;
+#endif
+
 // u8
 // i8
 using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
@@ -1107,7 +1210,7 @@ struct NumericLimits<int4_t>
 #endif // CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 
 template <>
-struct NumericLimits<f8_t>
+struct NumericLimits<f8_fnuz_t>
 {
     // negative zero nan mode with exp bias = 8
     static constexpr uint8_t binary_min    = 0x08; // 0b00001000
@@ -1120,17 +1223,17 @@ struct NumericLimits<f8_t>
     // static constexpr uint8_t binary_lowest = 0xF7; // 0b11110111
     // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=0
 
-    __host__ __device__ static constexpr f8_t Min() { return f8_t(binary_min); }
+    __host__ __device__ static constexpr f8_fnuz_t Min() { return f8_fnuz_t(binary_min); }
 
-    __host__ __device__ static constexpr f8_t Max() { return f8_t(binary_max); }
+    __host__ __device__ static constexpr f8_fnuz_t Max() { return f8_fnuz_t(binary_max); }
 
-    __host__ __device__ static constexpr f8_t Lowest() { return f8_t(binary_lowest); }
+    __host__ __device__ static constexpr f8_fnuz_t Lowest() { return f8_fnuz_t(binary_lowest); }
 
-    __host__ __device__ static constexpr f8_t QuietNaN() { return f8_t(binary_qnan); }
+    __host__ __device__ static constexpr f8_fnuz_t QuietNaN() { return f8_fnuz_t(binary_qnan); }
 };
 
 template <>
-struct NumericLimits<bf8_t>
+struct NumericLimits<bf8_fnuz_t>
 {
     // negative zero nan mode with exp bias = 16
     static constexpr uint8_t binary_min    = 0x04; // 0b00000100
@@ -1143,13 +1246,59 @@ struct NumericLimits<bf8_t>
     // static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011
     // static constexpr uint8_t binary_qnan   = 0x79; // any sign, exp=1111, mant!=
 
-    __host__ __device__ static constexpr bf8_t Min() { return bf8_t(binary_min); }
+    __host__ __device__ static constexpr bf8_fnuz_t Min() { return bf8_fnuz_t(binary_min); }
 
-    __host__ __device__ static constexpr bf8_t Max() { return bf8_t(binary_max); }
+    __host__ __device__ static constexpr bf8_fnuz_t Max() { return bf8_fnuz_t(binary_max); }
 
-    __host__ __device__ static constexpr bf8_t Lowest() { return bf8_t(binary_lowest); }
+    __host__ __device__ static constexpr bf8_fnuz_t Lowest() { return bf8_fnuz_t(binary_lowest); }
 
-    __host__ __device__ static constexpr bf8_t QuietNaN() { return bf8_t(binary_qnan); }
+    __host__ __device__ static constexpr bf8_fnuz_t QuietNaN() { return bf8_fnuz_t(binary_qnan); }
+};
+
+template <>
+struct NumericLimits<f8_ocp_t>
+{
+    static constexpr uint8_t binary_min    = 0x08; // 0b00001000 = 2^-6
+    static constexpr uint8_t binary_max    = 0x7E; // 0b01111110 = 448
+    static constexpr uint8_t binary_lowest = 0xFE; // 0b11111110 = -448
+    static constexpr uint8_t binary_qnan   = 0x7F; // 0b01111111
+
+    __host__ __device__ static constexpr f8_ocp_t Min() { return bit_cast<f8_ocp_t>(binary_min); }
+
+    __host__ __device__ static constexpr f8_ocp_t Max() { return bit_cast<f8_ocp_t>(binary_max); }
+
+    __host__ __device__ static constexpr f8_ocp_t Lowest()
+    {
+        return bit_cast<f8_ocp_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr f8_ocp_t QuietNaN()
+    {
+        return bit_cast<f8_ocp_t>(binary_qnan);
+    }
+};
+
+template <>
+struct NumericLimits<bf8_ocp_t>
+{
+    static constexpr uint8_t binary_min    = 0x04; // 0b00000100 = 2^-14
+    static constexpr uint8_t binary_max    = 0x7B; // 0b01111011 = 57344
+    static constexpr uint8_t binary_lowest = 0xFB; // 0b11111011 = -57344
+    static constexpr uint8_t binary_qnan   = 0x7D; // 0b01111101
+
+    __host__ __device__ static constexpr bf8_ocp_t Min() { return bit_cast<bf8_ocp_t>(binary_min); }
+
+    __host__ __device__ static constexpr bf8_ocp_t Max() { return bit_cast<bf8_ocp_t>(binary_max); }
+
+    __host__ __device__ static constexpr bf8_ocp_t Lowest()
+    {
+        return bit_cast<bf8_ocp_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr bf8_ocp_t QuietNaN()
+    {
+        return bit_cast<bf8_ocp_t>(binary_qnan);
+    }
 };
 
 template <typename T>
@@ -1192,7 +1341,7 @@ struct NumericUtils<half_t>
 };
 
 template <>
-struct NumericUtils<f8_t>
+struct NumericUtils<f8_fnuz_t>
 {
     static constexpr int exp  = 4;
     static constexpr int mant = 3;
@@ -1201,11 +1350,27 @@ struct NumericUtils<f8_t>
 };
 
 template <>
-struct NumericUtils<bf8_t>
+struct NumericUtils<bf8_fnuz_t>
 {
     static constexpr int exp  = 5;
     static constexpr int mant = 2;
     static constexpr int bias = 16; // negative zero nan mode
     // static constexpr int bias = 15; // ieee mode
 };
+template <>
+struct NumericUtils<f8_ocp_t>
+{
+    static constexpr int exp  = 4;
+    static constexpr int mant = 3;
+    static constexpr int bias = 7;
+};
+
+template <>
+struct NumericUtils<bf8_ocp_t>
+{
+    static constexpr int exp  = 5;
+    static constexpr int mant = 2;
+    static constexpr int bias = 15;
+};
+
 } // namespace ck
