@@ -96,7 +96,7 @@ void reference_scale_permute_amax(Tensor<InputDataType>& input,
 {
     ScalePassThrough out_element_op(scale);
     const ck::index_t M = input.GetLengths()[0];
-    const ck::index_t K = input.GetLengths()[0];
+    const ck::index_t K = input.GetLengths()[1];
     for(ck::index_t m = 0; m < M; m++)
     {
         for(ck::index_t k = 0; k < K; k++)
@@ -105,7 +105,7 @@ void reference_scale_permute_amax(Tensor<InputDataType>& input,
             out_element_op(y0, y1, input(m, k));
 
             host_output_scaled_casted(m, k)            = y0;
-            host_output_scaled_casted_transposed(k, m) = y1;
+            host_output_scaled_casted_transposed(m, k) = y1;
             const OutputDataType y_fabs =
                 ck::type_convert<OutputDataType>(ck::math::abs(ck::type_convert<float>(y0)));
             host_output_amax(0) = ck::math::max(y_fabs, host_output_amax(0));
@@ -113,20 +113,29 @@ void reference_scale_permute_amax(Tensor<InputDataType>& input,
     }
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = true;
 
     const float scale = 2.f;
 
-    std::array<ck::index_t, 2> dims        = {1024, 1024};
-    std::array<ck::index_t, 2> in_strides  = {1024, 1};
-    std::array<ck::index_t, 2> out_strides = {1, 1024};
+    ck::index_t M = 1024;
+    ck::index_t K = 1024;
+
+    if(argc == 3)
+    {
+        M = std::stoi(argv[1]);
+        K = std::stoi(argv[2]);
+    }
+
+    std::array<ck::index_t, 2> dims        = {M, K};
+    std::array<ck::index_t, 2> in_strides  = {K, 1};
+    std::array<ck::index_t, 2> out_strides = {1, M};
 
     Tensor<InputDataType> input(dims, in_strides);
-    Tensor<OutputDataType> output_scaled_casted_transposed(dims);
-    Tensor<OutputDataType> output_scaled_casted(dims);
+    Tensor<OutputDataType> output_scaled_casted_transposed(dims, out_strides);
+    Tensor<OutputDataType> output_scaled_casted(dims, in_strides);
     Tensor<OutputDataType> output_amax({1});
 
     input.GenerateTensorValue(GeneratorTensor_3<InputDataType>{0.0, 1.0});
@@ -205,8 +214,8 @@ int main()
 
     if(do_verification)
     {
-        Tensor<OutputDataType> host_output_scaled_casted_transposed(dims);
-        Tensor<OutputDataType> host_output_scaled_casted(dims);
+        Tensor<OutputDataType> host_output_scaled_casted_transposed(dims, out_strides);
+        Tensor<OutputDataType> host_output_scaled_casted(dims, in_strides);
         Tensor<OutputDataType> host_output_amax({1});
 
         reference_scale_permute_amax(input,
