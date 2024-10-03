@@ -315,7 +315,7 @@ struct ThreadwiseTensorSliceTransfer_v5r1
                 forward_sweep_(I0) = true;
 
                 static_for<1, nDim, 1>{}([&](auto i) {
-                    index_t tmp = ordered_dst_access_idx[I0];
+                    index_t tmp = 0;
 
                     static_for<0, i, 1>{}([&](auto j) {
                         tmp = tmp * ordered_dst_access_lengths[j] + ordered_dst_access_idx[j];
