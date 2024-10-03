@@ -23,6 +23,40 @@
 namespace ck {
 namespace utils {
 
+template <typename ComputeDataType>
+double get_relative_threshold()
+{
+    using F8   = ck::f8_t;
+    using F16  = ck::half_t;
+    using BF16 = ck::bhalf_t;
+    using F32  = float;
+
+    int mantissa = 0;
+    if constexpr(is_same_v<ComputeDataType, F8>)
+    {
+        mantissa = NumericUtils<F8>::mant;
+    }
+    else if constexpr(is_same_v<ComputeDataType, F16>)
+    {
+        mantissa = NumericUtils<F16>::mant;
+    }
+    else if constexpr(is_same_v<ComputeDataType, BF16>)
+    {
+        mantissa = NumericUtils<BF16>::mant;
+    }
+    else if constexpr(is_same_v<ComputeDataType, F32>)
+    {
+        mantissa = NumericUtils<F32>::mant;
+    }
+    else
+    {
+        std::cout << "Warning: Unhandled ComputeDataType for setting up the relative threshold!"
+                  << std::endl;
+    }
+
+    return std::pow(2, -mantissa) * 0.5;
+}
+
 template <typename Range, typename RefRange>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
@@ -253,11 +287,35 @@ check_err(const Range& out,
     int err_count  = 0;
     double err     = 0;
     double max_err = std::numeric_limits<float>::min();
+    double err_acc = 0;
+
+    std::cout << "ref size: " << ref.size() << '\n';
+    std::cout << "f8_t exp value: " << NumericUtils<f8_t>::exp << '\n';
+    std::cout << "f8_t mantissa bits: " << NumericUtils<f8_t>::mant << std::endl;
+
+    // cout sizeof - digits (that is mantissa bits) = exponent bits
+    // std::cout << "int8_t exp value: " << std::numeric_limits<int8_t>::max_exponent << '\n';
+    // std::cout << "int8_t mantissa bits: " << std::numeric_limits<int8_t>::digits << std::endl;
+
     for(std::size_t i = 0; i < ref.size(); ++i)
     {
         const double o = type_convert<float>(*std::next(std::begin(out), i));
         const double r = type_convert<float>(*std::next(std::begin(ref), i));
         err            = std::abs(o - r);
+        err_acc += err;
+
+        // atol = err_acc * 2. * (NumericUtils<f8_t>::exp - NumericUtils<f8_t>::mant);
+        // rtol = err_acc * std::pow(2., -NumericUtils<f8_t>::mant);
+
+        if(i % (ref.size() / 10) == 0)
+        {
+            std::cout << "current error at [" << i << "]: " << err << '\n';
+            std::cout << "err acc [" << i << "]: " << err_acc << '\n';
+            std::cout << "abs(r): " << std::abs(r) << '\n';
+            std::cout << "atol: " << atol << '\n';
+            std::cout << "rtol: " << rtol << std::endl;
+        }
+
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
@@ -270,6 +328,7 @@ check_err(const Range& out,
             res = false;
         }
     }
+    std::cout << "f8_t err_acc: " << err_acc << std::endl;
     if(!res)
     {
         std::cerr << std::setw(12) << std::setprecision(7) << "max err: " << max_err
