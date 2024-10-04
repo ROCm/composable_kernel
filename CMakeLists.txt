@@ -569,7 +569,9 @@ if(NOT DEFINED INSTANCES_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   add_subdirectory(test)
+   if(BUILD_TESTING)
+	   add_subdirectory(test)
+   endif()
 
    rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
