@@ -6,7 +6,7 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 ```
 # in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
+bash ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
 make tile_example_fmha_fwd -j
 ```
 This will result in an executable `build/bin/tile_example_fmha_fwd`
@@ -26,50 +26,63 @@ To speed up compile time, we instantiate the kernels into separate file. In this
 `tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all supported args. Below is an example of the output (may subject to change)
 ```
 args:
-          -v    weather do CPU validation or not (default:1)
-       -mode    kernel mode. 0:batch, 1:group (default:0)
-          -b    batch size (default:2)
-          -h    num of head, for q (default:8)
-        -h_k    num of head, for k/v, -1 means equal to h (default:-1)
-                 if not equal to h, then this is GQA/MQA case
-          -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
-                 total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
-                 also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
-        -s_k    seqlen_k, -1 means equal to s (default:-1)
-          -d    head dim for q, k (default:128)
-        -d_v    head dim for v, -1 means equal to d (default:-1)
-    -scale_s    scale factor of S. 0 means equal to 1/sqrt(hdim). (default:0)
-                 note when squant=1, this value will be modified by range_q/k
-    -range_q    per-tensor quantization range of q. used if squant=1. (default:16)
-    -range_k    per-tensor quantization range of k. used if squant=1. (default:16)
-    -range_v    per-tensor quantization range of v. used if squant=1. (default:16)
-    -range_p    per-tensor quantization range of p [e^(s-m)]. used if squant=1. (default:1)
-    -range_o    per-tensor quantization range of o (p*v). used if squant=1. (default:16)
-     -squant    if using static quantization fusion or not. auto: fp8 will default use squant, other will not (default:auto)
-                 0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to P and O.
-                 calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, range_p, range_o
-      -iperm    permute input (default:1)
-                 if true, will be b*h*s*d, else b*s*h*d
-      -operm    permute output (default:1)
-       -bias    n or 0, no bias (default:n)
-                 e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s
-                 a(libi) or 2, alibi with 1*h. a:1, b*h
-       -prec    data type. fp16/bf16/fp8/bf8 (default:fp16)
-       -mask    0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b') (default:0)
-                 't', top-left causal mask, 'b', bottom-r causal mask
-                 't:l,r', top-left sliding window attn(swa) with FA style left right size
-                 'b:l,r', bottom-r sliding window attn(swa) with FA style left right size
-                 'xt:window_size', xformer style masking from top-left, window_size negative is causal, positive is swa
-                 'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, positive is swa
-                 'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for now)
-    -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
-        -lse    0 not store lse, 1 store lse (default:0)
-      -kname    if set to 1 will print kernel name (default:0)
-       -init    init method. ui, uniform random int, ni, normalized random int (default:uf)
-                 uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, quantization
-       -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
-     -warmup    number of iterations before benchmark the kernel (default:5)
-     -repeat    number of iterations to benchmark the kernel (default:20)
+                 -v    weather do CPU validation or not (default:1)
+              -mode    kernel mode. 0:batch, 1:group (default:0)
+                 -b    batch size (default:2)
+                 -h    num of head, for q (default:8)
+               -h_k    num of head, for k/v, -1 means equal to h (default:-1)
+                       if not equal to h, then this is GQA/MQA case
+                 -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
+                       total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
+                       also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
+               -s_k    seqlen_k (including new key/value), -1 means equal to s (default:-1)
+            -s_knew    seqlen_k for new key/value, 0 means not to use this at all; -1 to choose s_knew in [1, s] randomly. (default:0)
+            -s_kpad    seqlen_k stride between 2 tokens, currently used in group-mode only (default:-1)
+                       for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride
+                       along seqlen, instead of packed. same as xformer kv_padding
+                 -d    head dim for q, k (default:128)
+               -d_v    head dim for v, -1 means equal to d (default:-1)
+           -scale_s    scale factor of S. 0 means equal to 1/sqrt(hdim). (default:0)
+                       note when squant=1, this value will be modified by range_q/k
+           -range_q    per-tensor quantization range of q. used if squant=1. (default:16)
+           -range_k    per-tensor quantization range of k. used if squant=1. (default:16)
+           -range_v    per-tensor quantization range of v. used if squant=1. (default:16)
+           -range_p    per-tensor quantization range of p [e^(s-m)]. used if squant=1. (default:1)
+           -range_o    per-tensor quantization range of o (p*v). used if squant=1. (default:16)
+            -squant    if using static quantization fusion or not. auto: fp8 will default use squant, other will not (default:auto)
+                       0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to P and O.
+                       calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, range_p, range_o
+             -iperm    permute input (default:1)
+                       if true, will be b*h*s*d, else b*s*h*d
+             -operm    permute output (default:1)
+              -bias    n or 0, no bias (default:n)
+                       e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s
+                       a(libi) or 2, alibi with 1*h. a:1, b*h
+              -prec    data type. fp16/bf16/fp8/bf8 (default:fp16)
+              -mask    0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b') (default:0)
+                       't', top-left causal mask, 'b', bottom-r causal mask
+                       't:l,r', top-left sliding window attn(swa) with FA style left right size
+                       'b:l,r', bottom-r sliding window attn(swa) with FA style left right size
+                       'xt:window_size', xformer style masking from top-left, window_size negative is causal, positive is swa
+                       'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, positive is swa
+                       'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for now)
+           -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
+               -lse    0 not store lse, 1 store lse (default:0)
+             -kname    if set to 1 will print kernel name (default:0)
+              -init    init method. ui, uniform random int, ni, normalized random int (default:uf)
+                       uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, quantization
+              -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
+            -p_drop    0~1 probability of dropout (default:0)
+         -drop_seed    seed for random number generator (default:1)
+       -drop_offset    offset for random number generator (default:0)
+             -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
+        -rotary_dim    RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all (default:0)
+-rotary_interleaved    whether to apply interleaved RoPE (default:1)
+        -num_splits    # of splits for key/value. 0 to determine actual number by heuristic (default:1)
+   -page_block_size    paged-kvcache block size. 0 means not use paged-kvcahe (default:0)
+   -cache_batch_idx    whether to use index map to the kvcache (default:0)
+            -warmup    number of iterations before benchmark the kernel (default:5)
+            -repeat    number of iterations to benchmark the kernel (default:20)
 ```
 Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 
