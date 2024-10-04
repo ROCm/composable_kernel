@@ -345,7 +345,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 const index_t N = gemm_descs[i].N_;
                 const index_t K = gemm_descs[i].K_;
 
-                if(M * N * K == 0)
+                if(M == 0 || N == 0 || K == 0)
                 {
                     skipped_group_count_++;
                     continue;
