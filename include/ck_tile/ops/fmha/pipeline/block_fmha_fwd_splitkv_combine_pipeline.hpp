@@ -107,7 +107,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                const LSEElementFunction& lse_element_func,
                const OaccElementFunction& o_acc_element_func,
                index_t num_splits,
-               index_t max_seqlen_q,
+               index_t seqlen_q,
                void* smem_ptr) const
     {
         // lse_acc tile in LDS
@@ -261,7 +261,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto o_acc = make_static_distributed_tensor<OaccDataType>(o_acc_dist);
         clear_tile(o_acc);
 
-        const index_t padded_max_seqlen_q = integer_divide_ceil(max_seqlen_q, kM0) * kM0;
+        const index_t padded_seqlen_q = integer_divide_ceil(seqlen_q, kM0) * kM0;
 
         for(index_t i_split = 0; i_split < num_splits; ++i_split)
         {
@@ -282,7 +282,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                 });
             }
 
-            move_tile_window(o_acc_dram_window, {padded_max_seqlen_q, 0});
+            move_tile_window(o_acc_dram_window, {padded_seqlen_q, 0});
         }
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
@@ -297,7 +297,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                                         const OaccDramBlockWindow& o_acc_dram_block_window,
                                         LSEDramBlockWindow& lse_dram_block_window,
                                         index_t num_splits,
-                                        index_t max_seqlen_q,
+                                        index_t seqlen_q,
                                         void* smem_ptr) const
     {
         return operator()(lse_acc_dram_block_window,
@@ -306,7 +306,7 @@ struct BlockFmhaFwdSplitKVCombinePipeline
                           identity{},
                           identity{},
                           num_splits,
-                          max_seqlen_q,
+                          seqlen_q,
                           smem_ptr);
     }
 };

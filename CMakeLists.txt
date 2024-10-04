@@ -552,7 +552,9 @@ if(NOT GPU_ARCHS)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   add_subdirectory(test)
+   if(BUILD_TESTING)
+	   add_subdirectory(test)
+   endif()
 endif()
 
 rocm_package_setup_component(profiler
