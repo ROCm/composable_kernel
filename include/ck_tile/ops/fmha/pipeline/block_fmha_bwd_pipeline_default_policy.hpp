@@ -1758,7 +1758,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<0>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<0>()
         {
             // Mem: Q, LSE, OGrad, D global load, OGrad^T LDS load
             // Comp: Q x K
@@ -1790,7 +1790,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<1>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<1>()
         {
             // Mem:  Q^T LDS load
             // Comp: OGrad x V
@@ -1808,7 +1808,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<2>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<2>()
         {
             // Mem: Q, QT, LSE, OGrad, OGradT, D, LDS store
             // Comp: PT x OGrad
@@ -1827,7 +1827,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<3>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<3>()
         {
             // Mem: SGradT LDS store, SGrad, Q, LSE LDS load.
             // Comp: SGradT x QT
@@ -1861,7 +1861,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         template <>
-        CK_TILE_DEVICE static constexpr void GemmStagedScheduler<4>()
+        CK_TILE_DEVICE constexpr void GemmStagedScheduler<4>()
         {
             // Mem: SGrad, OGrad, D LDS load.
             // Comp: SGrad x KT

@@ -28,6 +28,8 @@ def parse_layouts(args):
        args.in_layout == "NCDHW":
         if args.ck_profier_op == "grouped_conv_bwd_weight":
             args.layout = 3
+        elif args.ck_profier_op == "grouped_conv_fwd":
+            args.layout = 2
         else:
             print('Not supported layout for this op')
             exit(1)
