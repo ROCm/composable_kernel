@@ -75,6 +75,7 @@ args:
             -p_drop    0~1 probability of dropout (default:0)
          -drop_seed    seed for random number generator (default:1)
        -drop_offset    offset for random number generator (default:0)
+        -drop_prefs    seed and offset values are present on GPU; 0 - host, 1 - device/GPU (default:0)
              -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
         -rotary_dim    RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all (default:0)
 -rotary_interleaved    whether to apply interleaved RoPE (default:1)
@@ -82,9 +83,11 @@ args:
    -page_block_size    paged-kvcache block size. 0 means not use paged-kvcahe (default:0)
    -cache_batch_idx    whether to use index map to the kvcache (default:0)
             -warmup    number of iterations before benchmark the kernel (default:5)
-            -repeat    number of iterations to benchmark the kernel (default:20)
+            -repeat    number of iterations to benchmark the kernel (default:20)jj
 ```
-Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
+Example 1: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
+Example 2: `./bin/tile_example_fmha_fwd -b=1 -h=8 -s=16384 -d=64 -drop_prefs=1 -drop_seed=10 -drop_offset=1234` will run a fmha case with 
+  batch=1, nhead=8, sequence length=16384, hdim=64, drop_seed=0 (in GPU memory), drop_offset=1234 (in GPU memory) fp16 case
 
 ## support features
 Currently we are still in rapid development stage, so more features/optimizations will be coming soon.
