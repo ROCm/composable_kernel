@@ -279,11 +279,8 @@ int main(int argc, char* argv[])
     using CodegenGemmTraits = ck_tile::
         TileGemmTraits<kPadA, kPadB, kPadC, matrix_a_layout, matrix_b_layout, matrix_c_layout>;
 
-    using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
-                                                                     BDataType,
-                                                                     AccDataType,
-                                                                     CodegenGemmShape,
-                                                                     CodegenGemmTraits>;
+    using CodegenPipelineProblem = ck_tile::
+        GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
 
     using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
