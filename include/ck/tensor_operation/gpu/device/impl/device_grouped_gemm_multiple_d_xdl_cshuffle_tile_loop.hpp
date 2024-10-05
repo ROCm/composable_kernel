@@ -109,7 +109,7 @@ __global__ void
             N = gemm_desc_ptr[group_id].N;
             K = gemm_desc_ptr[group_id].K;
 
-            if(M * N * K == 0)
+            if(M == 0 || N == 0 || K == 0)
             {
                 grid_size_grp = 0;
                 continue;
