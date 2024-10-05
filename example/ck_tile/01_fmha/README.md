@@ -24,7 +24,7 @@ There are 3 template parameters for this kernel template.
 To speed up compile time, we instantiate the kernels into separate file. In this way we can benefit from parallel building from CMake/Make system. This is achieved by `generate.py` script. Besides, you can look into this script to learn how to instantiate a kernel instance step by step, which is described in `FMHA_FWD_KERNEL_BODY` variable.
 
 ## executable
-`tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all supported args. Below is an example of the output (may subject to change)
+`tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all the arguments. Below is an example of the output (may subject to change)
 ```
 args:
                  -v    weather do CPU validation or not (default:1)
@@ -37,10 +37,6 @@ args:
                        total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
                        also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
                -s_k    seqlen_k (including new key/value), -1 means equal to s (default:-1)
-            -s_knew    seqlen_k for new key/value, 0 means not to use this at all; -1 to choose s_knew in [1, s] randomly. (default:0)
-            -s_kpad    seqlen_k stride between 2 tokens, currently used in group-mode only (default:-1)
-                       for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride
-                       along seqlen, instead of packed. same as xformer kv_padding
                  -d    head dim for q, k (default:128)
                -d_v    head dim for v, -1 means equal to d (default:-1)
            -scale_s    scale factor of S. 0 means equal to 1/sqrt(hdim). (default:0)
@@ -73,18 +69,8 @@ args:
               -init    init method. ui, uniform random int, ni, normalized random int (default:uf)
                        uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, quantization
               -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
-            -p_drop    0~1 probability of dropout (default:0)
-         -drop_seed    seed for random number generator (default:1)
-       -drop_offset    offset for random number generator (default:0)
-        -drop_prefs    seed and offset values are present on GPU; 0 - host, 1 - device/GPU (default:0)
-             -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
-        -rotary_dim    RoPE rotary dimension. rotary_dim <= 0 means not apply RoPE at all (default:0)
--rotary_interleaved    whether to apply interleaved RoPE (default:1)
-        -num_splits    # of splits for key/value. 0 to determine actual number by heuristic (default:1)
-   -page_block_size    paged-kvcache block size. 0 means not use paged-kvcahe (default:0)
-   -cache_batch_idx    whether to use index map to the kvcache (default:0)
             -warmup    number of iterations before benchmark the kernel (default:5)
-            -repeat    number of iterations to benchmark the kernel (default:20)jj
+            -repeat    number of iterations to benchmark the kernel (default:20)
 ```
 Example 1: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 Example 2: `./bin/tile_example_fmha_fwd -b=1 -h=8 -s=16384 -d=64 -drop_prefs=1 -drop_seed=10 -drop_offset=1234` will run a fmha case with 
