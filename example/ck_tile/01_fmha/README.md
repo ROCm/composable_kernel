@@ -7,7 +7,7 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 # in the root of ck_tile
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-bash ../script/cmake-ck-dev.sh  ../ <arch>
+sh ../script/cmake-ck-dev.sh  ../ <arch>
 make tile_example_fmha_fwd -j
 ```
 This will result in an executable `build/bin/tile_example_fmha_fwd`
