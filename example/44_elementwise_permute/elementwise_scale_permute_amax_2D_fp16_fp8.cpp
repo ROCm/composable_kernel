@@ -79,9 +79,9 @@ using DeviceReduceInstance =
                                                          PropagateNan,
                                                          OutputIndex,
                                                          false, // HaveIndexInputIfOutputIndex
-                                                         256,   // BlockSize
-                                                         4,     // MThreadClusterSize
-                                                         64,    // KThreadClusterSize
+                                                         1024,  // BlockSize
+                                                         1,     // MThreadClusterSize
+                                                         1024,  // KThreadClusterSize
                                                          1,     // MThreadSliceSize
                                                          16,    // KThreadSliceSize
                                                          1,     // InSrcVectorDim
