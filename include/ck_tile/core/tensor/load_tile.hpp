@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,15 @@ CK_TILE_DEVICE auto load_tile(const tile_window_with_static_distribution<BottomT
     return tile_window.load(bool_constant<oob_conditional_check>{});
 }
 
+/**
+ * @brief Loads a tile of data using inline assembly.
+ *
+ * @note Bare in mind that loading data this way, you have to manually initialize your
+ *       thread buffer and synchronize load afterwards in order to make sure it's done before
+ *       using loaded data from registers
+ *       @see `tile_window_with_static_distribution::init_raw()` and `buffer_view.hpp`
+ *       @see  `buffer_load_fence()`
+ */
 template <typename T,
           typename BottomTensorView_,
           typename WindowLengths_,

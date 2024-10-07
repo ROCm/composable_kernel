@@ -121,7 +121,7 @@ struct GemmKernel
             sequence < false,
             GemmPipeline::kPadA ? true : false > {});
 
-        auto ABlockWindow = make_tile_window(
+        auto a_block_window = make_tile_window(
             a_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
             {i_m, 0});
@@ -132,7 +132,7 @@ struct GemmKernel
             sequence < false,
             GemmPipeline::kPadB ? true : false > {});
 
-        auto BBlockWindow = make_tile_window(
+        auto b_block_window = make_tile_window(
             b_pad_view,
             make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
             {i_n, 0});
@@ -141,14 +141,12 @@ struct GemmKernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         const index_t num_loop = TilePartitioner::GetLoopNum(kargs.K);
-        auto c_block_tile =
-            GemmPipeline{}.template operator()(ABlockWindow, BBlockWindow, num_loop, smem_ptr);
 
-        {
-        }
+        // Run GEMM cooperatively by whole wokrgroup.
+        auto c_block_tile =
+            GemmPipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr);
 
         CDataType* c_start = static_cast<CDataType*>(kargs.c_ptr);
-
         auto c_tensor_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
@@ -179,6 +177,7 @@ struct GemmKernel
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
+
         EpiloguePipeline{}(CBlockWindow, c_block_tile);
     }
 };
