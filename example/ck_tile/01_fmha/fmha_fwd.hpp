@@ -13,6 +13,8 @@
 #include "rotary.hpp"
 
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 template <typename DataType>
 struct FmhaFwdTypeConfig;
@@ -144,7 +146,9 @@ struct fmha_fwd_args
 
     float p_drop;
     bool s_randval;
-    std::tuple<uint64_t, uint64_t> drop_seed_offset;
+
+    std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+        drop_seed_offset;
 };
 
 struct fmha_fwd_splitkv_args
