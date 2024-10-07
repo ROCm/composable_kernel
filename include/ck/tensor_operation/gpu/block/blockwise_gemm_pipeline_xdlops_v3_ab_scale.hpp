@@ -427,7 +427,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                                 typename vector_type<ComputeDataType,
                                                      xdlops_gemm.K1PerXdlops>::type;
 
-                            xdlops_gemm.template Run(
+                            xdlops_gemm.template Run<>(
                                 a_thread_vec.template AsType<mfma_input_type>(),
                                 b_thread_vec.template AsType<mfma_input_type>(),
                                 c_thread_buf_per_scale.GetVectorTypeReference(I0));
@@ -504,9 +504,10 @@ struct BlockwiseGemmXdlops_pipeline_v3_ab_scale<BlockGemmPipelineScheduler::Intr
                         using mfma_input_type =
                             typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
 
-                        xdlops_gemm.template Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                                 b_thread_vec.template AsType<mfma_input_type>(),
-                                                 c_thread_buf_per_scale.GetVectorTypeReference(I0));
+                        xdlops_gemm.template Run<>(
+                            a_thread_vec.template AsType<mfma_input_type>(),
+                            b_thread_vec.template AsType<mfma_input_type>(),
+                            c_thread_buf_per_scale.GetVectorTypeReference(I0));
                     });
                     static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
                         constexpr index_t c_offset =
