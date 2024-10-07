@@ -415,7 +415,7 @@ struct WmmaSelector
     static constexpr auto GetWmma();
 
     template <>
-    static constexpr auto GetWmma<half_t, half_t, float, 16, 16>()
+    constexpr auto GetWmma<half_t, half_t, float, 16, 16>()
     {
 #ifdef __gfx12__
         return WmmaInstr::wmma_f32_16x16x16_f16_gfx12;
@@ -425,7 +425,7 @@ struct WmmaSelector
     }
 
     template <>
-    static constexpr auto GetWmma<bhalf_t, bhalf_t, float, 16, 16>()
+    constexpr auto GetWmma<bhalf_t, bhalf_t, float, 16, 16>()
     {
 #ifdef __gfx12__
         return WmmaInstr::wmma_f32_16x16x16_bf16_gfx12;
@@ -435,19 +435,19 @@ struct WmmaSelector
     }
 
     template <>
-    static constexpr auto GetWmma<half_t, half_t, half_t, 16, 16>()
+    constexpr auto GetWmma<half_t, half_t, half_t, 16, 16>()
     {
         return WmmaInstr::wmma_f16_16x16x16_f16;
     }
 
     template <>
-    static constexpr auto GetWmma<bhalf_t, bhalf_t, bhalf_t, 16, 16>()
+    constexpr auto GetWmma<bhalf_t, bhalf_t, bhalf_t, 16, 16>()
     {
         return WmmaInstr::wmma_bf16_16x16x16_bf16;
     }
 
     template <>
-    static constexpr auto GetWmma<int8_t, int8_t, int, 16, 16>()
+    constexpr auto GetWmma<int8_t, int8_t, int, 16, 16>()
     {
 #ifdef __gfx12__
         return WmmaInstr::wmma_i32_16x16x16_iu8_gfx12;
@@ -458,7 +458,7 @@ struct WmmaSelector
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
     template <>
-    static constexpr auto GetWmma<int4_t, int4_t, int, 16, 16>()
+    constexpr auto GetWmma<int4_t, int4_t, int, 16, 16>()
     {
         return WmmaInstr::wmma_i32_16x16x16_iu4;
     }
