@@ -20,12 +20,12 @@ struct FmhaFwdSplitKVTilePartitioner
 
     __host__ static constexpr auto GridSize(ck_tile::index_t batch_size,
                                             ck_tile::index_t nhead,
-                                            ck_tile::index_t seqlen_q,
+                                            ck_tile::index_t max_seqlen_q,
                                             ck_tile::index_t hdim_v,
                                             ck_tile::index_t num_splits)
     {
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(seqlen_q, kM0) *
+        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, kM0) *
                         ck_tile::integer_divide_ceil(hdim_v, kN1),
                     nhead * num_splits,
                     batch_size);
