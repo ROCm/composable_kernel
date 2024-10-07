@@ -328,15 +328,18 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "Perf: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << gemm.GetTypeString() << std::endl;
 
-    // CPU verification
-    if(config.do_verification == 1)
+    bool pass = true;
+
+    if(config.do_verification)
     {
+        // CPU verification
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
             a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
 
+        std::cout << "Running verification on CPU." << std::endl;
         ref_invoker.Run(ref_argument);
 
 #ifdef BUILD_INT4_EXAMPLE
@@ -350,17 +353,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result,
-                                    c_m_n_host_result,
-                                    "Error: Incorrect results!",
-                                    get_rtol<CDataType>(),
-                                    get_atol<CDataType>());
+        pass &= !ck::utils::check_err(c_m_n_device_result,
+                                      c_m_n_host_result,
+                                      "Error: Incorrect results!",
+                                      get_rtol<CDataType>(),
+                                      get_atol<CDataType>());
 #endif
-    }
 
-    // GPU verification
-    if(config.do_verification == 2)
-    {
+        // GPU verification
         auto ref_gemm_gpu    = ReferenceGemmInstanceGPU{};
         auto ref_invoker_gpu = ref_gemm_gpu.MakeInvoker();
 
@@ -375,19 +375,20 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
             b_element_op,
             c_element_op);
 
+        std::cout << "Running verification on GPU." << std::endl;
         ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{});
 
         c_m_n_device_ref_buf.FromDevice(c_m_n_device_ref_result.mData.data());
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(c_m_n_device_result,
-                                    c_m_n_device_ref_result,
-                                    "Error: Incorrect results!",
-                                    get_rtol<CDataType>(),
-                                    get_atol<CDataType>());
+        pass &= !ck::utils::check_err(c_m_n_device_result,
+                                      c_m_n_device_ref_result,
+                                      "Error: Incorrect results!",
+                                      get_rtol<CDataType>(),
+                                      get_atol<CDataType>());
     }
 
-    return true;
+    return !pass;
 }
 
 bool run_gemm_example(int argc, char* argv[])
