@@ -45,11 +45,7 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
     endforeach()
     endif()
 
-    if(INSTANCES_ONLY)
-        set(EX_TARGETS ${DEFAULT_GPU_TARGETS})
-    else()
-        set(EX_TARGETS ${GPU_TARGETS})
-    endif()
+    set(EX_TARGETS ${SUPPORTED_GPU_TARGETS})
 
     #Do not build any DL examples if DL_KERNELS not set
     foreach(source IN LISTS FILE_NAME)
@@ -147,11 +143,8 @@ function(add_example_executable_no_testing EXAMPLE_NAME FILE_NAME)
     endforeach()
     endif()
 
-    if(INSTANCES_ONLY)
-        set(EX_TARGETS ${DEFAULT_GPU_TARGETS})
-    else()
-        set(EX_TARGETS ${GPU_TARGETS})
-    endif()
+    set(EX_TARGETS ${SUPPORTED_GPU_TARGETS})
+
     #Do not build any DL examples if DL_KERNELS not set
     foreach(source IN LISTS FILE_NAME)
         if(NOT DEFINED DL_KERNELS AND source MATCHES "_dl")

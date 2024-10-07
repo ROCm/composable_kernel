@@ -90,7 +90,12 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ```
 
     If you don't set `GPU_TARGETS` on the cmake command line, CK is built for all GPU targets
-    supported by the current compiler (this may take a long time).
+    supported by the current compiler (this may take a long time). 
+
+    NOTE: If you try setting `GPU_TARGETS` to a list of architectures, the build will only work if the 
+    architectures are similar, e.g., `gfx908;gfx90a`, or `gfx1100;gfx1101;gfx11012`. Otherwise, if you 
+    want to build the library for a list of different architectures,
+    you should use the `GPU_ARCHS` build argument, for example `GPU_ARCHS=gfx908;gfx1030;gfx1100;gfx942`.
 
 4. Build the entire CK library:
 
@@ -136,10 +141,6 @@ By default, `-j` launches one thread per CPU core, which can cause the build to 
 crash. In such cases, you can reduce the number of threads to 32 by using `-j32`.
 
 Additional cmake flags can be used to significantly speed-up the build:
-
-* `INSTANCES_ONLY` (default is OFF) must be set to ON in order to build only the instances and library
-  while skipping all tests, examples, and profiler. This is useful in cases when you plan to use CK as a
-  dependency and don't plan to run any examples or tests.
 
 * `DTYPES` (default is not set) can be set to any subset of "fp64;fp32;fp16;fp8;bf16;int8" to build
   instances of select data types only. The main default data types are fp32 and fp16; you can safely skip
