@@ -97,9 +97,9 @@ if(DL_KERNELS)
     add_definitions(-DDL_KERNELS)
     set(CK_ENABLE_DL_KERNELS "ON")
 endif()
+option(CK_USE_CODEGEN "Enable codegen library" OFF)
 if(CK_USE_CODEGEN)
     add_definitions(-DCK_USE_CODEGEN)
-    set(CK_USE_CODEGEN "ON")
 endif()
 
 include(getopt)
@@ -567,7 +567,7 @@ rocm_package_setup_component(profiler
 )
 add_subdirectory(profiler)
 
-if(DEFINED CK_USE_CODEGEN AND (GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
+if(CK_USE_CODEGEN AND (GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
   add_subdirectory(codegen)
 endif()
 
