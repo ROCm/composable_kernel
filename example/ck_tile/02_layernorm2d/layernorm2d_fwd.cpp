@@ -35,7 +35,9 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
                                                                     YDataType,
                                                                     MeanDataType,
                                                                     InvStdDataType,
-                                                                    Shape>;
+                                                                    Shape,
+                                                                    true,
+                                                                    true>;
 
         using Kernel = ck_tile::Layernorm2dFwd<PipelineProblem>;
 
