@@ -13,7 +13,6 @@ namespace conv {
 
 struct ConvParam
 {
-    ConvParam();
     ConvParam(ck_tile::index_t n_dim,
               ck_tile::index_t group_count,
               ck_tile::index_t n_batch,
@@ -198,11 +197,6 @@ struct ConvParam
                GetOutputByte<OutDataType>();
     }
 };
-
-ConvParam::ConvParam()
-    : ConvParam::ConvParam(2, 1, 128, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, {1, 1})
-{
-}
 
 CK_TILE_HOST std::string get_conv_param_parser_helper_msg()
 {
