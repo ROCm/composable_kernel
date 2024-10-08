@@ -19,20 +19,13 @@ TEST(Custom_bool, TestSize)
     {
         bool data;
     };
-    ASSERT_EQ(sizeof(bool), 1);
-    ASSERT_EQ(sizeof(custom_bool_t), 1);
-    ASSERT_EQ(sizeof(vector_type<bool, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<bool, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<bool, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<bool, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<bool, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<bool, 64>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 64>), 64);
+    ASSERT_EQ(sizeof(custom_bool_t), sizeof(bool));
+    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 2>), sizeof(vector_type<bool, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 4>), sizeof(vector_type<bool, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 8>), sizeof(vector_type<bool, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 16>), sizeof(vector_type<bool, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 32>), sizeof(vector_type<bool, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_bool_t, 64>), sizeof(vector_type<bool, 64>));
 }
 
 TEST(Custom_bool, TestAsType)
@@ -96,20 +89,13 @@ TEST(Custom_int8, TestSize)
     {
         int8_t data;
     };
-    ASSERT_EQ(sizeof(int8_t), 1);
-    ASSERT_EQ(sizeof(custom_int8_t), 1);
-    ASSERT_EQ(sizeof(vector_type<int8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<int8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<int8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<int8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<int8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<int8_t, 64>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 64>), 64);
+    ASSERT_EQ(sizeof(custom_int8_t), sizeof(int8_t));
+    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 2>), sizeof(vector_type<int8_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 4>), sizeof(vector_type<int8_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 8>), sizeof(vector_type<int8_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 16>), sizeof(vector_type<int8_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 32>), sizeof(vector_type<int8_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_int8_t, 64>), sizeof(vector_type<int8_t, 64>));
 }
 
 TEST(Custom_int8, TestAsType)
@@ -173,20 +159,13 @@ TEST(Custom_uint8, TestSize)
     {
         uint8_t data;
     };
-    ASSERT_EQ(sizeof(uint8_t), 1);
-    ASSERT_EQ(sizeof(custom_uint8_t), 1);
-    ASSERT_EQ(sizeof(vector_type<uint8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<uint8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<uint8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<uint8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<uint8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<uint8_t, 64>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 64>), 64);
+    ASSERT_EQ(sizeof(custom_uint8_t), sizeof(uint8_t));
+    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 2>), sizeof(vector_type<uint8_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 4>), sizeof(vector_type<uint8_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 8>), sizeof(vector_type<uint8_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 16>), sizeof(vector_type<uint8_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 32>), sizeof(vector_type<uint8_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_uint8_t, 64>), sizeof(vector_type<uint8_t, 64>));
 }
 
 TEST(Custom_uint8, TestAsType)
@@ -250,20 +229,13 @@ TEST(Custom_f8, TestSize)
     {
         _BitInt(8) data;
     };
-    ASSERT_EQ(sizeof(f8_t), 1);
-    ASSERT_EQ(sizeof(custom_f8_t), 1);
-    ASSERT_EQ(sizeof(vector_type<f8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<f8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<f8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<f8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<f8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<f8_t, 64>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 64>), 64);
+    ASSERT_EQ(sizeof(custom_f8_t), sizeof(_BitInt(8)));
+    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 2>), sizeof(vector_type<_BitInt(8), 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 4>), sizeof(vector_type<_BitInt(8), 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 8>), sizeof(vector_type<_BitInt(8), 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 16>), sizeof(vector_type<_BitInt(8), 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 32>), sizeof(vector_type<_BitInt(8), 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_f8_t, 64>), sizeof(vector_type<_BitInt(8), 64>));
 }
 
 TEST(Custom_f8, TestAsType)
@@ -333,20 +305,13 @@ TEST(Custom_bf8, TestSize)
     {
         unsigned _BitInt(8) data;
     };
-    ASSERT_EQ(sizeof(bf8_t), 1);
-    ASSERT_EQ(sizeof(custom_bf8_t), 1);
-    ASSERT_EQ(sizeof(vector_type<bf8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 2>), 2);
-    ASSERT_EQ(sizeof(vector_type<bf8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 4>), 4);
-    ASSERT_EQ(sizeof(vector_type<bf8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 8>), 8);
-    ASSERT_EQ(sizeof(vector_type<bf8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 16>), 16);
-    ASSERT_EQ(sizeof(vector_type<bf8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 32>), 32);
-    ASSERT_EQ(sizeof(vector_type<bf8_t, 64>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 64>), 64);
+    ASSERT_EQ(sizeof(custom_bf8_t), sizeof(unsigned _BitInt(8)));
+    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 2>), sizeof(vector_type<unsigned _BitInt(8), 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 4>), sizeof(vector_type<unsigned _BitInt(8), 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 8>), sizeof(vector_type<unsigned _BitInt(8), 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 16>), sizeof(vector_type<unsigned _BitInt(8), 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 32>), sizeof(vector_type<unsigned _BitInt(8), 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_bf8_t, 64>), sizeof(vector_type<unsigned _BitInt(8), 64>));
 }
 
 TEST(Custom_bf8, TestAsType)
@@ -416,20 +381,13 @@ TEST(Custom_half, TestSize)
     {
         half_t data;
     };
-    ASSERT_EQ(sizeof(half_t), 2);
-    ASSERT_EQ(sizeof(custom_half_t), 2);
-    ASSERT_EQ(sizeof(vector_type<half_t, 2>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_half_t, 2>), 4);
-    ASSERT_EQ(sizeof(vector_type<half_t, 4>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_half_t, 4>), 8);
-    ASSERT_EQ(sizeof(vector_type<half_t, 8>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_half_t, 8>), 16);
-    ASSERT_EQ(sizeof(vector_type<half_t, 16>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_half_t, 16>), 32);
-    ASSERT_EQ(sizeof(vector_type<half_t, 32>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_half_t, 32>), 64);
-    ASSERT_EQ(sizeof(vector_type<half_t, 64>), 128);
-    ASSERT_EQ(sizeof(vector_type<custom_half_t, 64>), 128);
+    ASSERT_EQ(sizeof(custom_half_t), sizeof(half_t));
+    ASSERT_EQ(sizeof(vector_type<custom_half_t, 2>), sizeof(vector_type<half_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_half_t, 4>), sizeof(vector_type<half_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_half_t, 8>), sizeof(vector_type<half_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_half_t, 16>), sizeof(vector_type<half_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_half_t, 32>), sizeof(vector_type<half_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_half_t, 64>), sizeof(vector_type<half_t, 64>));
 }
 
 TEST(Custom_half, TestAsType)
@@ -493,20 +451,13 @@ TEST(Custom_bhalf, TestSize)
     {
         bhalf_t data;
     };
-    ASSERT_EQ(sizeof(bhalf_t), 2);
-    ASSERT_EQ(sizeof(custom_bhalf_t), 2);
-    ASSERT_EQ(sizeof(vector_type<bhalf_t, 2>), 4);
-    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 2>), 4);
-    ASSERT_EQ(sizeof(vector_type<bhalf_t, 4>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 4>), 8);
-    ASSERT_EQ(sizeof(vector_type<bhalf_t, 8>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 8>), 16);
-    ASSERT_EQ(sizeof(vector_type<bhalf_t, 16>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 16>), 32);
-    ASSERT_EQ(sizeof(vector_type<bhalf_t, 32>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 32>), 64);
-    ASSERT_EQ(sizeof(vector_type<bhalf_t, 64>), 128);
-    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 64>), 128);
+    ASSERT_EQ(sizeof(custom_bhalf_t), sizeof(bhalf_t));
+    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 2>), sizeof(vector_type<bhalf_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 4>), sizeof(vector_type<bhalf_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 8>), sizeof(vector_type<bhalf_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 16>), sizeof(vector_type<bhalf_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 32>), sizeof(vector_type<bhalf_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_bhalf_t, 64>), sizeof(vector_type<bhalf_t, 64>));
 }
 
 TEST(Custom_bhalf, TestAsType)
@@ -576,20 +527,13 @@ TEST(Custom_float, TestSize)
     {
         float data;
     };
-    ASSERT_EQ(sizeof(float), 4);
-    ASSERT_EQ(sizeof(custom_float_t), 4);
-    ASSERT_EQ(sizeof(vector_type<float, 2>), 8);
-    ASSERT_EQ(sizeof(vector_type<custom_float_t, 2>), 8);
-    ASSERT_EQ(sizeof(vector_type<float, 4>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_float_t, 4>), 16);
-    ASSERT_EQ(sizeof(vector_type<float, 8>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_float_t, 8>), 32);
-    ASSERT_EQ(sizeof(vector_type<float, 16>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_float_t, 16>), 64);
-    ASSERT_EQ(sizeof(vector_type<float, 32>), 128);
-    ASSERT_EQ(sizeof(vector_type<custom_float_t, 32>), 128);
-    ASSERT_EQ(sizeof(vector_type<float, 64>), 256);
-    ASSERT_EQ(sizeof(vector_type<custom_float_t, 64>), 256);
+    ASSERT_EQ(sizeof(custom_float_t), sizeof(float));
+    ASSERT_EQ(sizeof(vector_type<custom_float_t, 2>), sizeof(vector_type<float, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_float_t, 4>), sizeof(vector_type<float, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_float_t, 8>), sizeof(vector_type<float, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_float_t, 16>), sizeof(vector_type<float, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_float_t, 32>), sizeof(vector_type<float, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_float_t, 64>), sizeof(vector_type<float, 64>));
 }
 
 TEST(Custom_float, TestAsType)
@@ -653,20 +597,13 @@ TEST(Custom_double, TestSize)
     {
         double data;
     };
-    ASSERT_EQ(sizeof(double), 8);
-    ASSERT_EQ(sizeof(custom_double_t), 8);
-    ASSERT_EQ(sizeof(vector_type<double, 2>), 16);
-    ASSERT_EQ(sizeof(vector_type<custom_double_t, 2>), 16);
-    ASSERT_EQ(sizeof(vector_type<double, 4>), 32);
-    ASSERT_EQ(sizeof(vector_type<custom_double_t, 4>), 32);
-    ASSERT_EQ(sizeof(vector_type<double, 8>), 64);
-    ASSERT_EQ(sizeof(vector_type<custom_double_t, 8>), 64);
-    ASSERT_EQ(sizeof(vector_type<double, 16>), 128);
-    ASSERT_EQ(sizeof(vector_type<custom_double_t, 16>), 128);
-    ASSERT_EQ(sizeof(vector_type<double, 32>), 256);
-    ASSERT_EQ(sizeof(vector_type<custom_double_t, 32>), 256);
-    ASSERT_EQ(sizeof(vector_type<double, 64>), 512);
-    ASSERT_EQ(sizeof(vector_type<custom_double_t, 64>), 512);
+    ASSERT_EQ(sizeof(custom_double_t), sizeof(double));
+    ASSERT_EQ(sizeof(vector_type<custom_double_t, 2>), sizeof(vector_type<double, 2>));
+    ASSERT_EQ(sizeof(vector_type<custom_double_t, 4>), sizeof(vector_type<double, 4>));
+    ASSERT_EQ(sizeof(vector_type<custom_double_t, 8>), sizeof(vector_type<double, 8>));
+    ASSERT_EQ(sizeof(vector_type<custom_double_t, 16>), sizeof(vector_type<double, 16>));
+    ASSERT_EQ(sizeof(vector_type<custom_double_t, 32>), sizeof(vector_type<double, 32>));
+    ASSERT_EQ(sizeof(vector_type<custom_double_t, 64>), sizeof(vector_type<double, 64>));
 }
 
 TEST(Custom_double, TestAsType)
@@ -731,20 +668,19 @@ TEST(Complex_half, TestSize)
         half_t real;
         half_t img;
     };
-    ASSERT_EQ(sizeof(half_t) + sizeof(half_t), 4);
-    ASSERT_EQ(sizeof(complex_half_t), 4);
-    ASSERT_EQ(sizeof(vector_type<half_t, 2>) + sizeof(vector_type<half_t, 2>), 8);
-    ASSERT_EQ(sizeof(vector_type<complex_half_t, 2>), 8);
-    ASSERT_EQ(sizeof(vector_type<half_t, 4>) + sizeof(vector_type<half_t, 4>), 16);
-    ASSERT_EQ(sizeof(vector_type<complex_half_t, 4>), 16);
-    ASSERT_EQ(sizeof(vector_type<half_t, 8>) + sizeof(vector_type<half_t, 8>), 32);
-    ASSERT_EQ(sizeof(vector_type<complex_half_t, 8>), 32);
-    ASSERT_EQ(sizeof(vector_type<half_t, 16>) + sizeof(vector_type<half_t, 16>), 64);
-    ASSERT_EQ(sizeof(vector_type<complex_half_t, 16>), 64);
-    ASSERT_EQ(sizeof(vector_type<half_t, 32>) + sizeof(vector_type<half_t, 32>), 128);
-    ASSERT_EQ(sizeof(vector_type<complex_half_t, 32>), 128);
-    ASSERT_EQ(sizeof(vector_type<half_t, 64>) + sizeof(vector_type<half_t, 64>), 256);
-    ASSERT_EQ(sizeof(vector_type<complex_half_t, 64>), 256);
+    ASSERT_EQ(sizeof(complex_half_t), sizeof(half_t) + sizeof(half_t));
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 2>),
+              sizeof(vector_type<half_t, 2>) + sizeof(vector_type<half_t, 2>));
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 4>),
+              sizeof(vector_type<half_t, 4>) + sizeof(vector_type<half_t, 4>));
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 8>),
+              sizeof(vector_type<half_t, 8>) + sizeof(vector_type<half_t, 8>));
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 16>),
+              sizeof(vector_type<half_t, 16>) + sizeof(vector_type<half_t, 16>));
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 32>),
+              sizeof(vector_type<half_t, 32>) + sizeof(vector_type<half_t, 32>));
+    ASSERT_EQ(sizeof(vector_type<complex_half_t, 64>),
+              sizeof(vector_type<half_t, 64>) + sizeof(vector_type<half_t, 64>));
 }
 
 TEST(Complex_half, TestAsType)
