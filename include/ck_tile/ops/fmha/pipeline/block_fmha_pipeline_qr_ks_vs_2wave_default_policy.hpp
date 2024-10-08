@@ -41,6 +41,30 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
+    {
+        using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
+            constexpr index_t kBlockSize   = Problem::kBlockSize;
+            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
+            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kN0;
+            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+
+            // TODO: not correct!
+            if constexpr(total_pixels > 4)
+                return 4;
+            else
+                return 2;
+        }
+        else
+        {
+            return 16 / sizeof(VDataType);
+        }
+    }
+
+    template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
     {
         using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
@@ -130,6 +154,54 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return k_lds_block_desc;
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledVRegBlockDescriptor2()
+    {
+        // This descriptor only used when V layout is seqlen * hdim
+        using VLayout = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
+
+        constexpr index_t N1           = GetAlignmentV<Problem>();
+        constexpr index_t N0           = kNPerBlock / N1;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        static_assert(total_pixels % N1 == 0); // TODO: this is not always true?
+        constexpr index_t K3     = total_pixels / N1;
+        constexpr index_t kKPack = GetSmemKPackV<Problem>();
+        static_assert(kKPack % K3 == 0);
+        constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
+        static_assert((get_warp_size() % (K2 * N0) == 0));
+        if constexpr(get_warp_size() % (K2 * N0) == 0)
+        {
+            constexpr index_t K1 = get_warp_size() / (K2 * N0);
+            constexpr index_t K0 = kBlockSize / get_warp_size();
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1>, sequence<K0, K1, K2, K3>>,
+                                           tuple<sequence<2>, sequence<2, 1, 2>>,
+                                           tuple<sequence<0>, sequence<1, 0, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 3>>{});
+        }
+        else
+        {
+            constexpr index_t K1   = (K2 * N0) / get_warp_size();
+            constexpr index_t K2_m = K2 / K1;
+            constexpr index_t K0   = kBlockSize / get_warp_size() / K1;
+            static_assert(kKPerBlock == K0 * K1 * K2_m * K3);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<N0, N1>, sequence<K0, K1, K2_m, K3>>,
+                                           tuple<sequence<2, 2>, sequence<1, 2>>,
+                                           tuple<sequence<0, 1>, sequence<0, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<1, 3>>{});
+        }
     }
 
     // 3d + padding
