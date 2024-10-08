@@ -395,10 +395,10 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str, receipt) -> Optional[dict]:
     if receipt == 3:
         if dtype == 'fp16' or dtype == 'bf16':
             return {
-                '32'  : FmhaFwdTileSize(128, 64, 16, 32, 32, 32,     2, 1, 1, 32, 32, 16, -1),
-                '64'  : FmhaFwdTileSize(128, 64, 32, 64, 32, 64,     4, 1, 1, 32, 32, 16, -1),
-                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
-                '256' : FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
+                '32'  : FmhaFwdTileSize(128, 32, 32, 32,  32, 32,   2, 1, 1, 32, 32, 16, -1),
+                '64'  : FmhaFwdTileSize(128, 32, 32, 64,  32, 64,   4, 1, 1, 32, 32, 16, -1),
+                '128' : FmhaFwdTileSize(128, 32, 32, 128, 32, 128,  4, 1, 1, 32, 32, 16, -1),
+                '256' : FmhaFwdTileSize(128, 32, 32, 256, 32, 256,  4, 1, 1, 32, 32, 16, -1),
             }
         elif dtype == 'fp8' or dtype == 'bf8':
             return {
