@@ -41,8 +41,6 @@ void Operation_Xdl_CShuffle::update_prologue(const std::string& pro)
     if(!prologue.empty())
     {
         this->prologue = pro;
-        // TODO
-        // this->cde_elem_op = "CDEElementOp";
     }
     else
     {
@@ -55,8 +53,6 @@ void Operation_Xdl_CShuffle::update_epilogue(const std::string& epi)
     if(!epilogue.empty())
     {
         this->epilogue = epi;
-        // TODO
-        // this->cde_elem_op = "CDEElementOp";
     }
     else
     {
@@ -336,8 +332,8 @@ Solution Operation_Xdl_CShuffle::ToSolution() const
         {"B0DataType", ToString(this->B.element)},
         {"B1DataType", ToString(this->B1.element)},
         {"CDataType", ToString(this->C.element)},
-        {"AccDataType", ToString(DataType::Float)},
-        {"CShuffleDataType", ToString(DataType::Half)},
+        {"AccDataType", ToString(this->acc)},
+        {"CShuffleDataType", ToString(this->cs_type)},
         {"AElementwiseOperation", this->a_elem_op},
         {"B0ElementwiseOperation", this->b_elem_op},
         {"Acc0ElementwiseOperation", this->acc_elem_op},

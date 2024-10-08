@@ -27,6 +27,8 @@ struct Operation_Xdl_CShuffle
     TensorDesc B{};
     TensorDesc B1{};
     TensorDesc C{};
+    DataType acc                    = DataType::Float;
+    DataType cs_type                = DataType::Half;
     std::string a_elem_op           = PassThrough;
     std::string b_elem_op           = PassThrough;
     std::string b1_elem_op          = PassThrough;
