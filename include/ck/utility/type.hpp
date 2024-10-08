@@ -113,7 +113,6 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
     return static_cast<T&&>(t_);
 }
 
-// TODO
 template<class T> struct is_const          : false_type {};
 template<class T> struct is_const<const T> : true_type {};
 template< class T >

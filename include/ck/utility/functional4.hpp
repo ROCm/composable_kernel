@@ -36,7 +36,7 @@ struct unpack2_impl<Sequence<Is...>, Sequence<Js...>>
     __host__ __device__ constexpr auto operator()(F&& f, X&& x, Y&& y) const
     {
         return ck::forward<F>(f)(ck::forward<X>(x).At(Number<Is>{})...,
-                                  ck::forward<Y>(y).At(Number<Js>{})...);
+                                 ck::forward<Y>(y).At(Number<Js>{})...);
     }
 };
 

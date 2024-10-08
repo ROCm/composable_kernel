@@ -1,27 +1,27 @@
 #pragma once
+
+#include "ck/host/headers.hpp"
+#include "ck/host/stringutils.hpp"
+#include <rtc/compile_kernel.hpp>
+#include <rtc/hip.hpp>
+#include <test.hpp>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <iterator>
 #include <numeric>
 #include <random>
-#include <test.hpp>
-#include <rtc/compile_kernel.hpp>
-#include <rtc/hip.hpp>
-#include <fstream>
 #include <unordered_set>
-#include "ck/host/headers.hpp"
-#include "rtc/hiprtc_enable_env.hpp"
-#include "ck/host/stringutils.hpp"
 
 // NOLINTNEXTLINE
-const char* const content_wrapper = R"__ck__(
+const char* const ck_content_wrapper = R"__ck__(
 ${content}
 )__ck__";
 
 template <class P>
-inline std::string ck_content_wrapper(P p)
+inline std::string content_wrapper(P p)
 {
-    return ck::host::InterpolateString(content_wrapper,
+    return ck::host::InterpolateString(ck_content_wrapper,
                                        {{"content", std::string{p.data(), p.size()}}});
 }
 
@@ -29,11 +29,9 @@ inline std::vector<rtc::src_file> create_headers_for_test()
 {
     auto ck_headers = ck::host::GetHeaders();
     std::vector<rtc::src_file> result;
-
-    std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(result), [&](auto& p) {
-        return rtc::src_file{p.first, ck_content_wrapper(p.second)};
+    std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(result), [](auto& p) {
+        return rtc::src_file{p.first, content_wrapper(p.second)};
     });
-
     return result;
 }
 
@@ -83,7 +81,7 @@ bool allclose(const T& a, const U& b, double atol = 0.01, double rtol = 0.01)
     });
 }
 
-std::string classify(double x)
+inline std::string classify(double x)
 {
     switch(std::fpclassify(x))
     {

@@ -1,16 +1,16 @@
-#include "rtc/hip.hpp"
-#include <rtc/compile_kernel.hpp>
-// TODO include only if USE_RTC is set?
-#include <hip/hiprtc.h>
-#include <rtc/tmp_dir.hpp>
-#include <stdexcept>
-#include <iostream>
-#include <fstream>
-#include <cassert>
-#include <numeric>
-#include <deque>
-#include <rtc/hiprtc_enable_env.hpp>
 #include <ck/host/stringutils.hpp>
+#include <rtc/compile_kernel.hpp>
+#include <rtc/hip.hpp>
+#ifdef HIPRTC_FOR_CODEGEN_TESTS
+#include <hip/hiprtc.h>
+#endif
+#include <rtc/tmp_dir.hpp>
+#include <cassert>
+#include <deque>
+#include <fstream>
+#include <iostream>
+#include <numeric>
+#include <stdexcept>
 
 namespace rtc {
 
@@ -105,6 +105,8 @@ kernel clang_compile_kernel(const std::vector<src_file>& srcs, compile_options o
     // assert(s == 0);
     return kernel{obj.data(), options.kernel_name};
 }
+
+#ifdef HIPRTC_FOR_CODEGEN_TESTS
 
 struct hiprtc_src_file
 {
@@ -274,20 +276,18 @@ static kernel hiprtc_compile_kernel(const std::vector<src_file>& srcs, compile_o
     if(cos.size() != 1)
         std::runtime_error("No code object");
     auto& obj = cos.front();
-
     return kernel{obj.data(), options.kernel_name};
 }
 
+#endif
+
 kernel compile_kernel(const std::vector<src_file>& srcs, compile_options options)
 {
-    if(ck::EnvIsEnabled(CK_ENV(CK_CODEGEN_TESTS_ENABLE_HIPRTC)))
-    {
-        return hiprtc_compile_kernel(srcs, options);
-    }
-    else
-    {
-        return clang_compile_kernel(srcs, options);
-    }
+#ifdef HIPRTC_FOR_CODEGEN_TESTS
+    return hiprtc_compile_kernel(srcs, options);
+#else
+    return clang_compile_kernel(srcs, options);
+#endif
 }
 
 } // namespace rtc

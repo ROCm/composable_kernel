@@ -1,10 +1,10 @@
 #ifndef GUARD_HOST_TEST_RTC_INCLUDE_RTC_COMPILE_KERNEL
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_COMPILE_KERNEL
 
-#include <rtc/kernel.hpp>
 #include <ck/filesystem.hpp>
-#include <string>
+#include <rtc/kernel.hpp>
 #include <functional>
+#include <string>
 
 namespace rtc {
 
