@@ -119,6 +119,9 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
 
 template <typename T>
 T&& declval() noexcept;
+
+template <typename... Ts>
+using void_t = void;
 #else
 #include <utility>
 #include <type_traits>
@@ -134,6 +137,7 @@ using std::remove_const;
 using std::remove_cv;
 using std::remove_pointer;
 using std::remove_reference;
+using std::void_t;
 #endif
 
 template <typename X, typename Y>
@@ -153,6 +157,106 @@ struct is_const : public integral_constant<bool, false>
 
 template <typename X>
 struct is_const<const X> : public integral_constant<bool, true>
+{
+};
+
+template <typename X>
+struct is_floating_point : public integral_constant<bool, false>
+{
+};
+
+template <>
+struct is_floating_point<float> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_floating_point<double> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_floating_point<long double> : public integral_constant<bool, true>
+{
+};
+
+template <typename X>
+struct is_integral : public integral_constant<bool, false>
+{
+};
+
+template <>
+struct is_integral<int> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned int> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<short> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned short> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<long long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned long long> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<char> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<signed char> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<unsigned char> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<wchar_t> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<char16_t> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<char32_t> : public integral_constant<bool, true>
+{
+};
+
+template <>
+struct is_integral<bool> : public integral_constant<bool, true>
 {
 };
 

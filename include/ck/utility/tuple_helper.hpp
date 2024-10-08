@@ -161,7 +161,7 @@ __host__ __device__ constexpr auto TupleReduce(F&& f, const Tuple<Ts...>& tuple)
 
 #ifndef CK_CODE_GEN_RTC
 template <typename T>
-using is_tuple = decltype(std::declval<T&>().IsTuple());
+using is_tuple = decltype(ck::declval<T&>().IsTuple());
 #endif
 
 template <typename... Ts>
