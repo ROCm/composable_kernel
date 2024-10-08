@@ -92,17 +92,17 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "if set to 1 will use multi-buffer reduction strategy for dq, atomic opeartion "
                 "will not be used")
-        .insert("ext_asm", "0", "if set to 1, some cases will call the ext asm dqdkdv kernel")
+        .insert("bwd_v3", "0", "if set to 1, some cases will call the bwd v3 dqdkdv kernel")
         .insert(
-            "asm_atomic_fp32",
+            "v3_atomic_fp32",
             "1",
-            "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when ext_asm is set to 1")
-        .insert("asm_no_coex",
+            "if set to 0 will use atomic fp16/bf16(w/o convert_dq kernel) when bwd_v3 is set to 1")
+        .insert("v3_spec",
                 "0",
-                "if set to 1 will use non-coexectuion kernel when ext_asm is set to 1")
-        .insert("asm_rtz_cvt",
+                "if set to 1 will call the specialized v3 kernel when bwd_v3 is set to 1")
+        .insert("v3_rtz_cvt",
                 "0",
-                "if set to 1 will use float to bf16 RTZ convert when ext_asm is set to 1");
+                "if set to 1 will use float to bf16 RTZ convert when bwd_v3 is set to 1");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -187,14 +187,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
         seed.reset();
     }
 
-    int stream_warmup    = arg_parser.get_int("warmup");
-    int stream_repeat    = arg_parser.get_int("repeat");
-    bool kname           = arg_parser.get_bool("kname");
-    bool deterministic   = arg_parser.get_bool("deterministic");
-    bool ext_asm         = arg_parser.get_bool("ext_asm");
-    bool asm_atomic_fp32 = arg_parser.get_bool("asm_atomic_fp32");
-    bool asm_no_coex     = arg_parser.get_bool("asm_no_coex");
-    bool asm_rtz_cvt     = arg_parser.get_bool("asm_rtz_cvt");
+    int stream_warmup   = arg_parser.get_int("warmup");
+    int stream_repeat   = arg_parser.get_int("repeat");
+    bool kname          = arg_parser.get_bool("kname");
+    bool deterministic  = arg_parser.get_bool("deterministic");
+    bool bwd_v3         = arg_parser.get_bool("bwd_v3");
+    bool v3_atomic_fp32 = arg_parser.get_bool("v3_atomic_fp32");
+    bool v3_spec        = arg_parser.get_bool("v3_spec");
+    bool v3_rtz_cvt     = arg_parser.get_bool("v3_rtz_cvt");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -430,10 +430,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        p_drop > 0.0f,
                                        s_randval,
                                        deterministic,
-                                       ext_asm,
-                                       asm_atomic_fp32,
-                                       asm_no_coex,
-                                       asm_rtz_cvt};
+                                       bwd_v3,
+                                       v3_atomic_fp32,
+                                       v3_spec,
+                                       v3_rtz_cvt};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,
