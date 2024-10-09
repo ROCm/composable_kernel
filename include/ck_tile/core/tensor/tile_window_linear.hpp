@@ -18,6 +18,17 @@
 
 namespace ck_tile {
 
+#define WINDOW_DISPATCH_ISSUE()                                     \
+    if constexpr(i_access < 0)                                      \
+    {                                                               \
+        static_for<0, NumAccess, 1>{}([&](auto ia) { issue(ia); }); \
+    }                                                               \
+    else                                                            \
+    {                                                               \
+        static_assert(i_access < NumAccess);                        \
+        issue(number<i_access>{});                                  \
+    }
+
 //
 // This version of tile window will pre-cache offset/flags based on need
 //
@@ -443,8 +454,8 @@ struct tile_window_linear
 
     CK_TILE_DEVICE constexpr auto get_num_access() const { return traits::NumAccess; }
 
-    template <bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load(bool_constant<oob_conditional_check> = {}) const
+    template <index_t i_access = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load(number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
     {
         using vector_t = typename traits::vector_t;
         using SFC_Ys   = typename traits::SFC_Ys;
@@ -453,9 +464,8 @@ struct tile_window_linear
 
         auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
 
-        // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess = number<i_access_>{};
 
             constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
@@ -494,17 +504,22 @@ struct tile_window_linear
             dst_tensor.get_thread_buffer().template get_as<vector_t>()(
                 number<d / traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
 #endif
-        });
+        };
+
+        WINDOW_DISPATCH_ISSUE();
 
         return dst_tensor;
     }
 
-    template <typename DstTile, bool oob_conditional_check = true, bool pre_nop = false>
+    template <typename DstTile,
+              index_t i_access           = -1,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false>
     CK_TILE_DEVICE void load_raw(DstTile& dst_tensor,
+                                 number<i_access> = {}, // negative means loop over all num_access
                                  bool_constant<oob_conditional_check> = {},
                                  bool_constant<pre_nop>               = {}) const
     {
-
         using vector_t = typename traits::vector_t;
         using SFC_Ys   = typename traits::SFC_Ys;
         static constexpr index_t YElementSize =
@@ -516,11 +531,10 @@ struct tile_window_linear
 
         auto& dst_vec_tbuf = reinterpret_cast<vectorized_tbuf&>(dst_tensor.get_thread_buffer());
 
-        // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess  = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess  = number<i_access_>{};
             constexpr auto pre_nop_ = [&]() {
-                if constexpr(pre_nop && i_access == 0 &&
+                if constexpr(pre_nop && i_access_ == 0 &&
                              BottomTensorView::buffer_view::get_address_space() ==
                                  address_space_enum::global)
                     return bool_constant<true>{};
@@ -550,16 +564,18 @@ struct tile_window_linear
     CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE
             asm volatile(""); // this is starting from rocm-6.2, but same sympton, reuse this flag
 #endif
-        });
-#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
-        asm volatile("; this inline asm is workaround to prevent compiler from using too much "
-                     "scratch memory" ::);
-#endif
+        };
+
+        WINDOW_DISPATCH_ISSUE();
     }
 
     // TODO: currently async load only implemented in inline asm
-    template <typename LdsTileWindow_, bool oob_conditional_check = true, bool pre_nop = false>
+    template <typename LdsTileWindow_,
+              index_t i_access           = -1,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false>
     CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
+                                       number<i_access>                     = {},
                                        bool_constant<oob_conditional_check> = {},
                                        bool_constant<pre_nop>               = {}) const
     {
@@ -600,10 +616,10 @@ struct tile_window_linear
         LdsDataType* smem = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess  = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess  = number<i_access_>{};
             constexpr auto pre_nop_ = [&]() {
-                if constexpr(pre_nop && i_access == 0)
+                if constexpr(pre_nop && i_access_ == 0)
                     return bool_constant<true>{};
                 else
                     return bool_constant<false>{};
@@ -618,15 +634,18 @@ struct tile_window_linear
                 smem, bottom_tensor_thread_coord, 0, bottom_tensor_flag, pre_nop_);
 
             // move thread coordinate
-            if constexpr(i_access != (NumAccess - 1))
+            if constexpr(i_access_ != (NumAccess - 1))
             {
                 m0_inc_with_memory(size_per_issue);
             }
-        });
+        };
+
+        WINDOW_DISPATCH_ISSUE();
     }
 
-    template <typename LdsTileWindow_, bool oob_conditional_check = true>
+    template <typename LdsTileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto async_load(LdsTileWindow_&& lds_tile,
+                                   number<i_access>                     = {},
                                    bool_constant<oob_conditional_check> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
@@ -667,8 +686,8 @@ struct tile_window_linear
             lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ + m0_init_value;
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess          = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
             constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             auto bottom_tensor_flag         = cached_flags_[IAccess];
@@ -682,15 +701,18 @@ struct tile_window_linear
                 bool_constant<oob_conditional_check>{});
 
             // move thread coordinate
-            if constexpr(i_access != (NumAccess - 1))
+            if constexpr(i_access_ != (NumAccess - 1))
             {
                 smem += size_per_issue; // Note we manually increase the per-issue offset
             }
-        });
+        };
+
+        WINDOW_DISPATCH_ISSUE();
     }
 
-    template <bool oob_conditional_check = true>
+    template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                              number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {}) const
     {
 
@@ -700,8 +722,8 @@ struct tile_window_linear
         constexpr auto tile_dstr = TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess          = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
             constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             constexpr auto linear_offset    = get_bottom_linear_offset(IAccess);
@@ -732,13 +754,15 @@ struct tile_window_linear
                 bottom_tensor_flag,
                 vec_value,
                 bool_constant<oob_conditional_check>{});
-        });
+        };
+
+        WINDOW_DISPATCH_ISSUE();
     }
 
-    CK_TILE_DEVICE void
-    store_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor) const
+    template <index_t i_access = -1>
+    CK_TILE_DEVICE void store_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                                  number<i_access> = {}) const
     {
-
         using vector_t = typename traits::vector_t;
         using SFC_Ys   = typename traits::SFC_Ys;
 
@@ -746,8 +770,8 @@ struct tile_window_linear
         static constexpr bool oob_conditional_check = true;
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess          = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
             constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             constexpr auto linear_offset    = get_bottom_linear_offset(IAccess);
@@ -773,11 +797,14 @@ struct tile_window_linear
             get_bottom_tensor_view()
                 .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
                     bottom_tensor_thread_coord, linear_offset, bottom_tensor_flag, vec_value);
-        });
+        };
+
+        WINDOW_DISPATCH_ISSUE();
     }
 
-    template <bool oob_conditional_check = true>
+    template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void update(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                               number<i_access>                     = {},
                                bool_constant<oob_conditional_check> = {}) const
     {
 
@@ -787,8 +814,8 @@ struct tile_window_linear
         constexpr auto tile_dstr = TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumAccess, 1>{}([&](auto i_access) {
-            constexpr auto IAccess          = number<i_access>{};
+        auto issue = [&](auto i_access_) {
+            constexpr auto IAccess          = number<i_access_>{};
             constexpr auto non_linear_id    = number<AccessMap_NonLinear{}[IAccess]>{};
             auto bottom_tensor_thread_coord = cached_coords_[non_linear_id];
             constexpr auto linear_offset    = get_bottom_linear_offset(IAccess);
@@ -820,7 +847,9 @@ struct tile_window_linear
                 bottom_tensor_flag,
                 vec_value,
                 bool_constant<oob_conditional_check>{});
-        });
+        };
+
+        WINDOW_DISPATCH_ISSUE();
     }
 
     // move thread's botom tensor coordiante
@@ -919,6 +948,8 @@ struct tile_window_linear
     array<BottomTensorCoord, traits::NumAccess_NonLinear> cached_coords_;
     array<bool, traits::NumAccess> cached_flags_;
 };
+
+#undef WINDOW_DISPATCH_ISSUE
 
 namespace impl {
 template <address_space_enum, index_t len_>

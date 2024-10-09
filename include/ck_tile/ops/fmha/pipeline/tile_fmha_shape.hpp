@@ -43,15 +43,15 @@ struct TileFmhaShape
                                        ck_tile::tensor_layout::gemm::ColumnMajor>;
 
     // gemm-0 shapes TODO: naming?
-    static constexpr index_t Block_M0 = kM0;
-    static constexpr index_t Block_N0 = kN0;
-    static constexpr index_t Block_K0 = kK0;
+    static constexpr index_t Block_M0      = kM0;
+    static constexpr index_t Block_N0      = kN0;
+    static constexpr index_t Block_K0      = kK0;
     static constexpr index_t BlockWarps_M0 = Gemm0BlockWarps::at(number<0>{});
     static constexpr index_t BlockWarps_N0 = Gemm0BlockWarps::at(number<1>{});
     static constexpr index_t BlockWarps_K0 = Gemm0BlockWarps::at(number<2>{});
-    static constexpr index_t Warps_M0 = Gemm0WarpTile::at(number<0>{});
-    static constexpr index_t Warps_N0 = Gemm0WarpTile::at(number<1>{});
-    static constexpr index_t Warps_K0 = Gemm0WarpTile::at(number<2>{});
+    static constexpr index_t Warps_M0      = Gemm0WarpTile::at(number<0>{});
+    static constexpr index_t Warps_N0      = Gemm0WarpTile::at(number<1>{});
+    static constexpr index_t Warps_K0      = Gemm0WarpTile::at(number<2>{});
     static_assert(Block_M0 % (BlockWarps_M0 * Warps_M0) == 0);
     static_assert(Block_N0 % (BlockWarps_N0 * Warps_N0) == 0);
     static_assert(Block_K0 % (BlockWarps_K0 * Warps_K0) == 0);
@@ -59,15 +59,15 @@ struct TileFmhaShape
     static constexpr index_t Repeat_N0 = Block_N0 / (BlockWarps_N0 * Warps_N0);
     static constexpr index_t Repeat_K0 = Block_K0 / (BlockWarps_K0 * Warps_K0);
 
-    static constexpr index_t Block_M1 = kM0;
-    static constexpr index_t Block_N1 = kN1;
-    static constexpr index_t Block_K1 = kK1;
+    static constexpr index_t Block_M1      = kM0;
+    static constexpr index_t Block_N1      = kN1;
+    static constexpr index_t Block_K1      = kK1;
     static constexpr index_t BlockWarps_M1 = Gemm1BlockWarps::at(number<0>{});
     static constexpr index_t BlockWarps_N1 = Gemm1BlockWarps::at(number<1>{});
     static constexpr index_t BlockWarps_K1 = Gemm1BlockWarps::at(number<2>{});
-    static constexpr index_t Warps_M1 = Gemm1WarpTile::at(number<0>{});
-    static constexpr index_t Warps_N1 = Gemm1WarpTile::at(number<1>{});
-    static constexpr index_t Warps_K1 = Gemm1WarpTile::at(number<2>{});
+    static constexpr index_t Warps_M1      = Gemm1WarpTile::at(number<0>{});
+    static constexpr index_t Warps_N1      = Gemm1WarpTile::at(number<1>{});
+    static constexpr index_t Warps_K1      = Gemm1WarpTile::at(number<2>{});
     static_assert(Block_M1 % (BlockWarps_M1 * Warps_M1) == 0);
     static_assert(Block_N1 % (BlockWarps_N1 * Warps_N1) == 0);
     static_assert(Block_K1 % (BlockWarps_K1 * Warps_K1) == 0);

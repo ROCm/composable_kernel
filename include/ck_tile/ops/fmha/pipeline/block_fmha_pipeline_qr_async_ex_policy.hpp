@@ -105,16 +105,16 @@ struct BlockFmhaPipelineQRAsyncEx
     CK_TILE_HOST_DEVICE static constexpr auto MakeBlockGemmAccTile_0()
     {
         using AccWarpDescEnc_ = typename decltype(GetWarpGemm_0())::CWarpDstrEncoding;
-        using BlockTile_ = sequence<Problem::BlockFmhaShape::Block_M0, Problem::BlockFmhaShape::Block_N0>;
-        using BlockWarps_ = sequence<Problem::BlockFmhaShape::BlockWarps_M0, Problem::BlockFmhaShape::BlockWarps_N0>;
-        using WarpTile_ = sequence<Problem::BlockFmhaShape::Warp_M0, Problem::BlockFmhaShape::Warp_N0>;
-        constexpr auto enc = make_block_gemm_acc_enc<
-            AccWarpDescEnc_,
-            BlockTile_,
-            BlockWarps_,
-            WarpTile_>();
+        using BlockTile_ =
+            sequence<Problem::BlockFmhaShape::Block_M0, Problem::BlockFmhaShape::Block_N0>;
+        using BlockWarps_ = sequence<Problem::BlockFmhaShape::BlockWarps_M0,
+                                     Problem::BlockFmhaShape::BlockWarps_N0>;
+        using WarpTile_ =
+            sequence<Problem::BlockFmhaShape::Warp_M0, Problem::BlockFmhaShape::Warp_N0>;
+        constexpr auto enc =
+            make_block_gemm_acc_enc<AccWarpDescEnc_, BlockTile_, BlockWarps_, WarpTile_>();
         constexpr auto dstr = make_static_tile_distribution(enc);
-        auto t         = make_static_distributed_tensor<typename Problem::SaccDataType>(dstr);
+        auto t              = make_static_distributed_tensor<typename Problem::SaccDataType>(dstr);
         return t;
     }
 
@@ -443,8 +443,10 @@ struct BlockFmhaPipelineQRAsyncEx
     {
         if constexpr(Problem::kHasDropout)
         {
-            constexpr index_t kMPerStep = Problem::BlockFmhaShape::BlockWarps_M0 * Problem::BlockFmhaShape::Warp_M0;
-            constexpr index_t kNPerStep = Problem::BlockFmhaShape::BlockWarps_N0 * Problem::BlockFmhaShape::Warp_N0;
+            constexpr index_t kMPerStep =
+                Problem::BlockFmhaShape::BlockWarps_M0 * Problem::BlockFmhaShape::Warp_M0;
+            constexpr index_t kNPerStep =
+                Problem::BlockFmhaShape::BlockWarps_N0 * Problem::BlockFmhaShape::Warp_N0;
 
             return (kMPerStep + 1) * kNPerStep * sizeof(uint8_t);
         }
@@ -612,16 +614,16 @@ struct BlockFmhaPipelineQRAsyncEx
     CK_TILE_HOST_DEVICE static constexpr auto MakeBlockGemmAccTile_1()
     {
         using AccWarpDescEnc_ = typename decltype(GetWarpGemm_1())::CWarpDstrEncoding;
-        using BlockTile_ = sequence<Problem::BlockFmhaShape::Block_M1, Problem::BlockFmhaShape::Block_N1>;
-        using BlockWarps_ = sequence<Problem::BlockFmhaShape::BlockWarps_M1, Problem::BlockFmhaShape::BlockWarps_N1>;
-        using WarpTile_ = sequence<Problem::BlockFmhaShape::Warp_M1, Problem::BlockFmhaShape::Warp_N1>;
-        constexpr auto enc = make_block_gemm_acc_enc<
-            AccWarpDescEnc_,
-            BlockTile_,
-            BlockWarps_,
-            WarpTile_>();
+        using BlockTile_ =
+            sequence<Problem::BlockFmhaShape::Block_M1, Problem::BlockFmhaShape::Block_N1>;
+        using BlockWarps_ = sequence<Problem::BlockFmhaShape::BlockWarps_M1,
+                                     Problem::BlockFmhaShape::BlockWarps_N1>;
+        using WarpTile_ =
+            sequence<Problem::BlockFmhaShape::Warp_M1, Problem::BlockFmhaShape::Warp_N1>;
+        constexpr auto enc =
+            make_block_gemm_acc_enc<AccWarpDescEnc_, BlockTile_, BlockWarps_, WarpTile_>();
         constexpr auto dstr = make_static_tile_distribution(enc);
-        auto t         = make_static_distributed_tensor<typename Problem::OaccDataType>(dstr);
+        auto t              = make_static_distributed_tensor<typename Problem::OaccDataType>(dstr);
         return t;
     }
 };

@@ -18,6 +18,23 @@
 
 namespace ck_tile {
 
+// TODO: NumCoord no need anymore?
+#define WINDOW_DISPATCH_ISSUE_2()                                             \
+    if constexpr(i_access < 0)                                                \
+    {                                                                         \
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {                       \
+            static_for<0, NumAccessPerCoord, 1>{}(                            \
+                [&](auto iCoordAccess) { issue(iCoord, iCoordAccess); });     \
+        });                                                                   \
+    }                                                                         \
+    else                                                                      \
+    {                                                                         \
+        static_assert(i_access < (NumCoord * NumAccessPerCoord));             \
+        constexpr auto iCoordAccess = number<i_access % NumAccessPerCoord>{}; \
+        constexpr auto iCoord       = number<i_access / NumAccessPerCoord>{}; \
+        issue(iCoord, iCoordAccess);                                          \
+    }
+
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -283,8 +300,8 @@ struct tile_window_with_static_distribution
 
     CK_TILE_DEVICE constexpr auto get_num_access() const { return load_store_traits::NumAccess; }
 
-    template <bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load(bool_constant<oob_conditional_check> = {}) const
+    template <index_t i_access = -1, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load(number<i_access> = {}, bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = load_store_traits;
 
@@ -296,65 +313,66 @@ struct tile_window_with_static_distribution
         auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
-                // data index [y0, y1, ...]
-                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                // read from bottom tensor
-                const vector_t vec_value =
-                    get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
-                        bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
+            // read from bottom tensor
+            const vector_t vec_value =
+                get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                    bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
 #if 1
-                // write into distributed tensor
-                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_array(
-                        [&](auto jj) {
-                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
-                                                            : idx_ys_start[jj];
-                        },
-                        number<NDimY>{});
+            // write into distributed tensor
+            static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_array(
+                    [&](auto jj) {
+                        return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<NDimY>{});
 
-                    constexpr index_t d =
-                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
 
-                    dst_tensor.get_thread_buffer().template at<d>() =
-                        vec_value.template get_as<DataType>()[j];
-                });
-#else
-                constexpr index_t d =
-                    tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
-                static_assert(d % Traits::ScalarPerVector == 0);
-
-                dst_tensor.get_thread_buffer().template get_as<vector_t>()(
-                    number<d / Traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
-#endif
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step_static(iAccess);
-
-                    constexpr auto idx_diff_ps_ys = container_concat(
-                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
-                        idx_diff_ys);
-
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
-                }
+                dst_tensor.get_thread_buffer().template at<d>() =
+                    vec_value.template get_as<DataType>()[j];
             });
-        });
+#else
+            constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
+            static_assert(d % Traits::ScalarPerVector == 0);
+
+            dst_tensor.get_thread_buffer().template get_as<vector_t>()(
+                number<d / Traits::ScalarPerVector>{}) = bit_cast<vector_t>(vec_value);
+#endif
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step_static(iAccess);
+
+                constexpr auto idx_diff_ps_ys = container_concat(
+                    generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                    idx_diff_ys);
+
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+            }
+        };
+
+        WINDOW_DISPATCH_ISSUE_2();
 
         return dst_tensor;
     }
 
-    template <typename DstTile, bool oob_conditional_check = true, bool pre_nop = false>
+    template <typename DstTile,
+              index_t i_access           = -1,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false>
     CK_TILE_DEVICE void load_raw(DstTile& dst_tensor,
+                                 number<i_access>                     = {},
                                  bool_constant<oob_conditional_check> = {},
                                  bool_constant<pre_nop>               = {}) const
     {
@@ -377,59 +395,57 @@ struct tile_window_with_static_distribution
         auto& dst_vec_tbuf = reinterpret_cast<vectorized_tbuf&>(dst_tensor.get_thread_buffer());
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
-                constexpr auto pre_nop_ = [&]() {
-                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
-                        return bool_constant<true>{};
-                    else
-                        return bool_constant<false>{};
-                }();
+            constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto pre_nop_ = [&]() {
+                if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
+                    return bool_constant<true>{};
+                else
+                    return bool_constant<false>{};
+            }();
 
-                // data index [y0, y1, ...]
-                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr index_t d =
-                    tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
-                static_assert(d % Traits::ScalarPerVector == 0);
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+            constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start);
+            static_assert(d % Traits::ScalarPerVector == 0);
 
-                get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
-                    dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
-                    bottom_tensor_thread_coord,
-                    0 /**/,
-                    bool_constant<oob_conditional_check>{},
-                    pre_nop_);
+            get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
+                dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
+                bottom_tensor_thread_coord,
+                0 /**/,
+                bool_constant<oob_conditional_check>{},
+                pre_nop_);
 #if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE || \
     CK_TILE_WORKAROUND_ROCM_6_2_SCRATCH_MEMORY_ISSUE
-                asm volatile(
-                    ""); // this is starting from rocm-6.2, but same sympton, reuse this flag
+            asm volatile(""); // this is starting from rocm-6.2, but same sympton, reuse this flag
 #endif
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
-                }
-            });
-        });
-#if CK_TILE_WORKAROUND_ROCM_6_1_SCRATCH_MEMORY_ISSUE
-        asm volatile("; this inline asm is workaround to prevent compiler from using too much "
-                     "scratch memory" ::);
-#endif
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+            }
+        };
+
+        WINDOW_DISPATCH_ISSUE_2();
     }
 
     // TODO: currently async load only implemented in inline asm
-    template <typename LdsTileWindow_, bool oob_conditional_check = true, bool pre_nop = false>
+    template <typename LdsTileWindow_,
+              index_t i_access           = -1,
+              bool oob_conditional_check = true,
+              bool pre_nop               = false>
     CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
+                                       number<i_access>                     = {},
                                        bool_constant<oob_conditional_check> = {},
                                        bool_constant<pre_nop>               = {}) const
     {
@@ -470,43 +486,44 @@ struct tile_window_with_static_distribution
         LdsDataType* smem = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             // TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
-                constexpr auto pre_nop_ = [&]() {
-                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
-                        return bool_constant<true>{};
-                    else
-                        return bool_constant<false>{};
-                }();
+            constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto pre_nop_ = [&]() {
+                if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
+                    return bool_constant<true>{};
+                else
+                    return bool_constant<false>{};
+            }();
 
-                // read from bottom tensor
-                get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
-                    smem, bottom_tensor_thread_coord, 0, pre_nop_);
+            // read from bottom tensor
+            get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
+                smem, bottom_tensor_thread_coord, 0, pre_nop_);
 
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
-                    m0_inc_with_memory(size_per_issue);
-                }
-            });
-        });
+                m0_inc_with_memory(size_per_issue);
+            }
+        };
+
+        WINDOW_DISPATCH_ISSUE_2();
     }
 
-    template <typename LdsTileWindow_, bool oob_conditional_check = true>
+    template <typename LdsTileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE auto async_load(LdsTileWindow_&& lds_tile,
+                                   number<i_access>                     = {},
                                    bool_constant<oob_conditional_check> = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
@@ -544,37 +561,37 @@ struct tile_window_with_static_distribution
             lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_ + m0_init_value;
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             // TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
-                // read from bottom tensor
-                get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-                    smem, bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
+            // read from bottom tensor
+            get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                smem, bottom_tensor_thread_coord, 0, bool_constant<oob_conditional_check>{});
 
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
 
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
-                    smem += size_per_issue; // Note we manually increase the per-issue offset
-                }
-            });
-        });
+                smem += size_per_issue; // Note we manually increase the per-issue offset
+            }
+        };
+        WINDOW_DISPATCH_ISSUE_2();
     }
 
-    template <bool oob_conditional_check = true>
+    template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void store(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                              number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = load_store_traits;
@@ -586,62 +603,57 @@ struct tile_window_with_static_distribution
         constexpr auto tile_dstr = TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
-                // data index [y0, y1, ...]
-                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                // read from distributed tensor
-                // vector_type_t vec;
-                vector_t vec_value;
+            // read from distributed tensor
+            // vector_type_t vec;
+            vector_t vec_value;
 
-                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_array(
-                        [&](auto jj) {
-                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
-                                                            : idx_ys_start[jj];
-                        },
-                        number<NDimY>{});
+            static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_array(
+                    [&](auto jj) {
+                        return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<NDimY>{});
 
-                    constexpr index_t d =
-                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
 
-                    vec_value.template get_as<DataType>()(j) =
-                        dstr_tensor.get_thread_buffer().template at<d>();
-                });
-
-                // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
-
-                // write into bottom tensor
-                get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
-                    bottom_tensor_thread_coord,
-                    0,
-                    vec_value,
-                    bool_constant<oob_conditional_check>{});
-
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
-
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
-
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
-                }
+                vec_value.template get_as<DataType>()(j) =
+                    dstr_tensor.get_thread_buffer().template at<d>();
             });
-        });
+
+            // const vector_t vec_value = vec.template get_as<vector_t>().template at<0>();
+
+            // write into bottom tensor
+            get_bottom_tensor_view().template set_vectorized_elements<vector_t>(
+                bottom_tensor_thread_coord, 0, vec_value, bool_constant<oob_conditional_check>{});
+
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+            }
+        };
+        WINDOW_DISPATCH_ISSUE_2();
     }
 
-    CK_TILE_DEVICE void
-    store_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor) const
+    template <index_t i_access = -1>
+    CK_TILE_DEVICE void store_raw(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                                  number<i_access> = {}) const
     {
         using Traits = load_store_traits;
 
@@ -652,54 +664,53 @@ struct tile_window_with_static_distribution
         static constexpr bool oob_conditional_check = true;
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
-                // data index [y0, y1, ...]
-                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                // read from distributed tensor
-                vector_t vec_value;
-                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_array(
-                        [&](auto jj) {
-                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
-                                                            : idx_ys_start[jj];
-                        },
-                        number<NDimY>{});
-                    constexpr index_t d =
-                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
-                    vec_value.template get_as<DataType>()(j) =
-                        dstr_tensor.get_thread_buffer().template at<d>();
-                });
-
-                // write into bottom tensor
-                get_bottom_tensor_view()
-                    .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
-                        bottom_tensor_thread_coord, 0, vec_value);
-
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
-
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
-
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
-                }
+            // read from distributed tensor
+            vector_t vec_value;
+            static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_array(
+                    [&](auto jj) {
+                        return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<NDimY>{});
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                vec_value.template get_as<DataType>()(j) =
+                    dstr_tensor.get_thread_buffer().template at<d>();
             });
-        });
+
+            // write into bottom tensor
+            get_bottom_tensor_view()
+                .template set_vectorized_elements_raw<vector_t, oob_conditional_check>(
+                    bottom_tensor_thread_coord, 0, vec_value);
+
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+            }
+        };
+
+        WINDOW_DISPATCH_ISSUE_2();
     }
 
-    template <bool oob_conditional_check = true>
+    template <index_t i_access = -1, bool oob_conditional_check = true>
     CK_TILE_DEVICE void update(const static_distributed_tensor<DataType, TileDstr>& dstr_tensor,
+                               number<i_access>                     = {},
                                bool_constant<oob_conditional_check> = {}) const
     {
         using Traits = load_store_traits;
@@ -710,55 +721,50 @@ struct tile_window_with_static_distribution
         constexpr auto tile_dstr = TileDstr{};
 
         // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+        auto issue = [&](auto iCoord, auto iCoordAccess) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+            constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
-                // data index [y0, y1, ...]
-                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+            // data index [y0, y1, ...]
+            constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
-                // read from distributed tensor
-                vector_t vec_value;
+            // read from distributed tensor
+            vector_t vec_value;
 
-                static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_array(
-                        [&](auto jj) {
-                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
-                                                            : idx_ys_start[jj];
-                        },
-                        number<NDimY>{});
+            static_for<0, Traits::ScalarPerVector, 1>{}([&](auto j) {
+                constexpr auto idx_ys = generate_array(
+                    [&](auto jj) {
+                        return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j) : idx_ys_start[jj];
+                    },
+                    number<NDimY>{});
 
-                    constexpr index_t d =
-                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
+                constexpr index_t d = tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys);
 
-                    vec_value.template get_as<DataType>()(j) =
-                        dstr_tensor.get_thread_buffer().template at<d>();
-                });
-
-                // write into bottom tensor
-                get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
-                    bottom_tensor_thread_coord,
-                    0,
-                    vec_value,
-                    bool_constant<oob_conditional_check>{});
-
-                // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
-
-                    constexpr auto idx_diff_ps_ys =
-                        container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
-
-                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
-                }
+                vec_value.template get_as<DataType>()(j) =
+                    dstr_tensor.get_thread_buffer().template at<d>();
             });
-        });
+
+            // write into bottom tensor
+            get_bottom_tensor_view().template update_vectorized_elements<vector_t>(
+                bottom_tensor_thread_coord, 0, vec_value, bool_constant<oob_conditional_check>{});
+
+            // move thread coordinate
+            if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+            {
+                constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                constexpr auto idx_diff_ps_ys =
+                    container_concat(array<index_t, NDimP>{0}, idx_diff_ys);
+
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+            }
+        };
+
+        WINDOW_DISPATCH_ISSUE_2();
     }
 
     // move thread's botom tensor coordiante
@@ -856,6 +862,8 @@ struct tile_window_with_static_distribution
     //   per-thread coordinate for bottom tensor
     array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord> pre_computed_coords_;
 };
+
+#undef WINDOW_DISPATCH_ISSUE_2
 
 // TODO: use strategy
 template <typename TensorView_,

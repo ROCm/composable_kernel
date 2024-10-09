@@ -7,10 +7,10 @@
 
 namespace ck_tile {
 
-template<typename AccWarpDescEnc,
-        typename BlockTile, // seq<M, N>
-        typename BlockWarps,
-        typename WarpTile>
+template <typename AccWarpDescEnc,
+          typename BlockTile, // seq<M, N>
+          typename BlockWarps,
+          typename WarpTile>
 CK_TILE_DEVICE_HOST constexpr auto make_block_gemm_acc_enc()
 {
     constexpr index_t Block_M = BlockTile::at(number<0>{});
