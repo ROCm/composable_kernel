@@ -245,7 +245,7 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
             {
             case 0: absolute_error_threshold = static_cast<double>(inDataRangeTensor1); break;
             case 1: absolute_error_threshold = static_cast<double>(inDataRangeTensor2); break;
-            default: absolute_error_threshold = static_cast<double>(inDataRangeTensor3);
+            default: absolute_error_threshold = inDataRangeTensor3;
             }
 
             absolute_error_threshold =

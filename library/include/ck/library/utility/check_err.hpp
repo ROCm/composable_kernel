@@ -35,7 +35,8 @@ double get_relative_threshold()
 
     static_assert(is_same_v<ComputeDataType, F8> || is_same_v<ComputeDataType, F16> ||
                       is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
-                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32>,
+                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                      is_same_v<ComputeDataType, int>,
                   "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
     int compute_mantissa = 0;
     if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
@@ -50,7 +51,8 @@ double get_relative_threshold()
 
     static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
                       is_same_v<OutDataType, BF16> || is_same_v<OutDataType, F32> ||
-                      is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32>,
+                      is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                      is_same_v<OutDataType, int>,
                   "Warning: Unhandled OutDataType for setting up the relative threshold!");
     int output_mantissa = 0;
     if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
@@ -69,7 +71,7 @@ double get_relative_threshold()
 }
 
 template <typename ComputeDataType>
-double get_absolute_threshold(const float max_possible_num)
+double get_absolute_threshold(const double max_possible_num)
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
@@ -80,7 +82,8 @@ double get_absolute_threshold(const float max_possible_num)
 
     static_assert(is_same_v<ComputeDataType, F8> || is_same_v<ComputeDataType, F16> ||
                       is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
-                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32>,
+                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                      is_same_v<ComputeDataType, int>,
                   "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
 
     auto expo = std::log2(std::abs(max_possible_num));
