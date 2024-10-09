@@ -66,6 +66,9 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
         hip_check_error(hipEventElapsedTime(&total_time, start, stop));
 
+        hip_check_error(hipEventDestroy(start));
+        hip_check_error(hipEventDestroy(stop));
+
         return total_time / nrepeat;
     }
     else
@@ -142,6 +145,9 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
         float total_time = 0;
 
         hip_check_error(hipEventElapsedTime(&total_time, start, stop));
+
+        hip_check_error(hipEventDestroy(start));
+        hip_check_error(hipEventDestroy(stop));
 
         return total_time / nrepeat;
     }
