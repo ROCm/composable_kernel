@@ -107,7 +107,7 @@ struct CShuffleEpilogue
         // Copy the permuted data back to the original thread buffer
         for(index_t i = 0; i < total_elements; ++i)
         {
-            thread_buf.set_value(i, permuted_thread_buf.get(i));
+            thread_buf.set_as(i, permuted_thread_buf.get(i));
         }
     }
 

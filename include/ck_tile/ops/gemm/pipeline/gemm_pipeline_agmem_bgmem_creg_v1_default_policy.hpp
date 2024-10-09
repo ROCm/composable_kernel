@@ -7,7 +7,7 @@
 
 namespace ck_tile {
 
-// Default policy for BlockGemmPipelineAGmemBGmemCRegV1
+// Default policy for GemmPipelineAGmemBGmemCRegV1
 // Default policy class should not be templated, put template on member functions instead
 struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
 {

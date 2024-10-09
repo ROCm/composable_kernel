@@ -58,14 +58,6 @@ struct thread_buffer {
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return get(I); }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return get(I); }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return get(I); }
-
-    CK_TILE_HOST_DEVICE constexpr void set_value(index_t i, const value_type& value) { 
-        if(i >= 0 && i < N){
-            data[i] = value;  
-        } else {
-            static_assert("The index you give is out of the range!");
-        }
-    }
     
     template <typename X_,
               typename std::enable_if<has_same_scalar_type<value_type, X_>::value, bool>::type = false>
