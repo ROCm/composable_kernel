@@ -1,8 +1,8 @@
-#include <ck/host/stringutils.hpp>
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 #ifdef HIPRTC_FOR_CODEGEN_TESTS
 #include <hip/hiprtc.h>
+#include <rtc/manage_ptr.hpp>
 #endif
 #include <rtc/tmp_dir.hpp>
 #include <cassert>
@@ -13,6 +13,26 @@
 #include <stdexcept>
 
 namespace rtc {
+
+bool EndsWith(const std::string& value, const std::string& suffix)
+{
+    if(suffix.size() > value.size())
+        return false;
+    else
+        return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
+}
+
+std::vector<std::string> SplitString(const std::string& s, char delim)
+{
+    std::vector<std::string> elems;
+    std::stringstream ss(s + delim);
+    std::string item;
+    while(std::getline(ss, item, delim))
+    {
+        elems.push_back(item);
+    }
+    return elems;
+}
 
 template <class T>
 T generic_read_file(const std::string& filename, size_t offset = 0, size_t nbytes = 0)
@@ -108,42 +128,27 @@ kernel clang_compile_kernel(const std::vector<src_file>& srcs, compile_options o
 
 #ifdef HIPRTC_FOR_CODEGEN_TESTS
 
+std::string hiprtc_error(hiprtcResult err, const std::string& msg)
+{
+    return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
+}
+
+void hiprtc_check_error(hiprtcResult err, const std::string& msg = "")
+{
+    if(err != HIPRTC_SUCCESS)
+        throw std::runtime_error(hiprtc_error(err, msg));
+}
+
 struct hiprtc_src_file
 {
     hiprtc_src_file() = default;
     hiprtc_src_file(const src_file& s) : path(s.path.string()), content(s.content) {}
     std::string path;
     std::string content;
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.path, "path"), f(self.content, "content"));
-    }
 };
 
-std::string hiprtc_error(hiprtcResult err, const std::string& msg)
-{
-    return "hiprtc: " + (hiprtcGetErrorString(err) + (": " + msg));
-}
-
-void hiprtc_check_error(hiprtcResult err, const std::string& msg, const std::string& ctx)
-{
-    if(err != HIPRTC_SUCCESS)
-        throw std::runtime_error(hiprtc_error(err, msg));
-}
-
-// NOLINTNEXTLINE
-#define RTC_HIPRTC(...) hiprtc_check_error(__VA_ARGS__, #__VA_ARGS__, "Lorem ipsum dolor sit amet")
-
-#define RTC_HIPRTC_THROW(error, msg) throw std::runtime_error(hiprtc_error(error, msg))
-
-struct hiprtc_program_destroy
-{
-    void operator()(hiprtcProgram prog) const { hiprtcDestroyProgram(&prog); }
-};
-
-using hiprtc_program_ptr =
-    std::unique_ptr<std::remove_pointer_t<hiprtcProgram>, hiprtc_program_destroy>;
+void hiprtc_program_destroy(hiprtcProgram prog) { hiprtcDestroyProgram(&prog); }
+using hiprtc_program_ptr = RTC_MANAGE_PTR(hiprtcProgram, hiprtc_program_destroy);
 
 template <class... Ts>
 hiprtc_program_ptr hiprtc_program_create(Ts... xs)
@@ -151,8 +156,7 @@ hiprtc_program_ptr hiprtc_program_create(Ts... xs)
     hiprtcProgram prog = nullptr;
     auto result        = hiprtcCreateProgram(&prog, xs...);
     hiprtc_program_ptr p{prog};
-    if(result != HIPRTC_SUCCESS)
-        RTC_HIPRTC_THROW(result, "Create program failed.");
+    hiprtc_check_error(result, "Create program failed.");
     return p;
 }
 
@@ -193,7 +197,7 @@ struct hiprtc_program
     {
         for(auto&& src : srcs)
         {
-            if(ck::host::EndsWith(src.path, ".cpp"))
+            if(EndsWith(src.path, ".cpp"))
             {
                 cpp_src  = std::move(src.content);
                 cpp_name = std::move(src.path);
@@ -239,11 +243,11 @@ struct hiprtc_program
     std::string log() const
     {
         std::size_t n = 0;
-        RTC_HIPRTC(hiprtcGetProgramLogSize(prog.get(), &n));
+        hiprtc_check_error(hiprtcGetProgramLogSize(prog.get(), &n));
         if(n == 0)
             return {};
         std::string buffer(n, '\0');
-        RTC_HIPRTC(hiprtcGetProgramLog(prog.get(), buffer.data()));
+        hiprtc_check_error(hiprtcGetProgramLog(prog.get(), buffer.data()));
         assert(buffer.back() != 0);
         return buffer;
     }
@@ -251,9 +255,9 @@ struct hiprtc_program
     std::vector<char> get_code_obj() const
     {
         std::size_t n = 0;
-        RTC_HIPRTC(hiprtcGetCodeSize(prog.get(), &n));
+        hiprtc_check_error(hiprtcGetCodeSize(prog.get(), &n));
         std::vector<char> buffer(n);
-        RTC_HIPRTC(hiprtcGetCode(prog.get(), buffer.data()));
+        hiprtc_check_error(hiprtcGetCode(prog.get(), buffer.data()));
         return buffer;
     }
 };
@@ -262,7 +266,7 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(const std::vector<src
                                                            const compile_options& options)
 {
     hiprtc_program prog(srcs);
-    auto flags = ck::host::SplitString(options.flags, ' ');
+    auto flags = SplitString(options.flags, ' ');
     prog.compile(flags);
     return {prog.get_code_obj()};
 }

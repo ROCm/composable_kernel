@@ -1,10 +1,3 @@
-option(USE_HIPRTC_FOR_CODEGEN_TESTS "Whether to enable hipRTC for codegen tests." ON)
-
-if(USE_HIPRTC_FOR_CODEGEN_TESTS)
-    add_compile_definitions(HIPRTC_FOR_CODEGEN_TESTS)
-    message("CK compiled with USE_HIPRTC_FOR_CODEGEN_TESTS set to ${USE_HIPRTC_FOR_CODEGEN_TESTS}")
-endif()
-
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
 add_subdirectory(rtc)
 file(GLOB TEST_SRCS CONFIGURE_DEPENDS *.cpp)

@@ -9,6 +9,7 @@
 
 namespace ck {
 #ifdef __HIPCC_RTC__
+
 template <bool B>
 using bool_constant = integral_constant<bool, B>;
 
@@ -113,51 +114,75 @@ constexpr T&& forward(typename remove_reference<T>::type&& t_) noexcept
     return static_cast<T&&>(t_);
 }
 
-template<class T> struct is_const          : false_type {};
-template<class T> struct is_const<const T> : true_type {};
-template< class T >
+template <class T>
+struct is_const : false_type
+{
+};
+template <class T>
+struct is_const<const T> : true_type
+{
+};
+template <class T>
 inline constexpr bool is_const_v = is_const<T>::value;
 
-template< class T >
+template <class T>
 inline constexpr bool is_reference_v = is_reference<T>::value;
 
-template<class T> struct remove_const { typedef T type; };
-template<class T> struct remove_const<const T> { typedef T type; };
-template< class T >
+template <class T>
+struct remove_const
+{
+    typedef T type;
+};
+template <class T>
+struct remove_const<const T>
+{
+    typedef T type;
+};
+template <class T>
 using remove_const_t = typename remove_const<T>::type;
 
-template< class T >
+template <class T>
 inline constexpr bool is_class_v = is_class<T>::value;
 
-template< class T >
+template <class T>
 inline constexpr bool is_trivially_copyable_v = is_trivially_copyable<T>::value;
 
-template< class... >
+template <class...>
 using void_t = void;
 
-using __hip::declval;
+template <class T, class U = T&&>
+U private_declval(int);
+
+template <class T>
+T private_declval(long);
+
+template <class T>
+auto declval() noexcept -> decltype(private_declval<T>(0));
+
 #else
+
 #include <utility>
 #include <type_traits>
+using std::declval;
+using std::false_type;
 using std::forward;
 using std::is_base_of;
 using std::is_class;
+using std::is_class_v;
+using std::is_const_v;
 using std::is_pointer;
 using std::is_reference;
+using std::is_reference_v;
 using std::is_trivially_copyable;
+using std::is_trivially_copyable_v;
 using std::is_unsigned;
+using std::remove_const_t;
 using std::remove_cv;
 using std::remove_pointer;
 using std::remove_reference;
-using std::is_const_v;
-using std::is_reference_v;
-using std::remove_const_t;
-using std::is_class_v;
-using std::is_trivially_copyable_v;
-using std::void_t;
-using std::false_type;
 using std::true_type;
-using std::declval;
+using std::void_t;
+
 #endif
 
 template <typename X, typename Y>
