@@ -26,7 +26,7 @@ struct GemmKernel
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
     // using CAccDataType = remove_cvref_t<typename GemmPipeline::CDataType>;
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::CDataType>;
+    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     __host__ static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -118,8 +118,10 @@ struct GemmKernel
         auto a_pad_view = pad_tensor_view(
             a_tensor_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
-            sequence < false,
-            GemmPipeline::kPadA ? true : false > {});
+            // somehow clang-format is splitting below line into multiple.
+            // clang-format off
+            sequence<false, GemmPipeline::kPadA ? true : false>{});
+        // clang-format on
 
         auto a_block_window = make_tile_window(
             a_pad_view,
@@ -129,8 +131,9 @@ struct GemmKernel
         auto b_pad_view = pad_tensor_view(
             b_tensor_view,
             make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
-            sequence < false,
-            GemmPipeline::kPadB ? true : false > {});
+            // clang-format off
+            sequence<false, GemmPipeline::kPadB ? true : false>{});
+        // clang-format on
 
         auto b_block_window = make_tile_window(
             b_pad_view,
@@ -171,8 +174,9 @@ struct GemmKernel
         auto c_pad_view = pad_tensor_view(
             c_tensor_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
-            sequence < false,
-            GemmPipeline::kPadC ? true : false > {});
+            // clang-format off
+            sequence<false, GemmPipeline::kPadC ? true : false>{});
+        // clang-format on
         auto CBlockWindow = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),

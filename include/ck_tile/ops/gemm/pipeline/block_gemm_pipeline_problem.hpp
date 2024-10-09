@@ -51,7 +51,7 @@ template <typename ADataType_,
           bool kPadB_                      = false,
           bool kPadC_                      = false,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
-          bool HasHotLoop_                 = false,
+          bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
 struct UniversalGemmPipelineProblem
 {

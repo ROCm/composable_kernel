@@ -27,6 +27,7 @@ struct BaseGemmPipelineAgBgCrMem
 
     static constexpr index_t WgpPerCU =
         (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
+    // TODO: Is this 32K value gfx9 arch specific?
     static constexpr index_t FullMemBandPrefetchStages = integer_divide_ceil(
         32768 / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
@@ -206,6 +207,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 integer_divide_ceil(sizeof(ADataType) * a_lds_block_desc.get_element_space_size(),
                                     16) *
                 16;
+
             // B tile in LDS
             BDataType* p_b_lds = static_cast<BDataType*>(
                 static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
@@ -251,20 +253,6 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             // Block GEMM
             constexpr auto block_gemm = BlockGemm();
             auto c_block_tile         = block_gemm.MakeCBlockTile();
-            // -----------------------------------------------------------------------------------------
-            // Gemm pipeline start
-
-            if(blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0)
-            {
-                printf("Pipeline >>> bid: %d, tid: %d: HasHotLoop: %s, TailNumber: %d,"
-                       " PrefetchStages: %d, num_loop: %d\n",
-                       blockIdx.x,
-                       threadIdx.x,
-                       (HasHotLoop ? "True" : "False"),
-                       static_cast<index_t>(TailNum),
-                       PrefetchStages,
-                       num_loop);
-            }
 
             using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
@@ -276,6 +264,9 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
             tuple_array<ABlockTile, PrefetchStages> a_block_tiles;
             tuple_array<BBlockTile, PrefetchStages> b_block_tiles;
+
+            // -----------------------------------------------------------------------------------------
+            // Gemm pipeline start
 
             // prefetch
             // global read 0
