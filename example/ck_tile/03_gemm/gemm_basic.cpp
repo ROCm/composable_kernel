@@ -1,4 +1,3 @@
-
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -263,7 +262,12 @@ int main(int argc, char* argv[])
                                                                      kPadB,
                                                                      kPadC>;
 
-    using CodegenGemmPipeline = ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
+    using CodegemGemmPolicy =
+        ck_tile::BlockGemmPipelineAGmemBGmemCRegUniversaltPolicy<matrix_a_layout,
+                                                                 matrix_b_layout,
+                                                                 matrix_c_layout>;
+    using CodegenGemmPipeline =
+        ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegemGemmPolicy>;
 
     invoke_gemm<ck_tile::half_t,
                 matrix_a_layout,
