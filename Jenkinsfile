@@ -100,7 +100,15 @@ def getDockerImage(Map conf=[:]){
         dockerArgs = dockerArgs + " --no-cache "
     }
     echo "Docker Args: ${dockerArgs}"
-    def image = getDockerImageName()
+    def image
+    if ( params.BUILD_LEGACY_OS && conf.get("docker_name", "") != "" ){
+        image = conf.get("docker_name", "")
+        echo "Using legacy docker: ${image}"
+    }
+    else{
+        image = getDockerImageName()
+        echo "Using default docker: ${image}"
+    }
     //Check if image exists 
     def retimage
     try 
@@ -125,7 +133,9 @@ def buildDocker(install_prefix){
     def image_name = getDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg BUILDKIT_INLINE_CACHE=1 --build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' --build-arg DISABLE_CACHE='git rev-parse ${params.COMPILER_VERSION}' "
-
+    if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
+        dockerArgs = dockerArgs + " --no-cache "
+    }
     echo "Build Args: ${dockerArgs}"
     try{
         if(params.BUILD_DOCKER){
@@ -259,6 +269,7 @@ def cmake_build(Map conf=[:]){
             """)
         sh cmd3
     }
+
     // reduce parallelism when compiling, clang uses too much memory
     def nt = nthreads()
     def cmd
@@ -273,7 +284,7 @@ def cmake_build(Map conf=[:]){
         }
         else{
             setup_cmd = conf.get("setup_cmd", "${cmake_envs} cmake ${setup_args}   .. ")
-            build_cmd = conf.get("build_cmd", "${build_envs} dumb-init make -j${nt} ${config_targets}")
+            build_cmd = conf.get("build_cmd", "${build_envs} make -j${nt} ${config_targets}")
         }
         cmd = conf.get("cmd", """
             ${setup_cmd}
@@ -292,8 +303,8 @@ def cmake_build(Map conf=[:]){
     dir("build"){
         //build CK
         sh cmd
-        //run tests
-        if(!setup_args.contains("NO_CK_BUILD")){
+        //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
+        if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             if (setup_args.contains("gfx90a") && params.NINJA_BUILD_TRACE){
                 sh "/ninjatracing/ninjatracing .ninja_log > ck_build_trace.json"
                 archiveArtifacts "ck_build_trace.json"
@@ -309,7 +320,7 @@ def cmake_build(Map conf=[:]){
     if (package_build == true && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "amd-master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
-    if (params.RUN_CK_TILE_TESTS){
+    if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_fwd_*.log"
             archiveArtifacts "perf_fmha_bwd_*.log"
@@ -330,7 +341,15 @@ def buildHipClangJob(Map conf=[:]){
         env.HSA_ENABLE_SDMA=0
         checkout scm
 
-        def image = getDockerImageName() 
+        def image
+        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
+            image = conf.get("docker_name", "")
+            echo "Using legacy docker: ${image}"
+        }
+        else{
+            image = getDockerImageName()
+            echo "Using default docker: ${image}"
+        }
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -352,7 +371,7 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 48, unit: 'HOURS')
                 {
@@ -407,7 +426,7 @@ def runCKProfiler(Map conf=[:]){
         def variant = env.STAGE_NAME
         def retimage
 
-        gitStatusWrapper(credentialsId: "${status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -512,7 +531,16 @@ def Build_CK(Map conf=[:]){
         env.DOCKER_BUILDKIT=1
         checkout scm
 
-        def image = getDockerImageName() 
+        def image
+        if ( params.BUILD_LEGACY_OS  && conf.get("docker_name", "") != "" ){
+            image = conf.get("docker_name", "")
+            echo "Using legacy docker: ${image}"
+        }
+        else{
+            image = getDockerImageName()
+            echo "Using default docker: ${image}"
+        }
+
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group 
@@ -524,6 +552,9 @@ def Build_CK(Map conf=[:]){
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline-open" || params.COMPILER_COMMIT != ""){
             dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' "
         }
+        if(params.BUILD_LEGACY_OS){
+            dockerOpts = dockerOpts + " --env LD_LIBRARY_PATH='/opt/Python-3.8.13/lib' "
+        }
         def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
         def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
         dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
@@ -532,7 +563,7 @@ def Build_CK(Map conf=[:]){
         def variant = env.STAGE_NAME
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -637,7 +668,7 @@ def process_results(Map conf=[:]){
     def variant = env.STAGE_NAME
     def retimage
 
-    gitStatusWrapper(credentialsId: "${env.status_wrapper_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try {
             (retimage, image) = getDockerImage(conf)
         }
@@ -651,7 +682,7 @@ def process_results(Map conf=[:]){
         timeout(time: 1, unit: 'HOURS'){
             try{
                 dir("script"){
-                    if (params.RUN_CK_TILE_TESTS){
+                    if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_fwd_gfx942.log"
                             unstash "perf_fmha_bwd_gfx942.log"
@@ -707,7 +738,8 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;ROCM
                                               0 21 * * * % ROCMVERSION=6.2;hipTensor_test=true
                                               0 19 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
                                               0 17 * * * % BUILD_DOCKER=true;DL_KERNELS=true;COMPILER_VERSION=amd-mainline-open;BUILD_COMPILER=/llvm-project/build/bin/clang++;BUILD_GFX12=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false''' : ""
+                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;RUN_CODEGEN_TESTS=false;RUN_PERFORMANCE_TESTS=false;USE_SCCACHE=false
+                                              0 13 * * * % BUILD_LEGACY_OS=true ''' : ""
 
 pipeline {
     agent none
@@ -794,6 +826,10 @@ pipeline {
             name: "NINJA_BUILD_TRACE",
             defaultValue: false,
             description: "Generate a ninja build trace (default: OFF)")
+        booleanParam(
+            name: "BUILD_LEGACY_OS",
+            defaultValue: false,
+            description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -802,7 +838,7 @@ pipeline {
         dbsshport = "${dbsshport}"
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
-        status_wrapper_creds = "${status_wrapper_creds}"
+        ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
     }
@@ -946,7 +982,6 @@ pipeline {
         {
             parallel
             {
-
                 stage("Run CK_TILE_GEMM Tests on gfx90a")
                 {
                     when {
@@ -965,7 +1000,6 @@ pipeline {
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
-
                 }
                 stage("Run CK_TILE_GEMM Tests on gfx942")
                 {
@@ -988,15 +1022,54 @@ pipeline {
                 }
             }
         }
+
 		stage("Build CK and run Tests")
         {
             parallel
             {
+                stage("Build CK with RHEL8")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3"
+                        setup_args = """ -DGPU_TARGETS="gfx942" \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        execute_args = " "
+                   }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
+                        cleanWs()
+                    }
+                }
+                stage("Build CK with SLES15")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a") }
+                    environment{
+                        def docker_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3"
+                        setup_args = """ -DGPU_TARGETS="gfx942" \
+                                         -DCMAKE_CXX_FLAGS=" -O3 " \
+                                         -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        execute_args = " "
+                   }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
+                        cleanWs()
+                    }
+                }
                 stage("Build CK for all gfx9 targets")
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -1018,7 +1091,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_FULL_QA.toBoolean() }
+                        expression { params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
@@ -1038,7 +1111,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -1058,15 +1131,15 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() }
+                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         execute_args = """ cmake -D CMAKE_PREFIX_PATH=/opt/rocm \
                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -D CMAKE_BUILD_TYPE=Release \
-                                           -D INSTANCES_ONLY=ON \
-                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j64 """
+                                           -D GPU_ARCHS="gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"  \
+                                           -D CMAKE_CXX_FLAGS=" -O3 " .. && make -j64 """
                    }
                     steps{
                         buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1077,7 +1150,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
@@ -1097,7 +1170,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1101") }
                     environment{
@@ -1117,7 +1190,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
+                        expression { params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
@@ -1144,7 +1217,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() }
+                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     options { retry(1) }
                     agent{ label rocmnode("gfx90a")}
@@ -1165,7 +1238,7 @@ pipeline {
                 stage("Process results"){
                     when {
                         beforeAgent true
-                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() }
+                        expression { params.RUN_PERFORMANCE_TESTS.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{

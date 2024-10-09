@@ -85,6 +85,9 @@ auto create_args(int argc, char* argv[])
         .insert("p_drop", "0", "0~1 probability of dropout")
         .insert("drop_seed", "1", "seed for random number generator")
         .insert("drop_offset", "0", "offset for random number generator")
+        .insert("drop_prefs",
+                "0",
+                "seed and offset values are present on GPU; 0 - host, 1 - device/GPU")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
@@ -99,10 +102,23 @@ auto create_args(int argc, char* argv[])
 
 // different threshold for different dtype
 template <typename DataType>
-auto get_elimit(int /*init_method*/)
+auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<ck_tile::bf16_t>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
+{
+    double rtol = 1e-2;
+    double atol = 1e-2;
+    if(hdim_q > 128 && hdim_v > 128) // 3.2 for RTZ/1.5 for RTN
+    {
+        rtol = 3.2e-2;
+        atol = 3.2e-2;
+    }
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -145,6 +161,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     float p_drop         = arg_parser.get_float("p_drop");
     uint64_t drop_seed   = arg_parser.get_uint64("drop_seed");
     uint64_t drop_offset = arg_parser.get_uint64("drop_offset");
+    bool drop_prefs      = arg_parser.get_bool("drop_prefs");
+
     if(use_dbias && bias.type != bias_enum::elementwise_bias)
     {
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
@@ -368,6 +386,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
+    ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dq_acc_buf(dq_acc_host.get_element_space_size_in_bytes());
 
@@ -378,6 +398,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
+    drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
 
     // clang-format off
@@ -459,6 +481,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         const ck_tile::index_t split_stride_dq_acc =
             (shape_batch * nhead * shape_seqlen_q * hdim_q);
 
+        const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
+            if(drop_prefs)
+            {
+                return std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                      drop_offset_buf.GetDeviceBuffer());
+            }
+            else
+            {
+                return std::make_pair(drop_seed, drop_offset);
+            }
+        }();
+
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
@@ -532,7 +566,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                              static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
                              p_undrop,
-                             {drop_seed, drop_offset}};
+                             drop_seed_offset};
     }();
 
     float ave_time = fmha_bwd(fmha_traits, fmha_args, stream_config);
@@ -899,7 +933,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
         // clang-format on
 
-        auto [rtol, atol] = get_elimit<DataType>(init_method);
+        auto [rtol, atol] = get_elimit<DataType>(hdim_q, hdim_v);
         bool dq_cur_pass  = ck_tile::check_err(dq_host_result,
                                               dq_host_ref,
                                               std::string("Error: QGrad Incorrect results!"),

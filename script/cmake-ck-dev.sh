@@ -7,8 +7,11 @@ MY_PROJECT_SOURCE=$1
 
 if [ $# -ge 2 ] ; then
     GPU_TARGETS=$2
+    shift 2
+    REST_ARGS=$@
 else
     GPU_TARGETS="gfx908;gfx90a;gfx940"
+    REST_ARGS=
 fi
 
 cmake                                                                                             \
@@ -20,4 +23,5 @@ cmake                                                                           
 -D GPU_TARGETS=$GPU_TARGETS                                                                       \
 -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
+$REST_ARGS                                                                                        \
 ${MY_PROJECT_SOURCE}
