@@ -253,9 +253,6 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
             auto relative_error_threshold =
                 ck::utils::get_relative_threshold<ComputeDataType, OutDataType>();
 
-            std::cout << "Absolute error threshold: " << absolute_error_threshold << std::endl;
-            std::cout << "Relative error threshold: " << relative_error_threshold << std::endl;
-
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,
                                              out_n_c_do_ho_wo_host.mData,
                                              "Error: Incorrect results",
