@@ -23,72 +23,80 @@
 namespace ck {
 namespace utils {
 
-template <typename ComputeDataType>
+template <typename ComputeDataType, typename OutDataType>
 double get_relative_threshold()
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using F32  = float;
+    using I8   = int8_t;
+    using I32  = int32_t;
 
-    int mantissa = 0;
-    if constexpr(is_same_v<ComputeDataType, F8>)
+    static_assert(is_same_v<ComputeDataType, F8> || is_same_v<ComputeDataType, F16> ||
+                      is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
+                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32>,
+                  "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
+    int compute_mantissa = 0;
+    if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                 is_same_v<ComputeDataType, int>)
     {
-        mantissa = NumericUtils<F8>::mant;
-    }
-    else if constexpr(is_same_v<ComputeDataType, F16>)
-    {
-        mantissa = NumericUtils<F16>::mant;
-    }
-    else if constexpr(is_same_v<ComputeDataType, BF16>)
-    {
-        mantissa = NumericUtils<BF16>::mant;
-    }
-    else if constexpr(is_same_v<ComputeDataType, F32>)
-    {
-        mantissa = NumericUtils<F32>::mant;
+        compute_mantissa = std::numeric_limits<ComputeDataType>::digits - 1;
     }
     else
     {
-        std::cout << "Warning: Unhandled ComputeDataType for setting up the relative threshold!"
-                  << std::endl;
+        compute_mantissa = NumericUtils<ComputeDataType>::mant;
     }
+
+    static_assert(is_same_v<OutDataType, F8> || is_same_v<OutDataType, F16> ||
+                      is_same_v<OutDataType, BF16> || is_same_v<OutDataType, F32> ||
+                      is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32>,
+                  "Warning: Unhandled OutDataType for setting up the relative threshold!");
+    int output_mantissa = 0;
+    if constexpr(is_same_v<OutDataType, I8> || is_same_v<OutDataType, I32> ||
+                 is_same_v<OutDataType, int>)
+    {
+        output_mantissa = std::numeric_limits<OutDataType>::digits - 1;
+    }
+    else
+    {
+        output_mantissa = NumericUtils<OutDataType>::mant;
+    }
+
+    int mantissa = (compute_mantissa < output_mantissa ? compute_mantissa : output_mantissa);
 
     return std::pow(2, -mantissa) * 0.5;
 }
 
 template <typename ComputeDataType>
-double get_absolute_threshold()
+double get_absolute_threshold(const float max_possible_num)
 {
     using F8   = ck::f8_t;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
     using F32  = float;
+    using I8   = int8_t;
+    using I32  = int32_t;
 
-    auto expo = std::log2(std::abs(0.5));
-    if constexpr(is_same_v<ComputeDataType, F8>)
+    static_assert(is_same_v<ComputeDataType, F8> || is_same_v<ComputeDataType, F16> ||
+                      is_same_v<ComputeDataType, BF16> || is_same_v<ComputeDataType, F32> ||
+                      is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32>,
+                  "Warning: Unhandled ComputeDataType for setting up the relative threshold!");
+
+    auto expo = std::log2(std::abs(max_possible_num));
+
+    int mantissa = 0;
+    if constexpr(is_same_v<ComputeDataType, I8> || is_same_v<ComputeDataType, I32> ||
+                 is_same_v<ComputeDataType, int>)
     {
-        expo = NumericUtils<F8>::exp;
-    }
-    else if constexpr(is_same_v<ComputeDataType, F16>)
-    {
-        expo = NumericUtils<F16>::exp;
-    }
-    else if constexpr(is_same_v<ComputeDataType, BF16>)
-    {
-        expo = NumericUtils<BF16>::exp;
-    }
-    else if constexpr(is_same_v<ComputeDataType, F32>)
-    {
-        expo = NumericUtils<F32>::exp;
+        mantissa = std::numeric_limits<ComputeDataType>::digits - 1;
     }
     else
     {
-        std::cout << "Warning: Unhandled ComputeDataType for setting up the absolute threshold!"
-                  << std::endl;
+        mantissa = NumericUtils<ComputeDataType>::mant;
     }
-    auto mantissa = get_relative_threshold<ComputeDataType>();
-    return 0.5 * std::pow(2, expo - (mantissa - 1));
+
+    return 0.5 * std::pow(2, expo - mantissa);
 }
 
 template <typename Range, typename RefRange>

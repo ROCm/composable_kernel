@@ -229,8 +229,18 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
         {
             out_device_buf.FromDevice(out_n_c_do_ho_wo_device.mData.data());
 
-            auto absolute_error_threshold = ck::utils::get_absolute_threshold<ComputeDataType>();
-            auto relative_error_threshold = ck::utils::get_relative_threshold<ComputeDataType>();
+            InDataType max_number{};
+            in_n_c_di_hi_wi.ForEach([&](auto&, auto idx) {
+                if(in_n_c_di_hi_wi(idx) > max_number)
+                {
+                    max_number = in_n_c_di_hi_wi(idx);
+                }
+            });
+
+            auto absolute_error_threshold =
+                ck::utils::get_absolute_threshold<ComputeDataType>(static_cast<float>(max_number));
+            auto relative_error_threshold =
+                ck::utils::get_relative_threshold<ComputeDataType, OutDataType>();
 
             bool pass = ck::utils::check_err(out_n_c_do_ho_wo_device.mData,
                                              out_n_c_do_ho_wo_host.mData,
