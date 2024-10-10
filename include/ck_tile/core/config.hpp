@@ -166,6 +166,17 @@
 #endif
 #endif
 
+// workaround for ROCm 6.3 and later (only on gfx90a)
+#ifndef CK_TILE_WORKAROUND_ROCM_6_3_INST_IN_WRONG_REGION_ISSUE
+#if defined(__gfx90a__) &&                                                               \
+    ((HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 3 && HIP_VERSION_PATCH >= 42131) || \
+     (HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR > 3))
+#define CK_TILE_WORKAROUND_ROCM_6_3_INST_IN_WRONG_REGION_ISSUE 1
+#else
+#define CK_TILE_WORKAROUND_ROCM_6_3_INST_IN_WRONG_REGION_ISSUE 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif

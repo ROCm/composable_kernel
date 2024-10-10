@@ -269,7 +269,11 @@ struct BlockFmhaPipelineQRKSVSAsync
         // check early exit
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
+#if CK_TILE_WORKAROUND_ROCM_6_3_INST_IN_WRONG_REGION_ISSUE
+            if(!(num_total_loop > 0))
+#else
             if(num_total_loop <= 0)
+#endif
             {
                 if constexpr(kStoreLSE)
                 {
