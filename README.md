@@ -91,6 +91,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 
     If you don't set `GPU_TARGETS` on the cmake command line, CK is built for all GPU targets
     supported by the current compiler (this may take a long time). 
+    Tests and examples will only get built if the GPU_TARGETS is set by the user on the cmake command line.
 
     NOTE: If you try setting `GPU_TARGETS` to a list of architectures, the build will only work if the 
     architectures are similar, e.g., `gfx908;gfx90a`, or `gfx1100;gfx1101;gfx11012`. Otherwise, if you 
