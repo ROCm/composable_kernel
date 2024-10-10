@@ -18,7 +18,7 @@ struct BlockGemmASmemBSmemCRegV1
     using Policy         = remove_cvref_t<Policy_>;
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using AccDataType    = remove_cvref_t<typename Problem::AccDataType>;
+    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -31,7 +31,7 @@ struct BlockGemmASmemBSmemCRegV1
     {
         static_assert(std::is_same_v<ADataType, typename ABlockWindow::DataType> &&
                           std::is_same_v<BDataType, typename BBlockWindow::DataType> &&
-                          std::is_same_v<AccDataType, typename CBlockTensor::DataType>,
+                          std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                       "wrong!");
 
         constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
@@ -195,7 +195,7 @@ struct BlockGemmASmemBSmemCRegV1
 
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
 
-        auto c_block_tensor = make_static_distributed_tensor<AccDataType>(c_block_dstr);
+        auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
         return c_block_tensor;
     }
 

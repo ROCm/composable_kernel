@@ -48,14 +48,10 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     using GemmEpilogue = ck_tile::Default2DEpilogue<
         ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, false, kPadC>>;
 
-    using BaseGemmPipeline =
-        ck_tile::BaseGemmPipelineAgBgCrMem<ck_tile::BlockGemmPipelineProblem<ADataType,
-                                                                             BDataType,
-                                                                             CDataType,
-                                                                             GemmShape,
-                                                                             ALayout,
-                                                                             BLayout,
-                                                                             CLayout>>;
+    using Traits = ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+
+    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<
+        ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>>;
 
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
@@ -71,14 +67,8 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
             ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                   BDataType,
                                                   AccDataType,
-                                                  CDataType,
                                                   GemmShape,
-                                                  ALayout,
-                                                  BLayout,
-                                                  CLayout,
-                                                  kPadA,
-                                                  kPadB,
-                                                  kPadC,
+                                                  Traits,
                                                   ck_tile::GemmPipelineScheduler::Intrawave,
                                                   has_hot_loop_v,
                                                   tail_number_v>>;

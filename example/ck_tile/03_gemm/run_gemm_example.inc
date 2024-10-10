@@ -164,7 +164,13 @@ int run_gemm_example(int argc, char* argv[])
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
-        ck_tile::reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType>(
+        ck_tile::reference_gemm_gpu<ADataType,
+                                    BDataType,
+                                    AccDataType,
+                                    CDataType,
+                                    ALayout,
+                                    BLayout,
+                                    CLayout>(
             a_m_k_dev_buf, b_k_n_dev_buf, c_m_n_gpu_buf_ref, M, N, K, stride_A, stride_B, stride_C);
 
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
