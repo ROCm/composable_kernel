@@ -11,7 +11,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "GPU_TARGETS": "gfx90a",
+                "GPU_TARGETS": "gfx950",
                 "BUILD_DEV": "ON",
                 "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
                 "CMAKE_PREFIX_PATH": "/opt/rocm"
@@ -33,7 +33,7 @@
             },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_CXX_FLAGS": "-O0"
+                "CMAKE_CXX_FLAGS": "-O0 -ggdb"
             }
         },
         {

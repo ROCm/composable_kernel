@@ -38,6 +38,11 @@ TEST(FP8FNUZ, ConvertFP32Nearest)
     // convert maximal f8_fnuz_t to float and check if equal to fp8 max
     ASSERT_NEAR(
         max_f8_t_float, type_convert<float>(f8_convert_rne<f8_fnuz_t>(max_f8_t_float)), abs_tol);
+
+    // XXX: FNUZ f8_convert_rne behavior is inconsistent.
+    // Clipping large values to fp8 max (saturation to finite) contradicts converting inf float to
+    // fp8 qNAN (no saturation).
+
     // convert maximal float to fp8 and back, check if clipped to fp8 max
     ASSERT_NEAR(max_f8_t_float,
                 type_convert<float>(f8_convert_rne<f8_fnuz_t>(std::numeric_limits<float>::max())),

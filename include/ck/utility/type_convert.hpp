@@ -100,6 +100,12 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_
     return type_convert<bhalf_t>(x_fp32);
 }
 
+template <>
+inline __host__ __device__ constexpr f8_ocp_t type_convert<f8_ocp_t, int>(int x)
+{
+    return f8_ocp_t{type_convert<f8_ocp_t::data_type>(x)};
+}
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
@@ -409,7 +415,7 @@ inline __host__ __device__ float type_convert<float, f8_fnuz_t>(f8_fnuz_t x)
 }
 
 template <>
-inline __host__ __device__ float2_t type_convert<float2_t, f8x2_t>(f8x2_t x)
+inline __host__ __device__ float2_t type_convert<float2_t, f8x2_fnuz_t>(f8x2_fnuz_t x)
 {
 #if defined(__gfx94__)
     const auto i16val = bit_cast<uint16_t>(x);
