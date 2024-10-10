@@ -14,10 +14,9 @@ template <typename Tuple>
 class TestCkTileGemmMemPipeline : public ::testing::Test
 {
     protected:
-    using ALayout = std::tuple_element_t<0, Tuple>;
-    using BLayout = std::tuple_element_t<1, Tuple>;
-    using CLayout = std::tuple_element_t<2, Tuple>;
-    ;
+    using ALayout     = std::tuple_element_t<0, Tuple>;
+    using BLayout     = std::tuple_element_t<1, Tuple>;
+    using CLayout     = std::tuple_element_t<2, Tuple>;
     using ADataType   = std::tuple_element_t<3, Tuple>;
     using BDataType   = std::tuple_element_t<4, Tuple>;
     using AccDataType = std::tuple_element_t<5, Tuple>;
@@ -90,6 +89,7 @@ class TestCkTileGemmMemPipeline : public ::testing::Test
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
                 ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                       BDataType,
+                                                      AccDataType,
                                                       CDataType,
                                                       GemmShape,
                                                       ALayout,

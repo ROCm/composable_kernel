@@ -24,19 +24,19 @@ struct BlockGemmASmemBSmemCRegV1
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     // C += A * B
-    template <typename CBlockTensor, typename ABlockWindowTmp, typename BBlockWindowTmp>
+    template <typename CBlockTensor, typename ABlockWindow, typename BBlockWindow>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                   const ABlockWindowTmp& a_block_window_tmp,
-                                   const BBlockWindowTmp& b_block_window_tmp) const
+                                   const ABlockWindow& a_block_window,
+                                   const BBlockWindow& b_block_window) const
     {
-        static_assert(std::is_same_v<ADataType, typename ABlockWindowTmp::DataType> &&
-                          std::is_same_v<BDataType, typename BBlockWindowTmp::DataType> &&
+        static_assert(std::is_same_v<ADataType, typename ABlockWindow::DataType> &&
+                          std::is_same_v<BDataType, typename BBlockWindow::DataType> &&
                           std::is_same_v<AccDataType, typename CBlockTensor::DataType>,
                       "wrong!");
 
-        constexpr index_t MPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<0>{}];
-        constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
-        constexpr index_t KPerBlock = ABlockWindowTmp{}.get_window_lengths()[number<1>{}];
+        constexpr index_t MPerBlock = ABlockWindow{}.get_window_lengths()[number<0>{}];
+        constexpr index_t NPerBlock = BBlockWindow{}.get_window_lengths()[number<0>{}];
+        constexpr index_t KPerBlock = ABlockWindow{}.get_window_lengths()[number<1>{}];
 
         static_assert(MPerBlock == BlockGemmShape::kM && NPerBlock == BlockGemmShape::kN &&
                           KPerBlock == BlockGemmShape::kK,
@@ -62,9 +62,9 @@ struct BlockGemmASmemBSmemCRegV1
 
         // construct A-warp-window
         auto a_warp_window_tmp = make_tile_window(
-            a_block_window_tmp.get_bottom_tensor_view(),
+            a_block_window.get_bottom_tensor_view(),
             make_tuple(number<WG::kM>{}, number<WG::kK>{}),
-            a_block_window_tmp.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
+            a_block_window.get_window_origin() + multi_index<2>{iMWarp * WG::kM, 0},
             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
 
 #if 0 // FIXME: using array will cause register spill
@@ -97,9 +97,9 @@ struct BlockGemmASmemBSmemCRegV1
 
         // construct B-warp-window
         auto b_warp_window_tmp = make_tile_window(
-            b_block_window_tmp.get_bottom_tensor_view(),
+            b_block_window.get_bottom_tensor_view(),
             make_tuple(number<WG::kN>{}, number<WG::kK>{}),
-            b_block_window_tmp.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
+            b_block_window.get_window_origin() + multi_index<2>{iNWarp * WG::kN, 0},
             make_static_tile_distribution(typename WG::BWarpDstrEncoding{}));
 
 #if 0 // FIXME: using array will cause register spill
@@ -200,12 +200,12 @@ struct BlockGemmASmemBSmemCRegV1
     }
 
     // C = A * B
-    template <typename ABlockTensorTmp, typename BBlockWindowTmp>
+    template <typename ABlockTensorTmp, typename BBlockWindow>
     CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
-                                   const BBlockWindowTmp& b_block_window_tmp) const
+                                   const BBlockWindow& b_block_window) const
     {
         auto c_block_tensor = MakeCBlockTile();
-        operator()(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp);
+        operator()(c_block_tensor, a_block_tensor_tmp, b_block_window);
         return c_block_tensor;
     }
 };

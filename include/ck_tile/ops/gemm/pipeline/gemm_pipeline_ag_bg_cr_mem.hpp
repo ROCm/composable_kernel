@@ -12,7 +12,6 @@ namespace ck_tile {
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-
 template <typename Problem>
 struct BaseGemmPipelineAgBgCrMem
 {
@@ -25,11 +24,13 @@ struct BaseGemmPipelineAgBgCrMem
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t MinMemInFlyBytes = 32768;
+
     static constexpr index_t WgpPerCU =
         (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
     // TODO: Is this 32K value gfx9 arch specific?
     static constexpr index_t FullMemBandPrefetchStages = integer_divide_ceil(
-        32768 / WgpPerCU,
+        MinMemInFlyBytes / WgpPerCU,
         (MPerBlock * sizeof(ADataType) + NPerBlock * sizeof(BDataType)) * KPerBlock);
     static constexpr index_t PrefetchStages =
         FullMemBandPrefetchStages >= 2
