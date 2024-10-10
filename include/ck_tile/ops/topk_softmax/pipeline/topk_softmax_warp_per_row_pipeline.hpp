@@ -56,7 +56,8 @@ struct TopkSoftmaxWarpPerRowPipeline
         {
 #if TOPK_SOFTMAX_USE_RAW_TILE_WINDOW
             __builtin_amdgcn_sched_barrier(0);
-            auto x = load_tile_raw(inp_win, number<-1>{}, bool_constant<true>{}, bool_constant<true>{});
+            auto x =
+                load_tile_raw(inp_win, number<-1>{}, bool_constant<true>{}, bool_constant<true>{});
             buffer_load_fence(number<0>{});
             __builtin_amdgcn_sched_barrier(0);
 #else

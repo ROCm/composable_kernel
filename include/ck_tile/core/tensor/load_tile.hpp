@@ -216,7 +216,8 @@ CK_TILE_DEVICE auto load_tile_raw(const TileWindow& w,
 
     auto t = make_static_distributed_tensor<DataType>(TileDstr{});
 
-    load_tile_raw(t, w, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
+    load_tile_raw(
+        t, w, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 
     return t;
 }
