@@ -91,6 +91,7 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
         using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<
             ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                   BDataType,
+                                                  AccDataType,
                                                   CDataType,
                                                   GemmShape,
                                                   ALayout,

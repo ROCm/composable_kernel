@@ -17,7 +17,7 @@ struct BlockGemmAsBsCrDefaultPolicy
     {
         if constexpr(std::is_same_v<typename Problem::ADataType, half_t> &&
                      std::is_same_v<typename Problem::BDataType, half_t> &&
-                     std::is_same_v<typename Problem::CDataType, float>)
+                     std::is_same_v<typename Problem::AccDataType, float>)
         {
 #if 0
             constexpr index_t kBlockSize = Problem::kBlockSize;
@@ -45,7 +45,7 @@ struct BlockGemmAsBsCrDefaultPolicy
         }
         else if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
                           std::is_same_v<typename Problem::BDataType, bf16_t> &&
-                          std::is_same_v<typename Problem::CDataType, float>)
+                          std::is_same_v<typename Problem::AccDataType, float>)
         {
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution{}, 4, 1);
         }

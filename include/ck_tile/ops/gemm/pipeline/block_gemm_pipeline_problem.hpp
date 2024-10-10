@@ -42,6 +42,7 @@ struct BlockGemmPipelineProblem
 
 template <typename ADataType_,
           typename BDataType_,
+          typename AccDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename ALayout_,
@@ -57,6 +58,7 @@ struct UniversalGemmPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
+    using AccDataType    = remove_cvref_t<AccDataType_>;
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
