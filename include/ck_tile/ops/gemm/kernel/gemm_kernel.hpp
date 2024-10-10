@@ -120,7 +120,7 @@ struct GemmKernel
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kK>{}),
             // somehow clang-format is splitting below line into multiple.
             // clang-format off
-            sequence<false, GemmPipeline::kPadA ? true : false>{});
+            sequence<false, GemmPipeline::kPadA>{});
         // clang-format on
 
         auto a_block_window = make_tile_window(
@@ -132,7 +132,7 @@ struct GemmKernel
             b_tensor_view,
             make_tuple(number<TilePartitioner::kN>{}, number<TilePartitioner::kK>{}),
             // clang-format off
-            sequence<false, GemmPipeline::kPadB ? true : false>{});
+            sequence<false, GemmPipeline::kPadB>{});
         // clang-format on
 
         auto b_block_window = make_tile_window(
@@ -175,7 +175,7 @@ struct GemmKernel
             c_tensor_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             // clang-format off
-            sequence<false, GemmPipeline::kPadC ? true : false>{});
+            sequence<false, GemmPipeline::kPadC>{});
         // clang-format on
         auto CBlockWindow = make_tile_window(
             c_pad_view,

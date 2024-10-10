@@ -101,8 +101,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
-    // using CBlockTile = typename BlockGemm::CBlockTile;
-    using I0 = number<0>;
+    using I0        = number<0>;
 
     static constexpr index_t BlockSize = Problem::kBlockSize;
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
