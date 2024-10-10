@@ -7,7 +7,8 @@ MY_PROJECT_SOURCE=$1
 
 if [ $# -ge 2 ] ; then
     GPU_TARGETS=$2
-    REST_ARGS=${@:3}
+    shift 2
+    REST_ARGS=$@
 else
     GPU_TARGETS="gfx908;gfx90a;gfx940"
     REST_ARGS=
