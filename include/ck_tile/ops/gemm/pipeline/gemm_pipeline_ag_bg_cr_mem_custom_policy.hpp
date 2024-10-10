@@ -4,8 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_as_bs_cr_default_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_as_bs_cr.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
 
 namespace ck_tile {
 
@@ -247,9 +247,9 @@ struct GemmPipelineAgBgCrMemCustomPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockGemmPolicy = BlockGemmAsBsCrDefaultPolicy;
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1DefaultPolicy;
 
-        return BlockGemmAsBsCr<Problem, BlockGemmPolicy>{};
+        return BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
     }
 };
 
