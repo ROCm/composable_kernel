@@ -755,6 +755,27 @@ TEST(Complex_half, TestSize)
               sizeof(vector_type<half_t, 64>) + sizeof(vector_type<half_t, 64>));
 }
 
+TEST(Complex_half, TestAlignment)
+{
+    struct complex_half_t
+    {
+        half_t real;
+        half_t img;
+    };
+    ASSERT_EQ(alignof(vector_type<complex_half_t, 2>),
+              alignof(vector_type<half_t, 2>) + alignof(vector_type<half_t, 2>));
+    ASSERT_EQ(alignof(vector_type<complex_half_t, 4>),
+              alignof(vector_type<half_t, 4>) + alignof(vector_type<half_t, 4>));
+    ASSERT_EQ(alignof(vector_type<complex_half_t, 8>),
+              alignof(vector_type<half_t, 8>) + alignof(vector_type<half_t, 8>));
+    ASSERT_EQ(alignof(vector_type<complex_half_t, 16>),
+              alignof(vector_type<half_t, 16>) + alignof(vector_type<half_t, 16>));
+    ASSERT_EQ(alignof(vector_type<complex_half_t, 32>),
+              alignof(vector_type<half_t, 32>) + alignof(vector_type<half_t, 32>));
+    ASSERT_EQ(alignof(vector_type<complex_half_t, 64>),
+              alignof(vector_type<half_t, 64>) + alignof(vector_type<half_t, 64>));
+}
+
 TEST(Complex_half, TestAsType)
 {
     struct complex_half_t
