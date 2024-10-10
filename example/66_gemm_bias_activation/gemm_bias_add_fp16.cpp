@@ -21,7 +21,7 @@ using AccDataType      = F32;
 using CShuffleDataType = F32;
 
 using ALayout  = Row;
-using BLayout  = Col;
+using BLayout  = Row;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using CLayout  = Row;
@@ -41,7 +41,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 // clang-format off
 template <typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType>
 using DeviceOpInstance_64_16_16_64 = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<
-        Row,      Col, DsLayout, CLayout, ADataType, BDataType,
+        ALayout,  BLayout, DsLayout, CLayout, ADataType, BDataType,
         DsDataType, CDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp,       GemmSpec,
         64,
@@ -51,14 +51,14 @@ using DeviceOpInstance_64_16_16_64 = ck::tensor_operation::device::DeviceGemmMul
         1,    1,
         S<8,  8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,
         2,    8,     8,    0,
-        S<8,  8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,
-        2,    8,     8,    0,
+        S<8, 8, 1>,     S<0, 2, 1>,    S<0, 2, 1>,
+        1,    2,     2,    0,
         1,    1,
         S<1, 16, 1, 4>,      S<4, 4>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
 
 template <typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType>
 using DeviceOpInstance_default = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<
-        Row,      Col, DsLayout, CLayout, ADataType, BDataType,
+        ALayout,  BLayout, DsLayout, CLayout, ADataType, BDataType,
         DsDataType, CDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp,       GemmSpec,
         64,
@@ -68,10 +68,10 @@ using DeviceOpInstance_default = ck::tensor_operation::device::DeviceGemmMultiD_
         1,    1,
         S<8,  8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,
         2,    1,     1,    0,
-        S<8,  8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,
-        2,    1,     1,    0,
+        S<8,  8, 1>,     S<0, 2, 1>,    S<0, 2, 1>,
+        1,    1,     1,    0,
         1,    1,
-        S<1, 16, 1, 4>,      S<1, 1>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
+        S<1, 16, 1, 4>,      S<2, 2>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
 
 // clang-format on
 
@@ -97,7 +97,7 @@ float gemm_bias_add_fp16(const GemmBiasAddArgs& args, const StreamConfig& config
     auto cde_element_op = CDEElementOp{};
 
     ck::index_t StrideA = args.K;
-    ck::index_t StrideB = args.K;
+    ck::index_t StrideB = args.N;
     ck::index_t StrideD = 0;
     ck::index_t StrideC = args.N;
 
@@ -116,6 +116,7 @@ float gemm_bias_add_fp16(const GemmBiasAddArgs& args, const StreamConfig& config
                                           StrideB,
                                           std::array<ck::index_t, NumDTensor>{StrideD},
                                           StrideC,
+                                          1,
                                           a_element_op,
                                           b_element_op,
                                           cde_element_op);

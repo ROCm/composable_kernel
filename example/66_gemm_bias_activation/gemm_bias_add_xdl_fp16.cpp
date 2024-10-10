@@ -32,36 +32,25 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 using A0Layout = Row;
-using B0Layout = Col;
+using B0Layout = Row;
 using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
-void RunUnfusedTest(const std::vector<ck::half_t>& mat_A,
-                    const std::vector<ck::half_t>& mat_B,
-                    const std::vector<ck::half_t>& mat_C,
-                    std::vector<ck::half_t>& mat_D,
-                    int K,
-                    int M,
-                    int N)
-{
-    for(int m = 0; m < M; m++)
-    {
-        std::vector<float> tmp;
-        for(int n = 0; n < N; n++)
-        {
-            float psum = 0.f;
-            for(int k = 0; k < K; k++)
-            {
-                float areg = float(mat_A[m * K + k]);
-                float breg = float(mat_B[n * K + k]);
-                psum += areg * breg;
-            }
-            psum += ck::type_convert<float>(mat_C[n]);
-            mat_D[m * N + n] = ck::type_convert<ck::half_t>(psum);
-        }
-    }
-}
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+// using Add         = ck::tensor_operation::element_wise::Add;
+
+using AElementOp = PassThrough;
+using BElementOp = PassThrough;
+using CElementOp = PassThrough;
+
+using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
+                                                                        B0DataType,
+                                                                        EDataType,
+                                                                        AccDataType,
+                                                                        AElementOp,
+                                                                        BElementOp,
+                                                                        CElementOp>;
 
 int main(int argc, char* argv[])
 {
@@ -70,12 +59,12 @@ int main(int argc, char* argv[])
     bool time_kernel     = true;
 
     // GEMM shape
-    ck::index_t M = 512;
-    ck::index_t N = 1024;
-    ck::index_t K = 256;
+    ck::index_t M = 16;
+    ck::index_t N = 16;
+    ck::index_t K = 64;
 
     ck::index_t StrideA = K;
-    ck::index_t StrideB = K;
+    ck::index_t StrideB = N;
     ck::index_t StrideD = 0;
     ck::index_t StrideE = N;
 
@@ -143,12 +132,12 @@ int main(int argc, char* argv[])
     case 1:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{0});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{-0.5, 0.5});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_1<D0DataType>{0});
     }
 
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
@@ -188,7 +177,15 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
 
-        RunUnfusedTest(a0_m_k.mData, b0_k_n.mData, d0_m_n.mData, e_m_n_host_result.mData, K, M, N);
+        // RunUnfusedTest(a0_m_k.mData, b0_k_n.mData, d0_m_n.mData, e_m_n_host_result.mData, K, M,
+        // N);
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
+        auto ref_argument = ref_gemm.MakeArgument(
+            a0_m_k, b0_k_n, e_m_n_host_result, AElementOp{}, BElementOp{}, CElementOp{});
+
+        ref_invoker.Run(ref_argument);
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
