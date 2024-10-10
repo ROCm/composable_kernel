@@ -5,8 +5,9 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_problem.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
@@ -75,15 +76,21 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        using BlockGemmProblem = BlockGemmPipelineProblem<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::SaccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                   Problem::BlockFmhaShape::kN0,
-                                   Problem::BlockFmhaShape::kK0>,
-                          typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                          typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+        using GemmProblem =
+            GemmPipelineProblem<typename Problem::QDataType,
+                                typename Problem::KDataType,
+                                typename Problem::SaccDataType,
+                                TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                       Problem::BlockFmhaShape::kN0,
+                                                       Problem::BlockFmhaShape::kK0>,
+                                              typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                              typename Problem::BlockFmhaShape::Gemm0WarpTile>,
+                                TileGemmTraits<Problem::kPadSeqLenQ,
+                                               Problem::kPadSeqLenK,
+                                               Problem::kPadHeadDimQ,
+                                               typename tensor_layout::gemm::RowMajor,
+                                               typename tensor_layout::gemm::ColumnMajor,
+                                               typename tensor_layout::gemm::RowMajor>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -116,7 +123,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                                  typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                                  decltype(warp_gemm)>;
 
-        return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
+        return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
@@ -199,15 +206,21 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
-        using BlockGemmProblem = BlockGemmPipelineProblem<
-            typename Problem::QDataType,
-            typename Problem::KDataType,
-            typename Problem::SaccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                   Problem::BlockFmhaShape::kN0,
-                                   Problem::BlockFmhaShape::kK0>,
-                          typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                          typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+        using GemmProblem =
+            GemmPipelineProblem<typename Problem::QDataType,
+                                typename Problem::KDataType,
+                                typename Problem::SaccDataType,
+                                TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                       Problem::BlockFmhaShape::kN0,
+                                                       Problem::BlockFmhaShape::kK0>,
+                                              typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                                              typename Problem::BlockFmhaShape::Gemm0WarpTile>,
+                                TileGemmTraits<Problem::kPadSeqLenQ,
+                                               Problem::kPadSeqLenK,
+                                               Problem::kPadHeadDimQ,
+                                               typename tensor_layout::gemm::RowMajor,
+                                               typename tensor_layout::gemm::ColumnMajor,
+                                               typename tensor_layout::gemm::RowMajor>>;
 
         constexpr auto warp_gemm = []() {
             if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
@@ -240,7 +253,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
                                                   typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                                   decltype(warp_gemm)>;
 
-        return BlockGemmASmemBSmemCRegV1<BlockGemmProblem, BlockGemmPolicy>{};
+        return BlockGemmASmemBSmemCRegV1<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
@@ -954,15 +967,21 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
     {
-        using BlockGemmProblem = BlockGemmPipelineProblem<
-            typename Problem::PDataType,
-            typename Problem::VDataType,
-            typename Problem::OaccDataType,
-            TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                   Problem::BlockFmhaShape::kN1,
-                                   Problem::BlockFmhaShape::kK1>,
-                          typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                          typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+        using GemmProblem =
+            GemmPipelineProblem<typename Problem::PDataType,
+                                typename Problem::VDataType,
+                                typename Problem::OaccDataType,
+                                TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
+                                                       Problem::BlockFmhaShape::kN1,
+                                                       Problem::BlockFmhaShape::kK1>,
+                                              typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                                              typename Problem::BlockFmhaShape::Gemm1WarpTile>,
+                                TileGemmTraits<Problem::kPadSeqLenQ,
+                                               Problem::kPadSeqLenK,
+                                               Problem::kPadHeadDimQ,
+                                               typename tensor_layout::gemm::RowMajor,
+                                               typename tensor_layout::gemm::ColumnMajor,
+                                               typename tensor_layout::gemm::RowMajor>>;
 
         auto warp_gemm = [&]() {
             if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
@@ -996,7 +1015,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                                  typename Problem::OaccDataType,
                                                  typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                                  WarpGemm>;
-        return BlockGemmARegBSmemCRegV2<BlockGemmProblem, BlockGemmPolicy>{};
+        return BlockGemmARegBSmemCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 };
 
