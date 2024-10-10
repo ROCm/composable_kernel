@@ -4,15 +4,15 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
 
 namespace ck_tile {
 
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem, typename Policy = BlockGemmPipelineAGmemBGmemCRegV2DefaultPolicy>
-struct BlockGemmPipelineAGmemBGmemCRegV2
+template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV2DefaultPolicy>
+struct GemmPipelineAGmemBGmemCRegV2
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;

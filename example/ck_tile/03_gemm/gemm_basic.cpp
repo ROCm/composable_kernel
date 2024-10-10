@@ -19,9 +19,12 @@ template <typename ALayout, typename BLayout, typename CLayout>
 float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
 {
     // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
-    constexpr bool kPadA = true;
-    constexpr bool kPadB = true;
-    constexpr bool kPadC = true;
+    constexpr bool kPadA        = true;
+    constexpr bool kPadB        = true;
+    constexpr bool kPadC        = true;
+    constexpr bool kTilePermute = false;
+    // The rank and permutation will also be generate out by the CodeGen part.
+    constexpr ck_tile::index_t kOutputRank = 2;
 
     constexpr int kBlockPerCu = 1;
 
@@ -38,27 +41,43 @@ float gemm_calc(const gemm_basic_args& args, const ck_tile::stream_config& s)
     constexpr ck_tile::index_t N_Warp_Tile = 32;
     constexpr ck_tile::index_t K_Warp_Tile = 8;
 
+    // Whether doing the CShuffle (transpose before the global memory), depending on the output
+    // layout.
+    constexpr bool CShuffleEpilogue =
+        std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::ColumnMajor>;
+
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    using CodegenPipelineProblem = ck_tile::BlockGemmPipelineProblem<ADataType,
-                                                                     BDataType,
-                                                                     AccDataType,
-                                                                     CodegenGemmShape,
-                                                                     ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     kPadA,
-                                                                     kPadB,
-                                                                     kPadC>;
-
-    using CodegenGemmPipeline = ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
-
     using TilePartitioner = ck_tile::GemmTilePartitioner<CodegenGemmShape>;
-    using GemmEpilogue    = ck_tile::Default2DEpilogue<
-        ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>;
+
+    using GemmEpilogue = std::conditional_t<
+        CShuffleEpilogue,
+        ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<AccDataType,
+                                                                   CDataType,
+                                                                   kPadA,
+                                                                   kPadB,
+                                                                   kTilePermute,
+                                                                   kOutputRank,
+                                                                   1,
+                                                                   0,
+                                                                   TilePartitioner::kM,
+                                                                   TilePartitioner::kN>>,
+        ck_tile::Default2DEpilogue<
+            ck_tile::Default2DEpilogueProblem<AccDataType, CDataType, kPadA, kPadB>>>;
+
+    using CodegenGemmTraits =
+        ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, ALayout, BLayout, CLayout>;
+
+    using CodegenPipelineProblem = ck_tile::
+        GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
+
+    using CodegenPipelineProblem = ck_tile::
+        GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
+
+    using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
     // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
     // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
     using Kernel = ck_tile::GemmKernel<TilePartitioner, CodegenGemmPipeline, GemmEpilogue>;

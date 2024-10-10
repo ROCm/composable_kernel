@@ -13,27 +13,23 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename ALayout_,
-          typename BLayout_,
-          typename CLayout_,
-          bool kPadA_ = false,
-          bool kPadB_ = false,
-          bool kPadC_ = false>
-struct BlockGemmPipelineProblem
+          typename TileGemmTraits_>
+struct GemmPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
+    using GemmTraits     = remove_cvref_t<TileGemmTraits_>;
 
-    using ALayout = remove_cvref_t<ALayout_>;
-    using BLayout = remove_cvref_t<BLayout_>;
-    using CLayout = remove_cvref_t<CLayout_>;
+    using ALayout = remove_cvref_t<typename GemmTraits::ALayout>;
+    using BLayout = remove_cvref_t<typename GemmTraits::BLayout>;
+    using CLayout = remove_cvref_t<typename GemmTraits::CLayout>;
 
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
-    static constexpr bool kPadA         = kPadA_;
-    static constexpr bool kPadB         = kPadB_;
-    static constexpr bool kPadC         = kPadC_;
+    static constexpr bool kPadA         = GemmTraits::kPadA;
+    static constexpr bool kPadB         = GemmTraits::kPadB;
+    static constexpr bool kPadC         = GemmTraits::kPadC;
 
     static constexpr index_t AlignmentA = kPadA ? 1 : VectorLoadSize / sizeof(ADataType);
     static constexpr index_t AlignmentB = kPadB ? 1 : VectorLoadSize / sizeof(BDataType);
@@ -42,15 +38,9 @@ struct BlockGemmPipelineProblem
 
 template <typename ADataType_,
           typename BDataType_,
-          typename AccDataType_,
           typename CDataType_,
           typename BlockGemmShape_,
-          typename ALayout_,
-          typename BLayout_,
-          typename CLayout_,
-          bool kPadA_                      = false,
-          bool kPadB_                      = false,
-          bool kPadC_                      = false,
+          typename TileGemmTraits_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
@@ -58,22 +48,22 @@ struct UniversalGemmPipelineProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
     using BDataType      = remove_cvref_t<BDataType_>;
-    using AccDataType    = remove_cvref_t<AccDataType_>;
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
+    using GemmTraits     = remove_cvref_t<TileGemmTraits_>;
 
-    using ALayout = remove_cvref_t<ALayout_>;
-    using BLayout = remove_cvref_t<BLayout_>;
-    using CLayout = remove_cvref_t<CLayout_>;
+    using ALayout = remove_cvref_t<typename GemmTraits::ALayout>;
+    using BLayout = remove_cvref_t<typename GemmTraits::BLayout>;
+    using CLayout = remove_cvref_t<typename GemmTraits::CLayout>;
 
     static constexpr auto Scheduler     = Scheduler_;
     static constexpr auto HasHotLoop    = HasHotLoop_;
     static constexpr auto TailNum       = TailNum_;
     static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
 
-    static constexpr bool kPadA = kPadA_;
-    static constexpr bool kPadB = kPadB_;
-    static constexpr bool kPadC = kPadC_;
+    static constexpr bool kPadA = GemmTraits::kPadA;
+    static constexpr bool kPadB = GemmTraits::kPadB;
+    static constexpr bool kPadC = GemmTraits::kPadC;
 
     // TODO: what about vector load/store size? should we have template paramter for A/B/C ?
     static constexpr index_t AlignmentA = kPadA ? VectorLoadSize / sizeof(ADataType) : 1;

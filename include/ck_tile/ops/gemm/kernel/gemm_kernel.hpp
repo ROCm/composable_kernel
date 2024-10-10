@@ -177,12 +177,12 @@ struct GemmKernel
             // clang-format off
             sequence<false, GemmPipeline::kPadC>{});
         // clang-format on
-        auto CBlockWindow = make_tile_window(
+        auto c_block_window = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
 
-        EpiloguePipeline{}(CBlockWindow, c_block_tile);
+        EpiloguePipeline{}(c_block_window, c_block_tile);
     }
 };
 
