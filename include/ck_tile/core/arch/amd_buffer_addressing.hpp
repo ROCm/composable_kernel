@@ -45,6 +45,12 @@ template<typename T> struct buffer_load_trait<4 , T> { using payload_t = float; 
 template<typename T> struct buffer_load_trait<2 , T> { using payload_t = float; };
 template<typename T> struct buffer_load_trait<1 , T> { using payload_t = float; };
 
+#if CK_TILE_BUFFER_LOAD_RAW_FP16_WA
+template<> struct buffer_load_trait<16, thread_buffer<fp16_t, 8>> { using payload_t = fp16x8_t; };
+template<> struct buffer_load_trait<8 , thread_buffer<fp16_t, 4>> { using payload_t = fp16x4_t; };
+template<> struct buffer_load_trait<4 , thread_buffer<fp16_t, 2>> { using payload_t = fp16x2_t; };
+#endif
+
 #if CK_TILE_BUFFER_LOAD_RAW_BF16_WA
 template<> struct buffer_load_trait<16, thread_buffer<bf16_t, 8>> { using payload_t = bf16x8_t; };
 template<> struct buffer_load_trait<8 , thread_buffer<bf16_t, 4>> { using payload_t = bf16x4_t; };
