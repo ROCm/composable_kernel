@@ -11,26 +11,22 @@
 
 namespace ck_tile {
 
-template <typename TilePartitioner_,
-          typename GemmPipeline_,
-          typename EpiloguePipeline_,
-          typename LayoutA_,
-          typename LayoutB_,
-          typename LayoutC_>
+template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
     using TilePartitioner                    = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline                       = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline                   = remove_cvref_t<EpiloguePipeline_>;
-    using LayoutA                            = remove_cvref_t<LayoutA_>;
-    using LayoutB                            = remove_cvref_t<LayoutB_>;
-    using LayoutC                            = remove_cvref_t<LayoutC_>;
     static constexpr index_t KernelBlockSize = GemmPipeline::kBlockSize;
 
     using ADataType    = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType    = remove_cvref_t<typename GemmPipeline::BDataType>;
     using CAccDataType = remove_cvref_t<typename GemmPipeline::CDataType>;
     using CODataType   = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+
+    using LayoutA = remove_cvref_t<typename GemmPipeline::LayoutA>;
+    using LayoutB = remove_cvref_t<typename GemmPipeline::LayoutB>;
+    using LayoutC = remove_cvref_t<typename GemmPipeline::LayoutC>;
 
     __host__ static constexpr auto GridSize(index_t M_size, index_t N_size, index_t Batch_size)
     {
@@ -184,6 +180,7 @@ struct GemmKernel
             c_pad_view,
             make_tuple(number<TilePartitioner::kM>{}, number<TilePartitioner::kN>{}),
             {i_m, i_n});
+
         EpiloguePipeline{}(CBlockWindow_pad, acc);
     }
 };
