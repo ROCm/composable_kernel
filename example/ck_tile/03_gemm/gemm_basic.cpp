@@ -262,12 +262,10 @@ int main(int argc, char* argv[])
                                                                      kPadB,
                                                                      kPadC>;
 
-    using CodegemGemmPolicy =
-        ck_tile::BlockGemmPipelineAGmemBGmemCRegUniversaltPolicy<matrix_a_layout,
-                                                                 matrix_b_layout,
-                                                                 matrix_c_layout>;
+    using CodegenGemmPolicy =
+        ck_tile::BlockUniversalGemmPipelineAgBgCrPolicy<ALayout, BLayout, CLayout>;
     using CodegenGemmPipeline =
-        ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegemGemmPolicy>;
+        ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
 
     invoke_gemm<ck_tile::half_t,
                 matrix_a_layout,
