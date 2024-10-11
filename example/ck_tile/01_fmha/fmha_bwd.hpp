@@ -9,7 +9,10 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "mask.hpp"
 #include "bias.hpp"
+
 #include <type_traits>
+#include <utility>
+#include <variant>
 
 template <typename DataType>
 struct FmhaBwdTypeConfig;
@@ -135,7 +138,8 @@ struct fmha_bwd_args
     ck_tile::index_t mask_type;
     float p_drop;
     float p_undrop;
-    std::tuple<uint64_t, uint64_t> drop_seed_offset;
+    std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+        drop_seed_offset;
 };
 
 template <typename FmhaBwdDQDKDVKernel>
