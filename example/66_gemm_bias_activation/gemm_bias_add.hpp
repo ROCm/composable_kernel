@@ -6,6 +6,18 @@
 #include "ck/ck.hpp"
 #include "ck/stream_config.hpp"
 
+enum class ActivationType
+{
+    Gelu = 0,
+    Relu,
+    Silu,
+    Swiglu,
+    Geglu,
+    Identity,
+    GeluNoneApproximate,
+    GeGluNoneApproximate,
+    InvalidType
+};
 struct GemmBiasAddArgs
 {
     const void* mat_a;

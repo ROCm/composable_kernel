@@ -1077,6 +1077,7 @@ struct ConvScaleRelu
     float scale_out_;
 };
 
+
 // support fastconvert of int8 to fp16
 
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
