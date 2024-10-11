@@ -27,60 +27,18 @@ using DsLayout = ck::Tuple<D0Layout>;
 using CLayout  = Row;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add         = ck::tensor_operation::element_wise::Add;
+using Relu        = ck::tensor_operation::element_wise::Relu;
 
 using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
-using CDEElementOp = Add;
+using CDEElementOp = ck::impl::AddActivation<Relu>;
+;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-namespace ck {
-namespace impl {
-template <typename Activation>
-struct AddActivation
-{
-    template <typename Y, typename X0, typename X1>
-    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const float& x1) const
-    {
-        Activation{}.template operator()<float>(y, x0 + x1);
-    };
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const half_t& x1) const
-    {
-        float x = x0 + type_convert<float>(x1);
-        Activation{}.template operator()<float>(y, x);
-    };
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const float& x0, const float& x1) const
-    {
-        float result = 0;
-        Activation{}.template operator()<float>(result, x0 + x1);
-        y = type_convert<half_t>(result);
-    };
-
-    template <>
-    __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const float& x0, const half_t& x1) const
-    {
-        float result = 0;
-        Activation{}.template operator()<float>(result, x0 + x1);
-        y = type_convert<half_t>(result);
-    };
-};
-} // namespace impl
-} // namespace ck
 // clang-format off
 template <typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType>
 using DeviceOpInstance_64_16_16_64 = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<

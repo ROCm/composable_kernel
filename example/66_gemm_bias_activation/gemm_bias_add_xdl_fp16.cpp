@@ -14,6 +14,7 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
@@ -39,11 +40,11 @@ using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Add         = ck::tensor_operation::element_wise::Add;
+using Relu        = ck::tensor_operation::element_wise::Relu;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = Add;
+using CElementOp = ck::impl::AddActivation<Relu>;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
                                                                         B0DataType,
