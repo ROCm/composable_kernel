@@ -163,8 +163,8 @@ struct DeviceGroupedConvFwdMultipleABD : public BaseOperator
                         const CDEElementwiseOperation& cde_element_op) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
-};
 #endif
+};
 
 } // namespace device
 } // namespace tensor_operation

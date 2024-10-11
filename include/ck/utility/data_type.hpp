@@ -1075,10 +1075,10 @@ using uint8x64_t = typename vector_type<uint8_t, 64>::type;
 template <typename T>
 struct NumericLimits;
 
+#ifndef CK_CODE_GEN_RTC
 template <typename T>
 struct NumericLimits
 {
-#ifndef CK_CODE_GEN_RTC
     __host__ __device__ static constexpr T Min() { return std::numeric_limits<T>::min(); }
     __host__ __device__ static constexpr T Max() { return std::numeric_limits<T>::max(); }
     __host__ __device__ static constexpr T Lowest() { return std::numeric_limits<T>::lowest(); }
@@ -1087,8 +1087,8 @@ struct NumericLimits
         return std::numeric_limits<T>::quiet_NaN();
     }
     __host__ __device__ static constexpr T Infinity() { return std::numeric_limits<T>::infinity(); }
-#endif
 };
+#endif
 
 template <>
 struct NumericLimits<int32_t>

@@ -981,7 +981,7 @@ struct BlockToCTileMap_3DGrid_KSplit
         // Create 3D grid
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
-        return ck::make_tuple(N0, M0, k_split);
+        return make_tuple(N0, M0, k_split);
     }
 
     template <typename TopIdx>
@@ -1105,7 +1105,7 @@ struct BlockToCTileMap_GemmStreamK
             uint32_t dp_for_sk_iters = k_iters_per_tile.get();
 
             uint32_t best_sk_score =
-                ck::NumericLimits<int32_t>::Max(); // we need to find the smallest sk iters
+                NumericLimits<int32_t>::Max(); // we need to find the smallest sk iters
             for(uint32_t tentative_sk_blocks = min_sk_tiles; tentative_sk_blocks < max_sk_tiles;
                 tentative_sk_blocks++)
             {
