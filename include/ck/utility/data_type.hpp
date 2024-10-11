@@ -359,10 +359,9 @@ __host__ __device__ static inline fp8_storage_t cast_to_f8(T _x, unsigned int rn
 // The conversion function is from rocblas
 // https://github.com/ROCm/rocBLAS/blob/9b7f692abe3c54b88d1e77e045a7db7f1f188b69/library/include/internal/rocblas_hip_f8_impl.h#L220
 // This has been modified to handle double types as well
-template <typename T, bool is_fnuz>
-__host__ __device__ static inline T cast_from_f8(fp8_storage_t x, int wm, int we, bool clip = false)
+template <typename T, int wm, int we, bool is_fnuz, bool clip = false>
+__host__ __device__ static inline T cast_from_f8(fp8_storage_t x)
 {
-    // TODO: synchronize with f8_utils.hpp implementation for FNUZ
     constexpr bool is_half   = __hip_internal::is_same<T, _Float16>::value;
     constexpr bool is_float  = __hip_internal::is_same<T, float>::value;
     constexpr bool is_double = __hip_internal::is_same<T, double>::value;
@@ -514,7 +513,8 @@ __host__ __device__ static inline T cast_from_f8(fp8_storage_t x, int wm, int we
 }
 
 #if CK_FP8_CVT_FAST_PATH
-static __device__ float cast_to_f32_from_f8(fp8_storage_t v, uint32_t interpret)
+template <ck_fp8_interpretation_t interpret>
+static __device__ float cast_to_f32_from_f8(fp8_storage_t v)
 {
     union
     {
@@ -523,10 +523,18 @@ static __device__ float cast_to_f32_from_f8(fp8_storage_t v, uint32_t interpret)
     } val;
     val.i8val[0] = v;
 
-    float fval = (interpret == internal::CK_E4M3_FNUZ) || (interpret == internal::CK_E4M3_OCP)
-                     ? __builtin_amdgcn_cvt_f32_fp8(val.i32val, 0)
-                     : __builtin_amdgcn_cvt_f32_bf8(val.i32val, 0);
-    return fval;
+    static_assert(interpret == CK_E4M3_FNUZ || interpret == CK_E4M3_OCP ||
+                      interpret == CK_E5M2_FNUZ || interpret == CK_E5M2_OCP,
+                  "Only FNUZ and OCP interpretations are supported");
+
+    if constexpr((interpret == internal::CK_E4M3_FNUZ) || (interpret == internal::CK_E4M3_OCP))
+    {
+        return __builtin_amdgcn_cvt_f32_fp8(val.i32val, 0);
+    }
+    else
+    {
+        return __builtin_amdgcn_cvt_f32_bf8(val.i32val, 0);
+    }
 }
 
 // The conversion function is from rocblas
@@ -659,6 +667,32 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
 #endif // CK_FP8_CVT_FAST_PATH
 }
 
+/**
+ * \brief convert half_t to @p fp8_storage_t
+ *
+ * \tparam sat saturation of fp8
+ * \tparam interp interpretation of fp8
+ * \tparam stochastic_rounding switch between RNE and SR
+ * \param x half_t value
+ * \return fp8_storage_t
+ */
+template <ck_fp8_interpretation_t interp,
+          ck_saturation_t sat      = CK_SATFINITE,
+          bool stochastic_rounding = false>
+#if CK_FP8_CVT_FAST_PATH
+__host__ __device__ static inline fp8_storage_t cvt_half_t_to_fp8(const half_t x)
+{
+    internal::__is_interpret_supported(interp);
+#elif CK_USE_OCP_FP8
+__host__ __device__ static inline fp8_storage_t cvt_half_t_to_fp8(const half_t x)
+{
+#else
+__host__ static inline fp8_storage_t cvt_half_t_to_fp8(const half_t x)
+{
+#endif
+    return cvt_float_to_fp8<interp, sat, stochastic_rounding>(static_cast<float>(x));
+}
+
 /* For fp8 fnuz types, finite and NaN values are supported. Zero is unsigned.
 Inf are not supported. This gives us one additional number to represent.
 NaN are represented by 1-0000-000 or 1-00000-00 */
@@ -706,15 +740,31 @@ struct f8_ocp_t
     }
 
 #if CK_USE_OCP_FP8
-    __host__ __device__ explicit operator float() const {
+    __host__ __device__ explicit operator float() const
+    {
 #else
     __host__ explicit operator float() const
     {
 #endif
 #if CK_FP8_CVT_FAST_PATH
-        return internal::cast_to_f32_from_f8(this->data, default_interpret);
+        return internal::cast_to_f32_from_f8<default_interpret>(this->data);
 #else
-        return internal::cast_from_f8<float, false>(this->data, wm, we);
+        return internal::cast_from_f8<float, wm, we, false>(
+            this->data); // XXX: clip==false must be consistent with operator half_t
+#endif
+    }
+
+#if CK_USE_OCP_FP8
+    __host__ __device__ explicit operator half_t() const {
+#else
+    __host__ explicit operator half_t() const
+    {
+#endif
+#if CK_FP8_CVT_FAST_PATH
+        return static_cast<half_t>(internal::cast_to_f32_from_f8<default_interpret>(this->data));
+#else
+        return internal::cast_from_f8<half_t, wm, we, false>(
+            this->data); // XXX: clip==false must be consistent with operator float
 #endif
 }
 }; // namespace ck
@@ -752,18 +802,32 @@ inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, float>(float x)
     return f8_ocp_t{
         internal::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
 }
-
+// convert half_t to fp8 with rounding to nearest even
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, half_t>(half_t x)
+{
+    return f8_ocp_t{
+        internal::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
+}
 // Declare a template function for fp8 conversion using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
 
-// convert fp32 to fp8 with rounding to nearest even
+// convert fp32 to fp8 with stochastic rounding
 template <>
 inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, float>(float x)
 {
     return f8_ocp_t{
         internal::cvt_float_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation, true>(
             x)};
+}
+// convert half_t to fp8 with stochastic rounding
+template <>
+inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, half_t>(half_t x)
+{
+    return f8_ocp_t{internal::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
+                                                f8_ocp_t::default_saturation,
+                                                true>(x)};
 }
 
 #if CK_USE_OCP_FP8
