@@ -22,6 +22,19 @@ struct PassThroughPack2
         auto t = type_convert<float2_t>(x);
         y      = type_convert<half2_t>(t);
     }
+
+    __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::pk_i4_t& x) const
+	{
+		uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
+		uint8_t x_l  = (x_u8 & 0x0f) >> 0;
+		uint8_t x_h  = (x_u8 & 0xf0) >> 4;
+
+		auto l_f16 = ck::type_convert<ck::half_t>(x_l);
+		auto h_f16 = ck::type_convert<ck::half_t>(x_h);
+
+		y = {l_f16, h_f16};
+	}
+
     constexpr const static bool is_pack2_invocable = true;
 };
 

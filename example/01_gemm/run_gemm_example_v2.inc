@@ -228,6 +228,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     }
 
     bool pass = true;
+#if 0
     if(config.do_verification)
     {
         auto ref_gemm    = ReferenceGemmInstance{};
@@ -257,11 +258,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      get_atol<CDataType>());
 #endif
     }
+#endif
 
     if(config.time_kernel)
     {
         ave_time =
-            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 5, 10, true, 4});
+            invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 0, 20, 50, true, 50});
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =

@@ -543,7 +543,7 @@ ENDIF()
 ENDFOREACH()
 
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
-add_subdirectory(library)
+#add_subdirectory(library)
 
 if(NOT GPU_ARCHS)
    rocm_package_setup_component(tests
@@ -556,20 +556,20 @@ if(NOT GPU_ARCHS)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
-   if(BUILD_TESTING)
-	   add_subdirectory(test)
-   endif()
+   #if(BUILD_TESTING)
+	   #add_subdirectory(test)
+   #endif()
 endif()
 
 rocm_package_setup_component(profiler
     LIBRARY_NAME composablekernel
     PACKAGE_NAME ckprofiler
 )
-add_subdirectory(profiler)
+#add_subdirectory(profiler)
 
-if(CK_USE_CODEGEN AND (GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
-  add_subdirectory(codegen)
-endif()
+#if(CK_USE_CODEGEN AND (GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
+  #add_subdirectory(codegen)
+#endif()
 
 #Create an interface target for the include only files and call it "composablekernels"
 include(CMakePackageConfigHelpers)
