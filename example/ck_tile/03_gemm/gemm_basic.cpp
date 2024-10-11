@@ -262,8 +262,8 @@ int main(int argc, char* argv[])
                                                                      kPadB,
                                                                      kPadC>;
 
-    using CodegenGemmPolicy =
-        ck_tile::BlockUniversalGemmPipelineAgBgCrPolicy<ALayout, BLayout, CLayout>;
+    using CodegenGemmPolicy = ck_tile::
+        BlockUniversalGemmPipelineAgBgCrPolicy<matrix_a_layout, matrix_b_layout, matrix_c_layout>;
     using CodegenGemmPipeline =
         ck_tile::BlockGemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;
 
