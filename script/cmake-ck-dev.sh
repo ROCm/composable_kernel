@@ -15,8 +15,8 @@ else
 fi
 
 cmake                                                                                             \
--D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
--D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                         \
+-D CMAKE_PREFIX_PATH=/opt/rocm-6.2.1/                                                                 \
+-D CMAKE_CXX_COMPILER=/opt/rocm-6.2.1/bin/hipcc                                                        \
 -D CMAKE_CXX_FLAGS="-Xclang -mllvm -Xclang -enable-post-misched=0 -std=c++17 -O3 -ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker"     \
 -D CMAKE_BUILD_TYPE=Release                                                                       \
 -D BUILD_DEV=ON                                                                                   \
@@ -25,3 +25,7 @@ cmake                                                                           
 -D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
 $REST_ARGS                                                                                        \
 ${MY_PROJECT_SOURCE}
+
+
+# -D CMAKE_PREFIX_PATH=/opt/rocm                                                                    \
+# -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc     
