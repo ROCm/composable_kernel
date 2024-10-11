@@ -7,6 +7,8 @@
 #include "ck/stream_config.hpp"
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
 namespace ck {
 namespace impl {
@@ -63,6 +65,12 @@ struct AddActivation
 } // namespace impl
 } // namespace ck
 
+using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Gelu        = ck::tensor_operation::element_wise::Gelu;
+using Relu        = ck::tensor_operation::element_wise::Relu;
+using Silu        = ck::tensor_operation::element_wise::Silu;
+using Sigmoid     = ck::tensor_operation::element_wise::Sigmoid;
+
 enum class ActivationType
 {
     Gelu = 0,
@@ -70,6 +78,7 @@ enum class ActivationType
     Silu,
     Swiglu,
     Geglu,
+    Sigmoid,
     Identity,
     GeluNoneApproximate,
     GeGluNoneApproximate,
@@ -86,4 +95,6 @@ struct GemmBiasAddArgs
     ck::index_t K;
 };
 
-float gemm_bias_add_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
+float gemm_bias_add_fp16(const GemmBiasAddArgs& args,
+                         const StreamConfig& config,
+                         ActivationType op_type);

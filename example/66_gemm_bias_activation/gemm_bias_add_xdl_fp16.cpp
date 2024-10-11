@@ -13,8 +13,6 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
-#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
@@ -39,12 +37,14 @@ using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using Relu        = ck::tensor_operation::element_wise::Relu;
+// using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+// using Gelu        = ck::tensor_operation::element_wise::Gelu;
+// using Relu        = ck::tensor_operation::element_wise::Relu;
+// using Silu        = ck::tensor_operation::element_wise::Silu;
+// using Sigmoid        = ck::tensor_operation::element_wise::Sigmoid;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
-using CElementOp = ck::impl::AddActivation<Relu>;
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
                                                                         B0DataType,
@@ -139,6 +139,7 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = true;
+    int op_type          = 0;
 
     // GEMM shape
     ck::index_t M = 64;
@@ -155,22 +156,24 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 7)
+    else if(argc == 8)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
 
-        M = std::stoi(argv[4]);
-        N = std::stoi(argv[5]);
-        K = std::stoi(argv[6]);
+        M       = std::stoi(argv[4]);
+        N       = std::stoi(argv[5]);
+        K       = std::stoi(argv[6]);
+        op_type = std::stoi(argv[7]);
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x)m\n");
+        printf("arg4 to 9: M (256x), N(128x), K(32x)m, op_type(Gelu = 0, Relu, Silu, Swiglu, "
+               "Geglu, Identity, GeluNoneApproximate, GeGluNoneApproximate)\n");
         exit(0);
     }
 
@@ -235,7 +238,9 @@ int main(int argc, char* argv[])
                               N,
                               K};
 
-    float ave_time = gemm_bias_add_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+    float ave_time = gemm_bias_add_fp16(gemm_args,
+                                        StreamConfig{nullptr, time_kernel, 20, 50},
+                                        static_cast<ActivationType>(op_type));
     // float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
 
     std::size_t flop = std::size_t(2) * M * N * K;
@@ -253,9 +258,6 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-
-        // RunUnfusedTest(a0_m_k.mData, b0_k_n.mData, d0_m_n.mData, e_m_n_host_result.mData, K, M,
-        // N);
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
@@ -264,13 +266,31 @@ int main(int argc, char* argv[])
 
         ref_invoker.Run(ref_argument);
 
-        CElementOp cde_element_op;
-        for(int m = 0; m < M; ++m)
-        {
-            for(int n = 0; n < N; ++n)
+        auto run_elementwise = [&](auto cde_element_op) {
+            for(int m = 0; m < M; ++m)
             {
-                cde_element_op(e_m_n_host_result(m, n), e_m_n_host_result(m, n), d0_m_n(m, n));
+                for(int n = 0; n < N; ++n)
+                {
+                    cde_element_op(e_m_n_host_result(m, n), e_m_n_host_result(m, n), d0_m_n(m, n));
+                }
             }
+        };
+        ActivationType type = static_cast<ActivationType>(op_type);
+        switch(type)
+        {
+        case ActivationType::Gelu:
+        case ActivationType::Geglu:
+        case ActivationType::GeluNoneApproximate:
+        case ActivationType::GeGluNoneApproximate:
+            run_elementwise(ck::impl::AddActivation<Gelu>{});
+            break;
+        case ActivationType::Relu: run_elementwise(ck::impl::AddActivation<Relu>{}); break;
+        case ActivationType::Silu:
+        case ActivationType::Swiglu: run_elementwise(ck::impl::AddActivation<Silu>{}); break;
+        case ActivationType::Sigmoid: run_elementwise(ck::impl::AddActivation<Sigmoid>{}); break;
+        case ActivationType::Identity:
+        case ActivationType::InvalidType:
+        default: break;
         }
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
