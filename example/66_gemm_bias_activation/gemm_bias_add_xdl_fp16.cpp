@@ -140,9 +140,9 @@ int main(int argc, char* argv[])
     bool time_kernel     = true;
 
     // GEMM shape
-    ck::index_t M = 16;
-    ck::index_t N = 16;
-    ck::index_t K = 64;
+    ck::index_t M = 64;
+    ck::index_t N = 3072;
+    ck::index_t K = 768;
 
     if(argc == 1)
     {
