@@ -12,13 +12,14 @@ template <typename ThreadTile, // Sequence<...
 struct TileLayernorm2dShape
 {
     static constexpr index_t kMPerThread = ThreadTile::at(number<0>{});
-    static constexpr index_t kNPerThread = ThreadTile::at(number<1>{});
+    static constexpr index_t kNRepeat    = ThreadTile::at(number<1>{});
+    static constexpr index_t kNPerThread = ThreadTile::at(number<2>{});
 
     static constexpr index_t kMPerWarp = WarpTile::at(number<0>{});
     static constexpr index_t kNPerWarp = WarpTile::at(number<1>{});
 
     static constexpr index_t kMThreadPerWarp = kMPerWarp / kMPerThread;
-    static constexpr index_t kNThreadPerWarp = kNPerWarp / kNPerThread;
+    static constexpr index_t kNThreadPerWarp = kNPerWarp / kNPerThread / kNRepeat;
 
     static constexpr index_t kMPerBlock = BlockTile::at(number<0>{});
     static constexpr index_t kNPerBlock = BlockTile::at(number<1>{});

@@ -31,14 +31,10 @@ struct Layernorm2dFwd
 
     static constexpr ck_tile::index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
     static constexpr ck_tile::index_t kNPerBlock = Problem::BlockShape::kNPerBlock;
-    static constexpr bool kPadM                  = Problem::kPadM;
     static constexpr bool kPadN                  = Problem::kPadN;
+    static constexpr bool kTwoPass               = Problem::kTwoPass;
 
     static constexpr ck_tile::index_t kNThreadPerWarp = Problem::BlockShape::kNThreadPerWarp;
-    static constexpr ck_tile::index_t kNPerThread     = Problem::BlockShape::kNPerThread;
-
-    static constexpr auto I0 = number<0>{};
-    static constexpr auto I1 = number<1>{};
 
     struct Kargs
     {
@@ -47,8 +43,8 @@ struct Layernorm2dFwd
         const void* p_beta;
 
         void* p_y;
-        void* p_mean;
-        void* p_invStd;
+        // void* p_mean;
+        // void* p_invStd;
 
         float epsilon;
 
@@ -69,7 +65,10 @@ struct Layernorm2dFwd
         return Kargs{p_x, p_gamma, p_beta, p_y, p_mean, p_invStd, epsilon, M, N};
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t M) { return M / kMPerBlock; }
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t M)
+    {
+        return (M + kMPerBlock - 1) / kMPerBlock;
+    }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return Problem::BlockShape::kBlockSize; }
 
@@ -81,11 +80,11 @@ struct Layernorm2dFwd
             tile_distribution_encoding<
                 sequence<>,
                 tuple<sequence<S::kMWarpPerBlock, S::kMThreadPerWarp, S::kMPerThread>,
-                      sequence<S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
+                      sequence<S::kNRepeat, S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
                 tuple<sequence<1, 2>, sequence<1, 2>>,
-                tuple<sequence<0, 0>, sequence<1, 1>>,
-                sequence<1, 2>,
-                sequence<2, 2>>{});
+                tuple<sequence<0, 1>, sequence<1, 2>>,
+                sequence<1, 2, 2>,
+                sequence<2, 0, 3>>{});
     }
 
     CK_TILE_DEVICE static constexpr auto MakeGammaBetaBlockTileDistribution()
@@ -95,32 +94,26 @@ struct Layernorm2dFwd
         return make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<S::kMWarpPerBlock, S::kMThreadPerWarp>,
-                tuple<sequence<S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
+                tuple<sequence<S::kNRepeat, S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread>>,
                 tuple<sequence<0, 1>, sequence<0, 1>>,
-                tuple<sequence<0, 0>, sequence<1, 1>>,
-                sequence<1>,
-                sequence<2>>{});
+                tuple<sequence<0, 1>, sequence<1, 2>>,
+                sequence<1, 1>,
+                sequence<0, 3>>{});
     }
 
-    CK_TILE_DEVICE static int GetWelfordMaxCount(int N)
+    template <typename Dstr>
+    CK_TILE_DEVICE static constexpr auto GetNPerThread(Dstr)
     {
-        constexpr ck_tile::index_t kNThreadPerBlock = kNPerBlock / kNPerThread;
+        constexpr auto nDstrSpan = Dstr::get_distributed_spans().template at<1>();
 
-        int thread_id_n = get_thread_id() % kNThreadPerBlock;
-        int max_count =
-            __builtin_amdgcn_readfirstlane(N < kNPerBlock ? 0 : kNPerThread * (N / kNPerBlock));
-        int n_per_block_tail_loop =
-            __builtin_amdgcn_readfirstlane(N - max_count * kNThreadPerBlock);
+        using Lengths = decltype(nDstrSpan.impl_);
 
-        if(n_per_block_tail_loop > 0)
-        {
-            int thread_max_n = (thread_id_n + 1) * kNPerThread;
-            int delta        = thread_max_n - n_per_block_tail_loop;
-            delta            = clamp(thread_max_n - n_per_block_tail_loop, 0, kNPerThread);
-            max_count += kNPerThread - delta;
-        }
+        ck_tile::index_t ret = 1;
 
-        return max_count;
+        ck_tile::static_for<0, Lengths::size(), 1>{}(
+            [&](auto idx) { ret *= Lengths::template at(idx); });
+
+        return ret;
     }
 
     template <typename DistributedTensor>
@@ -141,29 +134,70 @@ struct Layernorm2dFwd
         return out_dstr_tensor;
     }
 
-    template <typename XBlockWindow,
-              typename GammaBlockWindow,
-              typename BetaBlockWindow,
-              typename YBlockWindow,
-              typename MeanBlockWindow,
-              typename InvStdBlockWindow,
-              bool Cond = (kHasGamma && kHasBeta)>
-    CK_TILE_DEVICE std::enable_if_t<Cond>
-    TwoPassLayernorm2dFwd(XBlockWindow& x_block_window,
-                          GammaBlockWindow& gamma_block_window,
-                          BetaBlockWindow& beta_block_window,
-                          YBlockWindow& y_block_window,
-                          MeanBlockWindow& mean_block_window,
-                          InvStdBlockWindow& inv_std_block_window,
-                          ComputeDataType epsilon,
-                          ck_tile::index_t N) const
+    CK_TILE_HOST_DEVICE static constexpr auto
+    GetLastloopLayerNormIntraLaneReduceCount(index_t NLength)
     {
-        // TODO - Optimize tail loop to reduce move_tile_window()
-        index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, kNPerBlock));
+        using S = typename Problem::BlockShape;
+        // S::kNWarpPerBlock, S::kNThreadPerWarp, S::kNPerThread
+        auto LastloopN         = NLength % kNPerBlock == 0 ? kNPerBlock : NLength % kNPerBlock;
+        constexpr auto NThread = S::kNWarpPerBlock * S::kNThreadPerWarp;
+        auto iNLane            = get_thread_local_1d_id() % NThread;
+        auto iN0               = LastloopN / (S::kNPerThread * S::kNThreadPerWarp);
+        auto iN1 = (LastloopN % (S::kNPerThread * S::kNThreadPerWarp)) / S::kNPerThread;
+        auto N2  = (LastloopN % (S::kNPerThread * S::kNThreadPerWarp)) % S::kNPerThread;
+        auto iN3 = iNLane < iN1 ? S::kNPerThread : iNLane == iN1 ? N2 : 0;
 
-        int welford_max_count = GetWelfordMaxCount(N);
-        ThreadWelford<ComputeDataType, XDataType> thread_welford{welford_max_count};
+        return iN0 * S::kNPerThread + iN3;
+    }
+
+    template <bool Cond = (kHasGamma && kHasBeta)>
+    CK_TILE_DEVICE std::enable_if_t<Cond> OnePassLayernorm2dFwd(const XDataType* p_x,
+                                                                const GammaDataType* p_gamma,
+                                                                const BetaDataType* p_beta,
+                                                                YDataType* p_y,
+                                                                const ComputeDataType epsilon,
+                                                                ck_tile::index_t M,
+                                                                ck_tile::index_t N) const
+    {
+        using S           = typename Problem::BlockShape;
+        constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
+
+        const auto x_m_n = [&]() {
+            const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_x, make_tuple(M, N), make_tuple(N, 1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(x_dram_naive,
+                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                   sequence<false, kPadN>{});
+        }();
+
+        const auto gamma_n = [&]() {
+            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_gamma, make_tuple(N), make_tuple(1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(
+                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<kPadN>{});
+        }();
+
+        const auto beta_n = [&]() {
+            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_beta, make_tuple(N), make_tuple(1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(
+                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<kPadN>{});
+        }();
+
+        const auto iM = get_block_id() * kMPerBlock;
+
+        constexpr auto xDstr = MakeXBlockTileDistribution();
+
+        auto x_block_window = make_tile_window(
+            x_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0}, xDstr);
+
+        auto intra_thread_count_last = GetLastloopLayerNormIntraLaneReduceCount(N);
+
+        ThreadWelford<ComputeDataType, XDataType> thread_welford{intra_thread_count_last};
 
         using XTensorType = decltype(load_tile(x_block_window));
         auto mean_compute_block_tensor =
@@ -174,13 +208,20 @@ struct Layernorm2dFwd
         clear_tile(mean_compute_block_tensor);
         clear_tile(var_compute_block_tensor);
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
-        {
-            const auto x_block_tensor = load_tile(x_block_window);
+        const auto x_block_tensor = load_tile(x_block_window);
+        thread_welford(x_block_tensor, mean_compute_block_tensor, var_compute_block_tensor);
 
-            thread_welford(x_block_tensor, mean_compute_block_tensor, var_compute_block_tensor);
-            move_tile_window(x_block_window, {0, kNPerBlock});
-        }
+        constexpr auto gammaDstr = MakeGammaBetaBlockTileDistribution();
+        constexpr auto betaDstr  = gammaDstr;
+
+        auto gamma_block_window =
+            make_tile_window(gamma_n, make_tuple(number<kNPerBlock>{}), {0}, gammaDstr);
+
+        auto beta_block_window =
+            make_tile_window(beta_n, make_tuple(number<kNPerBlock>{}), {0}, betaDstr);
+
+        const auto gamma_block_tensor = load_tile(gamma_block_window);
+        const auto beta_block_tensor  = load_tile(beta_block_window);
 
         // TODO: support cross warp Welford
         WarpMergeWelford<ComputeDataType, true>{}(
@@ -188,17 +229,155 @@ struct Layernorm2dFwd
 
         auto inv_std_compute_block_tensor = InvSqrt(var_compute_block_tensor, epsilon);
 
-        if constexpr(kSaveMean)
-            store_tile(mean_block_window, cast_tile<MeanDataType>(mean_compute_block_tensor));
-        if constexpr(kSaveInvStd)
-            store_tile(inv_std_block_window,
-                       cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
+        // TODO: Extract normalize pipeline
+        const auto y_m_n = [&]() {
+            const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_y, make_tuple(M, N), make_tuple(N, 1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(y_dram_naive,
+                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                   sequence<false, kPadN>{});
+        }();
+
+        auto y_block_window = make_tile_window(
+            y_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0});
+
+        constexpr auto x_spans = decltype(x_block_tensor)::get_distributed_spans();
+
+        auto y_block_tensor =
+            make_static_distributed_tensor<YDataType>(x_block_tensor.get_tile_distribution());
+
+        sweep_tile_span(x_spans[I1], [&](auto idx1) {
+            constexpr auto j_idx = make_tuple(idx1);
+            const auto gamma     = type_convert<ComputeDataType>(gamma_block_tensor[j_idx]);
+            const auto beta      = type_convert<ComputeDataType>(beta_block_tensor[j_idx]);
+
+            sweep_tile_span(x_spans[I0], [&](auto idx0) {
+                constexpr auto i_idx   = make_tuple(idx0);
+                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                const auto mean    = mean_compute_block_tensor[i_idx];
+                const auto inv_std = inv_std_compute_block_tensor[i_idx];
+
+                const auto x = type_convert<ComputeDataType>(x_block_tensor[i_j_idx]);
+                auto y       = (x - mean) * inv_std * gamma + beta;
+
+                y_block_tensor(i_j_idx) = type_convert<YDataType>(y);
+            });
+        });
+
+        store_tile(y_block_window, y_block_tensor);
+    }
+
+    template <bool Cond = (kHasGamma && kHasBeta)>
+    CK_TILE_DEVICE std::enable_if_t<Cond> TwoPassLayernorm2dFwd(const XDataType* p_x,
+                                                                const GammaDataType* p_gamma,
+                                                                const BetaDataType* p_beta,
+                                                                YDataType* p_y,
+                                                                const ComputeDataType epsilon,
+                                                                ck_tile::index_t M,
+                                                                ck_tile::index_t N) const
+    {
+        using S           = typename Problem::BlockShape;
+        constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
+
+        const auto x_m_n = [&]() {
+            const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_x, make_tuple(M, N), make_tuple(N, 1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(x_dram_naive,
+                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                   sequence<false, true>{});
+        }();
+
+        const auto gamma_n = [&]() {
+            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_gamma, make_tuple(N), make_tuple(1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(
+                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<true>{});
+        }();
+
+        const auto beta_n = [&]() {
+            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_beta, make_tuple(N), make_tuple(1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(
+                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<true>{});
+        }();
+
+        const auto iM = get_block_id() * kMPerBlock;
+
+        constexpr auto xDstr = MakeXBlockTileDistribution();
+
+        auto x_block_window = make_tile_window(
+            x_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0}, xDstr);
+
+        index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane((N + kNPerBlock - 1) / kNPerBlock);
+
+        auto intra_thread_count      = S::kNRepeat * S::kNPerThread * (num_n_tile_iteration - 1);
+        auto intra_thread_count_last = GetLastloopLayerNormIntraLaneReduceCount(N);
+
+        ThreadWelford<ComputeDataType, XDataType> thread_welford{intra_thread_count};
+        ThreadWelford<ComputeDataType, XDataType> thread_welford_last{intra_thread_count_last};
+
+        using XTensorType = decltype(load_tile(x_block_window));
+        auto mean_compute_block_tensor =
+            thread_welford.template MakeInitialMeanVarDistributedTensor<XTensorType>();
+        auto var_compute_block_tensor =
+            thread_welford.template MakeInitialMeanVarDistributedTensor<XTensorType>();
+
+        clear_tile(mean_compute_block_tensor);
+        clear_tile(var_compute_block_tensor);
+
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration - 1; ++iN)
+        {
+            const auto x_block_tensor = load_tile(x_block_window);
+
+            thread_welford(x_block_tensor, mean_compute_block_tensor, var_compute_block_tensor);
+            move_tile_window(x_block_window, {0, kNPerBlock});
+        }
+        const auto x_block_tensor_ = load_tile(x_block_window);
+
+        thread_welford_last.cur_count_ += intra_thread_count;
+        thread_welford_last.max_count_ += intra_thread_count;
+        thread_welford_last(x_block_tensor_, mean_compute_block_tensor, var_compute_block_tensor);
+        thread_welford.cur_count_ += intra_thread_count_last;
+
+        // TODO: support cross warp Welford
+        WarpMergeWelford<ComputeDataType, true>{}(
+            mean_compute_block_tensor, var_compute_block_tensor, thread_welford.cur_count_);
+
+        auto inv_std_compute_block_tensor = InvSqrt(var_compute_block_tensor, epsilon);
+
+        // TODO: Extract normalize pipeline
+        const auto y_m_n = [&]() {
+            const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                p_y, make_tuple(M, N), make_tuple(N, 1), number<S::kNPerThread>{}, number<1>{});
+
+            return pad_tensor_view(y_dram_naive,
+                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                   sequence<false, true>{});
+        }();
+
+        auto y_block_window = make_tile_window(
+            y_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0});
+
+        constexpr auto gammaDstr = MakeGammaBetaBlockTileDistribution();
+        constexpr auto betaDstr  = gammaDstr;
+
+        auto gamma_block_window =
+            make_tile_window(gamma_n, make_tuple(number<kNPerBlock>{}), {0}, gammaDstr);
+
+        auto beta_block_window =
+            make_tile_window(beta_n, make_tuple(number<kNPerBlock>{}), {0}, betaDstr);
 
         // reverse read x to reuse cache
         ck_tile::index_t stride_to_right_most_window =
             N % kNPerBlock == 0 ? N - kNPerBlock : N - N % kNPerBlock;
 
-        move_tile_window(x_block_window, {0, -kNPerBlock});
         move_tile_window(gamma_block_window, {stride_to_right_most_window});
         move_tile_window(beta_block_window, {stride_to_right_most_window});
         move_tile_window(y_block_window, {0, stride_to_right_most_window});
@@ -243,209 +422,35 @@ struct Layernorm2dFwd
         }
     }
 
-    template <typename XBlockWindow,
-              typename GammaBlockWindow,
-              typename BetaBlockWindow,
-              typename YBlockWindow,
-              typename MeanBlockWindow,
-              typename InvStdBlockWindow,
-              bool Cond = (kHasGamma && kHasBeta)>
-    CK_TILE_DEVICE std::enable_if_t<Cond>
-    OnePassLayernorm2dFwd(XBlockWindow& x_block_window,
-                          GammaBlockWindow& gamma_block_window,
-                          BetaBlockWindow& beta_block_window,
-                          YBlockWindow& y_block_window,
-                          MeanBlockWindow& mean_block_window,
-                          InvStdBlockWindow& inv_std_block_window,
-                          ComputeDataType epsilon,
-                          ck_tile::index_t N) const
+    CK_TILE_DEVICE void operator()(const void* p_x,
+                                   const void* p_gamma,
+                                   const void* p_beta,
+                                   void* p_y,
+                                   const ComputeDataType epsilon,
+                                   ck_tile::index_t M,
+                                   ck_tile::index_t N) const
     {
-        int welford_max_count = GetWelfordMaxCount(N);
-        ThreadWelford<ComputeDataType, XDataType> thread_welford{welford_max_count};
-
-        using XTensorType = decltype(load_tile(x_block_window));
-        auto mean_compute_block_tensor =
-            thread_welford.template MakeInitialMeanVarDistributedTensor<XTensorType>();
-        auto var_compute_block_tensor =
-            thread_welford.template MakeInitialMeanVarDistributedTensor<XTensorType>();
-
-        clear_tile(mean_compute_block_tensor);
-        clear_tile(var_compute_block_tensor);
-
-        const auto x_block_tensor = load_tile(x_block_window);
-        thread_welford(x_block_tensor, mean_compute_block_tensor, var_compute_block_tensor);
-        // TODO: support cross warp Welford
-        WarpMergeWelford<ComputeDataType, true>{}(
-            mean_compute_block_tensor, var_compute_block_tensor, thread_welford.cur_count_);
-
-        auto inv_std_compute_block_tensor = InvSqrt(var_compute_block_tensor, epsilon);
-
-        if constexpr(kSaveMean)
-            store_tile(mean_block_window, cast_tile<MeanDataType>(mean_compute_block_tensor));
-        if constexpr(kSaveInvStd)
-            store_tile(inv_std_block_window,
-                       cast_tile<InvStdDataType>(inv_std_compute_block_tensor));
-
-        // normalize
-        const auto gamma_block_tensor = load_tile(gamma_block_window);
-        const auto beta_block_tensor  = load_tile(beta_block_window);
-
-        constexpr auto x_spans = decltype(x_block_tensor)::get_distributed_spans();
-
-        auto y_block_tensor =
-            make_static_distributed_tensor<YDataType>(x_block_tensor.get_tile_distribution());
-
-        sweep_tile_span(x_spans[I1], [&](auto idx1) {
-            constexpr auto j_idx = make_tuple(idx1);
-            const auto gamma     = type_convert<ComputeDataType>(gamma_block_tensor[j_idx]);
-            const auto beta      = type_convert<ComputeDataType>(beta_block_tensor[j_idx]);
-
-            sweep_tile_span(x_spans[I0], [&](auto idx0) {
-                constexpr auto i_idx   = make_tuple(idx0);
-                constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-                const auto mean    = mean_compute_block_tensor[i_idx];
-                const auto inv_std = inv_std_compute_block_tensor[i_idx];
-
-                const auto x = type_convert<ComputeDataType>(x_block_tensor[i_j_idx]);
-                auto y       = (x - mean) * inv_std * gamma + beta;
-
-                y_block_tensor(i_j_idx) = type_convert<YDataType>(y);
-            });
-        });
-
-        store_tile(y_block_window, y_block_tensor);
-    }
-
-    CK_TILE_DEVICE void operator()(Kargs kargs) const
-    {
-        const auto x_m_n = [&]() {
-            const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const XDataType*>(kargs.p_x),
-                make_tuple(kargs.M, kargs.N),
-                make_tuple(kargs.N, 1),
-                number<kNPerThread>{},
-                number<1>{});
-
-            return pad_tensor_view(x_dram_naive,
-                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                                   sequence<kPadM, kPadN>{});
-        }();
-
-        const auto gamma_n = [&]() {
-            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const GammaDataType*>(kargs.p_gamma),
-                make_tuple(kargs.N),
-                make_tuple(1),
-                number<kNPerThread>{},
-                number<1>{});
-
-            return pad_tensor_view(
-                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<kPadN>{});
-        }();
-
-        const auto beta_n = [&]() {
-            const auto gamma_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const BetaDataType*>(kargs.p_beta),
-                make_tuple(kargs.N),
-                make_tuple(1),
-                number<kNPerThread>{},
-                number<1>{});
-
-            return pad_tensor_view(
-                gamma_dram_naive, make_tuple(number<kNPerBlock>{}), sequence<kPadN>{});
-        }();
-
-        const auto iM = get_block_id() * kMPerBlock;
-
-        constexpr auto xDstr = MakeXBlockTileDistribution();
-
-        auto x_block_window = make_tile_window(
-            x_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0}, xDstr);
-
-        const auto y_m_n = [&]() {
-            const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<YDataType*>(kargs.p_y),
-                make_tuple(kargs.M, kargs.N),
-                make_tuple(kargs.N, 1),
-                number<kNPerThread>{},
-                number<1>{});
-
-            return pad_tensor_view(y_dram_naive,
-                                   make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                                   sequence<kPadM, kPadN>{});
-        }();
-
-        auto y_block_window = make_tile_window(
-            y_m_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {iM, 0});
-
-        constexpr auto gammaDstr = MakeGammaBetaBlockTileDistribution();
-        constexpr auto betaDstr  = gammaDstr;
-
-        auto gamma_block_window =
-            make_tile_window(gamma_n, make_tuple(number<kNPerBlock>{}), {0}, gammaDstr);
-
-        auto beta_block_window = make_tile_window(
-            beta_n, make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}), {0}, betaDstr);
-
-        auto mean_block_window = [&]() {
-            if constexpr(kSaveMean)
-            {
-                const auto mean_m = [&]() {
-                    const auto mean_dram_naive =
-                        make_naive_tensor_view_packed<address_space_enum::global>(
-                            static_cast<MeanDataType*>(kargs.p_mean),
-                            make_tuple(kargs.M),
-                            number<1>{});
-
-                    return pad_tensor_view(
-                        mean_dram_naive, make_tuple(number<kMPerBlock>{}), sequence<kPadM>{});
-                }();
-
-                return make_tile_window(mean_m, make_tuple(number<kMPerBlock>{}), {iM});
-            }
-            else
-                return make_null_tile_window(make_tuple(number<kMPerBlock>{}));
-        }();
-
-        auto inv_std_block_window = [&]() {
-            if constexpr(kSaveInvStd)
-            {
-                const auto inv_std_m = [&]() {
-                    const auto inv_std_dram_naive =
-                        make_naive_tensor_view_packed<address_space_enum::global>(
-                            static_cast<InvStdDataType*>(kargs.p_invStd),
-                            make_tuple(kargs.M),
-                            number<1>{});
-
-                    return pad_tensor_view(
-                        inv_std_dram_naive, make_tuple(number<kMPerBlock>{}), sequence<kPadM>{});
-                }();
-
-                return make_tile_window(inv_std_m, make_tuple(number<kMPerBlock>{}), {iM});
-            }
-            else
-                return make_null_tile_window(make_tuple(number<kMPerBlock>{}));
-        }();
-
-        if(kargs.N <= kNPerBlock)
-            OnePassLayernorm2dFwd(x_block_window,
-                                  gamma_block_window,
-                                  beta_block_window,
-                                  y_block_window,
-                                  mean_block_window,
-                                  inv_std_block_window,
-                                  static_cast<const ComputeDataType>(kargs.epsilon),
-                                  kargs.N);
+        if constexpr(kTwoPass)
+        {
+            TwoPassLayernorm2dFwd(static_cast<const XDataType*>(p_x),
+                                  static_cast<const GammaDataType*>(p_gamma),
+                                  static_cast<const BetaDataType*>(p_beta),
+                                  static_cast<YDataType*>(p_y),
+                                  static_cast<const ComputeDataType>(epsilon),
+                                  M,
+                                  N);
+        }
         else
-            TwoPassLayernorm2dFwd(x_block_window,
-                                  gamma_block_window,
-                                  beta_block_window,
-                                  y_block_window,
-                                  mean_block_window,
-                                  inv_std_block_window,
-                                  static_cast<const ComputeDataType>(kargs.epsilon),
-                                  kargs.N);
+        {
+
+            OnePassLayernorm2dFwd(static_cast<const XDataType*>(p_x),
+                                  static_cast<const GammaDataType*>(p_gamma),
+                                  static_cast<const BetaDataType*>(p_beta),
+                                  static_cast<YDataType*>(p_y),
+                                  static_cast<const ComputeDataType>(epsilon),
+                                  M,
+                                  N);
+        }
     }
 };
 

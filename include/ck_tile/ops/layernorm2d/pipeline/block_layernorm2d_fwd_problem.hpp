@@ -15,20 +15,20 @@ template <typename XDataType_,
           typename MeanDataType_,
           typename InvStdDataType_,
           typename BlockShape_,
-          bool kPadM_,
-          bool kPadN_>
+          bool kPadN_,
+          bool kTwoPass_>
 struct BlockLayernorm2dFwdProblem
 {
-    using XDataType             = remove_cvref_t<XDataType_>;
-    using GammaDataType         = remove_cvref_t<GammaDataType_>;
-    using BetaDataType          = remove_cvref_t<BetaDataType_>;
-    using ComputeDataType       = remove_cvref_t<ComputeDataType_>;
-    using YDataType             = remove_cvref_t<YDataType_>;
-    using MeanDataType          = remove_cvref_t<MeanDataType_>;
-    using InvStdDataType        = remove_cvref_t<InvStdDataType_>;
-    using BlockShape            = remove_cvref_t<BlockShape_>;
-    static constexpr bool kPadM = kPadM_;
-    static constexpr bool kPadN = kPadN_;
+    using XDataType                = remove_cvref_t<XDataType_>;
+    using GammaDataType            = remove_cvref_t<GammaDataType_>;
+    using BetaDataType             = remove_cvref_t<BetaDataType_>;
+    using ComputeDataType          = remove_cvref_t<ComputeDataType_>;
+    using YDataType                = remove_cvref_t<YDataType_>;
+    using MeanDataType             = remove_cvref_t<MeanDataType_>;
+    using InvStdDataType           = remove_cvref_t<InvStdDataType_>;
+    using BlockShape               = remove_cvref_t<BlockShape_>;
+    static constexpr bool kPadN    = kPadN_;
+    static constexpr bool kTwoPass = kTwoPass_;
 };
 
 } // namespace ck_tile

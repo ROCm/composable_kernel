@@ -13,14 +13,51 @@ struct layernorm2d_fwd_traits
     std::string data_type;
 };
 
+template <typename DataType>
+struct LayerNormTypeConfig;
+
+template <>
+struct LayerNormTypeConfig<ck_tile::half_t>
+{
+    using XDataType     = ck_tile::half_t;
+    using YDataType     = ck_tile::half_t;
+    using GammaDataType = ck_tile::half_t;
+    using BetaDataType  = ck_tile::half_t;
+#ifdef SAVE_MEAN_INV_STD
+    using MeanDataType   = ck_tile::half_t;
+    using InvStdDataType = ck_tile::half_t;
+#else
+    using MeanDataType   = ck_tile::null_type;
+    using InvStdDataType = ck_tile::null_type;
+#endif
+    using ComputeDataType = float;
+};
+
+template <>
+struct LayerNormTypeConfig<float>
+{
+    using XDataType     = float;
+    using YDataType     = float;
+    using GammaDataType = float;
+    using BetaDataType  = float;
+#ifdef SAVE_MEAN_INV_STD
+    using MeanDataType   = float;
+    using InvStdDataType = float;
+#else
+    using MeanDataType   = ck_tile::null_type;
+    using InvStdDataType = ck_tile::null_type;
+#endif
+    using ComputeDataType = float;
+};
+
 struct layernorm2d_fwd_args
 {
     const void* p_x;
     const void* p_gamma;
     const void* p_beta;
     void* p_y;
-    void* p_mean;
-    void* p_invStd;
+    // void* p_mean;
+    // void* p_invStd;
     float epsilon;
     ck_tile::index_t M;
     ck_tile::index_t N;
