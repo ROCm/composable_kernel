@@ -850,38 +850,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKRegBlockDescriptor()
-    {
-        using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
-
-        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
-        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
-
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
-
-        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
-        constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
-
-        constexpr auto k_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto k_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            k_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
-        constexpr auto k_block_dstr = make_static_tile_distribution(k_block_dstr_encode);
-
-        return k_block_dstr;
-    }
-
-    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsWriteBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
@@ -904,38 +872,6 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK2;
-
-        constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
-        constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
-
-        constexpr auto v_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
-                                       tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            v_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
-        constexpr auto v_block_dstr = make_static_tile_distribution(v_block_dstr_encode);
-
-        return v_block_dstr;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeVRegBlockDescriptor()
-    {
-        using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
-        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
-
-        constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<0>{});
-        constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm2BlockWarps::at(number<1>{});
-
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kVHeaddimForGemmN;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;

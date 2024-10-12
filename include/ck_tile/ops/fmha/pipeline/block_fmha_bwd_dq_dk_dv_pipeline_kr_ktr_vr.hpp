@@ -189,7 +189,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                              Policy::template MakeKRegSliceBlockDescriptor<Problem>());
 
         auto k_reg_tensor = make_static_distributed_tensor<KDataType>(
-            Policy::template MakeKRegBlockDescriptor<Problem>());
+            Policy::template MakeKRegSliceBlockDescriptor<Problem>());
 
         //------------------------------------------------------------------
         // V, HBM ->LDS ->Reg
@@ -213,9 +213,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
                              make_tuple(number<kN0>{}, number<kK2>{}),
                              v_lds_write_window.get_window_origin(),
                              Policy::template MakeVRegSliceBlockDescriptor<Problem>());
-
-        auto v_reg_tensor = make_static_distributed_tensor<VDataType>(
-            Policy::template MakeVRegBlockDescriptor<Problem>());
 
         //------------------------------------------------------------------
         // KT, Reg ->LDS ->Reg
@@ -259,7 +256,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
 
         block_sync_lds();
 
-        v_reg_tensor = load_tile(v_lds_read_window);
+        auto v_reg_tensor = load_tile(v_lds_read_window);
         block_sync_lds();
         //---------------------------- Loop Load in ----------------------------//
         // Q: HBM ->Reg ->LDS
