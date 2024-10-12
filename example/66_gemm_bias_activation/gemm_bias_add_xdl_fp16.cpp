@@ -240,13 +240,14 @@ int main(int argc, char* argv[])
 
     float ave_time = 0;
     if(op_type == 0)
-        gemm_bias_add_gelu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+        ave_time = gemm_bias_add_gelu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     else if(op_type == 1)
-        gemm_bias_add_relu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+        ave_time = gemm_bias_add_relu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     else if(op_type == 2)
-        gemm_bias_add_silu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+        ave_time = gemm_bias_add_silu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     else
-        gemm_bias_add_sigmoid_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+        ave_time =
+            gemm_bias_add_sigmoid_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     // float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel, 20, 50});
 
     std::size_t flop = std::size_t(2) * M * N * K;

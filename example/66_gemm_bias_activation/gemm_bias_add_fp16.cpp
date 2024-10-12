@@ -40,17 +40,17 @@ using DeviceOpInstance_64_16_16_64 = ck::tensor_operation::device::DeviceGemmMul
         ALayout,  BLayout, DsLayout, CLayout, ADataType, BDataType,
         DsDataType, CDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp,       GemmSpec,
-        64,
-        16,   16,    64,
-        8,    8,
-        16,   16,
+        128,
+        32,   64,    64,
+        8,   4,
+        32,   32,
         1,    1,
-        S<8,  8, 1>,     S<1, 0, 2>,    S<1, 0, 2>,
-        2,    8,     8,    0,
-        S<8, 8, 1>,     S<0, 2, 1>,    S<0, 2, 1>,
-        1,    2,     2,    0,
-        1,    1,
-        S<1, 16, 1, 4>,      S<4, 4>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
+        S<8, 16, 1>,     S<1, 0, 2>,    S<1, 0, 2>,    
+        2,           8,              8,          0,
+        S<16, 8, 1>,     S<0, 2, 1>,     S<0, 2, 1>,
+        1,           8,              4,          0,          
+        1,           1,
+        S<1, 16, 1, 8>,      S<8, 8>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2, F16>;
 
 template <typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType, typename CDEElementOp>
 using DeviceOpInstance_default = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<
