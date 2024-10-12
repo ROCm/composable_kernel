@@ -172,8 +172,8 @@ int main(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=no, 1=yes)\n");
-        printf("arg4 to 9: M (256x), N(128x), K(32x)m, op_type(Gelu = 0, Relu = 1, Silu = 2, "
-               "Sigmoid = 3\n");
+        printf("arg4 to 7: M (256x), N(128x), K(32x)m, op_type(Add = 0, Gelu = 1, Relu = 2, Silu = "
+               "3, Sigmoid = 4\n");
         exit(0);
     }
 
@@ -240,10 +240,12 @@ int main(int argc, char* argv[])
 
     float ave_time = 0;
     if(op_type == 0)
-        ave_time = gemm_bias_add_gelu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+        ave_time = gemm_bias_add_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     else if(op_type == 1)
-        ave_time = gemm_bias_add_relu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+        ave_time = gemm_bias_add_gelu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     else if(op_type == 2)
+        ave_time = gemm_bias_add_relu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
+    else if(op_type == 3)
         ave_time = gemm_bias_add_silu_fp16(gemm_args, StreamConfig{nullptr, time_kernel, 20, 50});
     else
         ave_time =
@@ -283,10 +285,12 @@ int main(int argc, char* argv[])
             }
         };
         if(op_type == 0)
-            run_elementwise(ck::impl::AddActivation<Gelu>{});
+            run_elementwise(Add{});
         else if(op_type == 1)
-            run_elementwise(ck::impl::AddActivation<Relu>{});
+            run_elementwise(ck::impl::AddActivation<Gelu>{});
         else if(op_type == 2)
+            run_elementwise(ck::impl::AddActivation<Relu>{});
+        else if(op_type == 3)
             run_elementwise(ck::impl::AddActivation<Silu>{});
         else
             run_elementwise(ck::impl::AddActivation<Sigmoid>{});

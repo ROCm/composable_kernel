@@ -140,6 +140,11 @@ float run_impl(const GemmBiasAddArgs& args, const StreamConfig& config)
     return ave_time;
 }
 
+float gemm_bias_add_fp16(const GemmBiasAddArgs& args, const StreamConfig& config)
+{
+    return run_impl<Add>(args, config);
+}
+
 float gemm_bias_add_relu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config)
 {
     return run_impl<ck::impl::AddActivation<Relu>>(args, config);

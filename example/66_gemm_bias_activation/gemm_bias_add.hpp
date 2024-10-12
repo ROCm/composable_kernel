@@ -66,6 +66,7 @@ struct AddActivation
 } // namespace ck
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+using Add         = ck::tensor_operation::element_wise::Add;
 using Gelu        = ck::tensor_operation::element_wise::Gelu;
 using Relu        = ck::tensor_operation::element_wise::Relu;
 using Silu        = ck::tensor_operation::element_wise::Silu;
@@ -82,6 +83,7 @@ struct GemmBiasAddArgs
     ck::index_t K;
 };
 
+float gemm_bias_add_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
 float gemm_bias_add_relu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
 float gemm_bias_add_gelu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
 float gemm_bias_add_silu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
