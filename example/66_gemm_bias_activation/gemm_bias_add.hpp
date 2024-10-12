@@ -71,19 +71,6 @@ using Relu        = ck::tensor_operation::element_wise::Relu;
 using Silu        = ck::tensor_operation::element_wise::Silu;
 using Sigmoid     = ck::tensor_operation::element_wise::Sigmoid;
 
-enum class ActivationType
-{
-    Gelu = 0,
-    Relu,
-    Silu,
-    Swiglu,
-    Geglu,
-    Sigmoid,
-    Identity,
-    GeluNoneApproximate,
-    GeGluNoneApproximate,
-    InvalidType
-};
 struct GemmBiasAddArgs
 {
     const void* mat_a;
@@ -95,6 +82,7 @@ struct GemmBiasAddArgs
     ck::index_t K;
 };
 
-float gemm_bias_add_fp16(const GemmBiasAddArgs& args,
-                         const StreamConfig& config,
-                         ActivationType op_type);
+float gemm_bias_add_relu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
+float gemm_bias_add_gelu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
+float gemm_bias_add_silu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);
+float gemm_bias_add_sigmoid_fp16(const GemmBiasAddArgs& args, const StreamConfig& config);

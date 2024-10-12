@@ -24,6 +24,7 @@ using ALayout  = Row;
 using BLayout  = Row;
 using D0Layout = Row;
 using CLayout  = Row;
+using DsLayout = ck::Tuple<D0Layout>;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
@@ -34,7 +35,7 @@ using S = ck::Sequence<Is...>;
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 // clang-format off
-template <typename DsLayout, typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType, typename CDEElementOp>
+template <typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType, typename CDEElementOp>
 using DeviceOpInstance_64_16_16_64 = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<
         ALayout,  BLayout, DsLayout, CLayout, ADataType, BDataType,
         DsDataType, CDataType, AccDataType, CShuffleDataType,
@@ -51,7 +52,7 @@ using DeviceOpInstance_64_16_16_64 = ck::tensor_operation::device::DeviceGemmMul
         1,    1,
         S<1, 16, 1, 4>,      S<4, 4>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
 
-template <typename DsLayout, typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType, typename CDEElementOp>
+template <typename ADataType,   typename BDataType, typename DsDataType,  typename CDataType, typename CDEElementOp>
 using DeviceOpInstance_default = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShuffle_V3<
         ALayout,  BLayout, DsLayout, CLayout, ADataType, BDataType,
         DsDataType, CDataType, AccDataType, CShuffleDataType,
@@ -69,7 +70,7 @@ using DeviceOpInstance_default = ck::tensor_operation::device::DeviceGemmMultiD_
         S<1, 16, 1, 4>,      S<2, 2>,  ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1, F16>;
 
 // clang-format on
-template <typename DsLayout, typename CDEElementOp>
+template <typename CDEElementOp>
 float run_impl(const GemmBiasAddArgs& args, const StreamConfig& config)
 {
     using ADataType  = ck::half_t;
@@ -127,46 +128,31 @@ float run_impl(const GemmBiasAddArgs& args, const StreamConfig& config)
         return true;
     };
 
-    auto gemm = DeviceOpInstance_64_16_16_64<DsLayout,
-                                             ADataType,
-                                             BDataType,
-                                             DsDataType,
-                                             CDataType,
-                                             CDEElementOp>{};
+    auto gemm =
+        DeviceOpInstance_64_16_16_64<ADataType, BDataType, DsDataType, CDataType, CDEElementOp>{};
     if(!Run(gemm))
     {
-        auto gemm_def = DeviceOpInstance_default<DsLayout,
-                                                 ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 CDataType,
-                                                 CDEElementOp>{};
+        auto gemm_def =
+            DeviceOpInstance_default<ADataType, BDataType, DsDataType, CDataType, CDEElementOp>{};
         Run(gemm_def);
     }
 
     return ave_time;
 }
-float gemm_bias_add_fp16(const GemmBiasAddArgs& args,
-                         const StreamConfig& config,
-                         ActivationType op_type)
+
+float gemm_bias_add_relu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config)
 {
-    using DsLayout = ck::Tuple<D0Layout>;
-    switch(op_type)
-    {
-    case ActivationType::Gelu:
-    case ActivationType::Geglu:
-    case ActivationType::GeluNoneApproximate:
-    case ActivationType::GeGluNoneApproximate:
-        return run_impl<DsLayout, ck::impl::AddActivation<Gelu>>(args, config);
-    case ActivationType::Relu:
-        return run_impl<DsLayout, ck::impl::AddActivation<Relu>>(args, config);
-    case ActivationType::Silu:
-    case ActivationType::Swiglu:
-        return run_impl<DsLayout, ck::impl::AddActivation<Silu>>(args, config);
-    case ActivationType::Sigmoid:
-        return run_impl<DsLayout, ck::impl::AddActivation<Sigmoid>>(args, config);
-    case ActivationType::Identity:
-    case ActivationType::InvalidType:
-    default: return 0;
-    }
+    return run_impl<ck::impl::AddActivation<Relu>>(args, config);
+}
+float gemm_bias_add_gelu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config)
+{
+    return run_impl<ck::impl::AddActivation<Gelu>>(args, config);
+}
+float gemm_bias_add_silu_fp16(const GemmBiasAddArgs& args, const StreamConfig& config)
+{
+    return run_impl<ck::impl::AddActivation<Silu>>(args, config);
+}
+float gemm_bias_add_sigmoid_fp16(const GemmBiasAddArgs& args, const StreamConfig& config)
+{
+    return run_impl<ck::impl::AddActivation<Sigmoid>>(args, config);
 }
