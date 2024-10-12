@@ -100,9 +100,9 @@ auto create_args(int argc, char* argv[])
         .insert("v3_spec",
                 "0",
                 "if set to 1 will call the specialized v3 kernel when bwd_v3 is set to 1")
-        .insert("v3_rtz_cvt",
-                "0",
-                "if set to 1 will use float to bf16 RTZ convert when bwd_v3 is set to 1");
+        .insert("v3_bf16_cvt",
+                "1",
+                "float to bf16 convert type when bwd_v3 is set to 1, 0:RTNE; 1:RTNA; 2:RTZ");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -194,7 +194,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     bool bwd_v3         = arg_parser.get_bool("bwd_v3");
     bool v3_atomic_fp32 = arg_parser.get_bool("v3_atomic_fp32");
     bool v3_spec        = arg_parser.get_bool("v3_spec");
-    bool v3_rtz_cvt     = arg_parser.get_bool("v3_rtz_cvt");
+    int v3_bf16_cvt     = arg_parser.get_int("v3_bf16_cvt");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -433,7 +433,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        bwd_v3,
                                        v3_atomic_fp32,
                                        v3_spec,
-                                       v3_rtz_cvt};
+                                       v3_bf16_cvt};
     auto fmha_args   = [&]() {
         assert(nhead % nhead_k == 0);
         /// NOTE: we broadcast bias from [1, 1, seqlen_q, seqlen_k] to [batch, nhead, seqlen_q,

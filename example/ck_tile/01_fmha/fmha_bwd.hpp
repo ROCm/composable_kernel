@@ -441,7 +441,7 @@ struct fmha_bwd_traits
     bool uses_bwd_v3;
     bool is_v3_atomic_fp32;
     bool is_v3_spec;
-    bool is_v3_rtz_cvt;
+    int how_v3_bf16_cvt;
     // TODO: padding check is inside this api
 };
 float fmha_bwd(fmha_bwd_traits, fmha_bwd_args, const ck_tile::stream_config&);
