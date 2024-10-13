@@ -133,7 +133,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
-    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
+    StrideB = f_get_default_stride(K, N, StrideB / 2, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
@@ -267,7 +267,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
-            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N + sizeof(CDataType) * M * N;
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N / 2 + sizeof(CDataType) * M * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

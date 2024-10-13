@@ -8,7 +8,7 @@
 using ADataType        = ck::half_t;
 using BDataType        = ck::f8_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
+using CShuffleDataType = float;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;

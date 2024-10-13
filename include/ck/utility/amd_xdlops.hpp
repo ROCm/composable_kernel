@@ -157,8 +157,11 @@ struct intrin_mfma_f32_16x16x16f16<16, 16>
     template <class FloatC>
     __device__ static void Run(const half4_t& reg_a, const half4_t& reg_b, FloatC& reg_c)
     {
-        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x16f16(
-            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+        //reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x16f16(
+            //reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
     }
 };
 

@@ -924,6 +924,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 NXdlPerWave,
                                 KPack>())>;
 
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
@@ -937,7 +944,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align) / BPackedSize;
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
@@ -1312,9 +1319,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
             static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+            static_cast<BDataType*>(static_cast<unsigned char *>(p_shared) +
+                a_block_space_size_aligned * sizeof(ADataType)),
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
@@ -1329,19 +1336,19 @@ struct GridwiseGemm_xdl_cshuffle_v3
             KPerBlock);
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
-                                                                         a_block_desc_ak0_m_ak1,
-                                                                         a_blockwise_copy,
-                                                                         a_grid_buf,
-                                                                         a_block_buf,
-                                                                         a_block_slice_copy_step,
-                                                                         b_grid_desc_bk0_n_bk1,
-                                                                         b_block_desc_bk0_n_bk1,
-                                                                         b_blockwise_copy,
-                                                                         b_grid_buf,
-                                                                         b_block_buf,
-                                                                         b_block_slice_copy_step,
-                                                                         c_thread_buf,
-                                                                         num_k_block_main_loop);
+                a_block_desc_ak0_m_ak1,
+                a_blockwise_copy,
+                a_grid_buf,
+                a_block_buf,
+                a_block_slice_copy_step,
+                b_grid_desc_bk0_n_bk1,
+                b_block_desc_bk0_n_bk1,
+                b_blockwise_copy,
+                b_grid_buf,
+                b_block_buf,
+                b_block_slice_copy_step,
+                c_thread_buf,
+                num_k_block_main_loop);
 
         // shuffle C and write out
         {
@@ -1706,17 +1713,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
             static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared_0) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+            static_cast<BDataType*>(static_cast<char*>(p_shared_0) +
+                a_block_space_size_aligned * sizeof(ADataType)),
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(p_shared_1) +
-                a_block_space_size_aligned * sizeof(ADataType) / sizeof(BDataType),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+            static_cast<BDataType*>(static_cast<char*>(p_shared_1) +
+                a_block_space_size_aligned * sizeof(ADataType)),
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
         auto b_block_bufs = make_tuple(b_block_buf_ping, b_block_buf_pong);
