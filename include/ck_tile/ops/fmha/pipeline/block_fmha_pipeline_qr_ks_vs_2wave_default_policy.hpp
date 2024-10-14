@@ -326,6 +326,8 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
         return q_block_dstr;
     }
 
+#if 0 // [POYENC] disabled since we are using
+      // MakeKLdsStoreBlockDescriptor/MakeVLdsStoreBlockDescriptor now
     // TODO: this is used for non async copy desc. unify in the future
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
@@ -351,7 +353,6 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
         return k_lds_block_desc;
     }
 
-#if 0 // [POYENC] disabled for now
     template <typename Problem, index_t IBuf = 0>
     CK_TILE_HOST_DEVICE static constexpr auto
         MakeKLdsStoreBlockDescriptor(number<IBuf> = number<0>{})
@@ -405,7 +406,6 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
 
         return k_lds_block_desc_issues_warps_lanes;
     }
-#endif
 
 #if K_LDS_LOAD_USE_OFFSET_TRANSFORM
     template <typename Problem, index_t IBuf = 0>
@@ -552,6 +552,7 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
 
         return v_lds_block_desc;
     }
+#endif
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKV()
