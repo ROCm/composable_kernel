@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -284,14 +284,21 @@ struct tile_window_with_static_distribution
     template <bool oob_conditional_check = true>
     CK_TILE_DEVICE auto load(bool_constant<oob_conditional_check> = {}) const
     {
-        using Traits = load_store_traits;
+        constexpr auto tile_dstr = TileDstr{};
+        auto dst_tensor          = make_static_distributed_tensor<DataType>(tile_dstr);
+        load(dst_tensor, bool_constant<oob_conditional_check>{});
+        return dst_tensor;
+    }
 
+    template <typename DistributedTensor, bool oob_conditional_check = true>
+    CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+                             bool_constant<oob_conditional_check> = {}) const
+    {
+        using Traits   = load_store_traits;
         using vector_t = typename Traits::vector_t;
         using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr = TileDstr{};
-
-        auto dst_tensor = make_static_distributed_tensor<DataType>(tile_dstr);
 
         // loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
@@ -346,8 +353,6 @@ struct tile_window_with_static_distribution
                 }
             });
         });
-
-        return dst_tensor;
     }
 
     template <typename DstTile, bool oob_conditional_check = true, bool pre_nop = false>

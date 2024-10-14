@@ -31,6 +31,22 @@ CK_TILE_DEVICE auto load_tile(const tile_window_with_static_distribution<BottomT
     return tile_window.load(bool_constant<oob_conditional_check>{});
 }
 
+template <typename DistributedTensor_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
+                              const tile_window_with_static_distribution<BottomTensorView_,
+                                                                         WindowLengths_,
+                                                                         TileDistribution_,
+                                                                         NumCoord>& tile_window,
+                              bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load(dst_tile, bool_constant<oob_conditional_check>{});
+}
+
 /**
  * @brief Loads a tile of data using inline assembly.
  *

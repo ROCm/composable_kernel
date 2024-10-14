@@ -152,10 +152,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
         CK_TILE_DEVICE void GlobalPrefetch(DstBlockTile& dst_block_tile,
                                            SrcTileWindow& dram_tile_window) const
         {
-            // TODO: we need to have an api of load_tile which takes as param output tile
-            load_tile_raw(dst_block_tile, dram_tile_window);
+            load_tile(dst_block_tile, dram_tile_window);
             move_tile_window(dram_tile_window, {0, KPerBlock});
-            buffer_load_fence();
         }
 
         template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
@@ -220,7 +218,6 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                  make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
                                  a_dram_block_window_tmp.get_window_origin(),
                                  Policy::template MakeADramTileDistribution<Problem>());
-            a_copy_dram_window.init_raw();
 
             // A LDS tile window for store
             auto a_copy_lds_window =
@@ -234,7 +231,6 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                  make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
                                  b_dram_block_window_tmp.get_window_origin(),
                                  Policy::template MakeBDramTileDistribution<Problem>());
-            b_copy_dram_window.init_raw();
 
             // B LDS tile window for store
             auto b_copy_lds_window =
