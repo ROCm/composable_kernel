@@ -282,7 +282,7 @@ int main(int argc, char* argv[])
         GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenGemmShape, CodegenGemmTraits>;
 
     using CodegenGemmPolicy = ck_tile::
-        GemmUniversalPipelineAgBgCrPolicy<matrix_a_layout, matrix_b_layout, matrix_c_layout>;
+        UniversalGemmPipelineAgBgCrPolicy<matrix_a_layout, matrix_b_layout, matrix_c_layout>;
 
     using CodegenGemmPipeline =
         ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenGemmPolicy>;

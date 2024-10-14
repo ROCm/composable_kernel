@@ -10,7 +10,7 @@ namespace ck_tile {
 
 // UniversalGemm Policy
 template <typename LayoutA_, typename LayoutB_, typename LayoutC_>
-struct GemmUniversalPipelineAgBgCrPolicy
+struct UniversalGemmPipelineAgBgCrPolicy
 {
     using LayoutA = remove_cvref_t<LayoutA_>;
     using LayoutB = remove_cvref_t<LayoutB_>;
