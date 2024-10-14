@@ -38,22 +38,23 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
-    static constexpr index_t kM0               = BlockFmhaShape::kM0;
-    static constexpr index_t kN0               = BlockFmhaShape::kN0;
-    static constexpr index_t kK0               = BlockFmhaShape::kK0;
-    static constexpr index_t kK1               = BlockFmhaShape::kK1;
-    static constexpr index_t kK2               = BlockFmhaShape::kK2;
-    static constexpr index_t kK3               = BlockFmhaShape::kK3;
-    static constexpr index_t kK4               = BlockFmhaShape::kK4;
-    static constexpr index_t kQKHeaddim        = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kVHeaddim         = BlockFmhaShape::kVHeaddim;
-    static constexpr index_t kVHeaddimForGemmN = BlockFmhaShape::kVHeaddimForGemmN;
+    static constexpr index_t kM0          = BlockFmhaShape::kM0;
+    static constexpr index_t kN0          = BlockFmhaShape::kN0;
+    static constexpr index_t kK0          = BlockFmhaShape::kK0;
+    static constexpr index_t kK1          = BlockFmhaShape::kK1;
+    static constexpr index_t kK2          = BlockFmhaShape::kK2;
+    static constexpr index_t kK3          = BlockFmhaShape::kK3;
+    static constexpr index_t kK4          = BlockFmhaShape::kK4;
+    static constexpr index_t kQKHeaddim   = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kVHeaddim    = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kDoDvHeaddim = BlockFmhaShape::kDoDvHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
+    static constexpr bool kPadHeadDimDoDv  = Problem::kPadHeadDimDoDv;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
@@ -67,12 +68,12 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kAlignmentV =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
+        kPadHeadDimDoDv ? 1 : Policy::template GetAlignmentOGrad<Problem>();
     static constexpr index_t kAlignmentQGrad = 1;
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
+        kPadHeadDimDoDv ? 1 : Policy::template GetAlignmentVGrad<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
 
@@ -205,7 +206,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             v_lds_ptr, Policy::template MakeVLdsWriteBlockDescriptor<Problem>());
 
         auto v_lds_write_window =
-            make_tile_window(v_lds, make_tuple(number<kN0>{}, number<kVHeaddimForGemmN>{}), {0, 0});
+            make_tile_window(v_lds, make_tuple(number<kN0>{}, number<kVHeaddim>{}), {0, 0});
 
         auto v_lds_read_window =
             make_tile_window(v_lds_write_window.get_bottom_tensor_view(),
@@ -318,8 +319,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         auto do_lds = make_tensor_view<address_space_enum::lds>(
             do_lds_ptr, Policy::template MakeOGradLdsBlockDescriptor<Problem>());
 
-        auto do_lds_window = make_tile_window(
-            do_lds, make_tuple(number<kM0>{}, number<kVHeaddimForGemmN>{}), {0, 0});
+        auto do_lds_window =
+            make_tile_window(do_lds, make_tuple(number<kM0>{}, number<kDoDvHeaddim>{}), {0, 0});
 
         auto do_lds_read_window =
             make_tile_window(do_lds_window.get_bottom_tensor_view(),
@@ -338,14 +339,14 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             dot_lds_ptr, Policy::template MakeShuffledOGradLdsWriteBlockDescriptor<Problem>());
 
         auto shuffled_do_lds_write_window = make_tile_window(
-            shuffled_do_lds_write, make_tuple(number<kM0>{}, number<kVHeaddimForGemmN>{}), {0, 0});
+            shuffled_do_lds_write, make_tuple(number<kM0>{}, number<kDoDvHeaddim>{}), {0, 0});
 
         auto dot_read_lds = make_tensor_view<address_space_enum::lds>(
             dot_lds_ptr, Policy::template MakeOGradTLdsReadBlockDescriptor<Problem>());
 
         auto dot_lds_read_window =
             make_tile_window(dot_read_lds,
-                             make_tuple(number<kVHeaddimForGemmN>{}, number<kM0>{}),
+                             make_tuple(number<kDoDvHeaddim>{}, number<kM0>{}),
                              {0, 0},
                              Policy::template MakeOGradTRegSliceBlockDescriptor<Problem>());
 
@@ -484,6 +485,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         static_assert(kM0 == kK1, "kM0 should equal to kK1");
         static_assert(kVHeaddim >= kK2, "kVHeaddim should equal to or bigger than kK2");
         static_assert(kM0 == kK3, "kM0 should equal to kK3");
+        static_assert(kDoDvHeaddim >= kVHeaddim,
+                      "kDoDvHeaddim should equal to or bigger than kVHeaddim");
         constexpr index_t k4_loops = kN0 / kK4;
 
         /*
