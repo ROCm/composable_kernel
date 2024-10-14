@@ -105,11 +105,8 @@ struct TileFmhaBwdShape
     static constexpr index_t kVHeaddim = BlockTile::at(number<8>{}); // V headdim, used for pipeline
                                                                      // that need load V at once
 
-    static constexpr index_t kQKHeaddimForGemmN = ceil_to_qualified_tile_length(kQKHeaddim);
-
     static constexpr index_t kVHeaddimForGemmN = ceil_to_qualified_tile_length(kVHeaddim);
 
-    static_assert(kQKHeaddimForGemmN > 0, "Check failed!");
     static_assert(kVHeaddimForGemmN > 0, "Check failed!");
 };
 

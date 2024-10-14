@@ -38,17 +38,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
-    static constexpr index_t kM0                = BlockFmhaShape::kM0;
-    static constexpr index_t kN0                = BlockFmhaShape::kN0;
-    static constexpr index_t kK0                = BlockFmhaShape::kK0;
-    static constexpr index_t kK1                = BlockFmhaShape::kK1;
-    static constexpr index_t kK2                = BlockFmhaShape::kK2;
-    static constexpr index_t kK3                = BlockFmhaShape::kK3;
-    static constexpr index_t kK4                = BlockFmhaShape::kK4;
-    static constexpr index_t kQKHeaddim         = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kVHeaddim          = BlockFmhaShape::kVHeaddim;
-    static constexpr index_t kQKHeaddimForGemmN = BlockFmhaShape::kQKHeaddimForGemmN;
-    static constexpr index_t kVHeaddimForGemmN  = BlockFmhaShape::kVHeaddimForGemmN;
+    static constexpr index_t kM0               = BlockFmhaShape::kM0;
+    static constexpr index_t kN0               = BlockFmhaShape::kN0;
+    static constexpr index_t kK0               = BlockFmhaShape::kK0;
+    static constexpr index_t kK1               = BlockFmhaShape::kK1;
+    static constexpr index_t kK2               = BlockFmhaShape::kK2;
+    static constexpr index_t kK3               = BlockFmhaShape::kK3;
+    static constexpr index_t kK4               = BlockFmhaShape::kK4;
+    static constexpr index_t kQKHeaddim        = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kVHeaddim         = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kVHeaddimForGemmN = BlockFmhaShape::kVHeaddimForGemmN;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
@@ -179,8 +178,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsWriteBlockDescriptor<Problem>());
 
-        auto k_lds_write_window = make_tile_window(
-            k_lds, make_tuple(number<kN0>{}, number<kQKHeaddimForGemmN>{}), {0, 0});
+        auto k_lds_write_window =
+            make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kQKHeaddim>{}), {0, 0});
 
         auto k_lds_read_window =
             make_tile_window(k_lds_write_window.get_bottom_tensor_view(),
@@ -226,14 +225,14 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             kt_lds_ptr, Policy::template MakeShuffledKLdsWriteBlockDescriptor<Problem>());
 
         auto shuffled_k_lds_write_window = make_tile_window(
-            shuffled_k_lds_write, make_tuple(number<kN0>{}, number<kQKHeaddimForGemmN>{}), {0, 0});
+            shuffled_k_lds_write, make_tuple(number<kN0>{}, number<kQKHeaddim>{}), {0, 0});
 
         auto kt_lds_read = make_tensor_view<address_space_enum::lds>(
             kt_lds_ptr, Policy::template MakeKTLdsReadBlockDescriptor<Problem>());
 
         auto kt_lds_read_window =
             make_tile_window(kt_lds_read,
-                             make_tuple(number<kQKHeaddimForGemmN>{}, number<kN0>{}),
+                             make_tuple(number<kQKHeaddim>{}, number<kN0>{}),
                              {0, 0},
                              Policy::template MakeKTRegBlockDescriptor<Problem>());
 
@@ -273,8 +272,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         auto q_lds = make_tensor_view<address_space_enum::lds>(
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
 
-        auto q_lds_window = make_tile_window(
-            q_lds, make_tuple(number<kM0>{}, number<kQKHeaddimForGemmN>{}), {0, 0});
+        auto q_lds_window =
+            make_tile_window(q_lds, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {0, 0});
 
         auto q_lds_read_window =
             make_tile_window(q_lds_window.get_bottom_tensor_view(),
@@ -295,14 +294,14 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             qt_lds_ptr, Policy::template MakeShuffledQLdsWriteBlockDescriptor<Problem>());
 
         auto shuffled_q_lds_write_window = make_tile_window(
-            shuffled_q_lds_write, make_tuple(number<kM0>{}, number<kQKHeaddimForGemmN>{}), {0, 0});
+            shuffled_q_lds_write, make_tuple(number<kM0>{}, number<kQKHeaddim>{}), {0, 0});
 
         auto qt_lds_read = make_tensor_view<address_space_enum::lds>(
             qt_lds_ptr, Policy::template MakeQTLdsReadBlockDescriptor<Problem>());
 
         auto qt_lds_read_window =
             make_tile_window(qt_lds_read,
-                             make_tuple(number<kQKHeaddimForGemmN>{}, number<kM0>{}),
+                             make_tuple(number<kQKHeaddim>{}, number<kM0>{}),
                              {0, 0},
                              Policy::template MakeQTRegSliceBlockDescriptor<Problem>());
 
@@ -481,9 +480,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         index_t i_total_loops = 0;
         index_t seqlen_q_step = seqlen_q_start;
-        static_assert(kQKHeaddim == kK0, "kQKHeaddim should equal to kK0");
+        static_assert(kQKHeaddim >= kK0, "kQKHeaddim should equal to or bigger than kK0");
         static_assert(kM0 == kK1, "kM0 should equal to kK1");
-        //static_assert(kVHeaddim == kK2, "kVHeaddim should equal to kK2");
+        static_assert(kVHeaddim >= kK2, "kVHeaddim should equal to or bigger than kK2");
         static_assert(kM0 == kK3, "kM0 should equal to kK3");
         constexpr index_t k4_loops = kN0 / kK4;
 
@@ -762,10 +761,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                     ds_reg_tensor_next = load_tile(ds_lds_read_window);
                     move_tile_window(ds_lds_read_window, {0, kK4});
                 }
-                auto kt_reg_tensor_slice =
-                    get_slice_tile(kt_reg_tensor,
-                                   sequence<0, i_k4 * kK4>{},
-                                   sequence<kQKHeaddimForGemmN, (i_k4 + 1) * kK4>{});
+                auto kt_reg_tensor_slice = get_slice_tile(kt_reg_tensor,
+                                                          sequence<0, i_k4 * kK4>{},
+                                                          sequence<kQKHeaddim, (i_k4 + 1) * kK4>{});
                 gemm_4(dq_acc, ds_reg_tensor, kt_reg_tensor_slice);
 
                 if constexpr(i_k4 < k4_loops - 1)
@@ -999,10 +997,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 ds_reg_tensor_next = load_tile(ds_lds_read_window);
                 move_tile_window(ds_lds_read_window, {0, kK4});
             }
-            auto kt_reg_tensor_slice =
-                get_slice_tile(kt_reg_tensor,
-                               sequence<0, i_k4 * kK4>{},
-                               sequence<kQKHeaddimForGemmN, (i_k4 + 1) * kK4>{});
+            auto kt_reg_tensor_slice = get_slice_tile(
+                kt_reg_tensor, sequence<0, i_k4 * kK4>{}, sequence<kQKHeaddim, (i_k4 + 1) * kK4>{});
 
             gemm_4(dq_acc, ds_reg_tensor, kt_reg_tensor_slice);
             if constexpr(i_k4 < k4_loops - 1)

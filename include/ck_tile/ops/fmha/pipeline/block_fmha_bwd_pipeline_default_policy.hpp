@@ -128,7 +128,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::QDataType,
             typename Problem::AccDataType,
             TileGemmShape<sequence<Problem::BlockFmhaShape::kN0,
-                                   Problem::BlockFmhaShape::kQKHeaddimForGemmN,
+                                   Problem::BlockFmhaShape::kQKHeaddim,
                                    Problem::BlockFmhaShape::kK3>,
                           typename Problem::BlockFmhaShape::Gemm3BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm3WarpTile>>;
@@ -160,7 +160,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             typename Problem::KDataType,
             typename Problem::AccDataType,
             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                   Problem::BlockFmhaShape::kQKHeaddimForGemmN,
+                                   Problem::BlockFmhaShape::kQKHeaddim,
                                    Problem::BlockFmhaShape::kK4>,
                           typename Problem::BlockFmhaShape::Gemm4BlockWarps,
                           typename Problem::BlockFmhaShape::Gemm4WarpTile>>;
@@ -191,7 +191,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using QDataType               = remove_cvref_t<typename Problem::QDataType>;
         constexpr index_t kBlockSize  = Problem::kBlockSize;
         constexpr index_t kMNPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock  = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock  = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kMaxVecLoad = 16 / sizeof(QDataType);
         constexpr index_t kMinVecLoad = 4 / sizeof(QDataType);
 
@@ -210,7 +210,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         using KDataType               = remove_cvref_t<typename Problem::KDataType>;
         constexpr index_t kBlockSize  = Problem::kBlockSize;
         constexpr index_t kMNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock  = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock  = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kMaxVecLoad = 16 / sizeof(KDataType);
         constexpr index_t kMinVecLoad = 4 / sizeof(KDataType);
 
@@ -310,7 +310,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
 
@@ -322,7 +322,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         constexpr index_t kBlockSize   = Problem::kBlockSize;
         constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
 
         return total_pixels / GetAlignmentK<Problem>();
@@ -371,7 +371,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t K1 = GetAlignmentK<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
@@ -417,7 +417,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t K1 = GetAlignmentQ<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
@@ -811,7 +811,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsWriteBlockDescriptor()
     {
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackK<Problem>();
 
         return MakeXLdsBlockDescriptor<kNPerBlock, kKPerBlock, kKPack>();
@@ -897,7 +897,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t K1 = GetAlignmentK<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
@@ -918,7 +918,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledKLdsWriteBlockDescriptor()
     {
         // Hold all data
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t kKPack  = GetSmemKPackK<Problem>();
@@ -930,7 +930,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKTLdsReadBlockDescriptor()
     {
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         auto shuffled_k_lds_block_desc = MakeShuffledKLdsWriteBlockDescriptor<Problem>();
@@ -953,7 +953,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm4BlockWarps::at(number<1>{});
 
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kN0;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
@@ -979,7 +979,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
         constexpr index_t kMPerBlock = Problem::BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t kKPack = GetSmemKPackQ<Problem>();
 
@@ -1023,7 +1023,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
 
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
 
         constexpr index_t K1 = GetAlignmentQ<Problem>();
         constexpr index_t K0 = kKPerBlock / K1;
@@ -1044,7 +1044,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffledQLdsWriteBlockDescriptor()
     {
         // Hold full block data
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kM0;
 
         constexpr index_t kKPack  = GetSmemKPackQ<Problem>();
@@ -1057,7 +1057,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeQTLdsReadBlockDescriptor()
     {
         // Hold full block data
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kM0;
 
         auto shuffled_q_lds_block_desc = MakeShuffledQLdsWriteBlockDescriptor<Problem>();
@@ -1080,7 +1080,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm3BlockWarps::at(number<1>{});
 
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddimForGemmN;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kQKHeaddim;
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK3;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
@@ -1785,16 +1785,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         }
 
         private:
-        static constexpr index_t kBlockSize         = Problem::kBlockSize;
-        static constexpr index_t kM0                = Problem::BlockFmhaShape::kM0;
-        static constexpr index_t kN0                = Problem::BlockFmhaShape::kN0;
-        static constexpr index_t kQKHeaddim         = Problem::BlockFmhaShape::kQKHeaddim;
-        static constexpr index_t kVHeaddim          = Problem::BlockFmhaShape::kVHeaddim;
-        static constexpr index_t kQKHeaddimForGemmN = Problem::BlockFmhaShape::kQKHeaddim;
-        static constexpr index_t kVHeaddimForGemmN  = Problem::BlockFmhaShape::kVHeaddim;
-        static constexpr index_t kK4                = Problem::BlockFmhaShape::kK4;
-        static constexpr index_t kK0                = Problem::BlockFmhaShape::kK0;
-        static constexpr index_t kK2                = Problem::BlockFmhaShape::kK2;
+        static constexpr index_t kBlockSize        = Problem::kBlockSize;
+        static constexpr index_t kM0               = Problem::BlockFmhaShape::kM0;
+        static constexpr index_t kN0               = Problem::BlockFmhaShape::kN0;
+        static constexpr index_t kQKHeaddim        = Problem::BlockFmhaShape::kQKHeaddim;
+        static constexpr index_t kVHeaddim         = Problem::BlockFmhaShape::kVHeaddim;
+        static constexpr index_t kVHeaddimForGemmN = Problem::BlockFmhaShape::kVHeaddim;
+        static constexpr index_t kK4               = Problem::BlockFmhaShape::kK4;
+        static constexpr index_t kK0               = Problem::BlockFmhaShape::kK0;
+        static constexpr index_t kK2               = Problem::BlockFmhaShape::kK2;
 
         static constexpr index_t WarpGemmM =
             Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
@@ -1815,15 +1814,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static constexpr index_t Gemm2MFMA =
             kM0 * kN0 * kK2 / (kBlockSize / get_warp_size() * WarpGemmM * WarpGemmN * WarpGemmK);
         static constexpr index_t Gemm3MFMA =
-            kN0 * kQKHeaddimForGemmN * kM0 /
+            kN0 * kQKHeaddim * kM0 /
             (kBlockSize / get_warp_size() * WarpGemmM * WarpGemmN * WarpGemmK);
         static constexpr index_t Gemm4MFMA =
-            kM0 * kQKHeaddimForGemmN * kN0 /
+            kM0 * kQKHeaddim * kN0 /
             (kBlockSize / get_warp_size() * WarpGemmM * WarpGemmN * WarpGemmK);
 
         // VMEM
         static constexpr index_t Q_VMEM_READ =
-            kM0 * kQKHeaddimForGemmN / kBlockSize / GetAlignmentQ<Problem>();
+            kM0 * kQKHeaddim / kBlockSize / GetAlignmentQ<Problem>();
         static constexpr index_t OGrad_VMEM_READ =
             kM0 * kVHeaddimForGemmN / kBlockSize / GetAlignmentOGrad<Problem>();
         static constexpr index_t LSE_VMEM_READ = 1;
@@ -1833,7 +1832,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
         static constexpr index_t OGradT_LDS_READ =
             kM0 * kVHeaddimForGemmN / get_warp_size() / GetTransposedAlignmentOGrad<Problem>();
         static constexpr index_t QT_LDS_READ =
-            kM0 * kQKHeaddimForGemmN / get_warp_size() / GetTransposedAlignmentQ<Problem>();
+            kM0 * kQKHeaddim / get_warp_size() / GetTransposedAlignmentQ<Problem>();
         static constexpr index_t SGradT_LDS_READ_P1 =
             kM0 * kK4 / (get_warp_size() * Gemm4MWarp) / GetSmemKPackSGrad<Problem>();
         static constexpr index_t Q_LDS_READ   = kM0 * kK0 / kBlockSize / GetAlignmentQ<Problem>();
@@ -1846,9 +1845,9 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         // LDS Write
         static constexpr index_t Q_LDS_WRITE =
-            kM0 * kQKHeaddimForGemmN / Problem::kBlockSize / GetAlignmentQ<Problem>();
+            kM0 * kQKHeaddim / Problem::kBlockSize / GetAlignmentQ<Problem>();
         static constexpr index_t QT_LDS_WRITE =
-            kM0 * kQKHeaddimForGemmN / kBlockSize / GetTransposedAlignmentQ<Problem>();
+            kM0 * kQKHeaddim / kBlockSize / GetTransposedAlignmentQ<Problem>();
         static constexpr index_t OGrad_LDS_WRITE =
             kM0 * kVHeaddimForGemmN / kBlockSize / GetAlignmentOGrad<Problem>();
         static constexpr index_t OGradT_LDS_WRITE =
