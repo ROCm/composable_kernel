@@ -63,6 +63,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
             BlockGemmProblem<typename Problem::GemmDataType,
                              typename Problem::OGradDataType,
                              typename Problem::AccDataType,
+                             Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kN0,
                                                     Problem::BlockFmhaShape::kDoDvHeaddim,
                                                     Problem::BlockFmhaShape::kK1>,
