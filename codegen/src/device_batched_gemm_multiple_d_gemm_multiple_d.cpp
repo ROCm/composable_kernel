@@ -2,19 +2,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck/host/device_gemm_elementwise_gemm/problem.hpp"
-#include "ck/host/device_gemm_elementwise_gemm/operation.hpp"
+#include "ck/host/device_batched_gemm_multiple_d_gemm_multiple_d/problem.hpp"
+#include "ck/host/device_batched_gemm_multiple_d_gemm_multiple_d/operation.hpp"
 #include "ck/host/utils.hpp"
 #include <algorithm>
 
 namespace ck {
 namespace host {
-namespace device_gemm_elementwise_gemm {
+namespace device_batched_gemm_multiple_d_gemm_multiple_d {
 
 // return the relevant device op file based on the operation
 std::string Problem::GetIncludeHeader() const
 {
-    return "ck/tensor_operation/gpu/device/impl/device_batched_gemm_gemm_xdl_cshuffle.hpp";
+    return "ck/tensor_operation/gpu/device/impl/"
+           "device_batched_gemm_multiple_d_gemm_multiple_d_xdl_cshuffle.hpp";
 }
 
 // returns templated instances when provided with a problem specification
@@ -24,8 +25,8 @@ std::vector<Solution> Problem::GetSolutions(const std::string& arch,
 {
     if(get_xdlop_archs().count(arch) == 0)
         return {};
-    auto ops = ck::host::device_gemm_elementwise_gemm::Operation_Xdl_CShuffle::CreateOperations(
-        *this, prologue, epilogue); // obtains vector of instances
+    auto ops = ck::host::device_batched_gemm_multiple_d_gemm_multiple_d::Operation_Xdl_CShuffle::
+        CreateOperations(*this, prologue, epilogue); // obtains vector of instances
     std::vector<Solution> result;
     std::transform(ops.begin(), ops.end(), std::back_inserter(result), [&](const auto& op) {
         return op.ToSolution(); // template instance with correct values
@@ -33,6 +34,6 @@ std::vector<Solution> Problem::GetSolutions(const std::string& arch,
     return result;
 }
 
-} // namespace device_gemm_elementwise_gemm
+} // namespace device_batched_gemm_multiple_d_gemm_multiple_d
 } // namespace host
 } // namespace ck
