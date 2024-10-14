@@ -714,7 +714,7 @@ struct Cos
                           is_same<T, int32_t>::value,
                       "Data type is not supported by this operation!");
 
-        y = math::cos(x);
+        y = cos(x);
     };
 };
 
