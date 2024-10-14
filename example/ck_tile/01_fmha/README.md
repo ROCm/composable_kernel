@@ -6,7 +6,8 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 ```
 # in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
+# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
+sh ../script/cmake-ck-dev.sh  ../ <arch>
 make tile_example_fmha_fwd -j
 ```
 This will result in an executable `build/bin/tile_example_fmha_fwd`
@@ -23,7 +24,7 @@ There are 3 template parameters for this kernel template.
 To speed up compile time, we instantiate the kernels into separate file. In this way we can benefit from parallel building from CMake/Make system. This is achieved by `generate.py` script. Besides, you can look into this script to learn how to instantiate a kernel instance step by step, which is described in `FMHA_FWD_KERNEL_BODY` variable.
 
 ## executable
-`tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all supported args. Below is an example of the output (may subject to change)
+`tile_example_fmha_fwd` is the example executable, implemented in `fmha_fwd.cpp`. You can type `./bin/tile_example_fmha_fwd -?` to list all the arguments. Below is an example of the output (may subject to change)
 ```
 args:
           -v    weather do CPU validation or not (default:1)
@@ -31,47 +32,52 @@ args:
           -b    batch size (default:2)
           -h    num of head, for q (default:8)
         -h_k    num of head, for k/v, -1 means equal to h (default:-1)
-                 if not equal to h, then this is GQA/MQA case
+                if not equal to h, then this is GQA/MQA case
           -s    seqlen_q. if group-mode, means the average value of seqlen_q (default:3328)
-                 total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
-                 also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
-        -s_k    seqlen_k, -1 means equal to s (default:-1)
+                total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
+                also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
+        -s_k    seqlen_k (including new key/value), -1 means equal to s (default:-1)
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, -1 means equal to d (default:-1)
     -scale_s    scale factor of S. 0 means equal to 1/sqrt(hdim). (default:0)
-                 note when squant=1, this value will be modified by range_q/k
+                note when squant=1, this value will be modified by range_q/k
     -range_q    per-tensor quantization range of q. used if squant=1. (default:16)
     -range_k    per-tensor quantization range of k. used if squant=1. (default:16)
     -range_v    per-tensor quantization range of v. used if squant=1. (default:16)
     -range_p    per-tensor quantization range of p [e^(s-m)]. used if squant=1. (default:1)
     -range_o    per-tensor quantization range of o (p*v). used if squant=1. (default:16)
      -squant    if using static quantization fusion or not. auto: fp8 will default use squant, other will not (default:auto)
-                 0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to P and O.
-                 calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, range_p, range_o
+                0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to P and O.
+                calculate scale_s, scale_p, scale_o according to range_q, range_k, range_v, range_p, range_o
       -iperm    permute input (default:1)
-                 if true, will be b*h*s*d, else b*s*h*d
+                if true, will be b*h*s*d, else b*s*h*d
       -operm    permute output (default:1)
        -bias    n or 0, no bias (default:n)
-                 e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s
-                 a(libi) or 2, alibi with 1*h. a:1, b*h
+                e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s
+                a(libi) or 2, alibi with 1*h. a:1, b*h
        -prec    data type. fp16/bf16/fp8/bf8 (default:fp16)
        -mask    0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b') (default:0)
-                 't', top-left causal mask, 'b', bottom-r causal mask
-                 't:l,r', top-left sliding window attn(swa) with FA style left right size
-                 'b:l,r', bottom-r sliding window attn(swa) with FA style left right size
-                 'xt:window_size', xformer style masking from top-left, window_size negative is causal, positive is swa
-                 'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, positive is swa
-                 'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for now)
+                't', top-left causal mask, 'b', bottom-r causal mask
+                't:l,r', top-left sliding window attn(swa) with FA style left right size
+                'b:l,r', bottom-r sliding window attn(swa) with FA style left right size
+                'xt:window_size', xformer style masking from top-left, window_size negative is causal, positive is swa
+                'xb:window_size', xformer style masking from bottom-r, window_size negative is causal, positive is swa
+                'g:y,x', generic attention mask coordinate with y/x size (only debug purpose for now)
     -vlayout    r for row-major(seqlen*hdim), c for col-major(hdim*seqlen) (default:r)
         -lse    0 not store lse, 1 store lse (default:0)
       -kname    if set to 1 will print kernel name (default:0)
        -init    init method. ui, uniform random int, ni, normalized random int (default:uf)
-                 uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, quantization
+                uf, uniform random float, nf, normalized random float, tf, trig float, uf:q, quantization
        -seed    random seed used for initializing input tensors. 0 for non-deterministic seed (default:11939)
+  -drop_seed    seed for random number generator (default:1)
+-drop_offset    offset for random number generator (default:0)
+ -drop_prefs    seed and offset values are present on GPU; 0 - host, 1 - device/GPU (default:0)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
 ```
-Example: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
+Example 1: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
+Example 2: `./bin/tile_example_fmha_fwd -b=1 -h=8 -s=16384 -d=64 -drop_prefs=1 -drop_seed=10 -drop_offset=1234` will run a fmha case with 
+  batch=1, nhead=8, sequence length=16384, hdim=64, drop_seed=0 (in GPU memory), drop_offset=1234 (in GPU memory) fp16 case
 
 ## support features
 Currently we are still in rapid development stage, so more features/optimizations will be coming soon.

@@ -68,7 +68,7 @@ __global__ void
     const index_t N = gemm_desc_ptr[group_id].N;
     const index_t K = gemm_desc_ptr[group_id].K;
 
-    if(M * N * K == 0)
+    if(M == 0 || N == 0 || K == 0)
         return;
 
     const auto StrideA  = gemm_desc_ptr[group_id].StrideA;

@@ -58,7 +58,7 @@ struct thread_buffer {
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return get(I); }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return get(I); }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return get(I); }
-
+    
     template <typename X_,
               typename std::enable_if<has_same_scalar_type<value_type, X_>::value, bool>::type = false>
     CK_TILE_HOST_DEVICE constexpr auto _get_as() const
