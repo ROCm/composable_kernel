@@ -56,8 +56,8 @@ struct layernorm2d_fwd_args
     const void* p_gamma;
     const void* p_beta;
     void* p_y;
-    // void* p_mean;
-    // void* p_invStd;
+    void* p_mean;
+    void* p_invStd;
     float epsilon;
     ck_tile::index_t M;
     ck_tile::index_t N;

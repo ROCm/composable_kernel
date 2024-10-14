@@ -59,6 +59,8 @@ struct layernorm_dispatch
                                                                                   param.p_gamma,
                                                                                   param.p_beta,
                                                                                   param.p_y,
+                                                                                  param.p_mean,
+                                                                                  param.p_invStd,
                                                                                   param.epsilon,
                                                                                   param.M,
                                                                                   param.N));
