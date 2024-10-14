@@ -157,11 +157,18 @@ struct intrin_mfma_f32_16x16x16f16<16, 16>
     template <class FloatC>
     __device__ static void Run(const half4_t& reg_a, const half4_t& reg_b, FloatC& reg_c)
     {
-        ignore = reg_a;
-        ignore = reg_b;
-        ignore = reg_c;
-        //reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x16f16(
-            //reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+        auto tmp_a = vector_type<half_t, 4>{reg_a};
+        auto tmp_b = vector_type<half_t, 4>{reg_b};
+        printf("{%f %f}, {%f %f}, {%f %f}, {%f %f} %d %d\n", 
+        static_cast<float>(tmp_a.template AsType<half_t>()(Number<0>{})), static_cast<float>(tmp_b.template AsType<half_t>()(Number<0>{})),
+        static_cast<float>(tmp_a.template AsType<half_t>()(Number<1>{})), static_cast<float>(tmp_b.template AsType<half_t>()(Number<1>{})),
+        static_cast<float>(tmp_a.template AsType<half_t>()(Number<2>{})), static_cast<float>(tmp_b.template AsType<half_t>()(Number<2>{})),
+        static_cast<float>(tmp_a.template AsType<half_t>()(Number<3>{})), static_cast<float>(tmp_b.template AsType<half_t>()(Number<3>{})),
+        threadIdx.x, blockIdx.x
+        );
+
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x16f16(
+            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
     }
 };
 

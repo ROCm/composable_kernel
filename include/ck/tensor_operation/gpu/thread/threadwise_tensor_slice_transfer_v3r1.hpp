@@ -193,9 +193,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using src_vector_type = vector_type_maker_t<SrcData, SrcScalarPerVector>;
             using src_vector_t    = typename src_vector_type::type;
 
-            auto src_vector_container =
-                src_vector_type{src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize, true)};
-
             using dst_vector_type = vector_type_maker_t<DstData, SrcScalarPerVector>;
             using dst_vector_t    = typename dst_vector_type::type;
             dst_vector_type op_r_v;
@@ -228,6 +225,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
             static_assert(elem_op_vec_len == 1, "elem_op_vec_len != 1");
+
+            auto src_vector_container =
+                src_vector_type{src_buf.template Get<src_vector_t>(src_coord_.GetOffset() / PackedSize, true)};
 
             static_for<0, SrcScalarPerVector / elem_op_vec_len, 1>{}([&](auto idx) {
                 // apply the src elementwise op and convert to DstData under the hood if needed
@@ -554,6 +554,9 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
 
                 dst_vector_container.template AsType<DstData>()(i) = dst_v;
+
+                //if constexpr(is_same_v<remove_cvref_t<SrcData>, half_t>)
+                    //printf("v3r1: %f %d\n", type_convert<float>(dst_v), threadIdx.x);
             });
 
             // copy data from dst_vector_container to dst_buf

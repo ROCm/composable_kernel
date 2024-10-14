@@ -1149,9 +1149,11 @@ struct ThreadwiseTensorSliceTransfer_v4
                 // DstData)
                 vector_type_maker_t<DstData, SrcScalarPerVector> dst_tmp_vector;
 
-                using dst_v_t = typename vector_type_maker_t<DstData, PackedSize>::type;
+                constexpr index_t pack_size = PackedSize;
+
+                using dst_v_t = typename vector_type_maker_t<DstData, pack_size>::type;
                 using src_v_t = typename vector_type_maker_t<SrcData, 1>::type;
-                static_for<0, SrcScalarPerVector / PackedSize, 1>{}([&](auto i) {
+                static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
                     ck::tensor_operation::element_wise::PassThroughPack2{}(
                         dst_tmp_vector.template AsType<dst_v_t>()(i),
                         src_tmp_vector.template AsType<src_v_t>()[i]);
@@ -1209,6 +1211,10 @@ struct ThreadwiseTensorSliceTransfer_v4
                         dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
 
                     dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
+
+
+                    if constexpr(is_same_v<remove_cvref_t<SrcData>, half_t>)
+                        printf("v4: %f %d\n", type_convert<float>(dst_buf[Number<dst_offset>{}]), threadIdx.x);
                 });
             }
         });

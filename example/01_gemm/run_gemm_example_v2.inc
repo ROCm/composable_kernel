@@ -133,7 +133,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         };
 
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
-    StrideB = f_get_default_stride(K, N, StrideB / 2, BLayout{});
+    StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
@@ -143,7 +143,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     {
     case 0:
         a_m_k.GenerateTensorValue(GeneratorTensor_1<ADataType>{1});
-        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{1});
+        b_k_n.GenerateTensorValue(GeneratorTensor_1<BDataType>{0x11});
         break;
     case 1:
         a_m_k.GenerateTensorValue(GeneratorTensor_2<ADataType>{-2, 2});
@@ -228,16 +228,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     }
 
     bool pass = true;
-#if 0
     if(config.do_verification)
     {
-        auto ref_gemm    = ReferenceGemmInstance{};
-        auto ref_invoker = ref_gemm.MakeInvoker();
+      //auto ref_gemm    = ReferenceGemmInstance{};
+      //auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
+      //auto ref_argument = ref_gemm.MakeArgument(
+      //    a_m_k, b_k_n, c_m_n_host_result, PassThrough{}, PassThrough{}, PassThrough{});
 
-        ref_invoker.Run(ref_argument);
+      //ref_invoker.Run(ref_argument);
 
         ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
 #ifdef BUILD_INT4_EXAMPLE
@@ -251,14 +250,16 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 #else
         c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
-        pass &= ck::utils::check_err(c_m_n_device_result,
-                                     c_m_n_host_result,
-                                     "Error: Incorrect results!",
-                                     get_rtol<CDataType>(),
-                                     get_atol<CDataType>());
+      //pass &= ck::utils::check_err(c_m_n_device_result,
+      //                             c_m_n_host_result,
+      //                             "Error: Incorrect results!",
+      //                             get_rtol<CDataType>(),
+      //                             get_atol<CDataType>());
+
+      LogRangeAsType<float>(std::cout << "c_m_n_device_buf : ", c_m_n_device_result.mData, ",") << std::endl;
 #endif
     }
-#endif
+
 
     if(config.time_kernel)
     {
@@ -267,7 +268,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
         std::size_t flop = 2_uz * M * N * K;
         std::size_t num_btype =
-            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N / 2 + sizeof(CDataType) * M * N;
+            sizeof(ADataType) * M * K + sizeof(BDataType) * K * N / (ck::is_same_v<ck::remove_cvref_t<BDataType>, ck::pk_i4_t> ? 2 : 1) + sizeof(CDataType) * M * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
 

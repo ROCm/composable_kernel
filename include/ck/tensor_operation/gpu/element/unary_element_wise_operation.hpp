@@ -25,7 +25,7 @@ struct PassThroughPack2
 
     __host__ __device__ constexpr void operator()(ck::half2_t& y, const ck::pk_i4_t& x) const
 	{
-#if 0
+#if 1
 		uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
 		uint8_t x_l  = (x_u8 & 0x0f) >> 0;
 		uint8_t x_h  = (x_u8 & 0xf0) >> 4;

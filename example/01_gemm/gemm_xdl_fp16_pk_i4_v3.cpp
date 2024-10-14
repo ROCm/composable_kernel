@@ -8,37 +8,12 @@
 using ADataType        = ck::half_t;
 using BDataType        = ck::pk_i4_t;
 using AccDataType      = float;
-using CShuffleDataType = ck::half_t;
+using CShuffleDataType = float;
 using CDataType        = ck::half_t;
 
 using ALayout = Row;
 using BLayout = Col;
 using CLayout = Row;
-
-inline __host__ __device__ ck::half2_t
-type_convert_packed_i4_to_half2(ck::pk_i4_t x)
-{
-    uint8_t x_u8 = ck::bit_cast<uint8_t>(x);
-    uint8_t x_l  = (x_u8 & 0x0f);
-    uint8_t x_h  = (x_u8 & 0xf0) >> 4;
-
-    auto l_f16 = ck::type_convert<ck::half_t>(x_l);
-    auto h_f16 = ck::type_convert<ck::half_t>(x_h);
-
-    return {l_f16, h_f16};
-}
-
-
-struct ElementwisePackedI4ToHalf2
-{
-	__host__ __device__ void
-	operator()(ck::half2_t& y, const ck::pk_i4_t& x) const
-    {
-        y = type_convert_packed_i4_to_half2(x);
-    }
-
-	constexpr const static bool is_pack2_invocable = true;
-};
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;

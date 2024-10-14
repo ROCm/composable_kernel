@@ -924,6 +924,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 NXdlPerWave,
                                 KPack>())>;
 
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     static constexpr index_t BPackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
             return 2;
@@ -941,10 +948,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
 
         constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align) / BPackedSize;
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize, max_lds_align);
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
@@ -1312,14 +1319,14 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(static_cast<unsigned char *>(p_shared) +
+            bit_cast<BDataType*>(bit_cast<unsigned char *>(p_shared) +
                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
@@ -1707,10 +1714,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
 
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<BDataType*>(static_cast<char*>(p_shared_0) +
@@ -1718,10 +1725,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BDataType*>(static_cast<char*>(p_shared_1) +
+            bit_cast<BDataType*>(bit_cast<char*>(p_shared_1) +
                 a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
