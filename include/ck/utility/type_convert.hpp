@@ -106,6 +106,12 @@ inline __host__ __device__ constexpr f8_ocp_t type_convert<f8_ocp_t, int>(int x)
     return f8_ocp_t{type_convert<f8_ocp_t::data_type>(x)};
 }
 
+template <>
+inline __host__ __device__ constexpr bf8_ocp_t type_convert<bf8_ocp_t, int>(int x)
+{
+    return bf8_ocp_t{type_convert<bf8_ocp_t::data_type>(x)};
+}
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
