@@ -823,7 +823,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeKRegSliceBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeKRegBlockDescriptor()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -866,7 +866,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeVRegSliceBlockDescriptor()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeVRegBlockDescriptor()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetOGradVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
