@@ -50,12 +50,22 @@ class ArgParser
         }
         return *this;
     }
-    void print()
+    void print() const
     {
+        // find max key length
+        std::string::size_type max_key_length = 11;
+        for(auto& key : keys)
+        {
+            if(max_key_length < key.length())
+            {
+                max_key_length = key.length();
+            }
+        }
+
         printf("args:\n");
         for(auto& key : keys)
         {
-            auto value = input_map[key];
+            auto value = input_map.at(key);
             std::vector<std::string> help_text_lines;
             size_t pos = 0;
             for(size_t next_pos = value.help_text.find('\n', pos); next_pos != std::string::npos;)
@@ -69,8 +79,7 @@ class ArgParser
                 std::string(value.help_text.begin() + pos, value.help_text.end()));
 
             std::string default_value = std::string("(default:") + value.value + std::string(")");
-
-            std::cout << std::setw(2) << std::setw(12 - value.name.length()) << "-" << key
+            std::cout << std::setw(1 + max_key_length - value.name.length()) << "-" << key
                       << std::setw(4) << " " << help_text_lines[0] << " " << default_value
                       << std::endl;
 
@@ -78,7 +87,8 @@ class ArgParser
                 help_next_line != help_text_lines.end();
                 ++help_next_line)
             {
-                std::cout << std::setw(17) << " " << *help_next_line << std::endl;
+                std::cout << std::setw(1 + max_key_length + 4) << " " << *help_next_line
+                          << std::endl;
             }
         }
     }
