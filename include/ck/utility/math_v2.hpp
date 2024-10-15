@@ -80,6 +80,8 @@ static inline __host__ bool isnan(half_t x)
     return (xx & 0x7FFF) > 0x7C00;
 };
 
+static inline __host__ bool isnan(f8_t x) { return (x & 0x80); };
+
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 static inline __host__ bool isnan(int4_t x)
 {
@@ -528,6 +530,8 @@ static inline __device__ bool isnan(half_t x)
 
     return (xx & 0x7FFF) > 0x7C00;
 };
+
+static inline __device__ bool isnan(f8_t x) { return (x & 0x80); };
 
 static inline __device__ half_t sqrt(half_t x)
 {

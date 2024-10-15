@@ -419,6 +419,12 @@ struct UnaryAbs
 
         y = math::abs(x);
     };
+
+    template <>
+    __host__ __device__ void operator()(f8_t& y, const f8_t& x) const
+    {
+        y = ck::type_convert<f8_t>(ck::math::abs(ck::type_convert<float>(x)));
+    };
 };
 
 struct UnarySqrt

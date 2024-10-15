@@ -4,15 +4,15 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_agmem_bgmem_creg_v2_default_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1_default_policy.hpp"
 
 namespace ck_tile {
 
 //  A Tile Window: global memory
 //  B Tile Window: global memory
 //  C Distributed tensor: register
-template <typename Problem, typename Policy = BlockGemmPipelineAGmemBGmemCRegV2DefaultPolicy>
-struct BlockGemmPipelineAGmemBGmemCRegV2
+template <typename Problem, typename Policy = GemmPipelineAGmemBGmemCRegV1DefaultPolicy>
+struct GemmPipelineAGmemBGmemCRegV1
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
@@ -25,6 +25,18 @@ struct BlockGemmPipelineAGmemBGmemCRegV2
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t AlignmentA = Problem::AlignmentA;
+    static constexpr index_t AlignmentB = Problem::AlignmentB;
+    static constexpr index_t AlignmentC = Problem::AlignmentC;
+
+    static constexpr bool kPadA = Problem::kPadA;
+    static constexpr bool kPadB = Problem::kPadB;
+    static constexpr bool kPadC = Problem::kPadC;
+
+    using LayoutA = remove_cvref_t<typename Problem::LayoutA>;
+    using LayoutB = remove_cvref_t<typename Problem::LayoutB>;
+    using LayoutC = remove_cvref_t<typename Problem::LayoutC>;
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetStaticLdsSize()
     {
         return ck_tile::integer_divide_ceil(
@@ -34,6 +46,11 @@ struct BlockGemmPipelineAGmemBGmemCRegV2
                    16 +
                sizeof(BDataType) *
                    Policy::template MakeBLdsBlockDescriptor<Problem>().get_element_space_size();
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return Policy::template GetSmemSize<Problem>();
     }
 
     template <typename ADramBlockWindowTmp,
@@ -134,20 +151,19 @@ struct BlockGemmPipelineAGmemBGmemCRegV2
             // LDS write 0
             const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window, a_block_tile_tmp);
-            // global read 1
-            a_block_tile = load_tile(a_copy_dram_window);
 
             // LDS write 0
             const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
             store_tile(b_copy_lds_window, b_block_tile_tmp);
-            // global read 1
-            b_block_tile = load_tile(b_copy_dram_window);
         }
 
-        index_t iCounter = num_loop - 2;
-
-        do
+        index_t iCounter = num_loop - 1;
+        while(iCounter > 0)
         {
+            // global read i + 1
+            a_block_tile = load_tile(a_copy_dram_window);
+            b_block_tile = load_tile(b_copy_dram_window);
+
             block_sync_lds();
 
             // GEMM i
@@ -162,35 +178,16 @@ struct BlockGemmPipelineAGmemBGmemCRegV2
             // LDS write i + 1
             const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window, a_block_tile_tmp);
-            // global read i + 2
-            a_block_tile = load_tile(a_copy_dram_window);
 
             // LDS write i + 1
             const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
             store_tile(b_copy_lds_window, b_block_tile_tmp);
-            // global read i + 2
-            b_block_tile = load_tile(b_copy_dram_window);
 
             iCounter--;
-
-        } while(iCounter > 0);
+        }
 
         // tail
         {
-            block_sync_lds();
-
-            // GEMM num_loop - 2
-            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-
-            block_sync_lds();
-
-            // LDS write num_loop - 1
-            const auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
-            store_tile(a_copy_lds_window, a_block_tile_tmp);
-
-            const auto b_block_tile_tmp = tile_elementwise_in(b_element_func, b_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile_tmp);
-
             block_sync_lds();
 
             // GEMM num_loop - 1
