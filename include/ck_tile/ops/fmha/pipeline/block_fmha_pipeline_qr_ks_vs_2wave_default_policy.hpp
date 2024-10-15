@@ -107,7 +107,7 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
     // end copy from BlockFmhaPipelineQXCustomPolicy<true>
 
     // start copy from BlockFmhaPipelineQXKSVSCustomPolicy
-    static constexpr bool AsyncCopyK = false;
+    static constexpr bool AsyncCopyK = true;
     static constexpr bool AsyncCopyV = false; // TODO: this not supported yet
 
     static constexpr index_t NumPrefetchK = 1;
@@ -255,9 +255,12 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
             else
             {
                 constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-                constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-                constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-                constexpr index_t warpSize   = ck_tile::get_warp_size();
+                // constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1; // [POYENC] old tile
+                // size
+                constexpr index_t kKPerBlock =
+                    Problem::BlockFmhaShape::kK0BlockLength; // [POYENC] updated tile size
+                constexpr index_t NumWarps = Problem::BlockFmhaShape::NumWarps;
+                constexpr index_t warpSize = ck_tile::get_warp_size();
 
                 constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
                 constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
@@ -326,8 +329,7 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
         return q_block_dstr;
     }
 
-#if 0 // [POYENC] disabled since we are using
-      // MakeKLdsStoreBlockDescriptor/MakeVLdsStoreBlockDescriptor now
+#if 0
     // TODO: this is used for non async copy desc. unify in the future
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
@@ -352,6 +354,7 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
 
         return k_lds_block_desc;
     }
+#endif
 
     template <typename Problem, index_t IBuf = 0>
     CK_TILE_HOST_DEVICE static constexpr auto
@@ -359,7 +362,9 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        // constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1; // [POYENC] old tile size
+        constexpr index_t kKPerBlock =
+            Problem::BlockFmhaShape::kK0BlockLength; // [POYENC] updated tile size
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck_tile::get_warp_size();
@@ -407,61 +412,14 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
         return k_lds_block_desc_issues_warps_lanes;
     }
 
-#if K_LDS_LOAD_USE_OFFSET_TRANSFORM
-    template <typename Problem, index_t IBuf = 0>
-    CK_TILE_HOST_DEVICE static constexpr auto
-        MakeKLdsLoadBlockDescriptor(number<IBuf> = number<0>{})
-    {
-        // K is always k-major, we use async-copy to load into LDS
-        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-        constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
-        constexpr index_t warpSize   = ck_tile::get_warp_size();
-
-        constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
-        constexpr index_t kPad    = KPack; // for async-copy, this pad is between warps
-
-        static_assert(warpSize * KVector >= kKPerBlock && warpSize * KVector % kKPerBlock == 0);
-        constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
-        constexpr index_t LaneGroups = warpSize / LanesPerK; // within a wave
-        constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
-
-        constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor_with_offset(
-            make_tuple(number<NumIssues>{},          // n0
-                       number<NumWarps>{},           // n2
-                       number<LaneGroups>{},         // n1
-                       number<kKPerBlock / KPack>{}, // k0
-                       number<KPack>{}),             // k1
-            make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{},
-                       number<warpSize * KVector + kPad>{},
-                       number<kKPerBlock>{},
-                       number<KPack>{},
-                       number<1>{}),
-            number<IBuf * GetSingleSmemElementSpaceSize<Problem>()>{},
-            number<KPack>{},
-            number<1>{});
-
-        constexpr auto k_lds_block_desc = transform_tensor_descriptor(
-            k_lds_block_desc_0,
-            make_tuple(
-                make_merge_transform(
-                    make_tuple(number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
-                make_merge_transform(make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<0, 2, 1>{}, sequence<3, 4>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return k_lds_block_desc;
-    }
-#else
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsLoadBlockDescriptor()
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        // constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1; // [POYENC] old tile size
+        constexpr index_t kKPerBlock =
+            Problem::BlockFmhaShape::kK0BlockLength; // [POYENC] updated tile size
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
         constexpr index_t warpSize   = ck_tile::get_warp_size();
@@ -510,8 +468,9 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
 
         return k_lds_block_desc;
     }
-#endif
 
+#if 0 // [POYENC] disabled since we are using
+      // MakeKLdsStoreBlockDescriptor/MakeVLdsStoreBlockDescriptor now
     // 3d + padding
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
@@ -640,7 +599,10 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
         else
         {
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+            // constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1; // [POYENC] old tile
+            // size
+            constexpr index_t kKPerBlock =
+                Problem::BlockFmhaShape::kK0BlockLength; // [POYENC] updated tile size
             constexpr index_t kBlockSize = Problem::kBlockSize;
             constexpr index_t NumWarps   = Problem::BlockFmhaShape::NumWarps;
             constexpr index_t warpSize   = ck_tile::get_warp_size();
@@ -868,6 +830,7 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
     }
     // end copy from BlockFmhaPipelineQXKSVSCustomPolicy
 
+#if 0
     // TODO: this is used for non async copy desc. unify in the future
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsStoreBlockDescriptor()
@@ -893,6 +856,7 @@ struct BlockFmhaPipelineQRKSVS2WaveDefaultPolicy
 
         return k_lds_block_desc;
     }
+#endif
 
     // 3d + padding
     template <typename Problem>

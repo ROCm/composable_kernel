@@ -60,8 +60,7 @@ struct BlockFmhaPipelineQRKSVS2Wave
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
-    static constexpr index_t kAlignmentK =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV = []() {
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
@@ -129,7 +128,7 @@ struct BlockFmhaPipelineQRKSVS2Wave
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-               const KElementFunction& k_element_func,
+               [[maybe_unused]] const KElementFunction& k_element_func,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                const VElementFunction& v_element_func,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
@@ -164,11 +163,19 @@ struct BlockFmhaPipelineQRKSVS2Wave
             "wrong!");
 
         // K tile in LDS
-        auto k_lds = make_tensor_view<address_space_enum::lds>(
-            reinterpret_cast<KDataType*>(smem_ptr),
-            Policy::template MakeKLdsStoreBlockDescriptor<Problem>());
-        auto k_lds_window_for_store =
-            make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0BlockLength>{}), {0, 0});
+        auto k_lds_ptr   = reinterpret_cast<KDataType*>(smem_ptr);
+        auto k_lds_store = make_tile_window(
+            make_tensor_view<address_space_enum::lds>(
+                k_lds_ptr, Policy::template MakeKLdsStoreBlockDescriptor<Problem>(number<0>{})),
+            Policy::template MakeKLdsStoreBlockDescriptor<Problem>(number<0>{}).get_lengths(),
+            {0, 0, 0});
+
+        auto k_lds_Load_view = make_tensor_view<address_space_enum::lds>(
+            k_lds_ptr, Policy::template MakeKLdsLoadBlockDescriptor<Problem>());
+        auto k_lds_load =
+            make_tile_window(k_lds_Load_view,
+                             Policy::template MakeKLdsLoadBlockDescriptor<Problem>().get_lengths(),
+                             {0, 0});
 
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
@@ -279,15 +286,16 @@ struct BlockFmhaPipelineQRKSVS2Wave
                 k_dram_block_window.get_window_origin(),
                 Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                         // load
-
-            auto k_block_tile = load_tile(k_dram_window);
+            k_dram_window.init_raw(); // this is necessary for async_load_tile_raw()
             {
+                constexpr auto k_oob_ck = bool_constant<true>{};
+                constexpr auto k_pre_np = bool_constant<true>{};
+
+                async_load_tile_raw(k_lds_store, k_dram_window, k_oob_ck, k_pre_np);
                 clear_tile(s_acc);
-                store_tile(k_lds_window_for_store,
-                           tile_elementwise_in(k_element_func, k_block_tile));
+                async_load_fence();
+                __builtin_amdgcn_sched_barrier(0);
             }
-            auto k_lds_window_for_load =
-                make_tile_window(k_lds, make_tuple(number<kN0>{}, number<kK0>{}), {0, 0});
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -302,14 +310,15 @@ struct BlockFmhaPipelineQRKSVS2Wave
             }
 
             {
-                block_sync_lds();
+                __builtin_amdgcn_s_barrier();
                 static_for<0, k0_loops, 1>{}([&](auto i_k0) {
                     gemm_0(s_acc,
                            get_slice_tile(q_tile,
                                           sequence<0, i_k0 * kK0>{},
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
-                           k_lds_window_for_load);
-                    move_tile_window(k_lds_window_for_load, {0, kK0});
+                           get_slice_tile(k_lds_load,
+                                          sequence<0, i_k0 * kK0>{},
+                                          sequence<kN0, (i_k0 + 1) * kK0>{}));
                 });
             }
 
