@@ -45,10 +45,10 @@ struct TileFmhaShape
     static constexpr index_t kK0 = BlockTile::at(number<2>{}); // tile size along qk gemm unroll
     static constexpr index_t kN1 = BlockTile::at(number<3>{}); // tile size along v head_dim
     static constexpr index_t kK1 = BlockTile::at(number<4>{}); // tile size along kv gemm unroll
-    static constexpr index_t kK0BlockLength =
+    static constexpr index_t kQKHeaddim =
         BlockTile::at(number<5>{}); // total length of K0, used for pipeline that need load Q at
                                     // once (or repeately load Q as a whole tile)
-    static_assert(kK0BlockLength % kK0 == 0, "kK0BlockLength should be divisible by kK0");
+    static_assert(kQKHeaddim % kK0 == 0, "kQKHeaddim should be divisible by kK0");
 
     // v, rowmajor : seqlen*hdim, colmajor : hdim*seqlen
     static constexpr bool IsVLayoutRowMajor = IsVLayoutRowMajor_;

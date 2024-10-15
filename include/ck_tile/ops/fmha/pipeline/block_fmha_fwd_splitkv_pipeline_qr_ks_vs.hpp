@@ -34,12 +34,12 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0            = BlockFmhaShape::kM0;
-    static constexpr index_t kN0            = BlockFmhaShape::kN0;
-    static constexpr index_t kK0            = BlockFmhaShape::kK0;
-    static constexpr index_t kN1            = BlockFmhaShape::kN1;
-    static constexpr index_t kK1            = BlockFmhaShape::kK1;
-    static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
+    static constexpr index_t kM0        = BlockFmhaShape::kM0;
+    static constexpr index_t kN0        = BlockFmhaShape::kN0;
+    static constexpr index_t kK0        = BlockFmhaShape::kK0;
+    static constexpr index_t kN1        = BlockFmhaShape::kN1;
+    static constexpr index_t kK1        = BlockFmhaShape::kK1;
+    static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
@@ -72,22 +72,22 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             return Problem::kBlockPerCu;
         else
         {
-            if constexpr(kK0BlockLength <= 32)
+            if constexpr(kQKHeaddim <= 32)
             {
                 return 2;
             }
-            else if constexpr(kK0BlockLength <= 64)
+            else if constexpr(kQKHeaddim <= 64)
             {
                 return 3;
             }
-            else if constexpr(kK0BlockLength <= 128)
+            else if constexpr(kQKHeaddim <= 128)
             {
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 1;
                 else
                     return 2;
             }
-            else if constexpr(kK0BlockLength <= 256)
+            else if constexpr(kQKHeaddim <= 256)
             {
                 return 1;
             }
@@ -267,7 +267,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
 
         // prefetch K tile
         index_t i_total_loops      = 0;
-        constexpr index_t k0_loops = kK0BlockLength / kK0;
+        constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
         static_assert(2 <= k0_loops);

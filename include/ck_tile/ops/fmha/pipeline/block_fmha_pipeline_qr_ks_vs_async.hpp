@@ -38,12 +38,12 @@ struct BlockFmhaPipelineQRKSVSAsync
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0            = BlockFmhaShape::kM0;
-    static constexpr index_t kN0            = BlockFmhaShape::kN0;
-    static constexpr index_t kK0            = BlockFmhaShape::kK0;
-    static constexpr index_t kN1            = BlockFmhaShape::kN1;
-    static constexpr index_t kK1            = BlockFmhaShape::kK1;
-    static constexpr index_t kK0BlockLength = BlockFmhaShape::kK0BlockLength;
+    static constexpr index_t kM0        = BlockFmhaShape::kM0;
+    static constexpr index_t kN0        = BlockFmhaShape::kN0;
+    static constexpr index_t kK0        = BlockFmhaShape::kK0;
+    static constexpr index_t kN1        = BlockFmhaShape::kN1;
+    static constexpr index_t kK1        = BlockFmhaShape::kK1;
+    static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
 
     static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     // TODO: seq_q always support padding, hdim_q/v support multiple of vector(like 8x)
@@ -87,7 +87,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 return 1;
             }
 
-            if constexpr(kK0BlockLength <= 32)
+            if constexpr(kQKHeaddim <= 32)
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS &&
                              FmhaMask::IsMasking)
@@ -95,21 +95,21 @@ struct BlockFmhaPipelineQRKSVSAsync
                 else
                     return 2;
             }
-            else if constexpr(kK0BlockLength <= 64)
+            else if constexpr(kQKHeaddim <= 64)
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 2;
                 else
                     return 3;
             }
-            else if constexpr(kK0BlockLength <= 128)
+            else if constexpr(kQKHeaddim <= 128)
             {
                 if constexpr(kPadSeqLenK && BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                     return 1;
                 else
                     return 2;
             }
-            else if constexpr(kK0BlockLength <= 256)
+            else if constexpr(kQKHeaddim <= 256)
             {
                 return 1;
             }
@@ -339,7 +339,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         // auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
         index_t i_total_loops      = 0;
-        constexpr index_t k0_loops = kK0BlockLength / kK0;
+        constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
 
         static_assert(1 <= k0_loops);
