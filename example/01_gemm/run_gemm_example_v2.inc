@@ -88,10 +88,6 @@ inline __host__ __device__ constexpr double get_atol()
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 {
-#if defined(BUILD_INT4_EXAMPLE) && defined(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
-    static_assert(sizeof(ck::int4_t) == sizeof(int8_t));
-#endif
-
     using namespace ck::literals;
 
     auto M       = problem_size.M;
@@ -169,25 +165,12 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "c_m_n: " << c_m_n_host_result.mDesc << std::endl;
 
-#ifdef BUILD_INT4_EXAMPLE
-    DeviceMem a_m_k_device_buf(sizeof(KernelADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_k_n_device_buf(sizeof(KernelBDataType) * b_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem c_m_n_device_buf(sizeof(KernelCDataType) *
-                               c_m_n_device_result.mDesc.GetElementSpaceSize());
-
-    const Tensor<KernelADataType> a_m_k_converted(a_m_k);
-    const Tensor<KernelBDataType> b_k_n_converted(b_k_n);
-
-    a_m_k_device_buf.ToDevice(a_m_k_converted.mData.data());
-    b_k_n_device_buf.ToDevice(b_k_n_converted.mData.data());
-#else
     DeviceMem a_m_k_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b_k_n_device_buf(sizeof(BDataType) * b_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_m_n_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a_m_k_device_buf.ToDevice(a_m_k.mData.data());
     b_k_n_device_buf.ToDevice(b_k_n.mData.data());
-#endif
     DeviceMem workspace;
 
     auto a_element_op = AElementOp{};
@@ -200,15 +183,9 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     float ave_time = 0;
 
     auto argument = gemm.MakeArgument(
-#ifdef BUILD_INT4_EXAMPLE
-        static_cast<KernelADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
-        static_cast<KernelBDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
-        static_cast<KernelCDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#else
         static_cast<ADataType*>(a_m_k_device_buf.GetDeviceBuffer()),
         static_cast<BDataType*>(b_k_n_device_buf.GetDeviceBuffer()),
         static_cast<CDataType*>(c_m_n_device_buf.GetDeviceBuffer()),
-#endif
         M,
         N,
         K,
@@ -238,17 +215,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
 
       //ref_invoker.Run(ref_argument);
 
-        ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
-#ifdef BUILD_INT4_EXAMPLE
-        Tensor<CDataType> c_m_n_device_result_converted(c_m_n_host_result.mDesc);
-
-        c_m_n_device_buf.FromDevice(c_m_n_device_result_converted.mData.data());
-
-        c_m_n_device_result = c_m_n_device_result_converted.CopyAsType<CDataType>();
-
-        return ck::utils::check_err(c_m_n_device_result_converted, c_m_n_host_result);
-#else
-        c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
+      ave_time = invoker.Run(argument, StreamConfig{nullptr, false, 1});
+      c_m_n_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
       //pass &= ck::utils::check_err(c_m_n_device_result,
       //                             c_m_n_host_result,
@@ -256,17 +224,15 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
       //                             get_rtol<CDataType>(),
       //                             get_atol<CDataType>());
 
-      //for(int i = 0; i < M; i++)
-      //{
-      //    for(int j = 0; j < N; j++)
-      //    {
-      //        std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
-      //    }
-      //    std::cout << std::endl;
-      //}
-#endif
+      for(int i = 0; i < M; i++)
+      {
+          for(int j = 0; j < N; j++)
+          {
+              std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
+          }
+          std::cout << std::endl;
+      }
     }
-
 
     if(config.time_kernel)
     {

@@ -945,10 +945,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize, max_lds_align);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
@@ -957,8 +957,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto c_block_size =
             c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
-        return math::max((a_block_space_size_aligned * sizeof(ADataType) +
-                          b_block_space_size_aligned * sizeof(BDataType)),
+        return math::max((a_block_space_size_aligned * sizeof(ADataType) / APackedSize +
+                          b_block_space_size_aligned * sizeof(BDataType) / BPackedSize),
                          c_block_size * sizeof(CShuffleDataType));
     }
 
@@ -1316,16 +1316,16 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             reinterpret_cast<BDataType*>(static_cast<ADataType*>(p_shared) +
                 a_block_space_size_aligned),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
@@ -1711,23 +1711,23 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize, max_lds_align);
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
 
         auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<BDataType*>(static_cast<char*>(p_shared_0) +
                 a_block_space_size_aligned * sizeof(ADataType)),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
+            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             bit_cast<BDataType*>(bit_cast<char*>(p_shared_1) +
                 a_block_space_size_aligned * sizeof(ADataType)),
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
         auto b_block_bufs = make_tuple(b_block_buf_ping, b_block_buf_pong);
