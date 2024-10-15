@@ -786,7 +786,8 @@ struct bf8_ocp_t
     }
 
 #if CK_USE_OCP_FP8
-    __host__ __device__ explicit operator float() const {
+    __host__ __device__ explicit operator float() const
+    {
 #else
     __host__ explicit operator float() const
     {
@@ -796,6 +797,20 @@ struct bf8_ocp_t
 #else
         return internal::cast_from_f8<float, wm, we, false>(
             this->data); // XXX: clip==false must be consistent with operator half_t
+#endif
+    }
+
+#if CK_USE_OCP_FP8
+    __host__ __device__ explicit operator half_t() const {
+#else
+    __host__ explicit operator half_t() const
+    {
+#endif
+#if CK_FP8_CVT_FAST_PATH
+        return static_cast<half_t>(internal::cast_to_f32_from_f8<default_interpret>(this->data));
+#else
+        return internal::cast_from_f8<half_t, wm, we, false>(
+            this->data); // XXX: clip==false must be consistent with operator float
 #endif
 }
 }
@@ -844,6 +859,15 @@ inline __host__ __device__ f8_ocp_t f8_convert_rne<f8_ocp_t, half_t>(half_t x)
     return f8_ocp_t{
         internal::cvt_half_t_to_fp8<f8_ocp_t::default_interpret, f8_ocp_t::default_saturation>(x)};
 }
+
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_rne<bf8_ocp_t, half_t>(half_t x)
+{
+    return bf8_ocp_t{
+        internal::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret, bf8_ocp_t::default_saturation>(
+            x)};
+}
+
 // Declare a template function for fp8 conversion using RNE
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
@@ -873,6 +897,15 @@ inline __host__ __device__ f8_ocp_t f8_convert_sr<f8_ocp_t, half_t>(half_t x)
     return f8_ocp_t{internal::cvt_half_t_to_fp8<f8_ocp_t::default_interpret,
                                                 f8_ocp_t::default_saturation,
                                                 true>(x)};
+}
+
+// convert half_t to bf8 with stochastic rounding
+template <>
+inline __host__ __device__ bf8_ocp_t f8_convert_sr<bf8_ocp_t, half_t>(half_t x)
+{
+    return bf8_ocp_t{internal::cvt_half_t_to_fp8<bf8_ocp_t::default_interpret,
+                                                 bf8_ocp_t::default_saturation,
+                                                 true>(x)};
 }
 
 #if CK_USE_OCP_FP8
