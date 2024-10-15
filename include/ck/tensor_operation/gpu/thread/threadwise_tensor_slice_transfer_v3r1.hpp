@@ -554,9 +554,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 dst_element_op_(dst_v, dst_vector_container.template AsType<DstData>()[i]);
 
                 dst_vector_container.template AsType<DstData>()(i) = dst_v;
-
-                //if constexpr(is_same_v<remove_cvref_t<SrcData>, half_t>)
-                    //printf("v3r1: %f %d\n", type_convert<float>(dst_v), threadIdx.x);
             });
 
             // copy data from dst_vector_container to dst_buf

@@ -27,7 +27,7 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
-#if 0
+#if 1
         64,
         16, 16, 
         256, 8, 16,

@@ -151,6 +151,20 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    static constexpr index_t APackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), 1, KBatch);
@@ -625,9 +639,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // in some cases.
         else if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
         {
-            constexpr auto MLdsLayer        = 32 * 4 / KPerBlock / sizeof(ADataType) < 1
-                                                  ? 1
-                                                  : 32 * 4 / KPerBlock / sizeof(ADataType);
+            constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(ADataType);
+            constexpr auto MLdsLayer =  LdsSize < 1 ? 1 : LdsSize;
             constexpr auto a_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     AK0Number * Number<MLdsLayer>{}, Number<MPerBlock / MLdsLayer>{}, AK1Number),
@@ -761,10 +774,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
         {
             // NLdsLayer * K0 as logical Bank
-            constexpr auto NLdsLayer = 32 * 4 / KPerBlock / sizeof(BDataType) < 1
-                                           ? 1
-                                           : 32 * 4 / KPerBlock / sizeof(BDataType);
-            ;
+            constexpr index_t LdsSize = 32 * 4 / KPerBlock / sizeof(BDataType);
+            constexpr auto NLdsLayer =   LdsSize < 1 ? 1 : LdsSize;
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
@@ -923,20 +934,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 MXdlPerWave,
                                 NXdlPerWave,
                                 KPack>())>;
-
-    static constexpr index_t APackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
-
-    static constexpr index_t BPackedSize = []() {
-        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-            return 2;
-        else
-            return 1;
-    }();
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -1326,8 +1323,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize() / APackedSize);
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            bit_cast<BDataType*>(bit_cast<unsigned char *>(p_shared) +
-                a_block_space_size_aligned * sizeof(ADataType)),
+            reinterpret_cast<BDataType*>(static_cast<ADataType*>(p_shared) +
+                a_block_space_size_aligned),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize() / BPackedSize);
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);

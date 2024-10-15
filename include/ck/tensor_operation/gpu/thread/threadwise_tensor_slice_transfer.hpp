@@ -1211,10 +1211,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                         dst_origin_idx + data_to_origin_disp_idx + i * src_scalar_step_in_vector);
 
                     dst_buf(Number<dst_offset>{}) = dst_tmp_vector.template AsType<DstData>()[i];
-
-
-                    if constexpr(is_same_v<remove_cvref_t<SrcData>, half_t>)
-                        printf("v4: %f %d\n", type_convert<float>(dst_buf[Number<dst_offset>{}]), threadIdx.x);
                 });
             }
         });

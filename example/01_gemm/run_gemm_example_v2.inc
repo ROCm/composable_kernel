@@ -256,7 +256,14 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
       //                             get_rtol<CDataType>(),
       //                             get_atol<CDataType>());
 
-      LogRangeAsType<float>(std::cout << "c_m_n_device_buf : ", c_m_n_device_result.mData, ",") << std::endl;
+      //for(int i = 0; i < M; i++)
+      //{
+      //    for(int j = 0; j < N; j++)
+      //    {
+      //        std::cout << ck::type_convert<float>(c_m_n_device_result(i, j)) << ",";
+      //    }
+      //    std::cout << std::endl;
+      //}
 #endif
     }
 
