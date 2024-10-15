@@ -38,7 +38,7 @@ struct Operation_Xdl_CShuffle
     std::string epilogue            = "";
     std::string gemm_specialization = "ck::tensor_operation::device::GemmSpecialization::Default";
     // tuning parameters
-    operation::TileDescGemmSoftmaxGemm tile_desc{};
+    operation::TileDescGemmGemm tile_desc{};
     operation::BlockTransferDesc a_block_transfer{};
     operation::BlockTransferDesc b0_block_transfer{};
     operation::BlockTransferDesc b1_block_transfer{};
@@ -50,7 +50,8 @@ struct Operation_Xdl_CShuffle
     // functions to update fusion operators if provided
     void update_prologue(const std::string& prologue);
     void update_epilogue(const std::string& epilogue);
-    /**constexpr**/ bool IsSupported(std::size_t MRaw_, std::size_t NRaw_, std::size_t KRaw_);
+    /**constexpr**/ bool
+    IsSupported(std::size_t MRaw_, std::size_t NRaw_, std::size_t KRaw_, std::size_t Gemm1NRaw_);
     // returns a templated instance
     Solution ToSolution() const;
 };

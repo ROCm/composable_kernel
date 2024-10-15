@@ -70,7 +70,7 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
 {
     std::vector<Operation_Xdl_CShuffle> result;
 
-    std::vector<operation::TileDescGemmSoftmaxGemm> tile_descriptions = {
+    std::vector<operation::TileDescGemmGemm> tile_descriptions = {
         // clang-format off
 //  Block| Gemm01| Gemm0| Gemm0| Gemm1| Gemm1| AK1| BK1| B1K1| MPer| NPer| Gemm0| Gemm0| Gemm1| NumGemmK|
 //   Size|   MPer|  NPer|  KPer|  NPer|  KPer|    |    |     |  XDL|  XDL|  MXdl|  NXdl|  NXdl| Prefetch|

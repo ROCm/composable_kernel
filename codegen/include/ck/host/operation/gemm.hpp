@@ -24,7 +24,7 @@ struct TileDesc
     int num_gemmk_prefetch_stage = 0;
 };
 
-struct TileDescGemmSoftmaxGemm
+struct TileDescGemmGemm
 {
     int block_size               = 0;
     int gemm01_m_per_block       = 0;
