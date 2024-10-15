@@ -43,15 +43,15 @@ template <typename T,
           ck::enable_if_t<!(ck::is_same<float, T>{} || ck::is_same<half_t, T>{}), bool> = false>
 __host__ __device__ uint32_t prand_generator(int id, T val, uint32_t seed = seed_t)
 {
-    #ifdef __HIPCC_RTC__
+#ifdef __HIPCC_RTC__
     static_cast<void>(id);
     static_cast<void>(val);
     static_cast<void>(seed);
-    #else
+#else
     std::ignore = id;
     std::ignore = val;
     std::ignore = seed;
-    #endif
+#endif
 
     return 0;
 }

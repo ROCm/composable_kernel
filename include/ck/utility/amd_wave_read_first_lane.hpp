@@ -124,9 +124,8 @@ __device__ inline int64_t amd_wave_read_first_lane(int64_t value)
     return *reinterpret_cast<int64_t*>(to_obj);
 }
 
-template <
-    typename Object,
-    typename = ck::enable_if_t<ck::is_class_v<Object> && ck::is_trivially_copyable_v<Object>>>
+template <typename Object,
+          typename = ck::enable_if_t<ck::is_class_v<Object> && ck::is_trivially_copyable_v<Object>>>
 __device__ auto amd_wave_read_first_lane(const Object& obj)
 {
     using Size                = unsigned;
