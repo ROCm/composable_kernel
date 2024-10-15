@@ -205,7 +205,7 @@ struct hiprtc_program
             }
             else
             {
-                headers.push_back(std::string(src.content.begin(), src.content.end()));
+                headers.push_back(std::move(src.content));
                 include_names.push_back(std::move(src.path));
             }
         }

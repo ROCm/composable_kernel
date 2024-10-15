@@ -1,36 +1,26 @@
 #pragma once
 
 #include "ck/host/headers.hpp"
-#include "ck/host/stringutils.hpp"
 #include <rtc/compile_kernel.hpp>
 #include <rtc/hip.hpp>
 #include <test.hpp>
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 #include <iterator>
 #include <numeric>
 #include <random>
 #include <unordered_set>
-
-// NOLINTNEXTLINE
-const char* const ck_content_wrapper = R"__ck__(
-${content}
-)__ck__";
-
-template <class P>
-inline std::string content_wrapper(P p)
-{
-    return ck::host::InterpolateString(ck_content_wrapper,
-                                       {{"content", std::string{p.data(), p.size()}}});
-}
 
 inline std::vector<rtc::src_file> create_headers_for_test()
 {
     auto ck_headers = ck::host::GetHeaders();
     std::vector<rtc::src_file> result;
     std::transform(ck_headers.begin(), ck_headers.end(), std::back_inserter(result), [](auto& p) {
-        return rtc::src_file{p.first, content_wrapper(p.second)};
+        std::string content;
+        content.reserve(p.second.size() + 1);
+        content.push_back(' '); // We need a whitespace before the content for hipRTC to work
+        content.append(p.second.data(), p.second.size());
+        return rtc::src_file{p.first, std::move(content)};
     });
     return result;
 }
