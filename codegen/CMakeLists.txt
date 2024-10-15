@@ -47,6 +47,7 @@ target_link_libraries(ck_host PRIVATE $<BUILD_INTERFACE:ck_headers>)
 
 target_include_directories(ck_host PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
 
 add_executable(ck-template-driver driver/main.cpp)
@@ -56,6 +57,10 @@ rocm_install(
     TARGETS ck_host
     EXPORT ck_hostTargets
 )
+rocm_install(EXPORT ck_hostTargets 
+	FILE composable_kernelck_hostTargets.cmake 
+	NAMESPACE composable_kernel:: 
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel)
 rocm_install(DIRECTORY include/ck DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 rocm_install(
@@ -65,6 +70,6 @@ rocm_install(
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
 )
 
-if (NOT CK_BUILD_HOST_LIB)
+if (NOT CK_BUILD_HOST_LIB AND BUILD_TESTING)
     add_subdirectory(test)
 endif()
