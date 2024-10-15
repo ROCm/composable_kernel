@@ -453,14 +453,12 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     // Use appropriate gridwise gemm
     using GridwiseGemm =
         ck::conditional_t<isMultiA || isMultiB,
-                           GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmTemplateParameters>,
-                           GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
+                          GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmTemplateParameters>,
+                          GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass ck::Array with pointers.
-    using APointers =
-        ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
-    using BPointers =
-        ck::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
+    using APointers = ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;
+    using BPointers = ck::conditional_t<isMultiB, ck::Array<const void*, NumBTensor>&, const void*>;
     // Use Tuple for the both cases for GridPointer to initialize it in Argument constructor (not
     // in initializer list what is required for single const pointer).
     using AGridPointer = remove_cvref_t<
