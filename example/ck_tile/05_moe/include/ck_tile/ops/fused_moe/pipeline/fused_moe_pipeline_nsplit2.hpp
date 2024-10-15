@@ -5,10 +5,13 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck_tile/ops/fmha/block/block_dropout.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce.hpp"
+#include "fused_moe_pipeline_nsplit2_policy.hpp"
+#include "fused_moe_pipeline_problem.hpp"
+#include "fused_moe_tile_shape.hpp"
+#include "fused_moe_traits.hpp"
+#include "fused_moe_weight_permute_enum.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+
 
 namespace ck_tile {
 
@@ -16,7 +19,7 @@ namespace ck_tile {
 This pipeline split the gemm-n of B matrix for less register pressure
 (assume B matrix is much larger than A)
 */
-template <typename Problem_, typename Policy_ = FusedMoePipelineNSplit2Policy>
+template <typename Problem_, typename Policy_ = ck_tile::FusedMoePipelineNSplit2Policy>
 struct FusedMoePipelineNSplit2
 {
     using Problem = remove_cvref_t<Problem_>;
@@ -28,6 +31,7 @@ struct FusedMoePipelineNSplit2
     using DDataType     = remove_cvref_t<typename Problem::DDataType>;
     using ODataType     = remove_cvref_t<typename Problem::ODataType>;
     using AccDataType   = remove_cvref_t<typename Problem::AccDataType>;
+    using YDataType   = remove_cvref_t<typename Problem::AccDataType>;
     using ScaleDataType = remove_cvref_t<typename Problem::ScaleDataType>;
 
     using FusedMoeTileShape = remove_cvref_t<typename Problem::FusedMoeTileShape>;
@@ -70,29 +74,24 @@ struct FusedMoePipelineNSplit2
     static constexpr index_t kWarpRepeatN_1 = FusedMoeTileShape::kWarpRepeatN_1;
     static constexpr index_t kWarpRepeatK_1 = FusedMoeTileShape::kWarpRepeatK_1;
 
-    using MBlockType_0 = decltype(Policy::GetMatrixCoreSwizzledBlockTIle_0<Problem>());
-    static constexpr index_t kBlockNr_0 = MBlockType_0 {}
-    ::at(number<0>{});
-    static constexpr index_t kBlockKr_0 = MBlockType_0 {}
-    ::at(number<1>{});
-    static constexpr index_t kBlockWaveFlatten = MBlockType_0 {}
-    ::at(number<2>{});
+    using MBlockType_0 = decltype(Policy::template GetMatrixCoreSwizzledBlockTIle_0<Problem>());
+    static constexpr index_t kBlockNr_0 = MBlockType_0::at(number<0>{});
+    static constexpr index_t kBlockKr_0 = MBlockType_0::at(number<1>{});
+    static constexpr index_t kBlockWaveFlatten = MBlockType_0::at(number<2>{});
     static_assert(kBlockNr_0 % 2 == 0);
     static constexpr index_t kBlockSubNr_0 = kBlockNr_0 / 2;
 
-    using MBlockType_1 = decltype(Policy::GetMatrixCoreSwizzledBlockTIle_1<Problem>());
-    static constexpr index_t kBlockNr_1 = MBlockType_1 {}
-    ::at(number<0>{});
-    static constexpr index_t kBlockKr_1 = MBlockType_1 {}
-    ::at(number<1>{});
+    using MBlockType_1 = decltype(Policy::template GetMatrixCoreSwizzledBlockTIle_1<Problem>());
+    static constexpr index_t kBlockNr_1 = MBlockType_1::at(number<0>{});
+    static constexpr index_t kBlockKr_1 = MBlockType_1::at(number<1>{});
     static constexpr index_t kBlockSubKr_1 = kBlockKr_1 / 2;
     static_assert(kBlockSubNr_0 == kBlockSubKr_1);
 
-    static constexpr index_t kAlignmentA = Policy::GetAlignment_A<Problem>();
-    static constexpr index_t kAlignmentG = Policy::GetAlignment_G<Problem>();
-    static constexpr index_t kAlignmentU = Policy::GetAlignment_U<Problem>();
-    static constexpr index_t kAlignmentD = Policy::GetAlignment_D<Problem>();
-    static constexpr index_t kAlignmentO = Policy::GetAlignment_O<Problem>();
+    static constexpr index_t kAlignmentA = Policy::template GetAlignment_A<Problem>();
+    static constexpr index_t kAlignmentG = Policy::template GetAlignment_G<Problem>();
+    static constexpr index_t kAlignmentU = Policy::template GetAlignment_U<Problem>();
+    static constexpr index_t kAlignmentD = Policy::template GetAlignment_D<Problem>();
+    static constexpr index_t kAlignmentO = Policy::template GetAlignment_O<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -106,12 +105,12 @@ struct FusedMoePipelineNSplit2
 
     static constexpr const char* name = "fused_moe_ns2";
 
-    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
+   // using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 
     // TODO: there are multiple buffers
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeSingleBuffer()
     {
-        return Policy<Problem>::GetSmemSizeSingleBuffer();
+        return Policy::template GetSmemSizeSingleBuffer();
     }
 
     // this is the thread-offset along row/col
@@ -141,7 +140,7 @@ struct FusedMoePipelineNSplit2
                                    const DGlobalTileWindow& d_gtile_window_tmp,
                                    OGlobalTensorView& o_gtile_window_tmp,
                                    //  const void  *  sorted_weight_ptr,
-                                   ScaleDataType scale,
+                                   //ScaleDataType scale,
                                    CK_TILE_LDS_ADDR void* smem_0,
                                    CK_TILE_LDS_ADDR void* smem_1,
                                    index_t dim_size,
@@ -231,8 +230,8 @@ struct FusedMoePipelineNSplit2
 
         statically_indexed_array<g_thread_type, 2> g_tls;
         statically_indexed_array<u_thread_type, 2> u_tls;
-        using WarpGemm0  = Policy::GetWarpGemm0<Problem>();
-        using WarpGemm1  = Policy::GetWarpGemm1<Problem>();
+        using WarpGemm0  = remove_cvref_t<decltype(Policy::template GetWarpGemm0<Problem>())>;
+        using WarpGemm1  = remove_cvref_t<decltype(Policy::template GetWarpGemm1<Problem>())>;
         auto warp_gemm_0 = WarpGemm0{};
         auto warp_gemm_1 = WarpGemm1{};
 
@@ -270,8 +269,8 @@ struct FusedMoePipelineNSplit2
             move_tile_window(d_win, {number<0>{}, number<kBlockKr_0>{}, number<0>{}});
         };
 
-        auto acc_g = generate_tuple([&](auto) { MakeCBlockTile_Gemm0<Problem>(); }, number<2>{});
-        auto acc_u = generate_tuple([&](auto) { MakeCBlockTile_Gemm0<Problem>(); }, number<2>{});
+        auto acc_g = generate_tuple([&](auto) {Policy::template MakeCBlockTile_Gemm0<Problem>(); }, number<2>{});
+        auto acc_u = generate_tuple([&](auto) {Policy::template MakeCBlockTile_Gemm0<Problem>(); }, number<2>{});
 
         // Note this function only do gemm of single Nsplit
         // clang-format off
@@ -408,8 +407,8 @@ struct FusedMoePipelineNSplit2
         sweep_tile_span(acc_spans_0[number<0>{}], [&](auto idx0) {
             sweep_tile_span(acc_spans_0[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                element_wise::Silu{}(acc_g[I0](i_j_idx), acc_g[I0](i_j_idx));
-                element_wise::Silu{}(acc_g[I1](i_j_idx), acc_g[I1](i_j_idx));
+                ck::tensor_operation::element_wise::Silu{}(acc_g[I0](i_j_idx), acc_g[I0](i_j_idx));
+                ck::tensor_operation::element_wise::Silu{}(acc_g[I1](i_j_idx), acc_g[I1](i_j_idx));
                 acc_g[I0](i_j_idx) *= acc_u[I0](i_j_idx);
                 acc_g[I1](i_j_idx) *= acc_u[I1](i_j_idx);
             });
@@ -419,7 +418,7 @@ struct FusedMoePipelineNSplit2
             if constexpr(std::is_same_v<YDataType, fp16_t>) return impl::cast_tile_pk_fp16_fp32<YDataType>(acc_g[i]);
             else return cast_tile<YDataType>(acc_g[i]); }, number<2>{});
 
-        auto acc_d = MakeCBlockTile_Gemm1<Problem>();
+        auto acc_d = Policy::template MakeCBlockTile_Gemm1<Problem>();
         // TODO: reshuffle? 32x32x8 mfma can avlid LDS reshuffle
 
         // Second gemm

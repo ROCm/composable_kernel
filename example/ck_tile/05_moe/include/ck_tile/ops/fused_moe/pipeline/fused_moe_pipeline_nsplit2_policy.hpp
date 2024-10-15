@@ -5,11 +5,15 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
-#include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qr_ks_vs_async_default_policy.hpp"
-#include "ck_tile/ops/fmha/block/block_dropout.hpp"
-#include "ck_tile/ops/reduce/block/block_reduce.hpp"
-
+#include "ck_tile/ops/gemm/pipeline/block_gemm_pipeline_problem.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "fused_moe_pipeline_nsplit2.hpp"
+#include "fused_moe_pipeline_problem.hpp"
+#include "fused_moe_tile_shape.hpp"
+#include "fused_moe_traits.hpp"
+#include "fused_moe_weight_permute_enum.hpp"
 namespace ck_tile {
 
 struct FusedMoePipelineNSplit2Policy
@@ -24,8 +28,8 @@ struct FusedMoePipelineNSplit2Policy
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignment_A()
     {
         // using async
-        static constexpr index_t copy_bytes = 4 * GetAsyncCopyDwords();
-        static constexpr index_t data_bytes = sizeof(typename Problem::ADataType);
+        constexpr index_t copy_bytes = 4 * GetAsyncCopyDwords();
+        constexpr index_t data_bytes = sizeof(typename Problem::ADataType);
         static_assert(copy_bytes % data_bytes == 0);
         return copy_bytes / data_bytes;
     }
@@ -33,8 +37,8 @@ struct FusedMoePipelineNSplit2Policy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignment_G()
     {
-        static constexpr index_t copy_bytes = [&]() { return 16; }();
-        static constexpr index_t data_bytes = sizeof(typename Problem::GDataType);
+        constexpr index_t copy_bytes = [&]() { return 16; }();
+        constexpr index_t data_bytes = sizeof(typename Problem::GDataType);
         static_assert(copy_bytes % data_bytes == 0);
         return copy_bytes / data_bytes;
     }
@@ -42,8 +46,8 @@ struct FusedMoePipelineNSplit2Policy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignment_U()
     {
-        static constexpr index_t copy_bytes = [&]() { return 16; }();
-        static constexpr index_t data_bytes = sizeof(typename Problem::UDataType);
+        constexpr index_t copy_bytes = [&]() { return 16; }();
+        constexpr index_t data_bytes = sizeof(typename Problem::UDataType);
         static_assert(copy_bytes % data_bytes == 0);
         return copy_bytes / data_bytes;
     }
@@ -51,8 +55,8 @@ struct FusedMoePipelineNSplit2Policy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignment_D()
     {
-        static constexpr index_t copy_bytes = [&]() { return 16; }();
-        static constexpr index_t data_bytes = sizeof(typename Problem::DDataType);
+        constexpr index_t copy_bytes = [&]() { return 16; }();
+        constexpr index_t data_bytes = sizeof(typename Problem::DDataType);
         static_assert(copy_bytes % data_bytes == 0);
         return copy_bytes / data_bytes;
     }
@@ -64,6 +68,7 @@ struct FusedMoePipelineNSplit2Policy
         {
             // pack fp16/bf16 atomic
             static_assert(sizeof(typename Problem::ODataType) == 2);
+            
             return 2;
         }
         else if constexpr(Problem::Traits::OAtomic == 1)
@@ -77,7 +82,7 @@ struct FusedMoePipelineNSplit2Policy
         }
     }
 
-    template <typename DataType_>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPack()
     {
         // TODO: this is for 3d layout
@@ -118,8 +123,8 @@ struct FusedMoePipelineNSplit2Policy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeSingleBuffer()
     {
-        constexpr a_sld_desc = MakeLdsLoadDesc_A<Problem>();
-        constexpr a_sst_desc = MakeLdsStoreDesc_A<Problem>();
+        constexpr auto a_sld_desc = MakeLdsLoadDesc_A<Problem>();
+        constexpr auto a_sst_desc = MakeLdsStoreDesc_A<Problem>();
         static_assert(a_sld_desc.get_element_space_size() == a_sst_desc.get_element_space_size());
         return a_sld_desc.get_element_space_size();
     }
@@ -127,7 +132,8 @@ struct FusedMoePipelineNSplit2Policy
     template <index_t MPerBlock, index_t KPerBlock, index_t NumWarps, index_t Alignment>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_SimpleMxK()
     {
-        constexpr index_t K_vec = Alignment constexpr index_t K_rem = KPerBlock / K_vec;
+        constexpr index_t K_vec = Alignment;
+        constexpr index_t K_rem = KPerBlock / K_vec;
 
         if constexpr(get_warp_size() < K_rem)
         {
@@ -219,15 +225,15 @@ struct FusedMoePipelineNSplit2Policy
         if constexpr(Problem::Traits::PermuteStyle ==
                      FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv)
         {
-            using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
+            using WarpGemm = remove_cvref_t<decltype(GetWarpGemm0<Problem>())>; // assume warpgemm0/1 are the same
             constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_0;
             constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_0;
 
-            constexpr index_t Kv = GetAlignment_G<{Problem}>();
+            constexpr index_t Kv = GetAlignment_G<Problem>();
             constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
             constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
-            static_assert(KPerBlock % (K1 * K2) == 0);
+         //   static_assert(KPerBlock % (K1 * K2) == 0);
             constexpr index_t Nr = NPerBlock / Nw;
             constexpr index_t Kr = KPerBlock / (Kv * Kw);
 
@@ -242,7 +248,7 @@ struct FusedMoePipelineNSplit2Policy
               index_t WavesPerBlock_K,
               typename WarpGemm,
               index_t Alignment,
-              FusedMoeWeightPermuteEnum PermuteStyle =
+              ck_tile::FusedMoeWeightPermuteEnum PermuteStyle =
                   FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv>
     CK_TILE_HOST_DEVICE static constexpr auto MakeGlobalTileDistribution_MatrixCore_Swizzled()
     {
@@ -255,7 +261,7 @@ struct FusedMoePipelineNSplit2Policy
             constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
             constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
 
-            static_assert(KPerBlock % (K1 * K2) == 0);
+     //       static_assert(KPerBlock % (K1 * K2) == 0);
             constexpr index_t Nr = NPerBlock / Nw;
             constexpr index_t Kr = KPerBlock / (Kv * Kw);
 
@@ -305,7 +311,7 @@ struct FusedMoePipelineNSplit2Policy
             constexpr index_t kKPerBlock      = Problem::FusedMoeTileShape::kBlockK_0;
             constexpr index_t WavesPerBlock_N = Problem::FusedMoeTileShape::kBlockWarpsN_0;
             constexpr index_t WavesPerBlock_K = Problem::FusedMoeTileShape::kBlockWarpsK_0;
-            using WarpGemm                    = remove_cvref_t<GetWarpGemm0<Problem>()>;
+            using WarpGemm                    = remove_cvref_t<decltype(GetWarpGemm0<Problem>())>;
             constexpr index_t Alignment       = GetAlignment_G<Problem>();
             return MakeGlobalTileDistribution_MatrixCore_Swizzled<kNPerBlock,
                                                                   kKPerBlock,
@@ -327,7 +333,7 @@ struct FusedMoePipelineNSplit2Policy
             constexpr index_t kKPerBlock      = Problem::FusedMoeTileShape::kBlockK_0;
             constexpr index_t WavesPerBlock_N = Problem::FusedMoeTileShape::kBlockWarpsN_0;
             constexpr index_t WavesPerBlock_K = Problem::FusedMoeTileShape::kBlockWarpsK_0;
-            using WarpGemm                    = remove_cvref_t<GetWarpGemm0<Problem>()>;
+            using WarpGemm                    = remove_cvref_t<decltype(GetWarpGemm0<Problem>())>;
             constexpr index_t Alignment       = GetAlignment_U<Problem>();
             return MakeGlobalTileDistribution_MatrixCore_Swizzled<kNPerBlock,
                                                                   kKPerBlock,
@@ -349,7 +355,7 @@ struct FusedMoePipelineNSplit2Policy
             constexpr index_t kKPerBlock      = Problem::FusedMoeTileShape::kBlockK_1;
             constexpr index_t WavesPerBlock_N = Problem::FusedMoeTileShape::kBlockWarpsN_1;
             constexpr index_t WavesPerBlock_K = Problem::FusedMoeTileShape::kBlockWarpsK_1;
-            using WarpGemm                    = remove_cvref_t<GetWarpGemm1<Problem>()>;
+            using WarpGemm                    = remove_cvref_t<decltype(GetWarpGemm1<Problem>())>;
             constexpr index_t Alignment       = GetAlignment_D<Problem>();
             return MakeGlobalTileDistribution_MatrixCore_Swizzled<kNPerBlock,
                                                                   kKPerBlock,
@@ -367,7 +373,7 @@ struct FusedMoePipelineNSplit2Policy
         // A async->LDS
         constexpr index_t kMPerBlock = Problem::FusedMoeTileShape::kBlockM_0;
         constexpr index_t kKPerBlock = Problem::FusedMoeTileShape::kBlockK_0;
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+        //constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t warpSize   = ck_tile::get_warp_size();
         constexpr index_t NumWarps   = Problem::FusedMoeTileShape::NumWarps;
 
@@ -395,13 +401,13 @@ struct FusedMoePipelineNSplit2Policy
                                number<wavesPerM>{},                             // m1
                                number<wavesPerK>{},                             // k0
                                number<warpSize>{},                              // k1
-                               number<KVector>{}),                              // k2
-                    make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{},  // m0
-                               number<wavesPerK*(warpSize * KVector + kPad)>{}, // m1
-                               number<warpSize * KVector + kPad>{},             // k0
-                               number<KVector>{},                               // k1
+                               number<kVector>{}),                              // k2
+                    make_tuple(number<NumWarps*(warpSize * kVector + kPad)>{},  // m0
+                               number<wavesPerK*(warpSize * kVector + kPad)>{}, // m1
+                               number<warpSize * kVector + kPad>{},             // k0
+                               number<kVector>{},                               // k1
                                number<1>{}),                                    // k2
-                    number<KVector>{}, // lds store vector(actually no explicit store)
+                    number<kVector>{}, // lds store vector(actually no explicit store)
                     number<1>{});
 
                 constexpr auto lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
@@ -409,7 +415,7 @@ struct FusedMoePipelineNSplit2Policy
                     make_tuple(
                         make_pass_through_transform(number<NumIssues>{}),
                         make_merge_transform(make_tuple(number<wavesPerM>{}, number<wavesPerK>{})),
-                        make_merge_transform(make_tuple(number<warpSize>{}, number<KVector>{}))),
+                        make_merge_transform(make_tuple(number<warpSize>{}, number<kVector>{}))),
                     make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
@@ -428,13 +434,13 @@ struct FusedMoePipelineNSplit2Policy
                            number<LaneGroups>{},                           // m1
                            number<NumWarps>{},                             // m2
                            number<LanesPerK>{},                            // k0
-                           number<KVector>{}),                             // k1
-                make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{}, // m0
+                           number<kVector>{}),                             // k1
+                make_tuple(number<NumWarps*(warpSize * kVector + kPad)>{}, // m0
                            number<kKPerBlock>{},                           // m1
-                           number<warpSize * KVector + kPad>{},            // m2
-                           number<KVector>{},                              // k0
+                           number<warpSize * kVector + kPad>{},            // m2
+                           number<kVector>{},                              // k0
                            number<1>{}),                                   // k1
-                number<KVector>{}, // lds store vector(actually no explicit store)
+                number<kVector>{}, // lds store vector(actually no explicit store)
                 number<1>{});
 
             constexpr auto lds_block_desc_issues_warps_lanes = transform_tensor_descriptor(
@@ -442,7 +448,7 @@ struct FusedMoePipelineNSplit2Policy
                 make_tuple(make_pass_through_transform(number<NumIssues>{}),
                            make_pass_through_transform(number<NumWarps>{}),
                            make_merge_transform(make_tuple(
-                               number<LaneGroups>{}, number<LanesPerK>{}, number<KVector>{}))),
+                               number<LaneGroups>{}, number<LanesPerK>{}, number<kVector>{}))),
                 make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
@@ -462,7 +468,7 @@ struct FusedMoePipelineNSplit2Policy
         //  2). return discriptor is in NxK 2d layout
         constexpr index_t kMPerBlock = Problem::FusedMoeTileShape::kBlockM_0;
         constexpr index_t kKPerBlock = Problem::FusedMoeTileShape::kBlockK_0;
-        constexpr index_t kBlockSize = Problem::kBlockSize;
+        //constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t warpSize   = ck_tile::get_warp_size();
         constexpr index_t NumWarps   = Problem::FusedMoeTileShape::NumWarps;
 
@@ -490,11 +496,11 @@ struct FusedMoePipelineNSplit2Policy
                                number<wavesPerM>{},                             // m1
                                number<wavesPerK>{},                             // k0
                                number<warpSize>{},                              // k1
-                               number<KVector>{}),                              // k2
-                    make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{},  // m0
-                               number<wavesPerK*(warpSize * KVector + kPad)>{}, // m1
-                               number<warpSize * KVector + kPad>{},             // k0
-                               number<KVector>{},                               // k1
+                               number<kVector>{}),                              // k2
+                    make_tuple(number<NumWarps*(warpSize * kVector + kPad)>{},  // m0
+                               number<wavesPerK*(warpSize * kVector + kPad)>{}, // m1
+                               number<warpSize * kVector + kPad>{},             // k0
+                               number<kVector>{},                               // k1
                                number<1>{}),                                    // k2
                     number<KPack>{},                                            // lds load vector
                     number<1>{});
@@ -504,7 +510,7 @@ struct FusedMoePipelineNSplit2Policy
                     make_tuple(
                         make_merge_transform(make_tuple(number<NumIssues>{}, number<wavesPerM>{})),
                         make_merge_transform(make_tuple(
-                            number<wavesPerK>{}, number<warpSize>{}, number<KVector>{}))),
+                            number<wavesPerK>{}, number<warpSize>{}, number<kVector>{}))),
                     make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -523,11 +529,11 @@ struct FusedMoePipelineNSplit2Policy
                            number<LaneGroups>{},                           // m1
                            number<NumWarps>{},                             // m2
                            number<LanesPerK>{},                            // k0
-                           number<KVector>{}),                             // k1
-                make_tuple(number<NumWarps*(warpSize * KVector + kPad)>{}, // m0
+                           number<kVector>{}),                             // k1
+                make_tuple(number<NumWarps*(warpSize * kVector + kPad)>{}, // m0
                            number<kKPerBlock>{},                           // m1
-                           number<warpSize * KVector + kPad>{},            // m2
-                           number<KVector>{},                              // k0
+                           number<warpSize * kVector + kPad>{},            // m2
+                           number<kVector>{},                              // k0
                            number<1>{}),                                   // k1
                 number<KPack>{},                                           // lds load vector
                 number<1>{});
@@ -537,7 +543,7 @@ struct FusedMoePipelineNSplit2Policy
                 make_tuple(
                     make_merge_transform(
                         make_tuple(number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
-                    make_merge_transform(make_tuple(number<LanesPerK>{}, number<KVector>{}))),
+                    make_merge_transform(make_tuple(number<LanesPerK>{}, number<kVector>{}))),
                 make_tuple(sequence<0, 1, 2>{}, sequence<3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -592,7 +598,7 @@ struct FusedMoePipelineNSplit2Policy
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        auto c_block_tensor         = make_static_distributed_tensor<Problem::AccDataType>(c_block_dstr);
         return c_block_tensor;
     }
 
@@ -618,51 +624,8 @@ struct FusedMoePipelineNSplit2Policy
         constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
         constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
+        auto c_block_tensor         = make_static_distributed_tensor<Problem::AccDataType>(c_block_dstr);
         return c_block_tensor;
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_0()
-    {
-        if constexpr(Problem::Traits::PermuteStyle ==
-                     FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv)
-        {
-            using WarpGemm = GetWarpGemm0<Problem>{}; // assume warpgemm0/1 are the same
-            constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_0;
-            constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_0;
-
-            constexpr index_t Kv = GetAlignment_G<{Problem}>();
-            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-
-            static_assert(KPerBlock % (K1 * K2) == 0);
-            constexpr index_t Nr = NPerBlock / Nw;
-            constexpr index_t Kr = KPerBlock / (Kv * Kw);
-
-            return sequence<Nr, Kr, Kw * Nw * Kv>{}; // 3D
-        }
-    }
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetMatrixCoreSwizzledBlockTIle_1()
-    {
-        if constexpr(Problem::Traits::PermuteStyle ==
-                     FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv)
-        {
-            using WarpGemm = GetWarpGemm1<Problem>{}; // assume warpgemm0/1 are the same
-            constexpr index_t NPerBlock = Problem::FusedMoeTileShape::kBlockN_1;
-            constexpr index_t KPerBlock = Problem::FusedMoeTileShape::kBlockK_1;
-
-            constexpr index_t Kv = GetAlignment_G<{Problem}>();
-            constexpr index_t Nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-            constexpr index_t Kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
-
-            static_assert(KPerBlock % (K1 * K2) == 0);
-            constexpr index_t Nr = NPerBlock / Nw;
-            constexpr index_t Kr = KPerBlock / (Kv * Kw);
-
-            return sequence<Nr, Kr, Kw * Nw * Kv>{}; // 3D
-        }
     }
 };
 } // namespace ck_tile

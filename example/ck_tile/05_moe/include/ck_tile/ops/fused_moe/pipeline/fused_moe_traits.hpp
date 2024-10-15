@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fused_moe/pipeline/fused_moe_weight_permute_enum.hpp"
+#include "fused_moe_weight_permute_enum.hpp"
 
 namespace ck_tile {
 

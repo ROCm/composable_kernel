@@ -196,12 +196,11 @@ struct FusedMoeKernel
         index_t stride_o;
 
         index_t stride_expert_gu;
-        index_t stride_expert_gu;
         index_t stride_expert_d;
     };
     using Hargs = FusedMoeCommonHargs;
 
-    CK_TILE_HOST static constexpr ToKargs(const Hargs hargs) { return kargs; }
+    CK_TILE_HOST static constexpr auto ToKargs(const Hargs hargs) { return hargs; }
 
     CK_TILE_HOST static constexpr auto GridSize(index_t num_cu, index_t blocks_per_cu)
     {

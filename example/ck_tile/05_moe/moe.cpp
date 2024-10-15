@@ -2,9 +2,15 @@
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 #include "moe.hpp"
 #include "ck_tile/host.hpp"
-#include "rotary.hpp"
-#include "utils.hpp"
+//#include "rotary.hpp"
+//#include "utils.hpp"
 #include "ck_tile/host/reference/reference_permute.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_pipeline_nsplit2.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_pipeline_problem.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_tile_shape.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_traits.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_weight_permute_enum.hpp"
+#include "include/ck_tile/ops/fused_moe/kernel/fused_moe_kernel.hpp"
 
 #include <array>
 #include <cstring>
@@ -15,7 +21,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <torch/torch.h>
+//#include <torch/torch.h>
 //test args
 auto create_args(int argc, char* argv[])
 {
@@ -106,14 +112,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                shard_intermediate_size/2,
                                hidden_size});
     ck_tile::HostTensor<DDataType> d_host({num_experts,
-                               hidden_size
+                               hidden_size,
                                shard_intermediate_size/2});
-    ck_tile::reference_permute<GDataType>(g_host_ref, g_host, {0, 1, 3, 4, 2, 5})
-    ck_tile::reference_permute<GDataType>(u_host_ref, u_host, {0, 1, 3, 4, 2, 5})
-    ck_tile::reference_permute<GDataType>(d_host_ref, d_host, {0, 1, 3, 4, 2, 5})
+    ck_tile::reference_permute<GDataType>(g_host_ref, g_host, {0, 1, 3, 4, 2, 5});
+    ck_tile::reference_permute<GDataType>(u_host_ref, u_host, {0, 1, 3, 4, 2, 5});
+    ck_tile::reference_permute<GDataType>(d_host_ref, d_host, {0, 1, 3, 4, 2, 5});
     ck_tile::HostTensor<ODataType> o_host({num_tokens, hidden_size});
 
-    ck_tile::HostTensor<FP32> sorted_weights({num_tokens,topk});
+    ck_tile::HostTensor<ck_tile::fp32_t> sorted_weights({num_tokens,topk});
     ck_tile::HostTensor<ck_tile::index_t> sorted_topk_ids({num_tokens,topk});
     ck_tile::HostTensor<ck_tile::index_t> sorted_expert_ids({num_tokens,topk});
     ck_tile::HostTensor<ck_tile::index_t> sorted_num_tokens_post_padded({1});
@@ -161,26 +167,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
         args.stride_expert_gu = stride_expert_gu;
         args.stride_expert_d = stride_expert_d;
         
-        args.dim_size = dim_size;
+//        args.dim_size = dim_size;
         args.hidden_size = hidden_size;
         args.num_tokens = num_tokens;  // input number of tokens for current iteration
         args.num_experts = num_experts; 
-    }
+    };
     //
-    constexpr ck_tile::index_t ts_experts = experts_;
+   // constexpr ck_tile::index_t ts_experts = experts_;
     //tiling
-    using moe_block_tile_0   = ck::Sequence<32,  // kM_a
+    using moe_block_tile_0   = ck_tile::sequence<32,  // kM_a
                                         128, // kN_g/u
                                         128, // kN_sub0
                                         32,  // kK_a
                                         128 // kN_d
                                         >;
-    using moe_block_warps0_0 = ck::Sequence<1, 4, 1>;//mnk
-    using moe_block_warps1_0 = ck::Sequence<4, 1, 1>;
-    using moe_warp_tile_0    = ck::Sequence<32, 32, 16>;
+    using moe_block_warps0_0 = ck_tile::sequence<1, 4, 1>;//mnk
+    using moe_block_warps1_0 = ck_tile::sequence<4, 1, 1>;
+    using moe_warp_tile_0    = ck_tile::sequence<32, 32, 16>;
     // using fmha_warp_tile_4    = ck::Sequence<32, 32, 8>;
 
-    using moe_shape = ck::tile_program::FusedMoeTileShape<moe_block_tile_0,
+    using moe_shape = ck_tile::FusedMoeTileShape<moe_block_tile_0,
                                                                 moe_block_warps0_0,
                                                                 moe_warp_tile_0,
                                                                 moe_block_warps1_0,
@@ -188,10 +194,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using moe_traits = ck_tile::FusedMoeTraits<false,//down preshuffle
           -1, // index_t kBlockPerCu_  = ,overwrite occupancy if not -1
           0,//index_t OAtomic_
-          FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv//FusedMoeWeightPermuteEnum WeightPermute_ =
+          ck_tile::FusedMoeWeightPermuteEnum::permute_b_nr_kr_kw_nw_kv//FusedMoeWeightPermuteEnum WeightPermute_ =
           >;
     using moe_problem  = ck_tile::FusedMoePipelineProblem<ADataType, GDataType, UDataType, DDataType,
-          ODataType, AccDataType, ScaleDataType, GateActivation, moe_shape, moe_traits>; 
+          ODataType, AccDataType, ScaleDataType, ck::tensor_operation::element_wise::Silu, moe_shape, moe_traits>; 
     using moe_pipeline = ck_tile::FusedMoePipelineNSplit2<moe_problem>;                     
     using Hargs = ck_tile::FusedMoeKernel::FusedMoeCommonHargs;
     using moe_partitioner = ck_tile::FusedMoeTilePartitioner_PersistentSplitD<moe_shape>;                                                                                            \

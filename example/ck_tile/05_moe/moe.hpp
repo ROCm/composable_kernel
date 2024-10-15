@@ -6,6 +6,11 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_pipeline_nsplit2.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_pipeline_problem.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_tile_shape.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_traits.hpp"
+#include "include/ck_tile/ops/fused_moe/pipeline/fused_moe_weight_permute_enum.hpp"
 
 #include <type_traits>
 

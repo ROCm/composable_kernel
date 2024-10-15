@@ -73,16 +73,16 @@ struct FusedMoeTileShape
     static constexpr index_t kWarpM_0       = Gemm0WarpTile::at(number<0>{});
     static constexpr index_t kWarpN_0       = Gemm0WarpTile::at(number<1>{});
     static constexpr index_t kWarpK_0       = Gemm0WarpTile::at(number<2>{});
-    static constexpr index_t kBlockWarpsM_0 = Gemm0BlockWarps::at(numner<0>{});
-    static constexpr index_t kBlockWarpsN_0 = Gemm0BlockWarps::at(numner<1>{});
-    static constexpr index_t kBlockWarpsK_0 = Gemm0BlockWarps::at(numner<2>{});
+    static constexpr index_t kBlockWarpsM_0 = Gemm0BlockWarps::at(number<0>{});
+    static constexpr index_t kBlockWarpsN_0 = Gemm0BlockWarps::at(number<1>{});
+    static constexpr index_t kBlockWarpsK_0 = Gemm0BlockWarps::at(number<2>{});
     static constexpr index_t kSubBlockM_0   = kWarpM_0 * kBlockWarpsM_0;
     static constexpr index_t kSubBlockN_0   = kWarpN_0 * kBlockWarpsN_0;
     static constexpr index_t kSubBlockK_0   = kWarpK_0 * kBlockWarpsK_0;
     static_assert(kBlockM_0 % kSubBlockM_0 == 0);
     static_assert(kBlockN_0 % kSubBlockN_0 == 0);
     static_assert(kBlockK_0 % kSubBlockK_0 == 0);
-    static constexpr index_t kWarpRepeatM_0 = kBlockM_0 / kSubBlockM_0;
+    static constexpr index_t kWarpRepeatM_0 = kBlockM_0 / kSubBlockM_0;//warp repeat is block repeat
     static constexpr index_t kWarpRepeatN_0 = kBlockN_0 / kSubBlockN_0;
     static constexpr index_t kWarpRepeatK_0 = kBlockK_0 / kSubBlockK_0;
 
@@ -93,9 +93,9 @@ struct FusedMoeTileShape
     static constexpr index_t kWarpM_1       = Gemm1WarpTile::at(number<0>{});
     static constexpr index_t kWarpN_1       = Gemm1WarpTile::at(number<1>{});
     static constexpr index_t kWarpK_1       = Gemm1WarpTile::at(number<2>{});
-    static constexpr index_t kBlockWarpsM_1 = Gemm1BlockWarps::at(numner<0>{});
-    static constexpr index_t kBlockWarpsN_1 = Gemm1BlockWarps::at(numner<1>{});
-    static constexpr index_t kBlockWarpsK_1 = Gemm1BlockWarps::at(numner<2>{});
+    static constexpr index_t kBlockWarpsM_1 = Gemm1BlockWarps::at(number<0>{});
+    static constexpr index_t kBlockWarpsN_1 = Gemm1BlockWarps::at(number<1>{});
+    static constexpr index_t kBlockWarpsK_1 = Gemm1BlockWarps::at(number<2>{});
     static constexpr index_t kSubBlockM_1   = kWarpM_1 * kBlockWarpsM_1;
     static constexpr index_t kSubBlockN_1   = kWarpN_1 * kBlockWarpsN_1;
     static constexpr index_t kSubBlockK_1   = kWarpK_1 * kBlockWarpsK_1;
