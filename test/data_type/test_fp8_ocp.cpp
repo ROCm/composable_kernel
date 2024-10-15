@@ -143,7 +143,6 @@ TEST(FP8OCP, ConvertFP16Nearest)
     ASSERT_NEAR(ck::NumericLimits<half_t>::Min(),
                 type_convert<half_t>(f8_convert_rne<f8_ocp_t>(ck::NumericLimits<half_t>::Min())),
                 half_t_tol);
-
     const auto max_f8_t_half_t = type_convert<half_t>(ck::NumericLimits<f8_ocp_t>::Max());
 
     // convert maximal f8_ocp_t to half_t and check if equal to fp8 max
