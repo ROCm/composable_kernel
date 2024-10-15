@@ -2,13 +2,13 @@
 #define GUARD_HOST_TEST_RTC_INCLUDE_RTC_TMP_DIR
 
 #include <string>
-#include <ck/filesystem.hpp>
+#include <rtc/filesystem.hpp>
 
 namespace rtc {
 
 struct tmp_dir
 {
-    CK::fs::path path;
+    fs::path path;
     tmp_dir(const std::string& prefix = "");
 
     void execute(const std::string& cmd) const;
