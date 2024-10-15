@@ -132,7 +132,11 @@ if(GPU_ARCHS)
     unset(GPU_TARGETS CACHE)
     unset(AMDGPU_TARGETS CACHE)
 endif()
-
+if(GPU_TARGETS)
+    set(USER_GPU_TARGETS 1)
+else()
+    set(USER_GPU_TARGETS 0)
+endif()
 find_package(hip)
 # No assumption that HIP kernels are launched with uniform block size for backward compatibility
 # SWDEV-413293 and https://reviews.llvm.org/D155213
@@ -162,7 +166,7 @@ endif()
 if(GPU_ARCHS)
     set(CK_GPU_TARGETS ${GPU_ARCHS})
 else()
-    if(GPU_TARGETS)
+    if(USER_GPU_TARGETS)
         set(CK_GPU_TARGETS ${GPU_TARGETS})
     endif()
 endif()
@@ -545,7 +549,7 @@ ENDFOREACH()
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 add_subdirectory(library)
 
-if(NOT GPU_ARCHS)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
