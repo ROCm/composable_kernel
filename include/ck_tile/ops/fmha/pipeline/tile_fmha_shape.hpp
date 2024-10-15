@@ -7,20 +7,6 @@
 
 namespace ck_tile {
 
-static CK_TILE_HOST_DEVICE constexpr index_t ceil_to_qualified_tile_length(index_t len)
-{
-    if(len == 96)
-        return 128;
-    if(len == 160)
-        return 256;
-
-    // only length of 96, 160 and power-of-two is supported
-    if(!(len & (len - 1)))
-        return len;
-
-    return 0;
-};
-
 template <typename BlockTile_, // sequence<...
           typename Gemm0BlockWarps_,
           typename Gemm0WarpTile_,
@@ -104,10 +90,6 @@ struct TileFmhaBwdShape
                                     // K/K^T at once
     static constexpr index_t kVHeaddim = BlockTile::at(number<8>{}); // V headdim, used for pipeline
                                                                      // that need load V at once
-
-    static constexpr index_t kDoDvHeaddim = ceil_to_qualified_tile_length(kVHeaddim);
-
-    static_assert(kDoDvHeaddim > 0, "Check failed!");
 };
 
 } // namespace ck_tile
