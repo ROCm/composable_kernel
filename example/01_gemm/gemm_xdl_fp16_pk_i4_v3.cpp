@@ -6,7 +6,7 @@
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3.hpp"
 
 using ADataType        = ck::half_t;
-using BDataType        = ck::f8_t;
+using BDataType        = ck::pk_i4_t;
 using AccDataType      = float;
 using CShuffleDataType = float;
 using CDataType        = ck::half_t;
@@ -27,28 +27,28 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType, BDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
-#if 1
+#if 0
         64,
         16, 16, 
-        256, 8, 16,
+        256, 8, 32,
         16,   16,
         1,    1, 
-        S<32, 2, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        S<32, 2, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 8, 8, 0,
-        S<16, 4, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 16, 16, 0,
+        S<8,  8, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
+        2, 32, 32, 0,
         1, 1, S<1, 16, 1, 4>, 4,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
+        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v2>;
 #else
         128,
         16, 32, 
-        128, 8, 16,
+        128, 8, 32,
         16,   16,
         1,    1, 
         S<16, 8, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 8, 8, 0,
-        S<8, 16, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
-        2, 16, 16, 0,
+        S<4, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
+        2, 32, 32, 0,
         1, 1, S<1, 16, 1, 8>, 4,
         ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
 #endif

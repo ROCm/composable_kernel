@@ -76,19 +76,28 @@ struct DynamicBuffer
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
+            constexpr index_t PackedSize = []() {
+                if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
+                    return 2;
+                else
+                    return 1;
+            }();
+
+            //static_assert(element_space_size_ % PackedSize == 0, "");
+
             if constexpr(InvalidElementUseNumericalZeroValue)
             {
                 return amd_buffer_load_invalid_element_return_zero<remove_cvref_t<T>,
                                                                    t_per_x,
                                                                    coherence>(
-                    p_data_, i, is_valid_element, element_space_size_);
+                    p_data_, i, is_valid_element, element_space_size_ / PackedSize);
             }
             else
             {
                 return amd_buffer_load_invalid_element_return_customized_value<remove_cvref_t<T>,
                                                                                t_per_x,
                                                                                coherence>(
-                    p_data_, i, is_valid_element, element_space_size_, invalid_element_value_);
+                    p_data_, i, is_valid_element, element_space_size_ / PackedSize, invalid_element_value_);
             }
         }
         else
