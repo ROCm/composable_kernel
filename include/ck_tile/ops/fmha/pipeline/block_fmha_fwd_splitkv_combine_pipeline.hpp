@@ -138,9 +138,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
         auto lse_accum = make_static_distributed_tensor<LSEDataType>(
             Policy::template MakeLSEaccRegTileDistribution<Problem>());
 
-        // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, max(kMaxSplits, warp_size)])
-        // this will extend the distributed tensor width so that each thread in wave have data to
-        // reduce.
+        // copy LDS (shape=[kM0, kMaxSplits]) to lse_accum (shape=[kM0, kMaxSplits])
+        // and fill up -INF values outside the [kM0, num_splits] region.
         {
             constexpr auto spans = decltype(lse_accum)::get_distributed_spans();
             sweep_tile_span(spans[number<0>{}], [&](auto idx0) {
