@@ -23,8 +23,8 @@ TEST(BF8OCP, NumericLimits)
               type_convert<bf8_ocp_t>(0x7D).data); // 0b01111101
     EXPECT_FALSE(ck::NumericLimits<bf8_ocp_t>::QuietNaN() ==
                  ck::NumericLimits<bf8_ocp_t>::QuietNaN());
-    EXPECT_TRUE(ck::internal::fp8_is_inf(type_convert<bf8_ocp_t>(0xFC)) &&
-                ck::internal::fp8_is_inf(type_convert<bf8_ocp_t>(0x7C)));
+    EXPECT_TRUE(ck::fp8_impl::fp8_is_inf(type_convert<bf8_ocp_t>(0xFC)) &&
+                ck::fp8_impl::fp8_is_inf(type_convert<bf8_ocp_t>(0x7C)));
 }
 
 TEST(BF8OCP, ConvertFP32Nearest)
@@ -79,7 +79,7 @@ TEST(BF8OCP, ConvertFP32Nearest)
 
     // convert quiet NaN to bf8_ocp_t and check if it is quiet NaN
     const auto bf8_nan = f8_convert_rne<bf8_ocp_t>(std::numeric_limits<float>::quiet_NaN());
-    ASSERT_TRUE(ck::internal::ocp_bf8_is_nan(bf8_nan.data));
+    ASSERT_TRUE(ck::fp8_impl::ocp_bf8_is_nan(bf8_nan.data));
 }
 
 TEST(BF8OCP, ConvertFP32Stochastic)
@@ -136,7 +136,7 @@ TEST(BF8OCP, ConvertFP32Stochastic)
 
     // convert quiet NaN to bf8_ocp_t and check if it is quiet NaN
     const auto bf8_nan = f8_convert_sr<bf8_ocp_t>(std::numeric_limits<float>::quiet_NaN());
-    ASSERT_TRUE(ck::internal::ocp_bf8_is_nan(bf8_nan.data));
+    ASSERT_TRUE(ck::fp8_impl::ocp_bf8_is_nan(bf8_nan.data));
 }
 
 TEST(BF8OCP, ConvertFP16Nearest)
@@ -199,7 +199,7 @@ TEST(BF8OCP, ConvertFP16Nearest)
 
     // convert quiet NaN to bf8_ocp_t and check if it is quiet NaN
     const auto bf8_nan = f8_convert_rne<bf8_ocp_t>(ck::NumericLimits<half_t>::QuietNaN());
-    ASSERT_TRUE(ck::internal::ocp_bf8_is_nan(bf8_nan.data));
+    ASSERT_TRUE(ck::fp8_impl::ocp_bf8_is_nan(bf8_nan.data));
 }
 
 TEST(BF8OCP, ConvertFP16Stochastic)
@@ -264,5 +264,5 @@ TEST(BF8OCP, ConvertFP16Stochastic)
 
     // convert quiet NaN to bf8_ocp_t and check if it is quiet NaN
     const auto bf8_nan = f8_convert_sr<bf8_ocp_t>(ck::NumericLimits<half_t>::QuietNaN());
-    ASSERT_TRUE(ck::internal::ocp_bf8_is_nan(bf8_nan.data));
+    ASSERT_TRUE(ck::fp8_impl::ocp_bf8_is_nan(bf8_nan.data));
 }

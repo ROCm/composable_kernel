@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck/ck.hpp"
+
 namespace ck {
 
 // Pseudo random number generator

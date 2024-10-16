@@ -184,7 +184,7 @@ TEST(FP8OCP, ConvertFP16Nearest)
 
     // convert quiet NaN to f8_ocp_t and check if it is quiet NaN
     auto f8_nan = f8_convert_rne<f8_ocp_t>(ck::NumericLimits<half_t>::QuietNaN());
-    ASSERT_TRUE(ck::internal::ocp_f8_is_nan(f8_nan.data));
+    ASSERT_TRUE(ck::fp8_impl::ocp_f8_is_nan(f8_nan.data));
 }
 
 TEST(FP8OCP, ConvertFP16Stochastic)
@@ -246,5 +246,5 @@ TEST(FP8OCP, ConvertFP16Stochastic)
 
     // convert quiet NaN to f8_ocp_t and check if it is quiet NaN
     auto f8_nan = f8_convert_sr<f8_ocp_t>(ck::NumericLimits<half_t>::QuietNaN());
-    ASSERT_TRUE(ck::internal::ocp_f8_is_nan(f8_nan.data));
+    ASSERT_TRUE(ck::fp8_impl::ocp_f8_is_nan(f8_nan.data));
 }
