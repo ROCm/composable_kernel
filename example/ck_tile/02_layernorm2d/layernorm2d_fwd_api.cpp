@@ -112,6 +112,7 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
             }
         }
     }
+#ifdef CK_TILE_LAYERNORM2D_FWD_FP32_DEFAULT
     else if(t.data_type.compare("fp32") == 0)
     {
         if(a.N % 4 == 0)
@@ -181,6 +182,10 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
             }
         }
     }
+#endif
+
+    if (r < 0)
+        throw std::runtime_error("Without supported instances!");
 
     return r;
 }

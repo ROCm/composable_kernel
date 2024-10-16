@@ -9,7 +9,7 @@ auto create_args(int argc, char* argv[])
         .insert("n", "4096", "m dimension")
         .insert("e", "1e-5", "epsilon")
         .insert("v", "1", "cpu validation or not")
-        .insert("prec", "fp32", "precision")
+        .insert("prec", "fp16", "precision")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter");
 
