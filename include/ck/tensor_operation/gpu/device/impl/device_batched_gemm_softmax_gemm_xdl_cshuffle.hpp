@@ -708,6 +708,13 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return false;
         }
 
+        // Note: we need raw lengths since threadwise copy can not handle vector load when part of
+        // vector is out of bounds
+        const auto MRaw      = arg.raw_lengths_m_n_k_o_[0];
+        const auto NRaw      = arg.raw_lengths_m_n_k_o_[1];
+        const auto KRaw      = arg.raw_lengths_m_n_k_o_[2];
+        const auto Gemm1NRaw = arg.raw_lengths_m_n_k_o_[3];
+
         return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                            arg.b_grid_desc_bk0_n_bk1_,
                                            arg.b1_grid_desc_bk0_n_bk1_,
