@@ -1,0 +1,81 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "linux-debug",
+            "displayName": "Linux Debug",
+            "hidden": true,
+            "generator": "Unix Makefiles",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "installDir": "${sourceDir}/build/install/${presetName}",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "GPU_TARGETS": "gfx950",
+                "BUILD_DEV": "ON",
+                "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
+                "CMAKE_PREFIX_PATH": "/opt/rocm"
+
+            },
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Linux"
+            }
+        },
+        {
+            "name": "MI355-debug",
+            "displayName": "MI355 Debug",
+            "inherits": "linux-debug",
+            "description": "Development Environment for MI355.",
+            "environment": {
+                "NONE": ""
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-O0 -ggdb"
+            }
+        },
+        {
+            "name": "MI355-release",
+            "displayName": "MI355 Release",
+            "inherits": "MI355-debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS": "-O3"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "Debug",
+            "hidden": true,
+            "configuration": "Debug"
+        },
+        {
+            "name": "Release",
+            "hidden": true,
+            "configuration": "Release"
+        },
+        {
+            "name": "MI355-debug",
+            "displayName": "MI355",
+            "configurePreset": "MI355-debug",
+            "description": "Build Environment for MI355 Debug.",
+            "inherits": [
+                "Debug"
+            ],
+            "jobs": 128
+        },
+        {
+            "name": "MI355-release",
+            "displayName": "MI355",
+            "configurePreset": "MI355-release",
+            "description": "Build Environment for MI355 Release.",
+            "inherits": [
+                "Release"
+            ],
+            "jobs": 128
+        }
+    ]
+}
